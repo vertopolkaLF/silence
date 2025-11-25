@@ -22,11 +22,20 @@
         
         <!-- Custom Title Bar -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
-            <TextBlock Text="silence!" 
-                       VerticalAlignment="Center" 
-                       Margin="16,0,0,0"
-                       FontSize="12"
-                       Opacity="0.8"/>
+            <StackPanel Orientation="Horizontal" 
+                        VerticalAlignment="Center" 
+                        Margin="12,0,0,0"
+                        Spacing="8">
+                <Image x:Name="AppIcon" 
+                       Source="Assets/app.png" 
+                       Width="16" 
+                       Height="16"
+                       VerticalAlignment="Center"/>
+                <TextBlock Text="silence!" 
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Opacity="0.8"/>
+            </StackPanel>
         </Grid>
         
         <!-- Main Content -->
@@ -63,14 +72,46 @@
                                   VerticalAlignment="Center"/>
                     </Border>
                 
-                    <TextBlock x:Name="MuteStatusText" 
-                               Grid.Column="1"
-                               Text="Microphone ON" 
-                               FontSize="18" 
-                               FontWeight="SemiBold"
-                               Foreground="White"
-                               VerticalAlignment="Center"
-                               Margin="16,0,0,0"/>
+                    <StackPanel Grid.Column="1" 
+                                Orientation="Horizontal" 
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0"
+                                Spacing="4">
+                        <TextBlock Text="Microphone is" 
+                                   FontSize="18" 
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   VerticalAlignment="Center"/>
+                        <!-- Animated text container with clipping -->
+                        <Grid Height="26" VerticalAlignment="Center">
+                            <Grid.Clip>
+                                <RectangleGeometry Rect="0,0,200,26"/>
+                            </Grid.Clip>
+                            <TextBlock x:Name="MuteStatusText" 
+                                       Text="unmuted" 
+                                       FontSize="18" 
+                                       FontWeight="SemiBold"
+                                       Foreground="White"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Left">
+                                <TextBlock.RenderTransform>
+                                    <CompositeTransform x:Name="MuteStatusTransform"/>
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                            <TextBlock x:Name="MuteStatusTextAlt" 
+                                       Text="muted" 
+                                       FontSize="18" 
+                                       FontWeight="SemiBold"
+                                       Foreground="White"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Left"
+                                       Opacity="0">
+                                <TextBlock.RenderTransform>
+                                    <CompositeTransform x:Name="MuteStatusTransformAlt" TranslateY="30"/>
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                        </Grid>
+                    </StackPanel>
                 </Grid>
 
                 <!-- Microphone Selection -->

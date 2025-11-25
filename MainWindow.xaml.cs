@@ -4,6 +4,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Silence_.Services;
 using System;
 using System.Drawing;
@@ -32,6 +33,9 @@ namespace Silence_
         private static readonly Windows.UI.Color MutedHoverColor = Windows.UI.Color.FromArgb(255, 160, 40, 50); // Darker red
         private static readonly Windows.UI.Color UnmutedColor = Windows.UI.Color.FromArgb(255, 40, 167, 69);    // #28A745
         private static readonly Windows.UI.Color UnmutedHoverColor = Windows.UI.Color.FromArgb(255, 30, 130, 55); // Darker green
+
+        // Animation duration for hover
+        private static readonly TimeSpan AnimationDuration = TimeSpan.FromMilliseconds(200);
 
         public bool StartMinimized { get; set; }
 
@@ -64,6 +68,7 @@ namespace Silence_
             UpdateMuteState(App.Instance?.MicrophoneService.IsMuted() ?? false);
             this.Activated += MainWindow_Activated;
         }
+
 
         private bool _firstActivation = true;
         private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
@@ -110,6 +115,9 @@ namespace Silence_
                 }
 
                 _appWindow.Title = "silence!";
+                
+                // Set window icon
+                SetWindowIcon();
             }
 
             // Calculate max height after content is loaded
@@ -119,6 +127,46 @@ namespace Silence_
                 {
                     CalculateMaxWindowHeight();
                 };
+            }
+        }
+
+        private void SetWindowIcon()
+        {
+            if (_appWindow == null) return;
+
+            try
+            {
+                var baseDir = AppContext.BaseDirectory;
+                System.Diagnostics.Debug.WriteLine($"Base directory: {baseDir}");
+
+                // Load .ico file for title bar (AppWindow.SetIcon supports .ico)
+                var iconPath = System.IO.Path.Combine(baseDir, "Assets", "app.ico");
+                System.Diagnostics.Debug.WriteLine($"Looking for icon at: {iconPath}");
+                
+                if (System.IO.File.Exists(iconPath))
+                {
+                    System.Diagnostics.Debug.WriteLine("Found app.ico, setting icon");
+                    _appWindow.SetIcon(iconPath);
+                    return;
+                }
+
+                // Fallback to PNG if .ico not found
+                iconPath = System.IO.Path.Combine(baseDir, "Assets", "app.png");
+                System.Diagnostics.Debug.WriteLine($"app.ico not found, trying: {iconPath}");
+                
+                if (System.IO.File.Exists(iconPath))
+                {
+                    System.Diagnostics.Debug.WriteLine("Found app.png, setting icon");
+                    _appWindow.SetIcon(iconPath);
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine("No icon files found!");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to set window icon: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             }
         }
 
@@ -249,16 +297,158 @@ namespace Silence_
             MicrophoneComboBox.SelectedIndex = selectedIndex;
         }
 
+        private bool _isFirstMuteUpdate = true;
+        
         public void UpdateMuteState(bool isMuted)
         {
+            var stateChanged = _isMuted != isMuted;
             _isMuted = isMuted;
             
             DispatcherQueue.TryEnqueue(() =>
             {
-                MuteStatusText.Text = isMuted ? "Microphone MUTED" : "Microphone ON";
+                if (_isFirstMuteUpdate)
+                {
+                    // No animation on first load, just set the state
+                    _isFirstMuteUpdate = false;
+                    MuteStatusText.Text = isMuted ? "muted" : "unmuted";
+                    MuteStatusTextAlt.Text = isMuted ? "unmuted" : "muted";
+                    MuteStatusText.Opacity = 1;
+                    MuteStatusTextAlt.Opacity = 0;
+                    MuteStatusTransform.TranslateY = 0;
+                    MuteStatusTransformAlt.TranslateY = isMuted ? -30 : 30;
+                }
+                else if (stateChanged)
+                {
+                    AnimateMuteText(isMuted);
+                }
                 UpdateButtonColor();
                 UpdateTrayIcon(isMuted);
             });
+        }
+
+        private void AnimateMuteText(bool isMuted)
+        {
+            var storyboard = new Storyboard();
+            var duration = TimeSpan.FromMilliseconds(280);
+            var easing = new QuadraticEase { EasingMode = EasingMode.EaseInOut };
+
+            // Direction: muted slides UP (disappears up), unmuted slides DOWN (appears from below)
+            // When muting: current text goes UP and fades, new "muted" comes from BELOW
+            // When unmuting: current text goes DOWN and fades, new "unmuted" comes from ABOVE
+            double outDirection = isMuted ? -30 : 30;  // Current text exit direction
+            double inStartPos = isMuted ? 30 : -30;    // New text start position
+
+            // Setup new text position and content
+            MuteStatusTextAlt.Text = isMuted ? "muted" : "unmuted";
+            MuteStatusTransformAlt.TranslateY = inStartPos;
+            MuteStatusTransformAlt.ScaleX = 0.8;
+            MuteStatusTransformAlt.ScaleY = 0.8;
+            
+            // === OUTGOING TEXT (MuteStatusText) ===
+            
+            // Slide out
+            var slideOut = new DoubleAnimation
+            {
+                To = outDirection,
+                Duration = new Duration(duration),
+                EasingFunction = easing
+            };
+            Storyboard.SetTarget(slideOut, MuteStatusTransform);
+            Storyboard.SetTargetProperty(slideOut, "TranslateY");
+            storyboard.Children.Add(slideOut);
+
+            // Fade out
+            var fadeOut = new DoubleAnimation
+            {
+                To = 0,
+                Duration = new Duration(duration),
+                EasingFunction = easing
+            };
+            Storyboard.SetTarget(fadeOut, MuteStatusText);
+            Storyboard.SetTargetProperty(fadeOut, "Opacity");
+            storyboard.Children.Add(fadeOut);
+
+            // Scale down (blur simulation - elements appear blurry when scaled)
+            var scaleOutX = new DoubleAnimation
+            {
+                To = 0.8,
+                Duration = new Duration(duration),
+                EasingFunction = easing
+            };
+            Storyboard.SetTarget(scaleOutX, MuteStatusTransform);
+            Storyboard.SetTargetProperty(scaleOutX, "ScaleX");
+            storyboard.Children.Add(scaleOutX);
+
+            var scaleOutY = new DoubleAnimation
+            {
+                To = 0.8,
+                Duration = new Duration(duration),
+                EasingFunction = easing
+            };
+            Storyboard.SetTarget(scaleOutY, MuteStatusTransform);
+            Storyboard.SetTargetProperty(scaleOutY, "ScaleY");
+            storyboard.Children.Add(scaleOutY);
+
+            // === INCOMING TEXT (MuteStatusTextAlt) ===
+            
+            // Slide in
+            var slideIn = new DoubleAnimation
+            {
+                To = 0,
+                Duration = new Duration(duration),
+                EasingFunction = easing
+            };
+            Storyboard.SetTarget(slideIn, MuteStatusTransformAlt);
+            Storyboard.SetTargetProperty(slideIn, "TranslateY");
+            storyboard.Children.Add(slideIn);
+
+            // Fade in
+            var fadeIn = new DoubleAnimation
+            {
+                To = 1,
+                Duration = new Duration(duration),
+                EasingFunction = easing
+            };
+            Storyboard.SetTarget(fadeIn, MuteStatusTextAlt);
+            Storyboard.SetTargetProperty(fadeIn, "Opacity");
+            storyboard.Children.Add(fadeIn);
+
+            // Scale up (blur simulation)
+            var scaleInX = new DoubleAnimation
+            {
+                To = 1,
+                Duration = new Duration(duration),
+                EasingFunction = easing
+            };
+            Storyboard.SetTarget(scaleInX, MuteStatusTransformAlt);
+            Storyboard.SetTargetProperty(scaleInX, "ScaleX");
+            storyboard.Children.Add(scaleInX);
+
+            var scaleInY = new DoubleAnimation
+            {
+                To = 1,
+                Duration = new Duration(duration),
+                EasingFunction = easing
+            };
+            Storyboard.SetTarget(scaleInY, MuteStatusTransformAlt);
+            Storyboard.SetTargetProperty(scaleInY, "ScaleY");
+            storyboard.Children.Add(scaleInY);
+
+            // When animation completes, swap the texts
+            storyboard.Completed += (s, e) =>
+            {
+                // Swap: make MuteStatusText the active one again
+                MuteStatusText.Text = isMuted ? "muted" : "unmuted";
+                MuteStatusText.Opacity = 1;
+                MuteStatusTransform.TranslateY = 0;
+                MuteStatusTransform.ScaleX = 1;
+                MuteStatusTransform.ScaleY = 1;
+                
+                MuteStatusTextAlt.Opacity = 0;
+                MuteStatusTransformAlt.TranslateY = isMuted ? -30 : 30;
+            };
+
+            storyboard.Begin();
         }
 
         private void UpdateButtonColor()
@@ -267,7 +457,32 @@ namespace Silence_
                 ? (_isHovering ? MutedHoverColor : MutedColor)
                 : (_isHovering ? UnmutedHoverColor : UnmutedColor);
             
-            MuteButton.Background = new SolidColorBrush(color);
+            AnimateButtonColor(color);
+        }
+
+        private void AnimateButtonColor(Windows.UI.Color targetColor)
+        {
+            // Ensure brush exists for animation
+            var currentBrush = MuteButton.Background as SolidColorBrush;
+            if (currentBrush == null)
+            {
+                MuteButton.Background = new SolidColorBrush(targetColor);
+                return;
+            }
+
+            // Smooth color transition with Storyboard
+            var storyboard = new Storyboard();
+            var animation = new ColorAnimation
+            {
+                To = targetColor,
+                Duration = new Duration(AnimationDuration),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            Storyboard.SetTarget(animation, MuteButton);
+            Storyboard.SetTargetProperty(animation, "(Border.Background).(SolidColorBrush.Color)");
+            storyboard.Children.Add(animation);
+            storyboard.Begin();
         }
 
         private void MuteButton_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
