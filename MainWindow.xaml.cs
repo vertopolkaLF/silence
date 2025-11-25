@@ -45,6 +45,42 @@ namespace Silence_
             
             // Set custom title bar element
             SetTitleBar(AppTitleBar);
+            
+        }
+
+        private void UpdateTitleBarColors()
+        {
+            if (_appWindow?.TitleBar == null) return;
+            
+            var titleBar = _appWindow.TitleBar;
+            
+            // Check current theme
+            var isDarkTheme = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Dark;
+            
+            if (isDarkTheme)
+            {
+                // Dark theme - light buttons
+                titleBar.ButtonForegroundColor = Colors.White;
+                titleBar.ButtonHoverForegroundColor = Colors.White;
+                titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(30, 255, 255, 255);
+                titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(50, 255, 255, 255);
+                titleBar.ButtonPressedForegroundColor = Colors.White;
+                titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
+            }
+            else
+            {
+                // Light theme - dark buttons
+                titleBar.ButtonForegroundColor = Colors.Black;
+                titleBar.ButtonHoverForegroundColor = Colors.Black;
+                titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(30, 0, 0, 0);
+                titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(50, 0, 0, 0);
+                titleBar.ButtonPressedForegroundColor = Colors.Black;
+                titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 0, 0, 0);
+            }
+            
+            // Transparent background for all states
+            titleBar.ButtonBackgroundColor = Colors.Transparent;
+            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
         }
 
         private void SetupBackdrop()
@@ -75,6 +111,15 @@ namespace Silence_
             SetupWindow();
             SetupTrayIcon();
             LoadSettings();
+            
+            // Configure title bar caption button colors
+            UpdateTitleBarColors();
+            
+            // Listen for theme changes
+            if (Content is FrameworkElement rootElement)
+            {
+                rootElement.ActualThemeChanged += (s, e) => UpdateTitleBarColors();
+            }
             
             // Subscribe to hotkey recording events
             if (App.Instance?.KeyboardHookService != null)
