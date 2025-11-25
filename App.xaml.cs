@@ -52,14 +52,12 @@ namespace Silence_
             
             var shouldStartMinimized = _startMinimized || _settingsService!.Settings.StartMinimized;
             
-            if (shouldStartMinimized)
+            // Only activate window if NOT starting minimized
+            // Tray icon is set up in MainWindow constructor, so it works without activation
+            if (!shouldStartMinimized)
             {
-                _window.StartMinimized = true;
-                // Hide window BEFORE activation to prevent flash
-                _window.HideBeforeActivation();
+                _window.Activate();
             }
-            
-            _window.Activate();
         }
 
         private void OnHotkeyPressed()

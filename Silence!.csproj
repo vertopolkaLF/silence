@@ -16,6 +16,7 @@
     <!-- Unpackaged deployment - no MSIX bullshit -->
     <EnableMsixTooling>false</EnableMsixTooling>
     <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     
     <!-- Reduce package size -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

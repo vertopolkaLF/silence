@@ -1,5 +1,6 @@
 using H.NotifyIcon;
 using Microsoft.UI;
+using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -37,8 +38,6 @@ namespace Silence_
         // Animation duration for hover
         private static readonly TimeSpan AnimationDuration = TimeSpan.FromMilliseconds(200);
 
-        public bool StartMinimized { get; set; }
-
         private void SetupTitleBar()
         {
             // Extend content into title bar
@@ -48,11 +47,31 @@ namespace Silence_
             SetTitleBar(AppTitleBar);
         }
 
+        private void SetupBackdrop()
+        {
+            // Check if running on Windows 11 (build 22000+)
+            var version = Environment.OSVersion.Version;
+            bool isWin11 = version.Build >= 22000;
+
+            if (isWin11 && MicaController.IsSupported())
+            {
+                // Windows 11 - use Mica
+                SystemBackdrop = new MicaBackdrop();
+            }
+            else if (DesktopAcrylicController.IsSupported())
+            {
+                // Windows 10 - use Acrylic as fallback
+                SystemBackdrop = new DesktopAcrylicBackdrop();
+            }
+            // else - no backdrop, default solid background
+        }
+
         public MainWindow()
         {
             InitializeComponent();
             
             SetupTitleBar();
+            SetupBackdrop();
             SetupWindow();
             SetupTrayIcon();
             LoadSettings();
@@ -66,31 +85,6 @@ namespace Silence_
 
             this.Closed += MainWindow_Closed;
             UpdateMuteState(App.Instance?.MicrophoneService.IsMuted() ?? false);
-            this.Activated += MainWindow_Activated;
-        }
-
-
-        private bool _firstActivation = true;
-        private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
-        {
-            if (_firstActivation)
-            {
-                _firstActivation = false;
-                if (StartMinimized)
-                {
-                    // Already hidden in HideBeforeActivation, just ensure it stays hidden
-                    HideToTray();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Hide window before activation to prevent flash
-        /// </summary>
-        public void HideBeforeActivation()
-        {
-            var hwnd = WindowNative.GetWindowHandle(this);
-            ShowWindow(hwnd, SW_HIDE);
         }
 
         private void SetupWindow()
@@ -610,11 +604,6 @@ namespace Silence_
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-        [DllImport("user32.dll")]
-        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        
-        private const int SW_HIDE = 0;
 
         #region Event Handlers
 
