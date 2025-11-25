@@ -1,10 +1,7 @@
 {
   "profiles": {
-    "silence! (Unpackaged)": {
+    "silence!": {
       "commandName": "Project"
-    },
-    "silence! (Packaged)": {
-      "commandName": "MsixPackage"
     }
   }
 }
