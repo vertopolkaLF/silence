@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Silence_.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Silence_"
+    xmlns:tb="using:H.NotifyIcon"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Silence!">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel Spacing="24">
+            
+            <!-- Compact header with mute status -->
+            <Grid Height="60">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                
+                <Button x:Name="MuteButton" 
+                        Grid.Column="0"
+                        Click="MuteButton_Click"
+                        Width="50" Height="50"
+                        CornerRadius="25"
+                        VerticalAlignment="Center">
+                    <FontIcon x:Name="MuteIcon" 
+                              FontFamily="Segoe Fluent Icons" 
+                              Glyph="&#xE720;" 
+                              FontSize="24"/>
+                </Button>
+                
+                <TextBlock x:Name="MuteStatusText" 
+                           Grid.Column="1"
+                           Text="Microphone ON" 
+                           FontSize="18" 
+                           FontWeight="SemiBold"
+                           Foreground="White"
+                           VerticalAlignment="Center"
+                           Margin="16,0,0,0"/>
+            </Grid>
+
+            <!-- Microphone Selection -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Microphone" FontWeight="SemiBold" FontSize="14"/>
+                <ComboBox x:Name="MicrophoneComboBox"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="MicrophoneComboBox_SelectionChanged"
+                          PlaceholderText="Select microphone..."/>
+            </StackPanel>
+
+            <!-- Hotkey Configuration -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Hotkey" FontWeight="SemiBold" FontSize="14"/>
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="HotkeyTextBox" 
+                             Grid.Column="0"
+                             IsReadOnly="True"
+                             PlaceholderText="Press a key..."
+                             Text="F21"/>
+                    <Button x:Name="RecordHotkeyButton" 
+                            Grid.Column="1"
+                            Content="Record"
+                            Click="RecordHotkeyButton_Click"/>
+                </Grid>
+                <CheckBox x:Name="IgnoreModifiersCheckBox"
+                          Content="Ignore modifiers (Shift, Ctrl, Alt, Win)"
+                          IsChecked="True"
+                          Checked="IgnoreModifiersCheckBox_Changed"
+                          Unchecked="IgnoreModifiersCheckBox_Changed"/>
+            </StackPanel>
+
+            <!-- Startup Options -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Startup" FontWeight="SemiBold" FontSize="14"/>
+                <CheckBox x:Name="AutoStartCheckBox"
+                          Content="Start with Windows"
+                          Checked="AutoStartCheckBox_Changed"
+                          Unchecked="AutoStartCheckBox_Changed"/>
+                <CheckBox x:Name="StartMinimizedCheckBox"
+                          Content="Start minimized to tray"
+                          IsChecked="True"
+                          Checked="StartMinimizedCheckBox_Changed"
+                          Unchecked="StartMinimizedCheckBox_Changed"/>
+            </StackPanel>
+
+            <!-- Info -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Tips:" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock Text="• Click the microphone button or press hotkey to toggle mute" 
+                           FontSize="12" Opacity="0.7"/>
+                <TextBlock Text="• Close the window to minimize to tray" 
+                           FontSize="12" Opacity="0.7"/>
+                <TextBlock Text="• Right-click tray icon for menu, left-click to toggle mute" 
+                           FontSize="12" Opacity="0.7"/>
+            </StackPanel>
+
+            <!-- Bottom buttons -->
+            <StackPanel Orientation="Horizontal" 
+                        HorizontalAlignment="Right"
+                        Spacing="12"
+                        Margin="0,16,0,0">
+                <Button Content="Hide to Tray" 
+                        Click="HideButton_Click"/>
+                <Button Content="Exit" 
+                        Click="ExitButton_Click"
+                        Style="{ThemeResource AccentButtonStyle}"/>
+            </StackPanel>
+            
+        </StackPanel>
+    </ScrollViewer>
+</Window>
