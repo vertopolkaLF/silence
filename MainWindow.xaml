@@ -135,7 +135,7 @@
                                  Grid.Column="0"
                                  IsReadOnly="True"
                                  PlaceholderText="Press a key..."
-                                 Text="F21"/>
+                                 Text="Ctrl + Alt + M"/>
                         <Button x:Name="RecordHotkeyButton" 
                                 Grid.Column="1"
                                 Content="Record"
@@ -143,7 +143,7 @@
                     </Grid>
                     <CheckBox x:Name="IgnoreModifiersCheckBox"
                               Content="Ignore modifiers (Shift, Ctrl, Alt, Win)"
-                              IsChecked="True"
+                              IsChecked="False"
                               Checked="IgnoreModifiersCheckBox_Changed"
                               Unchecked="IgnoreModifiersCheckBox_Changed"/>
                 </StackPanel>
@@ -157,7 +157,7 @@
                               Unchecked="AutoStartCheckBox_Changed"/>
                     <CheckBox x:Name="StartMinimizedCheckBox"
                               Content="Start minimized to tray"
-                              IsChecked="True"
+                              IsChecked="False"
                               Checked="StartMinimizedCheckBox_Changed"
                               Unchecked="StartMinimizedCheckBox_Changed"/>
                 </StackPanel>

@@ -135,10 +135,10 @@ public class SettingsService
 
 public class AppSettings
 {
-    public int HotkeyCode { get; set; } = VirtualKeys.F21;
-    public ModifierKeys HotkeyModifiers { get; set; } = ModifierKeys.None;
-    public bool IgnoreModifiers { get; set; } = true;
+    public int HotkeyCode { get; set; } = 0x4D; // 'M' key
+    public ModifierKeys HotkeyModifiers { get; set; } = ModifierKeys.Ctrl | ModifierKeys.Alt;
+    public bool IgnoreModifiers { get; set; } = false; // Don't ignore modifiers for Ctrl+Alt+M
     public string? SelectedMicrophoneId { get; set; }
     public bool AutoStartEnabled { get; set; } = false;
-    public bool StartMinimized { get; set; } = true;
+    public bool StartMinimized { get; set; } = false; // Show settings window on first launch
 }
