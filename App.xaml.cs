@@ -19,6 +19,9 @@ namespace silence_
         public SettingsService SettingsService => _settingsService!;
         public MainWindow? MainWindowInstance => _window;
 
+        // Event for mute state changes
+        public event Action<bool>? MuteStateChanged;
+
         public App()
         {
             Instance = this;
@@ -63,7 +66,7 @@ namespace silence_
         private void OnHotkeyPressed()
         {
             var isMuted = _microphoneService?.ToggleMute() ?? false;
-            _window?.UpdateMuteState(isMuted);
+            MuteStateChanged?.Invoke(isMuted);
         }
 
         public void ToggleMute()
@@ -71,10 +74,16 @@ namespace silence_
             OnHotkeyPressed();
         }
 
+        public void HideMainWindow()
+        {
+            _window?.HideToTray();
+        }
+
         public void ExitApplication()
         {
             _keyboardHookService?.Dispose();
             _microphoneService?.Dispose();
+            _window?.DisposeTrayIcon();
             _window?.Close();
             Environment.Exit(0);
         }

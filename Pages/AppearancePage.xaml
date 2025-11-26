@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="silence_.Pages.AppearancePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" 
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="24" Margin="24,24,24,24">
+            <TextBlock Text="Appearance" FontSize="24" FontWeight="SemiBold"/>
+            
+            <!-- Theme Selection -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="Theme" FontWeight="SemiBold" FontSize="14"/>
+                <RadioButtons x:Name="ThemeSelector" SelectionChanged="ThemeSelector_SelectionChanged">
+                    <RadioButton Content="Use system setting" Tag="Default" IsChecked="True"/>
+                    <RadioButton Content="Light" Tag="Light"/>
+                    <RadioButton Content="Dark" Tag="Dark"/>
+                </RadioButtons>
+            </StackPanel>
+            
+            <!-- Accent Color -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="Accent Color" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock Text="Uses Windows accent color" 
+                           Opacity="0.6" 
+                           FontSize="12"/>
+            </StackPanel>
+            
+            <!-- Tray Icon Style -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="Tray Icon" FontWeight="SemiBold" FontSize="14"/>
+                <CheckBox x:Name="ColoredTrayIconCheckBox"
+                          Content="Use colored tray icon"
+                          IsChecked="True"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
+

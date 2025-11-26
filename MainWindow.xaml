@@ -10,7 +10,7 @@
     mc:Ignorable="d"
     Title="silence!">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="32"/>
             <RowDefinition Height="*"/>
@@ -20,7 +20,7 @@
         <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
             <StackPanel Orientation="Horizontal" 
                         VerticalAlignment="Center" 
-                        Margin="12,0,0,0"
+                        Margin="16,0,0,0"
                         Spacing="8">
                 <Image x:Name="AppIcon" 
                        Source="Assets/app.png" 
@@ -34,139 +34,71 @@
             </StackPanel>
         </Grid>
         
-        <!-- Main Content -->
-        <ScrollViewer x:Name="ContentScrollViewer" Grid.Row="1" 
-                      VerticalScrollBarVisibility="Disabled" 
-                      HorizontalScrollBarVisibility="Disabled"
-                      SizeChanged="ContentScrollViewer_SizeChanged">
-            <StackPanel x:Name="ContentPanel" Spacing="20" Margin="24,24,24,24">
+        <!-- NavigationView -->
+        <NavigationView x:Name="NavView"
+                        Grid.Row="1"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        PaneDisplayMode="Left"
+                        OpenPaneLength="200"
+                        IsPaneToggleButtonVisible="True"
+                        Background="Transparent"
+                        PaneOpening="NavView_PaneOpening"
+                        PaneClosing="NavView_PaneClosing"
+                        SelectionChanged="NavView_SelectionChanged">
             
-                <!-- Compact header with mute status -->
-                <Grid Height="50">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+            <NavigationView.Resources>
+                <!-- Make NavigationView pane transparent for Mica -->
+                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent"/>
+                <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent"/>
                 
-                    <Border x:Name="MuteButton" 
-                            Grid.Column="0"
-                            Tapped="MuteButton_Click"
-                            PointerEntered="MuteButton_PointerEntered"
-                            PointerExited="MuteButton_PointerExited"
-                            PointerPressed="MuteButton_PointerPressed"
-                            PointerReleased="MuteButton_PointerReleased"
-                            Width="50" Height="50"
-                            CornerRadius="25"
-                            VerticalAlignment="Center"
-                            Background="#28A745">
-                        <FontIcon x:Name="MuteIcon" 
-                                  FontFamily="{ThemeResource SymbolThemeFontFamily}" 
-                                  Glyph="&#xE720;" 
-                                  FontSize="24"
-                                  Foreground="White"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"/>
-                    </Border>
-                
-                    <StackPanel Grid.Column="1" 
-                                Orientation="Horizontal" 
-                                VerticalAlignment="Center"
-                                Margin="16,0,0,0"
-                                Spacing="4">
-                        <TextBlock Text="Microphone is" 
-                                   FontSize="18" 
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
-                        <!-- Animated text container with clipping -->
-                        <Grid Height="26" VerticalAlignment="Center">
-                            <Grid.Clip>
-                                <RectangleGeometry Rect="0,0,200,26"/>
-                            </Grid.Clip>
-                            <TextBlock x:Name="MuteStatusText" 
-                                       Text="unmuted" 
-                                       FontSize="18" 
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Left">
-                                <TextBlock.RenderTransform>
-                                    <CompositeTransform x:Name="MuteStatusTransform"/>
-                                </TextBlock.RenderTransform>
-                            </TextBlock>
-                            <TextBlock x:Name="MuteStatusTextAlt" 
-                                       Text="muted" 
-                                       FontSize="18" 
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Left"
-                                       Opacity="0">
-                                <TextBlock.RenderTransform>
-                                    <CompositeTransform x:Name="MuteStatusTransformAlt" TranslateY="30"/>
-                                </TextBlock.RenderTransform>
-                            </TextBlock>
-                        </Grid>
-                    </StackPanel>
-                </Grid>
-
-                <!-- Microphone Selection -->
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Microphone" FontWeight="SemiBold" FontSize="14"/>
-                    <ComboBox x:Name="MicrophoneComboBox"
-                              HorizontalAlignment="Stretch"
-                              SelectionChanged="MicrophoneComboBox_SelectionChanged"
-                              PlaceholderText="Select microphone..."/>
-                </StackPanel>
-
-                <!-- Hotkey Configuration -->
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Hotkey" FontWeight="SemiBold" FontSize="14"/>
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="HotkeyTextBox" 
-                                 Grid.Column="0"
-                                 IsReadOnly="True"
-                                 PlaceholderText="Press a key..."
-                                 Text="Ctrl + Alt + M"/>
-                        <Button x:Name="RecordHotkeyButton" 
-                                Grid.Column="1"
-                                Content="Record"
-                                Click="RecordHotkeyButton_Click"/>
-                    </Grid>
-                    <CheckBox x:Name="IgnoreModifiersCheckBox"
-                              Content="Ignore modifiers (Shift, Ctrl, Alt, Win)"
-                              IsChecked="False"
-                              Checked="IgnoreModifiersCheckBox_Changed"
-                              Unchecked="IgnoreModifiersCheckBox_Changed"/>
-                </StackPanel>
-
-                <!-- Startup Options -->
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Startup" FontWeight="SemiBold" FontSize="14"/>
-                    <CheckBox x:Name="AutoStartCheckBox"
-                              Content="Start with Windows"
-                              Checked="AutoStartCheckBox_Changed"
-                              Unchecked="AutoStartCheckBox_Changed"/>
-                    <CheckBox x:Name="StartMinimizedCheckBox"
-                              Content="Start minimized to tray"
-                              IsChecked="False"
-                              Checked="StartMinimizedCheckBox_Changed"
-                              Unchecked="StartMinimizedCheckBox_Changed"/>
-                </StackPanel>
-
-                <!-- Bottom buttons -->
-                <StackPanel Orientation="Horizontal" 
-                            HorizontalAlignment="Right"
-                            Spacing="12">
-                    <Button Content="Hide to Tray" 
-                            Click="HideButton_Click"/>
-                    <Button Content="Exit" 
-                            Click="ExitButton_Click"
-                            Style="{ThemeResource AccentButtonStyle}"/>
-                </StackPanel>
+                <!-- Enable smooth pane animations -->
+                <x:Double x:Key="NavigationViewPaneAnimationDuration">250</x:Double>
+            </NavigationView.Resources>
             
-            </StackPanel>
-        </ScrollViewer>
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="GeneralNavItem" Content="General" Tag="General" IsSelected="True">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE713;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="AppearanceNavItem" Content="Appearance" Tag="Appearance">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE790;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="AboutNavItem" Content="About" Tag="About">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE946;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="v1.0.0" SelectsOnInvoked="False" IsEnabled="False">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7C1;" Opacity="0.5"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+            
+            <!-- Content area with semi-transparent card background like Blip -->
+            <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1,0,0,0"
+                    CornerRadius="8,0,0,0">
+                <Frame x:Name="ContentFrame" Background="Transparent">
+                    <Frame.ContentTransitions>
+                        <TransitionCollection>
+                            <NavigationThemeTransition>
+                                <NavigationThemeTransition.DefaultNavigationTransitionInfo>
+                                    <SlideNavigationTransitionInfo Effect="FromRight"/>
+                                </NavigationThemeTransition.DefaultNavigationTransitionInfo>
+                            </NavigationThemeTransition>
+                        </TransitionCollection>
+                    </Frame.ContentTransitions>
+                </Frame>
+            </Border>
+        </NavigationView>
     </Grid>
 </Window>
