@@ -37,7 +37,7 @@ foreach ($arch in $architectures) {
     if ($LASTEXITCODE -eq 0) {
         $buildPath = "bin\$platform\Release\net8.0-windows10.0.19041.0\$rid"
         $publishPath = "bin\Release\net8.0-windows10.0.19041.0\$rid\publish"
-        $releasePath = "releases\Silence-v$version-$rid"
+        $releasePath = "releases\silence-v$version-$rid"
         
         # Copy missing WinUI resources from build to publish (.xbf and .pri files)
         Write-Host "  Copying WinUI resources..." -ForegroundColor Gray
@@ -57,7 +57,7 @@ foreach ($arch in $architectures) {
         Copy-Item "$publishPath\*" -Destination $releasePath -Recurse -Force
         
         # Create ZIP archive
-        $zipName = "Silence-v$version-$rid.zip"
+        $zipName = "silence-v$version-$rid.zip"
         Compress-Archive -Path "$releasePath\*" -DestinationPath "releases\$zipName" -Force
         
         # Get sizes

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Assets/app.png" alt="Silence! Logo" width="128" height="128">
+  <img src="Assets/app.png" alt="silence! Logo" width="128" height="128">
 </p>
 
 <h1 align="center">silence!</h1>
@@ -38,9 +38,9 @@
 ### Download Release (Recommended)
 
 1. Go to [Releases](../../releases) page
-2. Download the latest `Silence-vX.X-win-x64.zip`
+2. Download the latest `silence-vX.X-win-x64.zip`
 3. Extract to any folder
-4. Run `Silence!.exe`
+4. Run `silence!.exe`
 
 ### Build from Source
 
@@ -51,8 +51,8 @@
 
 ```powershell
 # Clone the repository
-git clone https://github.com/yourusername/Silence.git
-cd Silence
+git clone https://github.com/yourusername/silence.git
+cd silence
 
 # Build and publish
 dotnet publish -c Release -r win-x64 --self-contained

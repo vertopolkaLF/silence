@@ -1,9 +1,9 @@
 ﻿using Microsoft.UI.Xaml;
-using Silence_.Services;
+using silence_.Services;
 using System;
 using System.Linq;
 
-namespace Silence_
+namespace silence_
 {
     public partial class App : Application
     {

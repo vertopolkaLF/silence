@@ -12,7 +12,7 @@ Quick and easy microphone mute control for Windows.
 
 ## Installation
 
-1. Extract the ZIP archive to any folder (e.g., `C:\Program Files\Silence`)
+1. Extract the ZIP archive to any folder (e.g., `C:\Program Files\silence`)
 2. Run `silence!.exe`
 3. (Optional) Enable "Start with Windows" in settings
 

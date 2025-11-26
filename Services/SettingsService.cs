@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 
-namespace Silence_.Services;
+namespace silence_.Services;
 
 /// <summary>
 /// Service for saving/loading settings and managing autostart
@@ -20,7 +20,7 @@ public class SettingsService
     {
         var appDataPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Silence");
+            "silence");
         
         Directory.CreateDirectory(appDataPath);
         _settingsPath = Path.Combine(appDataPath, "settings.json");

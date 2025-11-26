@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Silence_.Services;
+namespace silence_.Services;
 
 /// <summary>
 /// Service for managing microphone mute state using Windows Core Audio API

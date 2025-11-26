@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace Silence_.Services;
+namespace silence_.Services;
 
 /// <summary>
 /// Low-level keyboard hook for global hotkeys with modifier support

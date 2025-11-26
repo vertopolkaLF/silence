@@ -6,7 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using Silence_.Services;
+using silence_.Services;
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -14,7 +14,7 @@ using System.Runtime.InteropServices;
 using Windows.Graphics;
 using WinRT.Interop;
 
-namespace Silence_
+namespace silence_
 {
     public sealed partial class MainWindow : Window
     {
