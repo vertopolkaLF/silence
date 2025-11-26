@@ -13,6 +13,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     
+    <!-- App Version - update this for releases (Major.Minor format, e.g., 1.0, 1.1) -->
+    <Version>1.1</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    
     <!-- Unpackaged deployment - no MSIX bullshit -->
     <EnableMsixTooling>false</EnableMsixTooling>
     <WindowsPackageType>None</WindowsPackageType>

@@ -30,7 +30,7 @@
                 <TextBlock Text="silence!" 
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Opacity="0.8"/>
+                           Opacity="1"/>
             </StackPanel>
         </Grid>
         
@@ -75,12 +75,69 @@
             </NavigationView.MenuItems>
             
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem Content="v1.0.0" SelectsOnInvoked="False" IsEnabled="False">
+                <NavigationViewItem x:Name="VersionNavItem" Content="v1.0.0" SelectsOnInvoked="False" IsEnabled="False">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE7C1;" Opacity="0.5"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
+            
+            <NavigationView.PaneFooter>
+                <StackPanel>
+                    <!-- Update notification - expanded pane -->
+                    <Border x:Name="UpdateNotificationBorder"
+                            Visibility="Collapsed"
+                            Background="{ThemeResource SystemFillColorAttentionBackgroundBrush}"
+                            BorderBrush="{ThemeResource SystemFillColorAttentionBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Margin="12,0,12,0"
+                            Width="175"
+                            Padding="10">
+                        <StackPanel Spacing="12" HorizontalAlignment="Stretch">
+                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE117;" FontSize="14" Foreground="{ThemeResource SystemFillColorAttentionBrush}"/>
+                                <TextBlock Text="Update Available" FontWeight="SemiBold" FontSize="12"/>
+                            </StackPanel>
+                            <Button x:Name="UpdateDetailsButton"
+                                    Content="View Details" 
+                                    FontSize="11"
+                                    Padding="8,4"
+                                    HorizontalAlignment="Stretch"
+                                    Click="UpdateInfoBar_ActionClick"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- Update notification - compact pane (icon only, aligned with nav items) -->
+                    <Grid x:Name="UpdateNotificationCompact"
+                          Visibility="Collapsed"
+                          Height="36"
+                          Margin="4,0,4,0"
+                          Background="Transparent"
+                          PointerPressed="UpdateNotificationCompact_Click"
+                          PointerEntered="UpdateNotificationCompact_PointerEntered"
+                          PointerExited="UpdateNotificationCompact_PointerExited"
+                          CornerRadius="4"
+                          ToolTipService.ToolTip="Update Available">
+                        <Grid HorizontalAlignment="Left" Width="40" Margin="0,0,0,0" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE117;" 
+                                      FontSize="16" 
+                                      Foreground="{ThemeResource SystemFillColorAttentionBrush}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Margin="4"/>
+                            <!-- Little badge dot -->
+                            <Ellipse Margin="0,0,4,0" Width="8" Height="8" 
+                                     Fill="{ThemeResource SystemFillColorCriticalBrush}"
+                                     HorizontalAlignment="Right"
+                                     VerticalAlignment="Top"/>
+                        </Grid>
+                    </Grid>
+                    
+                    <!-- Invisible placeholder to maintain layout when notification is hidden -->
+                    <Border x:Name="UpdatePlaceholder" Height="44" Visibility="Collapsed"/>
+                </StackPanel>
+            </NavigationView.PaneFooter>
             
             <!-- Content area with semi-transparent card background like Blip -->
             <Border Background="{ThemeResource LayerFillColorDefaultBrush}"

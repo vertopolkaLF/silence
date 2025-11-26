@@ -131,6 +131,18 @@ public class SettingsService
         _settings.StartMinimized = minimized;
         SaveSettings();
     }
+
+    public void UpdateCheckForUpdatesOnStartup(bool check)
+    {
+        _settings.CheckForUpdatesOnStartup = check;
+        SaveSettings();
+    }
+
+    public void UpdateLastUpdateCheck()
+    {
+        _settings.LastUpdateCheck = DateTime.UtcNow;
+        SaveSettings();
+    }
 }
 
 public class AppSettings
@@ -141,4 +153,6 @@ public class AppSettings
     public string? SelectedMicrophoneId { get; set; }
     public bool AutoStartEnabled { get; set; } = false;
     public bool StartMinimized { get; set; } = false; // Show settings window on first launch
+    public bool CheckForUpdatesOnStartup { get; set; } = true; // Check for updates when app starts
+    public DateTime? LastUpdateCheck { get; set; } // Last time we checked for updates
 }

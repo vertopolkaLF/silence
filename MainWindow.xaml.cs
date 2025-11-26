@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using silence_.Pages;
+using silence_.Services;
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -24,6 +25,7 @@ namespace silence_
         private const int MinWindowHeight = 480;
 
         private string _currentPage = "General";
+        private bool _updateAvailable = false;
 
         private void SetupTitleBar()
         {
@@ -101,8 +103,75 @@ namespace silence_
             if (App.Instance != null)
             {
                 App.Instance.MuteStateChanged += OnMuteStateChanged;
+                App.Instance.UpdateAvailable += OnUpdateAvailable;
             }
             UpdateTrayIcon(App.Instance?.MicrophoneService.IsMuted() ?? false);
+            
+            // Update version in footer
+            VersionNavItem.Content = $"v{UpdateService.CurrentVersion}";
+        }
+        
+        private void OnUpdateAvailable(UpdateCheckResult result)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _updateAvailable = true;
+                UpdatePlaceholder.Visibility = Visibility.Collapsed;
+                
+                // Show appropriate notification based on pane state
+                if (NavView.IsPaneOpen)
+                {
+                    UpdateNotificationBorder.Visibility = Visibility.Visible;
+                    UpdateNotificationCompact.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    UpdateNotificationBorder.Visibility = Visibility.Collapsed;
+                    UpdateNotificationCompact.Visibility = Visibility.Visible;
+                }
+            });
+        }
+        
+        private void UpdateInfoBar_ActionClick(object sender, RoutedEventArgs e)
+        {
+            NavigateToAboutAndHideNotification();
+        }
+        
+        private void UpdateNotificationCompact_Click(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            NavigateToAboutAndHideNotification();
+        }
+        
+        private void UpdateNotificationCompact_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            // Use the same hover color as NavigationViewItem
+            if (Application.Current.Resources.TryGetValue("NavigationViewItemBackgroundPointerOver", out var brush))
+            {
+                UpdateNotificationCompact.Background = brush as Microsoft.UI.Xaml.Media.Brush;
+            }
+            else
+            {
+                // Fallback - matches NavigationView hover
+                UpdateNotificationCompact.Background = new SolidColorBrush(
+                    (Content as FrameworkElement)?.ActualTheme == ElementTheme.Dark
+                        ? Windows.UI.Color.FromArgb(15, 255, 255, 255)
+                        : Windows.UI.Color.FromArgb(15, 0, 0, 0));
+            }
+        }
+        
+        private void UpdateNotificationCompact_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            UpdateNotificationCompact.Background = new SolidColorBrush(Colors.Transparent);
+        }
+        
+        private void NavigateToAboutAndHideNotification()
+        {
+            // Navigate to About page to show update details
+            NavView.SelectedItem = AboutNavItem;
+            _updateAvailable = false;
+            UpdateNotificationBorder.Visibility = Visibility.Collapsed;
+            UpdateNotificationCompact.Visibility = Visibility.Collapsed;
+            UpdatePlaceholder.Visibility = Visibility.Visible;
         }
 
         private void OnMuteStateChanged(bool isMuted)
@@ -281,12 +350,22 @@ namespace silence_
 
         private void NavView_PaneOpening(NavigationView sender, object args)
         {
-            // Smooth animation already handled by NavigationView
+            // Switch to expanded update notification
+            if (_updateAvailable)
+            {
+                UpdateNotificationBorder.Visibility = Visibility.Visible;
+                UpdateNotificationCompact.Visibility = Visibility.Collapsed;
+            }
         }
 
         private void NavView_PaneClosing(NavigationView sender, NavigationViewPaneClosingEventArgs args)
         {
-            // Smooth animation already handled by NavigationView
+            // Switch to compact update notification (icon only)
+            if (_updateAvailable)
+            {
+                UpdateNotificationBorder.Visibility = Visibility.Collapsed;
+                UpdateNotificationCompact.Visibility = Visibility.Visible;
+            }
         }
 
         private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -360,7 +439,9 @@ namespace silence_
             _execute = execute;
         }
 
+        #pragma warning disable CS0067 // Event is never used
         public event EventHandler? CanExecuteChanged;
+#pragma warning restore CS0067
 
         public bool CanExecute(object? parameter) => true;
 
