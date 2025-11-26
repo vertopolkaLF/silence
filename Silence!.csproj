@@ -19,7 +19,7 @@
       AssemblyVersion and FileVersion are auto-generated from this.
       UpdateService.CurrentVersion reads from assembly, installer scripts read from here.
     -->
-    <Version>1.1</Version>
+    <Version>1.2</Version>
     <AssemblyVersion>$(Version).0.0</AssemblyVersion>
     <FileVersion>$(Version).0.0</FileVersion>
     
@@ -39,6 +39,9 @@
     <Content Include="Assets\app.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Assets\sounds\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -56,8 +59,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7175" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.251106002" />
-    <PackageReference Include="NAudio.Core" Version="2.2.1" />
-    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="H.NotifyIcon.WinUI" Version="2.2.0" />
     <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
   </ItemGroup>

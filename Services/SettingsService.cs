@@ -143,6 +143,32 @@ public class SettingsService
         _settings.LastUpdateCheck = DateTime.UtcNow;
         SaveSettings();
     }
+    
+    public void UpdateSoundsEnabled(bool enabled)
+    {
+        _settings.SoundsEnabled = enabled;
+        SaveSettings();
+    }
+    
+    public void UpdateMuteSound(string? preloadedKey, string? customPath)
+    {
+        _settings.MuteSoundPreloaded = preloadedKey;
+        _settings.MuteSoundCustomPath = customPath;
+        SaveSettings();
+    }
+    
+    public void UpdateUnmuteSound(string? preloadedKey, string? customPath)
+    {
+        _settings.UnmuteSoundPreloaded = preloadedKey;
+        _settings.UnmuteSoundCustomPath = customPath;
+        SaveSettings();
+    }
+    
+    public void UpdateSoundVolume(float volume)
+    {
+        _settings.SoundVolume = Math.Clamp(volume, 0f, 1f);
+        SaveSettings();
+    }
 }
 
 public class AppSettings
@@ -155,4 +181,12 @@ public class AppSettings
     public bool StartMinimized { get; set; } = false; // Show settings window on first launch
     public bool CheckForUpdatesOnStartup { get; set; } = true; // Check for updates when app starts
     public DateTime? LastUpdateCheck { get; set; } // Last time we checked for updates
+    
+    // Sound settings
+    public bool SoundsEnabled { get; set; } = false; // Sounds disabled by default
+    public string? MuteSoundPreloaded { get; set; } = "sifi"; // Preloaded sound key (e.g., "sifi")
+    public string? MuteSoundCustomPath { get; set; } // Custom sound file path (takes precedence)
+    public string? UnmuteSoundPreloaded { get; set; } = "sifi"; // Preloaded sound key
+    public string? UnmuteSoundCustomPath { get; set; } // Custom sound file path (takes precedence)
+    public float SoundVolume { get; set; } = 0.5f; // Sound volume 0.0 - 1.0
 }

@@ -13,6 +13,7 @@ namespace silence_
         private KeyboardHookService? _keyboardHookService;
         private SettingsService? _settingsService;
         private UpdateService? _updateService;
+        private SoundService? _soundService;
         private bool _startMinimized;
 
         public static App? Instance { get; private set; }
@@ -20,6 +21,7 @@ namespace silence_
         public KeyboardHookService KeyboardHookService => _keyboardHookService!;
         public SettingsService SettingsService => _settingsService!;
         public UpdateService UpdateService => _updateService ??= new UpdateService();
+        public SoundService SoundService => _soundService ??= new SoundService();
         public MainWindow? MainWindowInstance => _window;
 
         // Event for mute state changes
@@ -105,6 +107,20 @@ namespace silence_
         {
             var isMuted = _microphoneService?.ToggleMute() ?? false;
             MuteStateChanged?.Invoke(isMuted);
+            
+            // Play sound feedback
+            var settings = _settingsService?.Settings;
+            if (settings != null)
+            {
+                if (isMuted)
+                {
+                    SoundService.PlayMuteSound(settings);
+                }
+                else
+                {
+                    SoundService.PlayUnmuteSound(settings);
+                }
+            }
         }
 
         public void ToggleMute()
@@ -122,6 +138,7 @@ namespace silence_
             _keyboardHookService?.Dispose();
             _microphoneService?.Dispose();
             _updateService?.Dispose();
+            _soundService?.Dispose();
             _window?.DisposeTrayIcon();
             _window?.Close();
             Environment.Exit(0);

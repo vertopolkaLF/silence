@@ -247,7 +247,7 @@ namespace silence_
         {
             _trayIcon = new TaskbarIcon
             {
-                NoLeftClickDelay = true
+                NoLeftClickDelay = false // Add delay to handle double-click properly
             };
             
             _trayMenu = new MenuFlyout();
@@ -281,11 +281,7 @@ namespace silence_
 
             _trayIcon.ContextFlyout = _trayMenu;
             _trayIcon.LeftClickCommand = new RelayCommand(() => App.Instance?.ToggleMute());
-            _trayIcon.DoubleClickCommand = new RelayCommand(() => 
-            {
-                App.Instance?.ToggleMute();
-                ShowWindow();
-            });
+            _trayIcon.DoubleClickCommand = new RelayCommand(ShowWindow);
             _trayIcon.ToolTipText = "silence! - Microphone ON";
 
             UpdateTrayIcon(false);
@@ -373,7 +369,7 @@ namespace silence_
                 if (tag == null || tag == _currentPage) return;
 
                 // Determine slide direction
-                var pageOrder = new[] { "General", "Appearance", "About" };
+                var pageOrder = new[] { "General", "Sounds", "Appearance", "About" };
                 var currentIndex = Array.IndexOf(pageOrder, _currentPage);
                 var newIndex = Array.IndexOf(pageOrder, tag);
                 var effect = newIndex > currentIndex 
@@ -383,6 +379,7 @@ namespace silence_
                 Type? pageType = tag switch
                 {
                     "General" => typeof(GeneralPage),
+                    "Sounds" => typeof(SoundsPage),
                     "Appearance" => typeof(AppearancePage),
                     "About" => typeof(AboutPage),
                     _ => null
