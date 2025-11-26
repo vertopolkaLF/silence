@@ -67,17 +67,12 @@
                         <FontIcon Glyph="&#xE790;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="AboutNavItem" Content="About" Tag="About">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE946;"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
             </NavigationView.MenuItems>
             
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem x:Name="VersionNavItem" Content="v1.0.0" SelectsOnInvoked="False" IsEnabled="False">
+                <NavigationViewItem x:Name="AboutNavItem" Content="About" Tag="About">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE7C1;" Opacity="0.5"/>
+                        <FontIcon Glyph="&#xE946;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>

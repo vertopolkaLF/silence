@@ -106,9 +106,6 @@ namespace silence_
                 App.Instance.UpdateAvailable += OnUpdateAvailable;
             }
             UpdateTrayIcon(App.Instance?.MicrophoneService.IsMuted() ?? false);
-            
-            // Update version in footer
-            VersionNavItem.Content = $"v{UpdateService.CurrentVersion}";
         }
         
         private void OnUpdateAvailable(UpdateCheckResult result)

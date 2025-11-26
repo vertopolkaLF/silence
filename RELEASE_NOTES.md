@@ -2,8 +2,6 @@
 
 > **Now with automatic updates and a fresh new look.**
 
----
-
 ## ✨ What's New in v1.1
 
 ### 🔄 Auto-Update System
@@ -31,16 +29,6 @@
 - **Version Display** — Current version shown in sidebar footer and About page.
 
 - **Improved About Page** — Now includes update status, check button, and release details.
-
----
-
-## 📦 Downloads
-
-| Architecture | Portable | Installer |
-|-------------|----------|-----------|
-| x64 (64-bit) | `silence-v1.1-win-x64.zip` | `silence-v1.1-x64-setup.exe` |
-| x86 (32-bit) | `silence-v1.1-win-x86.zip` | `silence-v1.1-x86-setup.exe` |
-| ARM64 | `silence-v1.1-win-arm64.zip` | `silence-v1.1-arm64-setup.exe` |
 
 ---
 
@@ -100,44 +88,6 @@ We're thrilled to announce the first official release of **silence!** — a ligh
 - **Start Minimized** — Boot straight to system tray. No window popping up in your face.
 
 - **Portable** — No MSIX installer bullshit. Extract → Run → Profit.
-
----
-
-## 📦 Downloads
-
-| Architecture | File |
-|-------------|------|
-| x64 (64-bit) | `silence-v1.0-win-x64.zip` |
-| x86 (32-bit) | `silence-v1.0-win-x86.zip` |
-| ARM64 | `silence-v1.0-win-arm64.zip` |
-
----
-
-## 💻 System Requirements
-
-- Windows 10 version 1809 (build 17763) or later
-- Windows 11 (any version)
-- That's it. No .NET installation needed, it's self-contained.
-
----
-
-## 🚀 Getting Started
-
-1. Download the ZIP for your architecture
-2. Extract anywhere you want
-3. Run `silence!.exe`
-4. Set your preferred hotkey
-5. Minimize to tray
-6. Never fumble with mute buttons again
-
----
-
-## 🔧 Built With
-
-- .NET 8.0
-- WinUI 3
-- NAudio (audio device management)
-- H.NotifyIcon (system tray)
 
 ---
 
