@@ -1,6 +1,16 @@
 # silence! Release Build Script - All Architectures
 
-$version = "1.0"
+# Auto-detect version from .csproj
+$csprojPath = "silence!.csproj"
+if (Test-Path $csprojPath) {
+    [xml]$csproj = Get-Content $csprojPath
+    $version = $csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+    if (-not $version) { $version = "1.0" }
+} else {
+    Write-Host "ERROR: silence!.csproj not found!" -ForegroundColor Red
+    exit 1
+}
+
 $architectures = @(
     @{ rid = "win-x64"; platform = "x64" },
     @{ rid = "win-x86"; platform = "x86" },
@@ -10,7 +20,7 @@ $architectures = @(
 # Keep only these folders (required for WinUI to work)
 $keepFolders = @("Assets", "Microsoft.UI.Xaml", "en-us")
 
-Write-Host "Building silence! Release for all architectures..." -ForegroundColor Cyan
+Write-Host "Building silence! v$version for all architectures..." -ForegroundColor Cyan
 Write-Host "Architectures: x64, x86, ARM64" -ForegroundColor Cyan
 
 # Clean previous builds

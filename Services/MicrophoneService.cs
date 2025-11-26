@@ -15,7 +15,9 @@ public class MicrophoneService : IDisposable
     private string? _selectedDeviceId;
     
     public event Action<bool>? MuteStateChanged;
+    #pragma warning disable CS0067 // Event is never used - reserved for future use
     public event Action? DevicesChanged;
+#pragma warning restore CS0067
 
     public MicrophoneService()
     {

@@ -1,13 +1,15 @@
 ; Inno Setup Script for silence! - x64 version
-; Compile with: iscc silence-x64.iss
+; Compile with: iscc /DMyAppVersion=1.1 silence-x64.iss
 
 #define MyAppName "silence!"
-#define MyAppVersion "1.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.1"
+#endif
 #define MyAppPublisher "vertopolkaLF"
 #define MyAppURL "https://github.com/vertopolkaLF/silence"
 #define MyAppExeName "silence!.exe"
 #define MyAppArch "x64"
-#define SourcePath "..\releases\Silence-v1.0-win-x64"
+#define SourcePath "..\releases\silence-v" + MyAppVersion + "-win-x64"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
@@ -24,7 +26,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 ; Output settings
 OutputDir=..\releases
-OutputBaseFilename=Silence-v{#MyAppVersion}-{#MyAppArch}-Setup
+OutputBaseFilename=silence-v{#MyAppVersion}-{#MyAppArch}-setup
 SetupIconFile=..\Assets\app.ico
 ; Compression
 Compression=lzma2/ultra64

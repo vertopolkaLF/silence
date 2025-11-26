@@ -16,20 +16,89 @@
                        Width="64" 
                        Height="64"
                        HorizontalAlignment="Center"/>
-                <TextBlock Text="silence!" 
-                           FontSize="28" 
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"/>
-                <TextBlock Text="v1.0.0" 
-                           FontSize="14"
-                           Opacity="0.6"
-                           HorizontalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                    <TextBlock Text="silence!" 
+                               FontSize="28" 
+                               FontWeight="Bold"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="VersionText"
+                               Text="v1.0.0" 
+                               FontSize="14"
+                               Opacity="0.6"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
             </StackPanel>
             
             <TextBlock Text="A simple microphone mute/unmute utility with global hotkey support."
                        TextWrapping="Wrap"
                        TextAlignment="Center"
                        Opacity="0.8"/>
+
+            <!-- Update Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE895;" FontSize="16"/>
+                        <TextBlock Text="Updates" FontWeight="SemiBold" FontSize="14"/>
+                    </StackPanel>
+                    
+                    <!-- Update Status -->
+                    <StackPanel x:Name="UpdateStatusPanel" Spacing="8">
+                        <StackPanel x:Name="CheckingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                            <ProgressRing IsActive="True" Width="16" Height="16"/>
+                            <TextBlock Text="Checking for updates..." Opacity="0.8"/>
+                        </StackPanel>
+                        
+                        <StackPanel x:Name="UpToDatePanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE73E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontSize="16"/>
+                            <TextBlock Text="You're up to date!" Opacity="0.8"/>
+                        </StackPanel>
+                        
+                        <StackPanel x:Name="UpdateAvailablePanel" Spacing="8" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE946;" Foreground="{ThemeResource SystemFillColorAttentionBrush}" FontSize="16"/>
+                                <TextBlock x:Name="UpdateAvailableText" Text="Update available!" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <TextBlock x:Name="NewVersionText" Text="New version: v1.1.0" Opacity="0.7" FontSize="12"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                <Button x:Name="DownloadUpdateButton" 
+                                        Content="Download &amp; Install" 
+                                        Style="{ThemeResource AccentButtonStyle}"
+                                        Click="DownloadUpdateButton_Click"/>
+                                <Button x:Name="ViewReleaseButton" 
+                                        Content="View Release" 
+                                        Click="ViewReleaseButton_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                        
+                        <StackPanel x:Name="DownloadingPanel" Spacing="8" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ProgressRing IsActive="True" Width="16" Height="16"/>
+                                <TextBlock x:Name="DownloadingText" Text="Downloading update..." Opacity="0.8"/>
+                            </StackPanel>
+                            <ProgressBar x:Name="DownloadProgress" Minimum="0" Maximum="100" Value="0"/>
+                        </StackPanel>
+                        
+                        <StackPanel x:Name="ErrorPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE783;" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="16"/>
+                            <TextBlock x:Name="ErrorText" Text="Failed to check for updates" Opacity="0.8" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                    
+                    <Button x:Name="CheckUpdatesButton" 
+                            Content="Check for Updates" 
+                            Click="CheckUpdatesButton_Click"
+                            HorizontalAlignment="Left"/>
+                    
+                    <ToggleSwitch x:Name="AutoCheckToggle"
+                                  Header="Check for updates on startup"
+                                  Toggled="AutoCheckToggle_Toggled"/>
+                </StackPanel>
+            </Border>
             
             <StackPanel Spacing="8" HorizontalAlignment="Center">
                 <HyperlinkButton Content="View on GitHub"

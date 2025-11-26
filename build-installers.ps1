@@ -8,7 +8,17 @@ param(
 
 $architectures = @("x64", "x86", "arm64")
 
-Write-Host "Building silence! installers..." -ForegroundColor Cyan
+# Auto-detect version from .csproj
+$csprojPath = "silence!.csproj"
+if (Test-Path $csprojPath) {
+    [xml]$csproj = Get-Content $csprojPath
+    $version = $csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+    if (-not $version) { $version = "1.0" }
+} else {
+    $version = "1.1"
+}
+
+Write-Host "Building silence! v$version installers..." -ForegroundColor Cyan
 Write-Host ""
 
 # Check if iscc is available
@@ -45,7 +55,7 @@ $successCount = 0
 $results = @()
 
 foreach ($arch in $architectures) {
-    $issFile = "silence-$arch.iss"
+    $issFile = "installer\silence-$arch.iss"
     
     Write-Host "Building $arch installer..." -ForegroundColor Yellow
     
@@ -56,18 +66,18 @@ foreach ($arch in $architectures) {
     }
     
     # Check if release folder exists
-    $releaseFolder = "..\releases\Silence-v1.0-win-$arch"
+    $releaseFolder = "releases\silence-v$version-win-$arch"
     if (-not (Test-Path $releaseFolder)) {
         Write-Host "  SKIPPED - Release folder not found: $releaseFolder" -ForegroundColor Red
         $results += @{ arch = $arch; status = "SKIPPED"; size = 0 }
         continue
     }
     
-    # Build installer
-    $output = & $IsccPath $issFile 2>&1
+    # Build installer with version parameter
+    $output = & $IsccPath "/DMyAppVersion=$version" $issFile 2>&1
     
     if ($LASTEXITCODE -eq 0) {
-        $setupFile = "..\releases\Silence-v1.0-$arch-Setup.exe"
+        $setupFile = "releases\silence-v$version-$arch-setup.exe"
         if (Test-Path $setupFile) {
             $size = [math]::Round((Get-Item $setupFile).Length / 1MB, 2)
             Write-Host "  OK - $size MB" -ForegroundColor Green
@@ -113,7 +123,7 @@ Write-Host "Successful builds: $successCount / $($architectures.Count)" -Foregro
 if ($successCount -gt 0) {
     Write-Host ""
     Write-Host "Installers created in: releases\" -ForegroundColor Cyan
-    Get-ChildItem "..\releases\*-Setup.exe" | ForEach-Object {
+    Get-ChildItem "releases\*-Setup.exe" | ForEach-Object {
         Write-Host "  - $($_.Name)" -ForegroundColor White
     }
 }

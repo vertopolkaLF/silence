@@ -2,6 +2,7 @@
 using silence_.Services;
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace silence_
 {
@@ -11,16 +12,24 @@ namespace silence_
         private MicrophoneService? _microphoneService;
         private KeyboardHookService? _keyboardHookService;
         private SettingsService? _settingsService;
+        private UpdateService? _updateService;
         private bool _startMinimized;
 
         public static App? Instance { get; private set; }
         public MicrophoneService MicrophoneService => _microphoneService!;
         public KeyboardHookService KeyboardHookService => _keyboardHookService!;
         public SettingsService SettingsService => _settingsService!;
+        public UpdateService UpdateService => _updateService ??= new UpdateService();
         public MainWindow? MainWindowInstance => _window;
 
         // Event for mute state changes
         public event Action<bool>? MuteStateChanged;
+        
+        // Event for update available notification
+        public event Action<UpdateCheckResult>? UpdateAvailable;
+        
+        // Cached update check result for AboutPage
+        public UpdateCheckResult? LastUpdateCheckResult { get; private set; }
 
         public App()
         {
@@ -61,6 +70,35 @@ namespace silence_
             {
                 _window.Activate();
             }
+            
+            // Check for updates on startup if enabled
+            if (_settingsService!.Settings.CheckForUpdatesOnStartup)
+            {
+                _ = CheckForUpdatesOnStartupAsync();
+            }
+        }
+        
+        private async Task CheckForUpdatesOnStartupAsync()
+        {
+            try
+            {
+                // Small delay to let the app fully initialize
+                await Task.Delay(2000);
+                
+                var result = await UpdateService.CheckForUpdatesAsync();
+                
+                if (result.Success && result.IsUpdateAvailable)
+                {
+                    LastUpdateCheckResult = result;
+                    UpdateAvailable?.Invoke(result);
+                }
+                
+                _settingsService?.UpdateLastUpdateCheck();
+            }
+            catch
+            {
+                // Silent fail on startup check - don't bother user
+            }
         }
 
         private void OnHotkeyPressed()
@@ -83,6 +121,7 @@ namespace silence_
         {
             _keyboardHookService?.Dispose();
             _microphoneService?.Dispose();
+            _updateService?.Dispose();
             _window?.DisposeTrayIcon();
             _window?.Close();
             Environment.Exit(0);
