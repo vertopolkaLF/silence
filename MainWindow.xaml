@@ -72,11 +72,11 @@
                         <FontIcon Glyph="&#xE78B;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="AppearanceNavItem" Content="Appearance" Tag="Appearance">
+                <!-- <NavigationViewItem x:Name="AppearanceNavItem" Content="Appearance" Tag="Appearance">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE790;"/>
                     </NavigationViewItem.Icon>
-                </NavigationViewItem>
+                </NavigationViewItem> -->
             </NavigationView.MenuItems>
             
             <NavigationView.FooterMenuItems>

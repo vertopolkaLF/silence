@@ -1,3 +1,48 @@
+# 🎤 silence! v1.3 — Visual Overlay
+
+> **Now you can see your mute status. Everywhere. All the time.**
+
+## ✨ What's New in v1.3
+
+### 👁️ Visual Overlay
+
+- **Always-On-Top Indicator** — A floating microphone icon stays on top of all windows. No more "wait, am I muted?" moments.
+
+- **Three Visibility Modes** — Choose when to see the overlay:
+  - **Always visible** — Never lose track of your mic status
+  - **Visible when muted** — Show only when you're muted (default)
+  - **Visible when unmuted** — Show only when you're live
+
+- **Multi-Monitor Support** — Pick which screen displays the overlay. Works with any number of monitors.
+
+- **Drag-and-Drop Positioning** — Click "Set Position", drag the overlay wherever you want. It magnetically snaps to the center when you get close. Press ESC or click Done to save.
+
+- **Click-Through Design** — The overlay doesn't steal your clicks. It's there, but it doesn't get in the way.
+
+### 🎨 Visual Polish
+
+- **Acrylic Blur Background** — Semi-transparent with a nice blur effect. Looks sleek, doesn't block your view.
+
+- **Color-Coded Status** — Green when live, red when muted. Instant visual feedback.
+
+- **Clean Rounded Design** — Small 48x48 icon that fits naturally on any desktop.
+
+## 🔧 Technical Changes
+
+- New `OverlayWindow` using DWM attributes for borderless, topmost, click-through behavior
+- Win32 API integration for precise window positioning and monitor enumeration
+- Magnetic snap algorithm with smooth cubic easing
+- Position stored as percentages (survives resolution changes)
+
+---
+
+<p align="center">
+  <b>See your status. Don't guess it.</b>
+</p>
+
+---
+---
+
 # 🎤 silence! v1.2 — Sound Feedback
 
 > **Now you can hear when you mute.**
