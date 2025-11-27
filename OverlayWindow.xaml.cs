@@ -21,6 +21,9 @@ public sealed partial class OverlayWindow : Window
     private bool _isDragging = false;
     private POINT _dragCursorOffset; // Cursor offset from window top-left when drag started
     
+    private bool _isContentReady = false;
+    private bool _pendingShow = false;
+    
     // Magnetic snap configuration
     private const double MagneticRange = 60; // Range where magnetic effect starts (pixels)
     private const double SnapThreshold = 8; // Distance to fully snap to axis
@@ -45,6 +48,22 @@ public sealed partial class OverlayWindow : Window
             root.PointerCaptureLost += RootGrid_PointerCaptureLost;
             root.KeyDown += RootGrid_KeyDown;
         }
+        
+        // Wait for content to be ready before showing (prevents white flash on Win10)
+        RootGrid.Loaded += OnContentLoaded;
+    }
+    
+    private void OnContentLoaded(object sender, RoutedEventArgs e)
+    {
+        _isContentReady = true;
+        RootGrid.Loaded -= OnContentLoaded;
+        
+        // If show was requested before content was ready, show now
+        if (_pendingShow)
+        {
+            _pendingShow = false;
+            ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+        }
     }
     
     private void RootGrid_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -62,6 +81,9 @@ public sealed partial class OverlayWindow : Window
         _hwnd = WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
         _appWindow = AppWindow.GetFromWindowId(windowId);
+        
+        // Hide window immediately to prevent white flash while content loads
+        _appWindow?.Hide();
 
         if (_appWindow != null)
         {
@@ -211,7 +233,15 @@ public sealed partial class OverlayWindow : Window
 
     public void ShowOverlay()
     {
-        ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+        if (_isContentReady)
+        {
+            ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+        }
+        else
+        {
+            // Content not ready yet, defer show until Loaded event
+            _pendingShow = true;
+        }
     }
 
     public void HideOverlay()

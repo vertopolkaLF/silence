@@ -36,8 +36,12 @@ public class UpdateService : IDisposable
     {
         var assembly = Assembly.GetExecutingAssembly();
         var version = assembly.GetName().Version;
-        // Use Major.Minor format to match GitHub releases (e.g., "1.0", "1.1")
-        return version != null ? $"{version.Major}.{version.Minor}" : "1.0";
+        if (version == null) return "1.0";
+        
+        // Show Build part only if it's not 0 (e.g., "1.3" or "1.3.1")
+        return version.Build > 0 
+            ? $"{version.Major}.{version.Minor}.{version.Build}" 
+            : $"{version.Major}.{version.Minor}";
     }
 
     /// <summary>
