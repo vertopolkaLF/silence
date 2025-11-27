@@ -106,6 +106,18 @@ public sealed partial class OverlayWindow : Window
         // Set Win32 styles for click-through and topmost
         SetWindowStyles();
         SetWindowTopmost(true);
+        
+        // Apply rounded corners only on Windows 11+
+        ApplyPlatformStyles();
+    }
+    
+    private void ApplyPlatformStyles()
+    {
+        // Windows 11 is build 22000+
+        if (Environment.OSVersion.Version.Build >= 22000)
+        {
+            RootGrid.CornerRadius = new CornerRadius(6);
+        }
     }
     
     private delegate IntPtr WndProcDelegate(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);

@@ -10,7 +10,6 @@
     <!-- Simple solid background container -->
     <Border x:Name="RootGrid"
             Background="#FF1E1E1E"
-            CornerRadius="6"
             Padding="0"
             Margin="0"
             UseSystemFocusVisuals="False"
@@ -31,7 +30,7 @@
                 <Border x:Name="PositionHintBorder"
                         Visibility="Collapsed"
                         Background="#CC000000"
-                        CornerRadius="4"
+                        CornerRadius="0"
                         Padding="8,4"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Bottom"
