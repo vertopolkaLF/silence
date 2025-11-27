@@ -1,6 +1,4 @@
 using Microsoft.UI;
-using Microsoft.UI.Composition;
-using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
@@ -9,7 +7,6 @@ using silence_.Services;
 using System;
 using System.Runtime.InteropServices;
 using Windows.Graphics;
-using WinRT;
 using WinRT.Interop;
 
 namespace silence_;
@@ -19,8 +16,6 @@ public sealed partial class OverlayWindow : Window
 {
     private AppWindow? _appWindow;
     private IntPtr _hwnd;
-    private DesktopAcrylicController? _acrylicController;
-    private SystemBackdropConfiguration? _configurationSource;
     
     private bool _isPositioning = false;
     private bool _isDragging = false;
@@ -111,36 +106,6 @@ public sealed partial class OverlayWindow : Window
         // Set Win32 styles for click-through and topmost
         SetWindowStyles();
         SetWindowTopmost(true);
-        
-        // Setup acrylic backdrop for blur effect
-        SetupAcrylicBackdrop();
-    }
-    
-    private void SetupAcrylicBackdrop()
-    {
-        if (!DesktopAcrylicController.IsSupported()) return;
-        
-        _configurationSource = new SystemBackdropConfiguration();
-        
-        this.Activated += (s, e) =>
-        {
-            if (_configurationSource != null)
-            {
-                _configurationSource.IsInputActive = e.WindowActivationState != WindowActivationState.Deactivated;
-            }
-        };
-        
-        _acrylicController = new DesktopAcrylicController
-        {
-            Kind = DesktopAcrylicKind.Base,
-            TintColor = Windows.UI.Color.FromArgb(255, 30, 30, 30),
-            TintOpacity = 0.5f,
-            LuminosityOpacity = 0.2f,
-            FallbackColor = Windows.UI.Color.FromArgb(255, 30, 30, 30)
-        };
-        
-        _acrylicController.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
-        _acrylicController.SetSystemBackdropConfiguration(_configurationSource);
     }
     
     private delegate IntPtr WndProcDelegate(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
@@ -187,7 +152,7 @@ public sealed partial class OverlayWindow : Window
 
     private void SetWindowStyles()
     {
-        // Remove window border/frame styles completely
+        // Remove window border/frame styles - make it a simple popup overlay
         var style = GetWindowLong(_hwnd, GWL_STYLE);
         SetWindowLong(_hwnd, GWL_STYLE, (style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_BORDER)) | WS_POPUP);
         
@@ -195,26 +160,10 @@ public sealed partial class OverlayWindow : Window
         var exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
         SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
         
-        // Disable DWM window frame
-        int value = 2; // DWMNCRP_DISABLED
-        DwmSetWindowAttribute(_hwnd, DWMWA_NCRENDERING_POLICY, ref value, sizeof(int));
-
-        // Remove DWM border color (Windows 11 specific)
-        int colorNone = DWMWA_COLOR_NONE; 
-        DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref colorNone, sizeof(int));
-        
-        // Disable caption color to remove any remaining border
-        DwmSetWindowAttribute(_hwnd, DWMWA_CAPTION_COLOR, ref colorNone, sizeof(int));
-        
-        // Set window corner preference to round (Windows 11 handles anti-aliasing beautifully)
-        int cornerPref = DWMWCP_ROUND;
-        DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerPref, sizeof(int));
-        
         // Force window size after style changes - WinUI ignores small sizes otherwise
         // SWP_FRAMECHANGED is needed to apply style changes
         SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, OverlayWidth, OverlayHeight, 
             SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-        
     }
 
     public void SetClickThrough(bool clickThrough)
@@ -529,7 +478,6 @@ public sealed partial class OverlayWindow : Window
     // Extended window styles
     private const int WS_EX_TRANSPARENT = 0x00000020;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
-    private const int WS_EX_LAYERED = 0x00080000;
     private const int WS_EX_NOACTIVATE = 0x08000000;
     
     
@@ -544,19 +492,6 @@ public sealed partial class OverlayWindow : Window
     // ShowWindow commands
     private const int SW_SHOWNOACTIVATE = 4;
     
-    // DWM attributes
-    private const int DWMWA_NCRENDERING_ENABLED = 1;
-    private const int DWMWA_NCRENDERING_POLICY = 2;
-    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
-    private const int DWMWA_BORDER_COLOR = 34;
-    private const int DWMWA_CAPTION_COLOR = 35;
-    private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
-
-    // Corner preference
-    private const int DWMWCP_DEFAULT = 0;
-    private const int DWMWCP_DONOTROUND = 1;
-    private const int DWMWCP_ROUND = 2;
-    private const int DWMWCP_ROUNDSMALL = 3;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
@@ -579,29 +514,4 @@ public sealed partial class OverlayWindow : Window
     
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-    
-    [DllImport("gdi32.dll")]
-    private static extern IntPtr CreateRoundRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect, int nWidthEllipse, int nHeightEllipse);
-    
-    [DllImport("user32.dll")]
-    private static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
-    
-    [DllImport("gdi32.dll")]
-    private static extern bool DeleteObject(IntPtr hObject);
-    
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
-    
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MARGINS
-    {
-        public int cxLeftWidth;
-        public int cxRightWidth;
-        public int cyTopHeight;
-        public int cyBottomHeight;
-    }
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS pMarInset);
-    
 }
