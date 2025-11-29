@@ -28,14 +28,14 @@ public sealed partial class OverlayWindow : Window
     private const double MagneticRange = 60; // Range where magnetic effect starts (pixels)
     private const double SnapThreshold = 8; // Distance to fully snap to axis
     
-    // Window dimensions - base icon only (48x48), expanded when text is shown
-    private const int BaseOverlayWidth = 48;
-    private const int BaseOverlayHeight = 48;
-    private const int TextOverlayWidth = 220; // Width when text is visible
+    // Window dimensions
+    private const int IconOnlyWidth = 48;
+    private const int IconOnlyHeight = 48;
+    private const int ContentPadding = 24; // Horizontal padding when text is shown
     
-    // Current dimensions (may change based on settings)
-    private int _currentOverlayWidth = BaseOverlayWidth;
-    private int _currentOverlayHeight = BaseOverlayHeight;
+    // Current dimensions (may change based on content)
+    private int _currentOverlayWidth = IconOnlyWidth;
+    private int _currentOverlayHeight = IconOnlyHeight;
     
     // Current state
     private bool _currentMuteState = false;
@@ -276,6 +276,68 @@ public sealed partial class OverlayWindow : Window
             ? Windows.UI.Color.FromArgb(255, 255, 255, 255)     // White
             : Windows.UI.Color.FromArgb(255, 0, 0, 0);          // Black
         StatusText.Foreground = new SolidColorBrush(textColor);
+        
+        // Measure and resize window to fit content
+        UpdateWindowSizeToFitContent(settings);
+    }
+    
+    private void UpdateWindowSizeToFitContent(AppSettings settings)
+    {
+        if (_appWindow == null) return;
+        
+        int oldWidth = _currentOverlayWidth;
+        
+        if (!settings.OverlayShowText)
+        {
+            // Icon only - fixed size
+            _currentOverlayWidth = IconOnlyWidth;
+            _currentOverlayHeight = IconOnlyHeight;
+        }
+        else
+        {
+            // Measure text to calculate required width
+            StatusText.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            var textWidth = StatusText.DesiredSize.Width;
+            
+            // Icon (32px) + spacing (8px) + text + padding
+            _currentOverlayWidth = (int)(32 + 8 + textWidth + ContentPadding);
+            _currentOverlayHeight = IconOnlyHeight;
+        }
+        
+        // Only resize if dimensions changed
+        if (oldWidth != _currentOverlayWidth)
+        {
+            ResizeWindowWithAnchor(settings, oldWidth);
+        }
+    }
+    
+    private void ResizeWindowWithAnchor(AppSettings settings, int oldWidth)
+    {
+        if (_appWindow == null) return;
+        
+        var currentPos = _appWindow.Position;
+        int widthDiff = _currentOverlayWidth - oldWidth;
+        int newX = currentPos.X;
+        
+        // Calculate anchor based on position percentage
+        // < 40% = left anchor, > 60% = right anchor, 40-60% = center anchor
+        if (settings.OverlayPositionX > 60)
+        {
+            // Right anchor: expand left
+            newX = currentPos.X - widthDiff;
+        }
+        else if (settings.OverlayPositionX >= 40)
+        {
+            // Center anchor: expand both sides
+            newX = currentPos.X - widthDiff / 2;
+        }
+        // else: Left anchor: keep X position (expand right)
+        
+        _appWindow.Resize(new SizeInt32(_currentOverlayWidth, _currentOverlayHeight));
+        _appWindow.Move(new PointInt32(newX, currentPos.Y));
+        
+        SetWindowPos(_hwnd, IntPtr.Zero, newX, currentPos.Y, _currentOverlayWidth, _currentOverlayHeight, 
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     }
     
     public void ApplySettings()
@@ -283,55 +345,11 @@ public sealed partial class OverlayWindow : Window
         var settings = App.Instance?.SettingsService.Settings;
         if (settings == null) return;
         
-        // Update dimensions based on text visibility
-        int oldWidth = _currentOverlayWidth;
-        _currentOverlayWidth = settings.OverlayShowText ? TextOverlayWidth : BaseOverlayWidth;
-        _currentOverlayHeight = BaseOverlayHeight;
-        
-        // Apply visual style
+        // Apply visual style (this also handles window resizing)
         DispatcherQueue.TryEnqueue(() =>
         {
             ApplyOverlayStyle(_currentMuteState, settings);
         });
-        
-        // If width changed, resize and reposition
-        if (oldWidth != _currentOverlayWidth && _appWindow != null)
-        {
-            ResizeAndRepositionOverlay(settings, oldWidth);
-        }
-    }
-    
-    private void ResizeAndRepositionOverlay(AppSettings settings, int oldWidth)
-    {
-        if (_appWindow == null) return;
-        
-        var currentPos = _appWindow.Position;
-        var workArea = GetTargetScreenWorkArea(settings.OverlayScreenId);
-        
-        // Calculate anchor point based on position percentage
-        // < 40% = left anchor, > 60% = right anchor, 40-60% = center anchor
-        int newX = currentPos.X;
-        int widthDiff = _currentOverlayWidth - oldWidth;
-        
-        if (settings.OverlayPositionX > 60)
-        {
-            // Right anchor: expand left (subtract width difference)
-            newX = currentPos.X - widthDiff;
-        }
-        else if (settings.OverlayPositionX >= 40)
-        {
-            // Center anchor: expand both sides (subtract half)
-            newX = currentPos.X - widthDiff / 2;
-        }
-        // else: Left anchor: keep X position (expand right)
-        
-        // Resize and move
-        _appWindow.Resize(new SizeInt32(_currentOverlayWidth, _currentOverlayHeight));
-        _appWindow.Move(new PointInt32(newX, currentPos.Y));
-        
-        // Also update Win32 style
-        SetWindowPos(_hwnd, IntPtr.Zero, newX, currentPos.Y, _currentOverlayWidth, _currentOverlayHeight, 
-            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     }
 
     public void ShowOverlay()
@@ -355,15 +373,6 @@ public sealed partial class OverlayWindow : Window
     public void MoveToPosition(double percentX, double percentY, string screenId)
     {
         if (_appWindow == null) return;
-        
-        // Ensure dimensions are up to date
-        var settings = App.Instance?.SettingsService.Settings;
-        if (settings != null)
-        {
-            _currentOverlayWidth = settings.OverlayShowText ? TextOverlayWidth : BaseOverlayWidth;
-            _currentOverlayHeight = BaseOverlayHeight;
-            _appWindow.Resize(new SizeInt32(_currentOverlayWidth, _currentOverlayHeight));
-        }
 
         var workArea = GetTargetScreenWorkArea(screenId);
         

@@ -48,36 +48,8 @@
                             ValueChanged="DurationSlider_ValueChanged"/>
                 </StackPanel>
             </StackPanel>
+
             
-            <!-- Appearance Settings -->
-            <StackPanel x:Name="AppearancePanel" Spacing="12">
-                <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="14"/>
-                
-                <!-- Show Text -->
-                <ToggleSwitch x:Name="ShowTextToggle"
-                              Header="Show text"
-                              OffContent="Icon only"
-                              OnContent="Icon with text"
-                              Toggled="ShowTextToggle_Toggled"/>
-                
-                <!-- Icon Style -->
-                <TextBlock Text="Icon style" Margin="0,8,0,0"/>
-                <ComboBox x:Name="IconStyleComboBox"
-                          HorizontalAlignment="Stretch"
-                          SelectionChanged="IconStyleComboBox_SelectionChanged">
-                    <ComboBoxItem Content="Colored (red/green)" Tag="Colored"/>
-                    <ComboBoxItem Content="Monochrome" Tag="Monochrome"/>
-                </ComboBox>
-                
-                <!-- Background Style -->
-                <TextBlock Text="Background" Margin="0,8,0,0"/>
-                <ComboBox x:Name="BackgroundStyleComboBox"
-                          HorizontalAlignment="Stretch"
-                          SelectionChanged="BackgroundStyleComboBox_SelectionChanged">
-                    <ComboBoxItem Content="Dark" Tag="Dark"/>
-                    <ComboBoxItem Content="Light" Tag="Light"/>
-                </ComboBox>
-            </StackPanel>
 
             <!-- Screen Selection -->
             <StackPanel x:Name="ScreenSelectionPanel" Spacing="12">
@@ -93,7 +65,6 @@
 
             <!-- Position -->
             <StackPanel x:Name="PositionPanel" Spacing="12">
-                <TextBlock Text="Position" FontWeight="SemiBold" FontSize="14"/>
                 <TextBlock x:Name="CurrentPositionText" 
                            Text="Current: Center, Bottom 20%"
                            Opacity="0.6"
@@ -123,6 +94,36 @@
                         Content="Preview Overlay"
                         Click="PreviewOverlayButton_Click"
                         HorizontalAlignment="Left"/>
+            </StackPanel>
+            
+            <!-- Appearance Settings -->
+            <StackPanel x:Name="AppearancePanel" Spacing="12">
+                <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="14"/>
+                
+                <!-- Show Text -->
+                <ToggleSwitch x:Name="ShowTextToggle"
+                              Header="Show text"
+                              OffContent="Icon only"
+                              OnContent="Icon with text"
+                              Toggled="ShowTextToggle_Toggled"/>
+                
+                <!-- Icon Style -->
+                <TextBlock Text="Icon style" Margin="0,8,0,0"/>
+                <ComboBox x:Name="IconStyleComboBox"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="IconStyleComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Colored (red/green)" Tag="Colored"/>
+                    <ComboBoxItem Content="Monochrome" Tag="Monochrome"/>
+                </ComboBox>
+                
+                <!-- Background Style -->
+                <TextBlock Text="Background" Margin="0,8,0,0"/>
+                <ComboBox x:Name="BackgroundStyleComboBox"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="BackgroundStyleComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Dark" Tag="Dark"/>
+                    <ComboBoxItem Content="Light" Tag="Light"/>
+                </ComboBox>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
