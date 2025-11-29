@@ -194,6 +194,30 @@ public class SettingsService
         _settings.OverlayPositionY = percentY;
         SaveSettings();
     }
+    
+    public void UpdateOverlayShowText(bool showText)
+    {
+        _settings.OverlayShowText = showText;
+        SaveSettings();
+    }
+    
+    public void UpdateOverlayIconStyle(string style)
+    {
+        _settings.OverlayIconStyle = style;
+        SaveSettings();
+    }
+    
+    public void UpdateOverlayBackgroundStyle(string style)
+    {
+        _settings.OverlayBackgroundStyle = style;
+        SaveSettings();
+    }
+    
+    public void UpdateOverlayShowDuration(double duration)
+    {
+        _settings.OverlayShowDuration = Math.Clamp(duration, 0.1, 10.0);
+        SaveSettings();
+    }
 }
 
 public class AppSettings
@@ -221,4 +245,8 @@ public class AppSettings
     public string OverlayScreenId { get; set; } = "PRIMARY"; // PRIMARY or display ID
     public double OverlayPositionX { get; set; } = 50; // Position as percentage (0-100), 50 = center
     public double OverlayPositionY { get; set; } = 80; // Position as percentage (0-100), 80 = bottom 20%
+    public bool OverlayShowText { get; set; } = false; // Show "Microphone is muted/unmuted" text
+    public string OverlayIconStyle { get; set; } = "Colored"; // Colored, Monochrome
+    public string OverlayBackgroundStyle { get; set; } = "Dark"; // Dark, Light
+    public double OverlayShowDuration { get; set; } = 2.0; // Duration in seconds for "AfterToggle" mode (0.1 - 10.0)
 }

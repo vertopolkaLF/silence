@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using silence_.Services;
 using System;
 using System.Linq;
@@ -90,10 +90,11 @@ namespace silence_
         {
             _overlayWindow = new OverlayWindow();
             
-            // Set initial position
+            // Set initial position and apply settings
             var settings = _settingsService?.Settings;
             if (settings != null)
             {
+                _overlayWindow.ApplySettings();
                 _overlayWindow.MoveToPosition(
                     settings.OverlayPositionX, 
                     settings.OverlayPositionY, 
@@ -122,6 +123,7 @@ namespace silence_
                 "Always" => true,
                 "WhenMuted" => isMuted,
                 "WhenUnmuted" => !isMuted,
+                "AfterToggle" => false, // Handled separately in OnHotkeyPressed
                 _ => isMuted
             };
             
@@ -136,6 +138,39 @@ namespace silence_
             }
         }
         
+        private void ShowOverlayTemporarily()
+        {
+            if (_overlayWindow == null || _settingsService == null) return;
+            
+            var settings = _settingsService.Settings;
+            var isMuted = _microphoneService?.IsMuted() ?? false;
+            
+            _overlayWindow.UpdateMuteState(isMuted);
+            _overlayWindow.ShowOverlay();
+            
+            // Cancel any existing timer
+            _previewTimer?.Stop();
+            _previewTimer?.Dispose();
+            
+            // Set up timer to hide overlay after duration
+            var durationMs = (int)(settings.OverlayShowDuration * 1000);
+            _previewTimer = new System.Timers.Timer(durationMs);
+            _previewTimer.Elapsed += (s, e) =>
+            {
+                _previewTimer?.Stop();
+                _window?.DispatcherQueue.TryEnqueue(() =>
+                {
+                    // Only hide if still in AfterToggle mode and not positioning
+                    if (_settingsService?.Settings.OverlayVisibilityMode == "AfterToggle" && !_isOverlayPositioning)
+                    {
+                        _overlayWindow?.HideOverlay();
+                    }
+                });
+            };
+            _previewTimer.AutoReset = false;
+            _previewTimer.Start();
+        }
+        
         public void UpdateOverlayPosition()
         {
             if (_overlayWindow == null || _settingsService == null) return;
@@ -145,6 +180,14 @@ namespace silence_
                 settings.OverlayPositionX,
                 settings.OverlayPositionY,
                 settings.OverlayScreenId);
+        }
+        
+        public void ApplyOverlaySettings()
+        {
+            if (_overlayWindow == null) return;
+            
+            _overlayWindow.ApplySettings();
+            UpdateOverlayPosition();
         }
         
         public void StartOverlayPositioning()
@@ -216,12 +259,20 @@ namespace silence_
             var isMuted = _microphoneService?.ToggleMute() ?? false;
             MuteStateChanged?.Invoke(isMuted);
             
-            // Update overlay
-            _overlayWindow?.UpdateMuteState(isMuted);
-            UpdateOverlayVisibility();
+            // Update overlay based on visibility mode
+            var settings = _settingsService?.Settings;
+            if (settings?.OverlayEnabled == true && settings.OverlayVisibilityMode == "AfterToggle")
+            {
+                // Show overlay temporarily for AfterToggle mode
+                ShowOverlayTemporarily();
+            }
+            else
+            {
+                _overlayWindow?.UpdateMuteState(isMuted);
+                UpdateOverlayVisibility();
+            }
             
             // Play sound feedback
-            var settings = _settingsService?.Settings;
             if (settings != null)
             {
                 if (isMuted)

@@ -32,7 +32,51 @@
                     <RadioButton Content="Always visible" Tag="Always"/>
                     <RadioButton Content="Visible when muted" Tag="WhenMuted" IsChecked="True"/>
                     <RadioButton Content="Visible when unmuted" Tag="WhenUnmuted"/>
+                    <RadioButton Content="Show after toggle" Tag="AfterToggle"/>
                 </RadioButtons>
+                
+                <!-- Duration slider (only visible when AfterToggle is selected) -->
+                <StackPanel x:Name="DurationPanel" Spacing="8" Visibility="Collapsed" Margin="0,8,0,0">
+                    <TextBlock x:Name="DurationLabel" Text="Duration: 2.0s"/>
+                    <Slider x:Name="DurationSlider"
+                            Minimum="0.1"
+                            Maximum="10"
+                            StepFrequency="0.1"
+                            TickFrequency="1"
+                            TickPlacement="Outside"
+                            Value="2"
+                            ValueChanged="DurationSlider_ValueChanged"/>
+                </StackPanel>
+            </StackPanel>
+            
+            <!-- Appearance Settings -->
+            <StackPanel x:Name="AppearancePanel" Spacing="12">
+                <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="14"/>
+                
+                <!-- Show Text -->
+                <ToggleSwitch x:Name="ShowTextToggle"
+                              Header="Show text"
+                              OffContent="Icon only"
+                              OnContent="Icon with text"
+                              Toggled="ShowTextToggle_Toggled"/>
+                
+                <!-- Icon Style -->
+                <TextBlock Text="Icon style" Margin="0,8,0,0"/>
+                <ComboBox x:Name="IconStyleComboBox"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="IconStyleComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Colored (red/green)" Tag="Colored"/>
+                    <ComboBoxItem Content="Monochrome" Tag="Monochrome"/>
+                </ComboBox>
+                
+                <!-- Background Style -->
+                <TextBlock Text="Background" Margin="0,8,0,0"/>
+                <ComboBox x:Name="BackgroundStyleComboBox"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="BackgroundStyleComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Dark" Tag="Dark"/>
+                    <ComboBoxItem Content="Light" Tag="Light"/>
+                </ComboBox>
             </StackPanel>
 
             <!-- Screen Selection -->

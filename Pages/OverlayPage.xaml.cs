@@ -39,6 +39,34 @@ public sealed partial class OverlayPage : Page
                 break;
             }
         }
+        
+        // Set duration slider
+        DurationSlider.Value = settings.OverlayShowDuration;
+        DurationLabel.Text = $"Duration: {settings.OverlayShowDuration:F1}s";
+        UpdateDurationPanelVisibility(settings.OverlayVisibilityMode);
+        
+        // Set appearance settings
+        ShowTextToggle.IsOn = settings.OverlayShowText;
+        
+        // Set icon style
+        foreach (ComboBoxItem item in IconStyleComboBox.Items)
+        {
+            if (item.Tag?.ToString() == settings.OverlayIconStyle)
+            {
+                IconStyleComboBox.SelectedItem = item;
+                break;
+            }
+        }
+        
+        // Set background style
+        foreach (ComboBoxItem item in BackgroundStyleComboBox.Items)
+        {
+            if (item.Tag?.ToString() == settings.OverlayBackgroundStyle)
+            {
+                BackgroundStyleComboBox.SelectedItem = item;
+                break;
+            }
+        }
 
         UpdatePositionText(settings);
     }
@@ -206,9 +234,11 @@ public sealed partial class OverlayPage : Page
     private void UpdatePanelsEnabled(bool enabled)
     {
         VisibilityModePanel.Opacity = enabled ? 1.0 : 0.5;
+        AppearancePanel.Opacity = enabled ? 1.0 : 0.5;
         ScreenSelectionPanel.Opacity = enabled ? 1.0 : 0.5;
         PositionPanel.Opacity = enabled ? 1.0 : 0.5;
         VisibilityModePanel.IsHitTestVisible = enabled;
+        AppearancePanel.IsHitTestVisible = enabled;
         ScreenSelectionPanel.IsHitTestVisible = enabled;
         PositionPanel.IsHitTestVisible = enabled;
     }
@@ -234,6 +264,53 @@ public sealed partial class OverlayPage : Page
             var mode = selectedButton.Tag?.ToString() ?? "WhenMuted";
             App.Instance?.SettingsService.UpdateOverlayVisibilityMode(mode);
             App.Instance?.UpdateOverlayVisibility();
+            UpdateDurationPanelVisibility(mode);
+        }
+    }
+    
+    private void UpdateDurationPanelVisibility(string mode)
+    {
+        DurationPanel.Visibility = mode == "AfterToggle" ? Visibility.Visible : Visibility.Collapsed;
+    }
+    
+    private void DurationSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        
+        var duration = Math.Round(e.NewValue, 1);
+        DurationLabel.Text = $"Duration: {duration:F1}s";
+        App.Instance?.SettingsService.UpdateOverlayShowDuration(duration);
+    }
+    
+    private void ShowTextToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing) return;
+        
+        App.Instance?.SettingsService.UpdateOverlayShowText(ShowTextToggle.IsOn);
+        App.Instance?.ApplyOverlaySettings();
+    }
+    
+    private void IconStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        
+        if (IconStyleComboBox.SelectedItem is ComboBoxItem selectedItem)
+        {
+            var style = selectedItem.Tag?.ToString() ?? "Colored";
+            App.Instance?.SettingsService.UpdateOverlayIconStyle(style);
+            App.Instance?.ApplyOverlaySettings();
+        }
+    }
+    
+    private void BackgroundStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        
+        if (BackgroundStyleComboBox.SelectedItem is ComboBoxItem selectedItem)
+        {
+            var style = selectedItem.Tag?.ToString() ?? "Dark";
+            App.Instance?.SettingsService.UpdateOverlayBackgroundStyle(style);
+            App.Instance?.ApplyOverlaySettings();
         }
     }
 

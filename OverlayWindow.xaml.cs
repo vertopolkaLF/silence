@@ -28,9 +28,17 @@ public sealed partial class OverlayWindow : Window
     private const double MagneticRange = 60; // Range where magnetic effect starts (pixels)
     private const double SnapThreshold = 8; // Distance to fully snap to axis
     
-    // Window dimensions - fit icon only (48x48)
-    private const int OverlayWidth = 48;
-    private const int OverlayHeight = 48;
+    // Window dimensions - base icon only (48x48), expanded when text is shown
+    private const int BaseOverlayWidth = 48;
+    private const int BaseOverlayHeight = 48;
+    private const int TextOverlayWidth = 220; // Width when text is visible
+    
+    // Current dimensions (may change based on settings)
+    private int _currentOverlayWidth = BaseOverlayWidth;
+    private int _currentOverlayHeight = BaseOverlayHeight;
+    
+    // Current state
+    private bool _currentMuteState = false;
 
     private Microsoft.UI.Windowing.AppWindowPresenterKind _presenterKind = Microsoft.UI.Windowing.AppWindowPresenterKind.Overlapped;
 
@@ -93,7 +101,7 @@ public sealed partial class OverlayWindow : Window
             _appWindow.SetPresenter(_presenterKind);
 
             // Set initial size
-            _appWindow.Resize(new SizeInt32(OverlayWidth, OverlayHeight));
+            _appWindow.Resize(new SizeInt32(_currentOverlayWidth, _currentOverlayHeight));
             
             // Remove title bar and borders
             if (_appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter overlappedPresenter)
@@ -163,8 +171,8 @@ public sealed partial class OverlayWindow : Window
         if (message == WM_GETMINMAXINFO)
         {
             var minMaxInfo = Marshal.PtrToStructure<MINMAXINFO>(lParam);
-            minMaxInfo.ptMinTrackSize.X = OverlayWidth;
-            minMaxInfo.ptMinTrackSize.Y = OverlayHeight;
+            minMaxInfo.ptMinTrackSize.X = _currentOverlayWidth;
+            minMaxInfo.ptMinTrackSize.Y = _currentOverlayHeight;
             Marshal.StructureToPtr(minMaxInfo, lParam, true);
         }
         return CallWindowProc(_oldWndProc, hwnd, message, wParam, lParam);
@@ -196,7 +204,7 @@ public sealed partial class OverlayWindow : Window
         
         // Force window size after style changes - WinUI ignores small sizes otherwise
         // SWP_FRAMECHANGED is needed to apply style changes
-        SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, OverlayWidth, OverlayHeight, 
+        SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, _currentOverlayWidth, _currentOverlayHeight, 
             SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     }
 
@@ -216,19 +224,114 @@ public sealed partial class OverlayWindow : Window
 
     public void UpdateMuteState(bool isMuted)
     {
+        _currentMuteState = isMuted;
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (isMuted)
-            {
-                MicIcon.Glyph = "\uE720"; // Microphone icon
-                MicIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 220, 53, 69)); // Red
-            }
-            else
-            {
-                MicIcon.Glyph = "\uE720"; // Microphone icon
-                MicIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 40, 167, 69)); // Green
-            }
+            var settings = App.Instance?.SettingsService.Settings;
+            ApplyOverlayStyle(isMuted, settings);
         });
+    }
+    
+    private void ApplyOverlayStyle(bool isMuted, AppSettings? settings)
+    {
+        if (settings == null) return;
+        
+        bool isMonochrome = settings.OverlayIconStyle == "Monochrome";
+        bool isDarkBackground = settings.OverlayBackgroundStyle == "Dark";
+        bool showText = settings.OverlayShowText;
+        
+        // Set icon glyph - use mic-off icon when muted
+        MicIcon.Glyph = isMuted ? "\uF781" : "\uE720"; // MicOff : Microphone
+        
+        // Set icon color based on style
+        if (isMonochrome)
+        {
+            // Monochrome: white on dark, black on light
+            var monoColor = isDarkBackground 
+                ? Windows.UI.Color.FromArgb(255, 255, 255, 255)  // White
+                : Windows.UI.Color.FromArgb(255, 0, 0, 0);       // Black
+            MicIcon.Foreground = new SolidColorBrush(monoColor);
+        }
+        else
+        {
+            // Colored: red when muted, green when unmuted
+            var color = isMuted
+                ? Windows.UI.Color.FromArgb(255, 220, 53, 69)   // Red
+                : Windows.UI.Color.FromArgb(255, 40, 167, 69);  // Green
+            MicIcon.Foreground = new SolidColorBrush(color);
+        }
+        
+        // Set background color
+        var bgColor = isDarkBackground
+            ? Windows.UI.Color.FromArgb(255, 30, 30, 30)        // Dark (#1E1E1E)
+            : Windows.UI.Color.FromArgb(255, 255, 255, 255);    // Light (white)
+        RootGrid.Background = new SolidColorBrush(bgColor);
+        
+        // Set text visibility and content
+        StatusText.Visibility = showText ? Visibility.Visible : Visibility.Collapsed;
+        StatusText.Text = isMuted ? "Microphone is muted" : "Microphone is unmuted";
+        
+        // Text color should contrast with background
+        var textColor = isDarkBackground
+            ? Windows.UI.Color.FromArgb(255, 255, 255, 255)     // White
+            : Windows.UI.Color.FromArgb(255, 0, 0, 0);          // Black
+        StatusText.Foreground = new SolidColorBrush(textColor);
+    }
+    
+    public void ApplySettings()
+    {
+        var settings = App.Instance?.SettingsService.Settings;
+        if (settings == null) return;
+        
+        // Update dimensions based on text visibility
+        int oldWidth = _currentOverlayWidth;
+        _currentOverlayWidth = settings.OverlayShowText ? TextOverlayWidth : BaseOverlayWidth;
+        _currentOverlayHeight = BaseOverlayHeight;
+        
+        // Apply visual style
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            ApplyOverlayStyle(_currentMuteState, settings);
+        });
+        
+        // If width changed, resize and reposition
+        if (oldWidth != _currentOverlayWidth && _appWindow != null)
+        {
+            ResizeAndRepositionOverlay(settings, oldWidth);
+        }
+    }
+    
+    private void ResizeAndRepositionOverlay(AppSettings settings, int oldWidth)
+    {
+        if (_appWindow == null) return;
+        
+        var currentPos = _appWindow.Position;
+        var workArea = GetTargetScreenWorkArea(settings.OverlayScreenId);
+        
+        // Calculate anchor point based on position percentage
+        // < 40% = left anchor, > 60% = right anchor, 40-60% = center anchor
+        int newX = currentPos.X;
+        int widthDiff = _currentOverlayWidth - oldWidth;
+        
+        if (settings.OverlayPositionX > 60)
+        {
+            // Right anchor: expand left (subtract width difference)
+            newX = currentPos.X - widthDiff;
+        }
+        else if (settings.OverlayPositionX >= 40)
+        {
+            // Center anchor: expand both sides (subtract half)
+            newX = currentPos.X - widthDiff / 2;
+        }
+        // else: Left anchor: keep X position (expand right)
+        
+        // Resize and move
+        _appWindow.Resize(new SizeInt32(_currentOverlayWidth, _currentOverlayHeight));
+        _appWindow.Move(new PointInt32(newX, currentPos.Y));
+        
+        // Also update Win32 style
+        SetWindowPos(_hwnd, IntPtr.Zero, newX, currentPos.Y, _currentOverlayWidth, _currentOverlayHeight, 
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     }
 
     public void ShowOverlay()
@@ -252,12 +355,21 @@ public sealed partial class OverlayWindow : Window
     public void MoveToPosition(double percentX, double percentY, string screenId)
     {
         if (_appWindow == null) return;
+        
+        // Ensure dimensions are up to date
+        var settings = App.Instance?.SettingsService.Settings;
+        if (settings != null)
+        {
+            _currentOverlayWidth = settings.OverlayShowText ? TextOverlayWidth : BaseOverlayWidth;
+            _currentOverlayHeight = BaseOverlayHeight;
+            _appWindow.Resize(new SizeInt32(_currentOverlayWidth, _currentOverlayHeight));
+        }
 
         var workArea = GetTargetScreenWorkArea(screenId);
         
         // Calculate position from percentage
-        int x = (int)(workArea.X + (workArea.Width - OverlayWidth) * percentX / 100.0);
-        int y = (int)(workArea.Y + (workArea.Height - OverlayHeight) * percentY / 100.0);
+        int x = (int)(workArea.X + (workArea.Width - _currentOverlayWidth) * percentX / 100.0);
+        int y = (int)(workArea.Y + (workArea.Height - _currentOverlayHeight) * percentY / 100.0);
         
         _appWindow.Move(new PointInt32(x, y));
     }
@@ -392,8 +504,8 @@ public sealed partial class OverlayWindow : Window
         var position = _appWindow.Position;
 
         // Convert position to percentage
-        double percentX = (position.X - workArea.X) * 100.0 / (workArea.Width - OverlayWidth);
-        double percentY = (position.Y - workArea.Y) * 100.0 / (workArea.Height - OverlayHeight);
+        double percentX = (position.X - workArea.X) * 100.0 / (workArea.Width - _currentOverlayWidth);
+        double percentY = (position.Y - workArea.Y) * 100.0 / (workArea.Height - _currentOverlayHeight);
 
         // Clamp values
         percentX = Math.Clamp(percentX, 0, 100);
@@ -440,8 +552,8 @@ public sealed partial class OverlayWindow : Window
         var settings = App.Instance?.SettingsService.Settings;
         var workArea = GetTargetScreenWorkArea(settings?.OverlayScreenId ?? "PRIMARY");
         
-        double centerX = workArea.X + (workArea.Width - OverlayWidth) / 2.0;
-        double centerY = workArea.Y + (workArea.Height - OverlayHeight) / 2.0;
+        double centerX = workArea.X + (workArea.Width - _currentOverlayWidth) / 2.0;
+        double centerY = workArea.Y + (workArea.Height - _currentOverlayHeight) / 2.0;
 
         // Calculate distance from center axes
         double distanceFromCenterX = Math.Abs(baseX - centerX);
