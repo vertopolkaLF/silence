@@ -36,7 +36,8 @@
                               FontSize="24"
                               Foreground="White"
                               HorizontalAlignment="Center"
-                              VerticalAlignment="Center"/>
+                              VerticalAlignment="Center"
+                              Margin="0,0,0,0"/>
                 </Border>
             
                 <StackPanel Grid.Column="1" 

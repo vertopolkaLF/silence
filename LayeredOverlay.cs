@@ -142,12 +142,8 @@ public sealed class LayeredOverlay : IDisposable
         _iconFont?.Dispose();
         _textFont?.Dispose();
         
-        // Use Segoe Fluent Icons on Win11, Segoe MDL2 Assets on Win10
-        string iconFontFamily = Environment.OSVersion.Version.Build >= 22000 
-            ? "Segoe Fluent Icons" 
-            : "Segoe MDL2 Assets";
-        
-        _iconFont = new Font(iconFontFamily, BaseIconFontSize * _dpiScale, FontStyle.Regular, GraphicsUnit.Pixel);
+        // Always use Segoe Fluent Icons (available on Win10 1903+ and Win11)
+        _iconFont = new Font("Segoe Fluent Icons", BaseIconFontSize * _dpiScale, FontStyle.Regular, GraphicsUnit.Pixel);
         _textFont = new Font("Segoe UI", BaseTextFontSize * _dpiScale, FontStyle.Regular, GraphicsUnit.Pixel);
         
         // Update dimensions
@@ -188,7 +184,7 @@ public sealed class LayeredOverlay : IDisposable
         int scaledIconOnlySize = (int)(BaseIconOnlySize * _dpiScale);
         int scaledPadding = (int)(BasePadding * _dpiScale);
         int scaledGap = (int)(BaseIconTextGap * _dpiScale);
-        int scaledCornerRadius = Environment.OSVersion.Version.Build >= 22000 ? (int)(6 * _dpiScale) : 0;
+        int scaledCornerRadius = (int)(6 * _dpiScale); // Always use rounded corners
         
         // Measure icon size
         string glyph = _currentMuteState ? MicrophoneOffGlyph : MicrophoneGlyph;
@@ -244,7 +240,10 @@ public sealed class LayeredOverlay : IDisposable
         using var g = Graphics.FromImage(bitmap);
         
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        // Use AntiAlias for text when content has transparency (ClearType doesn't work with alpha)
+        g.TextRenderingHint = contentOpacity < 255 
+            ? TextRenderingHint.AntiAliasGridFit 
+            : TextRenderingHint.ClearTypeGridFit;
         g.Clear(Color.Transparent);
         
         // Background color with configurable opacity
@@ -255,28 +254,14 @@ public sealed class LayeredOverlay : IDisposable
         // Draw rounded rectangle background
         using (var bgBrush = new SolidBrush(bgColor))
         {
-            if (scaledCornerRadius > 0)
-            {
-                DrawRoundedRectangle(g, bgBrush, 0, 0, _currentWidth, _currentHeight, scaledCornerRadius);
-            }
-            else
-            {
-                g.FillRectangle(bgBrush, 0, 0, _currentWidth, _currentHeight);
-            }
+            DrawRoundedRectangle(g, bgBrush, 0, 0, _currentWidth, _currentHeight, scaledCornerRadius);
         }
         
         // Positioning mode border
         if (_isPositioning)
         {
             using var borderPen = new Pen(Color.FromArgb(255, 0, 120, 215), 2 * _dpiScale);
-            if (scaledCornerRadius > 0)
-            {
-                DrawRoundedRectangleBorder(g, borderPen, 1, 1, _currentWidth - 2, _currentHeight - 2, scaledCornerRadius);
-            }
-            else
-            {
-                g.DrawRectangle(borderPen, 1, 1, _currentWidth - 3, _currentHeight - 3);
-            }
+            DrawRoundedRectangleBorder(g, borderPen, 1, 1, _currentWidth - 2, _currentHeight - 2, scaledCornerRadius);
         }
         
         // Icon color with content opacity
