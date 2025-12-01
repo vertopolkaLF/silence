@@ -341,37 +341,32 @@ public sealed class LayeredOverlay : IDisposable
                 : Color.FromArgb(contentOpacity, 40, 167, 69);  // Green
         }
         
-        // Draw icon with precise centering using MeasureCharacterRanges
-        // StringFormat.Center doesn't work properly for icon fonts because it uses font metrics,
-        // not the actual visual bounds of the glyph
+        // Draw icon centered in its square area
+        // Different icon fonts have different metrics, so we need font-specific vertical offset
+        // Segoe MDL2 Assets (Win10) needs more correction than Segoe Fluent Icons (Win11)
+        float verticalOffset = _iconFontFamily == "Segoe MDL2 Assets" 
+            ? 10f * _dpiScale   // Win10 - needs bigger correction
+            : 1f * _dpiScale;  // Win11 - minimal correction
+        
         using (var iconBrush = new SolidBrush(iconColor))
-        using (var measureFormat = new StringFormat(StringFormat.GenericTypographic))
+        using (var iconFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
         {
-            // Measure the actual visual bounds of the glyph
-            measureFormat.SetMeasurableCharacterRanges(new[] { new CharacterRange(0, glyph.Length) });
-            var measureRect = new RectangleF(0, 0, 1000, 1000);
-            var regions = g.MeasureCharacterRanges(glyph, _iconFont, measureRect, measureFormat);
-            var glyphBounds = regions[0].GetBounds(g);
-            regions[0].Dispose();
+            float iconCenterX, iconCenterY;
             
-            // Calculate where to draw so the glyph is visually centered
-            float targetCenterX, targetCenterY;
             if (showText)
             {
-                targetCenterX = scaledPadding + scaledIconSize / 2f;
-                targetCenterY = _currentHeight / 2f;
+                // Icon is in a square area at the left side: padding + half icon size
+                iconCenterX = scaledPadding + scaledIconSize / 2f;
+                iconCenterY = _currentHeight / 2f + verticalOffset;
             }
             else
             {
-                targetCenterX = _currentWidth / 2f;
-                targetCenterY = _currentHeight / 2f;
+                // Icon centered in the square overlay
+                iconCenterX = _currentWidth / 2f;
+                iconCenterY = _currentHeight / 2f + verticalOffset;
             }
             
-            // Draw position = target center - glyph center offset from origin
-            float drawX = targetCenterX - glyphBounds.Width / 2f - glyphBounds.X;
-            float drawY = targetCenterY - glyphBounds.Height / 2f - glyphBounds.Y;
-            
-            g.DrawString(glyph, _iconFont, iconBrush, drawX, drawY, measureFormat);
+            g.DrawString(glyph, _iconFont, iconBrush, iconCenterX, iconCenterY, iconFormat);
         }
         
         // Draw text if enabled - also use StringFormat for consistent vertical alignment
