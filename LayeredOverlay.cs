@@ -45,8 +45,8 @@ public sealed class LayeredOverlay : IDisposable
     private const int BaseIconOnlySize = 48;
     private const int BaseIconFontSize = 28; // Increased icon size
     private const int BaseTextFontSize = 14;
-    private const int BasePadding = 6; // Symmetric padding left/right
-    private const int BaseIconTextGap = 2; // Gap between icon and text
+    private const int BasePadding = 10; // Symmetric padding left/right
+    private const int BaseIconTextGap = 6; // Gap between icon and text
     
     // DPI-scaled dimensions
     private float _dpiScale = 1.0f;
@@ -257,9 +257,13 @@ public sealed class LayeredOverlay : IDisposable
             using var measureBmp = new Bitmap(1, 1);
             using var measureG = Graphics.FromImage(measureBmp);
             measureG.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-            var textSize = measureG.MeasureString(statusText, _textFont);
+            // Use GenericTypographic to get accurate text width without extra padding
+            using var measureFormat = new StringFormat(StringFormat.GenericTypographic);
+            var textSize = measureG.MeasureString(statusText, _textFont, 1000, measureFormat);
+            // Add small buffer to text width (GenericTypographic cuts too tight)
+            int textWidth = (int)Math.Ceiling(textSize.Width) + (int)(4 * _dpiScale);
             // Symmetric padding: padding + icon + gap + text + padding
-            _currentWidth = scaledPadding + scaledIconSize + scaledGap + (int)Math.Ceiling(textSize.Width) + scaledPadding;
+            _currentWidth = scaledPadding + scaledIconSize + scaledGap + textWidth + scaledPadding;
         }
         else
         {
