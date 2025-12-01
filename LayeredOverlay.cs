@@ -342,11 +342,11 @@ public sealed class LayeredOverlay : IDisposable
         }
         
         // Draw icon centered in its square area
-        // Different icon fonts have different metrics, so we need font-specific vertical offset
-        // Segoe MDL2 Assets (Win10) needs more correction than Segoe Fluent Icons (Win11)
-        float verticalOffset = _iconFontFamily == "Segoe MDL2 Assets" 
-            ? 10f * _dpiScale   // Win10 - needs bigger correction
-            : 1f * _dpiScale;  // Win11 - minimal correction
+        // Different icon fonts have different metrics, so we need font-specific offsets
+        // Segoe MDL2 Assets (Win10) has fucked up horizontal metrics compared to Segoe Fluent Icons (Win11)
+        float horizontalOffset = _iconFontFamily == "Segoe MDL2 Assets" 
+            ? 3f * _dpiScale   // Win10 - icon shifted left, need to push right
+            : 1f;              // Win11 - seems fine
         
         using (var iconBrush = new SolidBrush(iconColor))
         using (var iconFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
@@ -356,14 +356,14 @@ public sealed class LayeredOverlay : IDisposable
             if (showText)
             {
                 // Icon is in a square area at the left side: padding + half icon size
-                iconCenterX = scaledPadding + scaledIconSize / 2f;
-                iconCenterY = _currentHeight / 2f + verticalOffset;
+                iconCenterX = scaledPadding + scaledIconSize / 2f + horizontalOffset;
+                iconCenterY = _currentHeight / 2f;
             }
             else
             {
                 // Icon centered in the square overlay
-                iconCenterX = _currentWidth / 2f;
-                iconCenterY = _currentHeight / 2f + verticalOffset;
+                iconCenterX = _currentWidth / 2f + horizontalOffset;
+                iconCenterY = _currentHeight / 2f;
             }
             
             g.DrawString(glyph, _iconFont, iconBrush, iconCenterX, iconCenterY, iconFormat);
