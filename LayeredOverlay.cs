@@ -243,16 +243,10 @@ public sealed class LayeredOverlay : IDisposable
         int scaledGap = (int)(BaseIconTextGap * _dpiScale);
         int scaledCornerRadius = (int)(settings.OverlayBorderRadius * _dpiScale);
         
-        // Measure icon size using GenericTypographic for accurate measurement
+        // Icon glyph and fixed size (icon fonts are designed for square bounding boxes)
         string glyph = _currentMuteState ? _microphoneOffGlyph : MicrophoneGlyph;
-        SizeF iconMeasure;
-        using (var measureBmp = new Bitmap(1, 1))
-        using (var measureG = Graphics.FromImage(measureBmp))
-        using (var typographicFormat = new StringFormat(StringFormat.GenericTypographic))
-        {
-            iconMeasure = measureG.MeasureString(glyph, _iconFont, 1000, typographicFormat);
-        }
-        int scaledIconWidth = (int)Math.Ceiling(iconMeasure.Width);
+        // Use font size as icon size - icon fonts are designed this way
+        int scaledIconSize = (int)Math.Ceiling(BaseIconFontSize * _dpiScale);
         
         // Calculate dimensions
         int oldWidth = _currentWidth;
@@ -265,7 +259,7 @@ public sealed class LayeredOverlay : IDisposable
             measureG.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
             var textSize = measureG.MeasureString(statusText, _textFont);
             // Symmetric padding: padding + icon + gap + text + padding
-            _currentWidth = scaledPadding + scaledIconWidth + scaledGap + (int)Math.Ceiling(textSize.Width) + scaledPadding;
+            _currentWidth = scaledPadding + scaledIconSize + scaledGap + (int)Math.Ceiling(textSize.Width) + scaledPadding;
         }
         else
         {
@@ -347,30 +341,32 @@ public sealed class LayeredOverlay : IDisposable
                 : Color.FromArgb(contentOpacity, 40, 167, 69);  // Green
         }
         
-        // Draw icon using GenericTypographic format for precise centering
-        // This removes the extra padding that MeasureString/DrawString add by default
-        // which causes misalignment especially on Win10 with Segoe MDL2 Assets
+        // Draw icon centered in its square area
+        // Different icon fonts have different metrics, so we need font-specific vertical offset
+        // Segoe MDL2 Assets (Win10) needs more correction than Segoe Fluent Icons (Win11)
+        float verticalOffset = _iconFontFamily == "Segoe MDL2 Assets" 
+            ? 3f * _dpiScale   // Win10 - needs bigger correction
+            : 1f * _dpiScale;  // Win11 - minimal correction
+        
         using (var iconBrush = new SolidBrush(iconColor))
-        using (var iconFormat = new StringFormat(StringFormat.GenericTypographic))
+        using (var iconFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
         {
-            iconFormat.Alignment = StringAlignment.Center;
-            iconFormat.LineAlignment = StringAlignment.Center;
-            iconFormat.FormatFlags |= StringFormatFlags.NoClip;
+            float iconCenterX, iconCenterY;
             
-            // Define the rectangle where the icon should be drawn
-            RectangleF iconRect;
             if (showText)
             {
-                // Left aligned with padding
-                iconRect = new RectangleF(scaledPadding, 0, scaledIconWidth, _currentHeight);
+                // Icon is in a square area at the left side: padding + half icon size
+                iconCenterX = scaledPadding + scaledIconSize / 2f;
+                iconCenterY = _currentHeight / 2f + verticalOffset;
             }
             else
             {
-                // Centered in the square
-                iconRect = new RectangleF(0, 0, _currentWidth, _currentHeight);
+                // Icon centered in the square overlay
+                iconCenterX = _currentWidth / 2f;
+                iconCenterY = _currentHeight / 2f + verticalOffset;
             }
             
-            g.DrawString(glyph, _iconFont, iconBrush, iconRect, iconFormat);
+            g.DrawString(glyph, _iconFont, iconBrush, iconCenterX, iconCenterY, iconFormat);
         }
         
         // Draw text if enabled - also use StringFormat for consistent vertical alignment
@@ -381,7 +377,7 @@ public sealed class LayeredOverlay : IDisposable
                 : Color.FromArgb(contentOpacity, 0, 0, 0);       // Black
             using var textBrush = new SolidBrush(textColor);
             using var textFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-            float textX = scaledPadding + scaledIconWidth + scaledGap;
+            float textX = scaledPadding + scaledIconSize + scaledGap;
             float textCenterY = _currentHeight / 2f;
             g.DrawString(statusText, _textFont, textBrush, textX, textCenterY, textFormat);
         }
