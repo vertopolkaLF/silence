@@ -28,7 +28,8 @@
 - **Portable** — No MSIX installer required, just extract and run
 
 ## 📸 Screenshot
-<img width="564" height="471" alt="image" src="https://github.com/user-attachments/assets/4d5750a7-1c86-4393-9e55-a181b1186876" />
+<img width="958" height="955" alt="2025-12-01-10_35_35-Program_Manager-DLFHE1Lwwc" src="https://github.com/user-attachments/assets/f58e1b35-2310-4b52-a56f-5ddc36b52a46" />
+
 
 ## 🚀 Installation
 
