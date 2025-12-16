@@ -75,3 +75,7 @@ Contributions are welcome! Feel free to:
   Made with ❤️ for people who are tired of fumbling with mute buttons during meetings
 </p>
 
+
+
+
+developer: https://www.reddit.com/user/vertopolkaLF/ (for r/windows11 and r/windows verification)
