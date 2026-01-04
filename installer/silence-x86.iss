@@ -38,7 +38,7 @@ WizardStyle=modern
 ; Architecture - x86 can run on both 32 and 64 bit
 ArchitecturesAllowed=x86compatible
 ; Privileges
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 ; Uninstaller
 UninstallDisplayIcon={app}\{#MyAppExeName}
