@@ -21,8 +21,8 @@ namespace silence_
     {
         private TaskbarIcon? _trayIcon;
         private AppWindow? _appWindow;
-        private const int MinWindowWidth = 580;
-        private const int MinWindowHeight = 480;
+        private const int BaseMinWindowWidth = 580;
+        private const int BaseMinWindowHeight = 480;
 
         private string _currentPage = "General";
         private bool _updateAvailable = false;
@@ -184,28 +184,48 @@ namespace silence_
 
             if (_appWindow != null)
             {
-                const int initialWidth = 580;
-                const int initialHeight = 480;
+                // Get DPI scaling factor
+                var displayArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary);
+                double dpiScale = 1.0;
                 
-                _appWindow.Resize(new SizeInt32(initialWidth, initialHeight));
+                if (displayArea != null)
+                {
+                    // Calculate DPI scaling factor (96 DPI = 100% scaling)
+                    dpiScale = displayArea.OuterBounds.Width / (double)displayArea.WorkArea.Width;
+                    
+                    // For more accurate DPI detection, we can use the raw DPI
+                    var dpi = GetDpiForWindow(hwnd);
+                    dpiScale = dpi / 96.0; // 96 DPI = 100% scaling
+                }
+                
+                // Adjust window size based on DPI scaling to maintain consistent visual size
+                var adjustedWidth = (int)(BaseMinWindowWidth * dpiScale);
+                var adjustedHeight = (int)(BaseMinWindowHeight * dpiScale);
+                
+                _appWindow.Resize(new SizeInt32(adjustedWidth, adjustedHeight));
                 
                 _appWindow.Changed += (s, e) =>
                 {
-                    if (e.DidSizeChange && _appWindow.Size.Width < MinWindowWidth)
+                    if (e.DidSizeChange)
                     {
-                        _appWindow.Resize(new SizeInt32(MinWindowWidth, _appWindow.Size.Height));
-                    }
-                    if (e.DidSizeChange && _appWindow.Size.Height < MinWindowHeight)
-                    {
-                        _appWindow.Resize(new SizeInt32(_appWindow.Size.Width, MinWindowHeight));
+                        var minWidth = (int)(BaseMinWindowWidth * dpiScale);
+                        var minHeight = (int)(BaseMinWindowHeight * dpiScale);
+                        
+                        if (_appWindow.Size.Width < minWidth)
+                        {
+                            _appWindow.Resize(new SizeInt32(minWidth, _appWindow.Size.Height));
+                        }
+                        if (_appWindow.Size.Height < minHeight)
+                        {
+                            _appWindow.Resize(new SizeInt32(_appWindow.Size.Width, minHeight));
+                        }
                     }
                 };
                 
-                var displayArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary);
                 if (displayArea != null)
                 {
-                    var centerX = (displayArea.WorkArea.Width - initialWidth) / 2;
-                    var centerY = (displayArea.WorkArea.Height - initialHeight) / 2;
+                    var centerX = (displayArea.WorkArea.Width - adjustedWidth) / 2;
+                    var centerY = (displayArea.WorkArea.Height - adjustedHeight) / 2;
                     _appWindow.Move(new PointInt32(centerX, centerY));
                 }
 
@@ -418,6 +438,9 @@ namespace silence_
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hwnd);
 
         public void DisposeTrayIcon()
         {
