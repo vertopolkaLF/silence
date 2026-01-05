@@ -39,6 +39,9 @@ namespace silence_.Pages
             UpdateAvailablePanel.Visibility = Visibility.Visible;
             NewVersionText.Text = $"New version: v{result.LatestVersion}";
             
+            // Hide the "Check for Updates" button when update is available
+            CheckUpdatesButton.Visibility = Visibility.Collapsed;
+            
             // Disable download button if no installer found for current arch
             DownloadUpdateButton.IsEnabled = !string.IsNullOrEmpty(result.DownloadUrl);
             if (!DownloadUpdateButton.IsEnabled)
@@ -71,11 +74,15 @@ namespace silence_.Pages
                 {
                     ErrorPanel.Visibility = Visibility.Visible;
                     ErrorText.Text = _lastCheckResult.ErrorMessage ?? "Unknown error";
+                    CheckUpdatesButton.Visibility = Visibility.Visible;
                 }
                 else if (_lastCheckResult.IsUpdateAvailable)
                 {
                     UpdateAvailablePanel.Visibility = Visibility.Visible;
                     NewVersionText.Text = $"New version: v{_lastCheckResult.LatestVersion}";
+                    
+                    // Hide the "Check for Updates" button when update is available
+                    CheckUpdatesButton.Visibility = Visibility.Collapsed;
                     
                     // Disable download button if no installer found for current arch
                     DownloadUpdateButton.IsEnabled = !string.IsNullOrEmpty(_lastCheckResult.DownloadUrl);
@@ -87,6 +94,7 @@ namespace silence_.Pages
                 else
                 {
                     UpToDatePanel.Visibility = Visibility.Visible;
+                    CheckUpdatesButton.Visibility = Visibility.Visible;
                 }
 
                 // Update last check time

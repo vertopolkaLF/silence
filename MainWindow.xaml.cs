@@ -27,6 +27,15 @@ namespace silence_
         private string _currentPage = "General";
         private bool _updateAvailable = false;
 
+        public void NavigateToAbout()
+        {
+            NavView.SelectedItem = AboutNavItem;
+            _updateAvailable = false;
+            UpdateNotificationBorder.Visibility = Visibility.Collapsed;
+            UpdateNotificationCompact.Visibility = Visibility.Collapsed;
+            UpdatePlaceholder.Visibility = Visibility.Visible;
+        }
+
         private void SetupTitleBar()
         {
             ExtendsContentIntoTitleBar = true;
@@ -271,6 +280,16 @@ namespace silence_
             };
             
             _trayMenu = new MenuFlyout();
+            
+            // App name and version (disabled)
+            var appInfoItem = new MenuFlyoutItem 
+            { 
+                Text = $"silence! - v{UpdateService.CurrentVersion}",
+                IsEnabled = false
+            };
+            _trayMenu.Items.Add(appInfoItem);
+
+            _trayMenu.Items.Add(new MenuFlyoutSeparator());
             
             var showItem = new MenuFlyoutItem 
             { 

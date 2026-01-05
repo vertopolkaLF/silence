@@ -14,6 +14,7 @@ namespace silence_
         private KeyboardHookService? _keyboardHookService;
         private SettingsService? _settingsService;
         private UpdateService? _updateService;
+        private NotificationService? _notificationService;
         private SoundService? _soundService;
         private bool _startMinimized;
         private bool _isOverlayPositioning = false;
@@ -25,6 +26,7 @@ namespace silence_
         public KeyboardHookService KeyboardHookService => _keyboardHookService!;
         public SettingsService SettingsService => _settingsService!;
         public UpdateService UpdateService => _updateService ??= new UpdateService();
+        public NotificationService NotificationService => _notificationService ??= new NotificationService();
         public SoundService SoundService => _soundService ??= new SoundService();
         public MainWindow? MainWindowInstance => _window;
 
@@ -260,18 +262,42 @@ namespace silence_
                 // Small delay to let the app fully initialize
                 await Task.Delay(2000);
                 
-                var result = await UpdateService.CheckForUpdatesAsync();
+                System.Diagnostics.Debug.WriteLine("CheckForUpdatesOnStartupAsync: Starting update check");
+                
+                // TEMP: Always simulate update available for testing
+                var result = new UpdateCheckResult
+                {
+                    Success = true,
+                    IsUpdateAvailable = true,
+                    CurrentVersion = UpdateService.CurrentVersion,
+                    LatestVersion = "99.9.9",
+                    ReleaseNotes = "## What's New\n\n- Test feature 1\n- Test feature 2\n- Bug fixes",
+                    ReleaseName = "Test Release v99.9.9",
+                    ReleaseUrl = "https://github.com/vertopolkaLF/silence/releases/latest",
+                    DownloadUrl = "https://github.com/vertopolkaLF/silence/releases/download/v99.9.9/silence-x64-Setup.exe",
+                    InstallerFileName = "silence-x64-Setup.exe"
+                };
+                
+                System.Diagnostics.Debug.WriteLine($"CheckForUpdatesOnStartupAsync: Update available = {result.IsUpdateAvailable}");
+                
+                // Uncomment for real update checking:
+                // var result = await UpdateService.CheckForUpdatesAsync();
                 
                 if (result.Success && result.IsUpdateAvailable)
                 {
                     LastUpdateCheckResult = result;
                     UpdateAvailable?.Invoke(result);
+                    
+                    System.Diagnostics.Debug.WriteLine("CheckForUpdatesOnStartupAsync: Calling SendUpdateNotification");
+                    // Send toast notification
+                    NotificationService.SendUpdateNotification(result);
                 }
                 
                 _settingsService?.UpdateLastUpdateCheck();
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"CheckForUpdatesOnStartupAsync: Exception - {ex.Message}");
                 // Silent fail on startup check - don't bother user
             }
         }
@@ -339,6 +365,7 @@ namespace silence_
             _keyboardHookService?.Dispose();
             _microphoneService?.Dispose();
             _updateService?.Dispose();
+            _notificationService?.Dispose();
             _soundService?.Dispose();
             _previewTimer?.Stop();
             _previewTimer?.Dispose();
