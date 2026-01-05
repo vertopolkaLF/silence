@@ -111,10 +111,6 @@
                             TickPlacement="Outside"
                             Value="100"
                             ValueChanged="ScaleSlider_ValueChanged"/>
-                    <TextBlock Text="Adjust overlay size independently of system DPI scaling"
-                               Opacity="0.6"
-                               FontSize="12"
-                               TextWrapping="Wrap"/>
                 
                 <!-- Show Text -->
                 <ToggleSwitch x:Name="ShowTextToggle"

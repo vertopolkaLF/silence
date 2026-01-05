@@ -130,6 +130,7 @@ namespace silence_
             
             if (shouldShow || _isOverlayPositioning)
             {
+                // Only update mute state when showing - prevents animation to wrong state
                 _overlayWindow.UpdateMuteState(isMuted);
                 _overlayWindow.ShowOverlay();
             }
@@ -289,7 +290,23 @@ namespace silence_
             }
             else
             {
-                _overlayWindow?.UpdateMuteState(isMuted);
+                // Check if overlay will be visible with new state BEFORE updating mute state
+                // This prevents animating to a state that won't be shown
+                bool willBeVisible = settings?.OverlayEnabled == true && settings.OverlayVisibilityMode switch
+                {
+                    "Always" => true,
+                    "WhenMuted" => isMuted,
+                    "WhenUnmuted" => !isMuted,
+                    _ => isMuted
+                };
+                
+                // Only update mute state if overlay will be visible
+                // This prevents showing a single frame of wrong state when transitioning to hidden
+                if (willBeVisible)
+                {
+                    _overlayWindow?.UpdateMuteState(isMuted);
+                }
+                
                 UpdateOverlayVisibility();
             }
             
