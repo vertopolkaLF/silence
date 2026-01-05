@@ -36,6 +36,9 @@ namespace silence_
         // Event for update available notification
         public event Action<UpdateCheckResult>? UpdateAvailable;
         
+        // Event for overlay positioning stopped
+        public event Action? OverlayPositioningStopped;
+        
         // Cached update check result for AboutPage
         public UpdateCheckResult? LastUpdateCheckResult { get; private set; }
 
@@ -229,6 +232,9 @@ namespace silence_
             
             _overlayWindow.StopPositioning();
             UpdateOverlayVisibility();
+            
+            // Notify UI to reset button state
+            OverlayPositioningStopped?.Invoke();
         }
         
         public void PreviewOverlay()

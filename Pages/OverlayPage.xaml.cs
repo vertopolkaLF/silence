@@ -20,6 +20,20 @@ public sealed partial class OverlayPage : Page
         LoadSettings();
         LoadScreens();
         _isInitializing = false;
+        
+        // Subscribe to overlay positioning stopped event
+        if (App.Instance != null)
+        {
+            App.Instance.OverlayPositioningStopped += OnOverlayPositioningStopped;
+        }
+    }
+    
+    private void OnOverlayPositioningStopped()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            RefreshPositionText();
+        });
     }
 
     private void LoadSettings()
