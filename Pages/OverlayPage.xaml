@@ -100,6 +100,22 @@
             <StackPanel x:Name="AppearancePanel" Spacing="12">
                 <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="24"/>
                 
+                <!-- Scale -->
+                <StackPanel Spacing="8" Margin="0,12,0,0">
+                    <TextBlock x:Name="ScaleLabel" Text="Size scale: 100%"/>
+                    <Slider x:Name="ScaleSlider"
+                            Minimum="50"
+                            Maximum="200"
+                            StepFrequency="5"
+                            TickFrequency="25"
+                            TickPlacement="Outside"
+                            Value="100"
+                            ValueChanged="ScaleSlider_ValueChanged"/>
+                    <TextBlock Text="Adjust overlay size independently of system DPI scaling"
+                               Opacity="0.6"
+                               FontSize="12"
+                               TextWrapping="Wrap"/>
+                
                 <!-- Show Text -->
                 <ToggleSwitch x:Name="ShowTextToggle"
                               Header="Show text"
@@ -171,8 +187,9 @@
                               OnContent="Show border"
                               Margin="0,8,0,0"
                               Toggled="ShowBorderToggle_Toggled"/>
+                
+                </StackPanel>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>
-

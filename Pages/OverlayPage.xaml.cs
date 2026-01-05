@@ -81,6 +81,10 @@ public sealed partial class OverlayPage : Page
         
         // Set show border
         ShowBorderToggle.IsOn = settings.OverlayShowBorder;
+        
+        // Set scale
+        ScaleSlider.Value = settings.OverlayScale;
+        ScaleLabel.Text = $"Size scale: {settings.OverlayScale}%";
 
         UpdatePositionText(settings);
     }
@@ -363,6 +367,16 @@ public sealed partial class OverlayPage : Page
         if (_isInitializing) return;
         
         App.Instance?.SettingsService.UpdateOverlayShowBorder(ShowBorderToggle.IsOn);
+        App.Instance?.ApplyOverlaySettings();
+    }
+    
+    private void ScaleSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        
+        var scale = (int)e.NewValue;
+        ScaleLabel.Text = $"Size scale: {scale}%";
+        App.Instance?.SettingsService.UpdateOverlayScale(scale);
         App.Instance?.ApplyOverlaySettings();
     }
 

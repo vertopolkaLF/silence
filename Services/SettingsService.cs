@@ -242,6 +242,12 @@ public class SettingsService
         _settings.OverlayShowBorder = show;
         SaveSettings();
     }
+    
+    public void UpdateOverlayScale(int scale)
+    {
+        _settings.OverlayScale = Math.Clamp(scale, 50, 200);
+        SaveSettings();
+    }
 }
 
 public class AppSettings
@@ -277,4 +283,5 @@ public class AppSettings
     public int OverlayContentOpacity { get; set; } = 100; // Overlay content (icon/text) opacity (20-100%)
     public int OverlayBorderRadius { get; set; } = 6; // Border radius in pixels (0-24)
     public bool OverlayShowBorder { get; set; } = true; // Show Win11 style border
+    public int OverlayScale { get; set; } = 100; // Overlay size scale (50-200%)
 }

@@ -161,7 +161,15 @@ public sealed class LayeredOverlay : IDisposable
         
         if (dpi == 0) dpi = 96; // Fallback
         
-        _dpiScale = dpi / 96.0f;
+        // Calculate base DPI scale
+        float baseDpiScale = dpi / 96.0f;
+        
+        // Apply user scale setting (50-200%)
+        var settings = App.Instance?.SettingsService.Settings;
+        float userScale = settings != null ? settings.OverlayScale / 100.0f : 1.0f;
+        
+        // Combine DPI scale with user scale
+        _dpiScale = baseDpiScale * userScale;
         
         // Recreate fonts with proper scaling
         _iconFont?.Dispose();
@@ -229,6 +237,8 @@ public sealed class LayeredOverlay : IDisposable
     
     public void ApplySettings()
     {
+        // Recalculate scale (includes user scale setting)
+        UpdateDpiScale();
         RenderOverlay();
     }
     
