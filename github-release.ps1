@@ -212,10 +212,34 @@ Choose your platform and preferred installation method:
             Write-Host "  SUCCESS! Release $tagName published!" -ForegroundColor Green
         }
         Write-Host "=======================================================" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Press any key to continue to Chocolatey packaging..." -ForegroundColor Yellow
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     } else {
         Write-Host "ERROR: Failed to create GitHub release!" -ForegroundColor Red
         Write-Host "Assets are ready in releases folder." -ForegroundColor Yellow
         exit 1
+    }
+    
+    # ============================================
+    # Step 5: Create Chocolatey Package
+    # ============================================
+    Write-Host ""
+    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  STEP 5: Creating Chocolatey package" -ForegroundColor Cyan
+    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host ""
+    
+    & "$PSScriptRoot\build-chocolatey-release.ps1" -Version $version -SkipPush
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARNING: Chocolatey package creation failed!" -ForegroundColor Yellow
+        Write-Host "You can run it manually later: .\build-chocolatey-release.ps1 -Version $version" -ForegroundColor Yellow
+    } else {
+        Write-Host ""
+        Write-Host "Chocolatey package created successfully!" -ForegroundColor Green
+        Write-Host "To push to Chocolatey.org, run:" -ForegroundColor Cyan
+        Write-Host "  .\build-chocolatey-release.ps1 -Version $version" -ForegroundColor White
     }
 } else {
     Write-Host "Skipping GitHub release..." -ForegroundColor Yellow
