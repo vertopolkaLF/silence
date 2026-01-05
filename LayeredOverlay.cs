@@ -191,6 +191,16 @@ public sealed class LayeredOverlay : IDisposable
     
     private static IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
+        const uint WM_DISPLAYCHANGE = 0x007E;
+        const uint WM_DPICHANGED = 0x02E0;
+        
+        if (msg == WM_DISPLAYCHANGE || msg == WM_DPICHANGED)
+        {
+            // Resolution or DPI changed - need to update overlay position
+            // Find the instance that owns this hwnd and trigger repositioning
+            App.Instance?.OnDisplayChanged();
+        }
+        
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
     
@@ -651,6 +661,19 @@ public sealed class LayeredOverlay : IDisposable
         }, IntPtr.Zero);
         
         return result;
+    }
+    
+    public void OnDisplayChanged()
+    {
+        // Update DPI scale for new display configuration
+        UpdateDpiScale();
+        
+        // Recalculate position based on saved percentage values
+        var settings = App.Instance?.SettingsService.Settings;
+        if (settings != null)
+        {
+            MoveToPosition(settings.OverlayPositionX, settings.OverlayPositionY, settings.OverlayScreenId);
+        }
     }
     
     public void ProcessDrag()

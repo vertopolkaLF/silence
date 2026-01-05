@@ -183,6 +183,12 @@ namespace silence_
                 settings.OverlayScreenId);
         }
         
+        public void OnDisplayChanged()
+        {
+            // Called when display resolution or DPI changes
+            _overlayWindow?.OnDisplayChanged();
+        }
+        
         public void ApplyOverlaySettings()
         {
             if (_overlayWindow == null) return;
