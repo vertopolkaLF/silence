@@ -264,24 +264,9 @@ namespace silence_
                 
                 System.Diagnostics.Debug.WriteLine("CheckForUpdatesOnStartupAsync: Starting update check");
                 
-                // TEMP: Always simulate update available for testing
-                var result = new UpdateCheckResult
-                {
-                    Success = true,
-                    IsUpdateAvailable = true,
-                    CurrentVersion = UpdateService.CurrentVersion,
-                    LatestVersion = "99.9.9",
-                    ReleaseNotes = "## What's New\n\n- Test feature 1\n- Test feature 2\n- Bug fixes",
-                    ReleaseName = "Test Release v99.9.9",
-                    ReleaseUrl = "https://github.com/vertopolkaLF/silence/releases/latest",
-                    DownloadUrl = "https://github.com/vertopolkaLF/silence/releases/download/v99.9.9/silence-x64-Setup.exe",
-                    InstallerFileName = "silence-x64-Setup.exe"
-                };
+                var result = await UpdateService.CheckForUpdatesAsync();
                 
                 System.Diagnostics.Debug.WriteLine($"CheckForUpdatesOnStartupAsync: Update available = {result.IsUpdateAvailable}");
-                
-                // Uncomment for real update checking:
-                // var result = await UpdateService.CheckForUpdatesAsync();
                 
                 if (result.Success && result.IsUpdateAvailable)
                 {
