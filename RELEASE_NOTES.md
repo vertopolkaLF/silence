@@ -1,3 +1,30 @@
+# 🎤 silence! v1.4.1 — Polish & Fixes
+
+> **The little things matter.**
+
+## 🔧 What's Fixed in v1.4.1
+
+### 🐛 Bug Fixes
+
+- **Overlay Animation** — Fixed animation glitches when using "show only when muted/unmuted" visibility modes. No more janky transitions.
+
+- **DPI Scaling** — Window size now properly respects OS scaling settings. Looks right on every display.
+
+- **Resolution Changes** — Overlay position automatically recalculates when you change screen resolution. No more lost overlays.
+
+- **Set Position Button** — Button now returns to normal state when you press ESC during positioning. Small fix, big quality of life.
+
+### ✨ Improvements
+
+- **Overlay Size Control** — Added size parameter for overlay. Make it bigger or smaller, your choice.
+
+- **Auto-Update Notifications** — Cleaned up notification system. No more debug spam, just clean update alerts.
+
+- **Tray Menu** — App name and version now shown in tray menu. Know what you're running at a glance.
+
+
+---
+
 # 🎤 silence! v1.4 — Overlay Overhaul
 
 > **Now it's actually good. No, seriously.**

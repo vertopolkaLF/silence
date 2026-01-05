@@ -42,7 +42,7 @@ foreach ($arch in $architectures) {
     Write-Host "Publishing $rid..." -ForegroundColor Yellow
     Write-Host "========================================" -ForegroundColor Cyan
     
-    $publishOutput = dotnet publish -c Release -r $rid --self-contained true -p:Platform=$platform -p:PublishReadyToRun=true 2>&1
+    dotnet publish -c Release -r $rid --self-contained true -p:Platform=$platform -p:PublishReadyToRun=true | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
         $buildPath = "bin\$platform\Release\net8.0-windows10.0.19041.0\$rid"
@@ -79,7 +79,6 @@ foreach ($arch in $architectures) {
         $successCount++
     } else {
         Write-Host "  FAILED!" -ForegroundColor Red
-        Write-Host $publishOutput -ForegroundColor Red
         $results += @{ arch = $rid; folder = 0; zip = 0; status = "FAILED" }
     }
 }
