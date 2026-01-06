@@ -186,22 +186,12 @@ namespace silence_
 
 
                 // Get DPI scaling factor
-                var displayArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary);
-                double dpiScale = 1.0;
-                
-                if (displayArea != null)
-                {
-                    // Calculate DPI scaling factor (96 DPI = 100% scaling)
-                    dpiScale = displayArea.OuterBounds.Width / (double)displayArea.WorkArea.Width;
-                    
-                    // For more accurate DPI detection, we can use the raw DPI
-                    var dpi = GetDpiForWindow(hwnd);
-                    dpiScale = dpi / 96.0; // 96 DPI = 100% scaling
-                }
+                var dpi = GetDpiForWindow(hwnd);
+                _currentDpiScale = dpi / 96.0; // 96 DPI = 100% scaling
                 
                 // Adjust window size based on DPI scaling to maintain consistent visual size
-                var adjustedWidth = (int)(BaseMinWindowWidth * dpiScale);
-                var adjustedHeight = (int)(BaseMinWindowHeight * dpiScale);
+                var adjustedWidth = (int)(BaseMinWindowWidth * _currentDpiScale);
+                var adjustedHeight = (int)(BaseMinWindowHeight * _currentDpiScale);
                 
                 _appWindow.Resize(new SizeInt32(adjustedWidth, adjustedHeight));
                 
@@ -209,29 +199,69 @@ namespace silence_
                 {
                     if (e.DidSizeChange)
                     {
-                        var minWidth = (int)(BaseMinWindowWidth * dpiScale);
-                        var minHeight = (int)(BaseMinWindowHeight * dpiScale);
-                        
-                        if (_appWindow.Size.Width < minWidth)
-                        {
-                            _appWindow.Resize(new SizeInt32(minWidth, _appWindow.Size.Height));
-                        }
-                        if (_appWindow.Size.Height < minHeight)
-                        {
-                            _appWindow.Resize(new SizeInt32(_appWindow.Size.Width, minHeight));
-                        }
+                        EnforceMinimumWindowSize();
                     }
                 };
                 
+                var displayArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary);
                 if (displayArea != null)
                 {
-                    var centerX = (displayArea.WorkArea.Width - adjustedWidth) / 2;
-                    var centerY = (displayArea.WorkArea.Height - adjustedHeight) / 2;
+                    var windowWidth = (int)(BaseMinWindowWidth * _currentDpiScale);
+                    var windowHeight = (int)(BaseMinWindowHeight * _currentDpiScale);
+                    var centerX = (displayArea.WorkArea.Width - windowWidth) / 2;
+                    var centerY = (displayArea.WorkArea.Height - windowHeight) / 2;
                     _appWindow.Move(new PointInt32(centerX, centerY));
                 }
 
                 _appWindow.Title = "silence!";
                 SetWindowIcon();
+            }
+        }
+
+        private void EnforceMinimumWindowSize()
+        {
+            if (_appWindow == null) return;
+            
+            var minWidth = (int)(BaseMinWindowWidth * _currentDpiScale);
+            var minHeight = (int)(BaseMinWindowHeight * _currentDpiScale);
+            
+            if (_appWindow.Size.Width < minWidth)
+            {
+                _appWindow.Resize(new SizeInt32(minWidth, _appWindow.Size.Height));
+            }
+            if (_appWindow.Size.Height < minHeight)
+            {
+                _appWindow.Resize(new SizeInt32(_appWindow.Size.Width, minHeight));
+            }
+        }
+
+        private void UpdateMinimumWindowSize()
+        {
+            if (_appWindow == null) return;
+            
+            // Calculate new minimum dimensions based on updated DPI scale
+            var minWidth = (int)(BaseMinWindowWidth * _currentDpiScale);
+            var minHeight = (int)(BaseMinWindowHeight * _currentDpiScale);
+            
+            // If current size is smaller than new minimum, resize to minimum
+            bool needsResize = false;
+            int newWidth = _appWindow.Size.Width;
+            int newHeight = _appWindow.Size.Height;
+            
+            if (newWidth < minWidth)
+            {
+                newWidth = minWidth;
+                needsResize = true;
+            }
+            if (newHeight < minHeight)
+            {
+                newHeight = minHeight;
+                needsResize = true;
+            }
+            
+            if (needsResize)
+            {
+                _appWindow.Resize(new SizeInt32(newWidth, newHeight));
             }
         }
 
@@ -475,11 +505,13 @@ namespace silence_
         private const int WS_MAXIMIZEBOX = 0x10000;
         private const uint WM_NCLBUTTONDBLCLK = 0x00A3;
         private const uint WM_SYSCOMMAND = 0x0112;
+        private const uint WM_DPICHANGED = 0x02E0;
         private const int SC_MAXIMIZE = 0xF030;
 
         private IntPtr _oldWndProc = IntPtr.Zero;
         private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
         private WndProcDelegate? _wndProcDelegate;
+        private double _currentDpiScale = 1.0;
 
         private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
@@ -493,6 +525,29 @@ namespace silence_
             if (msg == WM_NCLBUTTONDBLCLK)
             {
                 return IntPtr.Zero;
+            }
+
+            // Handle DPI changes (moving window between monitors with different scaling)
+            if (msg == WM_DPICHANGED)
+            {
+                // Extract new DPI from wParam (high word = Y DPI, low word = X DPI)
+                int newDpi = wParam.ToInt32() & 0xFFFF;
+                double newDpiScale = newDpi / 96.0;
+                
+                // Only update if DPI actually changed
+                if (Math.Abs(newDpiScale - _currentDpiScale) > 0.01)
+                {
+                    _currentDpiScale = newDpiScale;
+                    
+                    // Update minimum window size based on new DPI
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        UpdateMinimumWindowSize();
+                    });
+                }
+                
+                // lParam contains suggested window rect - let Windows handle the resize
+                // We'll just update our min size constraints
             }
 
             return CallWindowProc(_oldWndProc, hWnd, msg, wParam, lParam);
