@@ -47,29 +47,17 @@ namespace silence_
             if (_appWindow?.TitleBar == null) return;
             
             var titleBar = _appWindow.TitleBar;
-            var isDarkTheme = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Dark;
-            
-            if (isDarkTheme)
-            {
-                titleBar.ButtonForegroundColor = Colors.White;
-                titleBar.ButtonHoverForegroundColor = Colors.White;
-                titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(30, 255, 255, 255);
-                titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(50, 255, 255, 255);
-                titleBar.ButtonPressedForegroundColor = Colors.White;
-                titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
-            }
-            else
-            {
-                titleBar.ButtonForegroundColor = Colors.Black;
-                titleBar.ButtonHoverForegroundColor = Colors.Black;
-                titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(30, 0, 0, 0);
-                titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(50, 0, 0, 0);
-                titleBar.ButtonPressedForegroundColor = Colors.Black;
-                titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 0, 0, 0);
-            }
-            
+            // Keep backgrounds transparent
             titleBar.ButtonBackgroundColor = Colors.Transparent;
             titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(10, 100, 100, 100);
+            
+            // Reset to default colors to allow system to show disabled state properly
+            titleBar.ButtonForegroundColor = null;
+            titleBar.ButtonHoverForegroundColor = null;
+            titleBar.ButtonHoverBackgroundColor = null;
+            titleBar.ButtonPressedBackgroundColor = null;
+            titleBar.ButtonPressedForegroundColor = null;
         }
 
         private void SetupBackdrop()
@@ -193,6 +181,10 @@ namespace silence_
 
             if (_appWindow != null)
             {
+                // Disable maximize button using Win32 API
+                DisableMaximizeButton(hwnd);
+
+
                 // Get DPI scaling factor
                 var displayArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary);
                 double dpiScale = 1.0;
@@ -380,6 +372,11 @@ namespace silence_
             return Icon.FromHandle(bitmap.GetHicon());
         }
 
+        private void PaneToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            NavView.IsPaneOpen = !NavView.IsPaneOpen;
+        }
+
         private void NavView_PaneOpening(NavigationView sender, object args)
         {
             // Switch to expanded update notification
@@ -460,6 +457,56 @@ namespace silence_
 
         [DllImport("user32.dll")]
         private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        private const int GWL_STYLE = -16;
+        private const int GWL_WNDPROC = -4;
+        private const int WS_MAXIMIZEBOX = 0x10000;
+        private const uint WM_NCLBUTTONDBLCLK = 0x00A3;
+        private const uint WM_SYSCOMMAND = 0x0112;
+        private const int SC_MAXIMIZE = 0xF030;
+
+        private IntPtr _oldWndProc = IntPtr.Zero;
+        private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+        private WndProcDelegate? _wndProcDelegate;
+
+        private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+        {
+            // Block maximize commands
+            if (msg == WM_SYSCOMMAND && (wParam.ToInt32() & 0xFFF0) == SC_MAXIMIZE)
+            {
+                return IntPtr.Zero;
+            }
+            
+            // Block double-click on title bar
+            if (msg == WM_NCLBUTTONDBLCLK)
+            {
+                return IntPtr.Zero;
+            }
+
+            return CallWindowProc(_oldWndProc, hWnd, msg, wParam, lParam);
+        }
+
+        private void DisableMaximizeButton(IntPtr hwnd)
+        {
+            var style = GetWindowLong(hwnd, GWL_STYLE);
+            SetWindowLong(hwnd, GWL_STYLE, style & ~WS_MAXIMIZEBOX);
+
+            // Hook window procedure to block maximize messages
+            _wndProcDelegate = new WndProcDelegate(WndProc);
+            _oldWndProc = SetWindowLongPtr(hwnd, GWL_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
+        }
 
         public void DisposeTrayIcon()
         {

@@ -12,25 +12,48 @@
 
     <Grid Background="Transparent">
         <Grid.RowDefinitions>
-            <RowDefinition Height="32"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         
-        <!-- Custom Title Bar -->
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
-            <StackPanel Orientation="Horizontal" 
-                        VerticalAlignment="Center" 
-                        Margin="16,0,0,0"
-                        Spacing="8">
-                <Image x:Name="AppIcon" 
-                       Source="Assets/app.png" 
-                       Width="16" 
-                       Height="16"
-                       VerticalAlignment="Center"/>
-                <TextBlock Text="silence!" 
-                           VerticalAlignment="Center"
-                           FontSize="12"
-                           Opacity="1"/>
+        <!-- Title Bar with Menu Toggle Button -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="32">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <StackPanel Grid.Column="0" 
+                        Orientation="Horizontal" 
+                        VerticalAlignment="Center"
+                        Spacing="0">
+                <!-- Menu Toggle Button -->
+                <Button x:Name="PaneToggleButton"
+                        Width="40"
+                        Height="24"
+                        Margin="4,4,4,4"
+                        CornerRadius="4"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="PaneToggleButton_Click"
+                        ToolTipService.ToolTip="Toggle menu">
+                    <FontIcon Glyph="&#xE700;" FontSize="16"/>
+                </Button>
+                
+                <!-- App Icon and Title -->
+                <StackPanel Orientation="Horizontal" 
+                            VerticalAlignment="Center"
+                            Spacing="8"
+                            Margin="4,0,0,0">
+                    <Image x:Name="AppIcon" 
+                           Source="Assets/BadgeLogo.scale-200.png" 
+                           Width="16" 
+                           Height="16"
+                           VerticalAlignment="Center"/>
+                    <TextBlock Text="silence!" 
+                               VerticalAlignment="Center"
+                               FontSize="12"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
         
@@ -41,7 +64,7 @@
                         IsSettingsVisible="False"
                         PaneDisplayMode="Left"
                         OpenPaneLength="200"
-                        IsPaneToggleButtonVisible="True"
+                        IsPaneToggleButtonVisible="False"
                         Background="Transparent"
                         PaneOpening="NavView_PaneOpening"
                         PaneClosing="NavView_PaneClosing"
