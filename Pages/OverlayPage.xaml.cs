@@ -28,6 +28,47 @@ public sealed partial class OverlayPage : Page
         }
     }
     
+    private void VariantButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing || sender is not Button button) return;
+        
+        var variant = button.Tag?.ToString();
+        if (string.IsNullOrEmpty(variant)) return;
+        
+        App.Instance?.SettingsService.UpdateOverlayVariant(variant);
+        UpdateVariantSelection(variant);
+        UpdateVariantSpecificSettings(variant);
+        App.Instance?.ApplyOverlaySettings();
+    }
+    
+    private void UpdateVariantSelection(string variant)
+    {
+        // Update border styles to show selection
+        var accentBrush = Application.Current.Resources["AccentFillColorDefaultBrush"] as Microsoft.UI.Xaml.Media.Brush;
+        var defaultBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Microsoft.UI.Xaml.Media.Brush;
+        
+        MicIconVariantBorder.BorderBrush = variant == "MicIcon" ? accentBrush : defaultBrush;
+        MicIconVariantBorder.BorderThickness = variant == "MicIcon" ? new Thickness(1) : new Thickness(1);
+        
+        DotVariantBorder.BorderBrush = variant == "Dot" ? accentBrush : defaultBrush;
+        DotVariantBorder.BorderThickness = variant == "Dot" ? new Thickness(1) : new Thickness(1);
+    }
+    
+    private void UpdateVariantSpecificSettings(string variant)
+    {
+        // Show/hide settings based on variant
+        if (variant == "Dot")
+        {
+            // Dot has no specific settings - hide all mic icon settings
+            MicIconSettingsPanel.Visibility = Visibility.Collapsed;
+        }
+        else // MicIcon
+        {
+            // Show mic icon settings
+            MicIconSettingsPanel.Visibility = Visibility.Visible;
+        }
+    }
+    
     private void OnOverlayPositioningStopped()
     {
         DispatcherQueue.TryEnqueue(() =>
@@ -59,6 +100,11 @@ public sealed partial class OverlayPage : Page
         DurationLabel.Text = $"Duration: {settings.OverlayShowDuration:F1}s";
         UpdateDurationPanelVisibility(settings.OverlayVisibilityMode);
         
+        // Set variant
+        string variant = settings.OverlayVariant;
+        UpdateVariantSelection(variant);
+        UpdateVariantSpecificSettings(variant);
+        
         // Set appearance settings
         ShowTextToggle.IsOn = settings.OverlayShowText;
         
@@ -87,7 +133,7 @@ public sealed partial class OverlayPage : Page
         OpacityLabel.Text = $"Background opacity: {settings.OverlayOpacity}%";
         
         ContentOpacitySlider.Value = settings.OverlayContentOpacity;
-        ContentOpacityLabel.Text = $"Content opacity: {settings.OverlayContentOpacity}%";
+        ContentOpacityLabel.Text = $"Opacity: {settings.OverlayContentOpacity}%";
         
         // Set border radius
         BorderRadiusSlider.Value = settings.OverlayBorderRadius;
@@ -361,7 +407,7 @@ public sealed partial class OverlayPage : Page
         if (_isInitializing) return;
         
         var opacity = (int)e.NewValue;
-        ContentOpacityLabel.Text = $"Content opacity: {opacity}%";
+        ContentOpacityLabel.Text = $"Opacity: {opacity}%";
         App.Instance?.SettingsService.UpdateOverlayContentOpacity(opacity);
         App.Instance?.ApplyOverlaySettings();
     }
@@ -453,4 +499,3 @@ public class ScreenInfo
     public RectInt32 WorkArea { get; set; }
     public bool IsPrimary { get; set; }
 }
-
