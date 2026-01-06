@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$false)]
-    [string]$Version = "1.4"
+    [string]$Version = "1.4.1"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,14 +15,14 @@ $baseUrl = "https://github.com/vertopolkaLF/silence/releases/download/v$Version"
 Write-Host "[1/4] Downloading installers to calculate checksums..." -ForegroundColor Yellow
 
 try {
-    $tempX86 = Join-Path $env:TEMP "silence-v1.4-x86-temp.exe"
-    $tempX64 = Join-Path $env:TEMP "silence-v1.4-x64-temp.exe"
+    $tempX86 = Join-Path $env:TEMP "silence-v$Version-x86-temp.exe"
+    $tempX64 = Join-Path $env:TEMP "silence-v$Version-x64-temp.exe"
     
     Write-Host "  - Downloading x86 installer..." -ForegroundColor Gray
-    Invoke-WebRequest -Uri "$baseUrl/silence-v1.4-x86-setup.exe" -OutFile $tempX86 -UseBasicParsing
+    Invoke-WebRequest -Uri "$baseUrl/silence-v$Version-x86-setup.exe" -OutFile $tempX86 -UseBasicParsing
     
     Write-Host "  - Downloading x64 installer..." -ForegroundColor Gray
-    Invoke-WebRequest -Uri "$baseUrl/silence-v1.4-x64-setup.exe" -OutFile $tempX64 -UseBasicParsing
+    Invoke-WebRequest -Uri "$baseUrl/silence-v$Version-x64-setup.exe" -OutFile $tempX64 -UseBasicParsing
     
     Write-Host "[2/4] Calculating checksums..." -ForegroundColor Yellow
     $checksum32 = (Get-FileHash -Algorithm SHA256 $tempX86).Hash
@@ -50,11 +50,21 @@ Set-Content "tools\chocolateyinstall.ps1" -Value $installScript -NoNewline
 # Update nuspec version
 $nuspecPath = "silence!.nuspec"
 $nuspec = [xml](Get-Content $nuspecPath)
-$nuspec.package.metadata.version = "$Version.0"
+
+# Ensure version has 4 parts (major.minor.patch.revision)
+$versionParts = $Version.Split('.')
+$nugetVersion = switch ($versionParts.Count) {
+    1 { "$Version.0.0.0" }
+    2 { "$Version.0.0" }
+    3 { "$Version.0" }
+    default { $Version }
+}
+
+$nuspec.package.metadata.version = $nugetVersion
 $nuspec.package.metadata.releaseNotes = "https://github.com/vertopolkaLF/silence/releases/tag/v$Version"
 $nuspec.Save($nuspecPath)
 
-Write-Host "  - Updated version to $Version.0" -ForegroundColor Green
+Write-Host "  - Updated version to $nugetVersion" -ForegroundColor Green
 Write-Host "  - Updated checksums" -ForegroundColor Green
 
 # Build package
@@ -64,13 +74,13 @@ choco pack
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Green
-    Write-Host "SUCCESS! Package built: silence.$Version.0.nupkg" -ForegroundColor Green
+    Write-Host "SUCCESS! Package built: silence.$nugetVersion.nupkg" -ForegroundColor Green
     Write-Host "========================================" -ForegroundColor Green
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Cyan
     Write-Host "  1. Test locally:  choco install silence -s . -y" -ForegroundColor White
     Write-Host "  2. Uninstall:     choco uninstall silence -y" -ForegroundColor White
-    Write-Host "  3. Push to repo:  choco push silence.$Version.0.nupkg --source https://push.chocolatey.org/" -ForegroundColor White
+    Write-Host "  3. Push to repo:  choco push silence.$nugetVersion.nupkg --source https://push.chocolatey.org/" -ForegroundColor White
     Write-Host ""
 } else {
     Write-Host "Failed to build package!" -ForegroundColor Red

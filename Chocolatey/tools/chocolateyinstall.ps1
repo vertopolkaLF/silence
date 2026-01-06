@@ -4,8 +4,8 @@ $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
   fileType      = 'exe'
-  url           = 'https://github.com/vertopolkaLF/silence/releases/download/v1.4.1/silence-v1.4-x86-setup.exe'
-  url64bit      = 'https://github.com/vertopolkaLF/silence/releases/download/v1.4.1/silence-v1.4-x64-setup.exe'
+  url           = 'https://github.com/vertopolkaLF/silence/releases/download/v1.4.1/silence-v1.4.1-x86-setup.exe'
+  url64bit      = 'https://github.com/vertopolkaLF/silence/releases/download/v1.4.1/silence-v1.4.1-x64-setup.exe'
   
   softwareName  = 'silence!*'
   

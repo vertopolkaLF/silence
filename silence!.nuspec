@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>silence</id>
+    <version>1.4.1.0</version>
+    <packageSourceUrl>https://github.com/vertopolkaLF/silence</packageSourceUrl>
+    <owners>vertopolkaLF</owners>
+    <title>silence!</title>
+    <authors>vertopolkaLF</authors>
+    <projectUrl>https://github.com/vertopolkaLF/silence</projectUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/vertopolkaLF/silence@latest/Assets/app.png</iconUrl>
+    <copyright>2024-2026 vertopolkaLF</copyright>
+    <licenseUrl>https://github.com/vertopolkaLF/silence/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/vertopolkaLF/silence</projectSourceUrl>
+    <docsUrl>https://github.com/vertopolkaLF/silence#readme</docsUrl>
+    <bugTrackerUrl>https://github.com/vertopolkaLF/silence/issues</bugTrackerUrl>
+    <tags>microphone mute toggle hotkey windows tray audio system-tray keyboard-shortcut meeting conference</tags>
+    <summary>A simple, lightweight microphone mute toggle for Windows with global hotkey support</summary>
+    <description><![CDATA[
+# silence!
+
+A simple, lightweight microphone mute toggle for Windows with global hotkey support.
+
+## Features
+
+- **Global Hotkey** - Mute/unmute your microphone from anywhere using a customizable keyboard shortcut
+- **System Tray** - Lives quietly in your system tray with a color-coded icon (green unmuted / red muted)
+- **Quick Toggle** - Single click on the tray icon to toggle mute state
+- **Visual Overlay** - Optional always-on-top indicator showing your mute status with smooth animations
+- **Sound Feedback** - Audio cues when you mute/unmute with 8 preloaded sounds or custom sounds
+- **Modifier Support** - Use complex hotkeys like `Ctrl + Alt + M` or simple ones like `F13`
+- **Flexible Matching** - Option to ignore additional modifiers
+- **Auto-Start** - Optionally launch with Windows
+- **Modern UI** - Mica/Acrylic backdrop, smooth animations, native Windows 10/11 look
+- **Portable** - No MSIX installer required, just extract and run
+
+## What's New in v1.4
+
+### Complete Overlay Rewrite
+- **Pure Win32 Layered Window** - Faster, lighter, and actually works properly
+- **True Click-Through** - Overlay is completely invisible to your cursor
+- **Smooth Animations** - Buttery smooth fade-in/fade-out animations
+
+### Appearance Customization
+- **Show Text Option** - Toggle between icon-only or icon with text
+- **Icon Styles** - Choose between colored (red/green) or monochrome icons
+- **Background Styles** - Dark or light background
+- **Opacity Controls** - Separate sliders for background and content opacity
+- **Border Radius** - Adjust corner rounding from 0px to 24px
+- **Border Toggle** - Show or hide the Windows 11 style border
+
+### New Visibility Mode
+- **Show After Toggle** - Overlay appears briefly after you mute/unmute, then disappears automatically
+- **Customizable Duration** - Set how long the overlay stays visible (0.1 to 10 seconds)
+
+## System Requirements
+
+- Windows 10 version 1809 (build 17763) or later
+- Windows 11 supported
+- .NET 8.0 Runtime (included in installer)
+]]></description>
+    <releaseNotes>https://github.com/vertopolkaLF/silence/releases/tag/v1.4.1</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
