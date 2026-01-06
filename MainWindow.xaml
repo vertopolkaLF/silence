@@ -85,6 +85,11 @@
                         <FontIcon Glyph="&#xE713;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem x:Name="HoldToMuteNavItem" Content="Hold to Mute" Tag="HoldToMute">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7C8;"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem x:Name="SoundsNavItem" Content="Sounds" Tag="Sounds">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE767;"/>

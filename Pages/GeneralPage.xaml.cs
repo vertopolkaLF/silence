@@ -33,6 +33,7 @@ namespace silence_.Pages
             {
                 App.Instance.KeyboardHookService.KeyPressed += OnKeyPressed;
                 App.Instance.KeyboardHookService.ModifiersChanged += OnModifiersChanged;
+                App.Instance.KeyboardHookService.ModifierHoldProgress += OnModifierHoldProgress;
             }
 
             // Subscribe to mute state changes
@@ -310,6 +311,13 @@ namespace silence_.Pages
             }
         }
 
+        private void ClearHotkeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            HotkeyTextBox.Text = "";
+            App.Instance?.SettingsService.UpdateHotkey(0, ModifierKeys.None);
+            App.Instance?.KeyboardHookService.UpdateHotkey(0, ModifierKeys.None, IgnoreModifiersCheckBox.IsChecked ?? true);
+        }
+
         private void StartRecordingHotkey()
         {
             _isRecordingHotkey = true;
@@ -317,6 +325,10 @@ namespace silence_.Pages
             _recordedModifiers = ModifierKeys.None;
             RecordHotkeyButton.Content = "Cancel";
             HotkeyTextBox.Text = "Press keys...";
+            HotkeyHintText.Visibility = Visibility.Visible;
+            
+            // Focus the TextBox to prevent Space from clicking the button
+            HotkeyTextBox.Focus(FocusState.Programmatic);
             
             if (App.Instance?.KeyboardHookService != null)
             {
@@ -329,6 +341,8 @@ namespace silence_.Pages
         {
             _isRecordingHotkey = false;
             RecordHotkeyButton.Content = "Record";
+            HotkeyHintText.Visibility = Visibility.Collapsed;
+            HotkeyProgressBar.Visibility = Visibility.Collapsed;
             
             if (App.Instance?.KeyboardHookService != null)
             {
@@ -345,7 +359,19 @@ namespace silence_.Pages
             {
                 _recordedModifiers = modifiers;
                 var display = VirtualKeys.GetHotkeyDisplayString(0, modifiers);
-                HotkeyTextBox.Text = string.IsNullOrEmpty(display) ? "Press keys..." : display + " + ...";
+                var text = string.IsNullOrEmpty(display) ? "Press keys..." : display + " + ...";
+                HotkeyTextBox.Text = text;
+            });
+        }
+
+        private void OnModifierHoldProgress(double progress)
+        {
+            if (!_isRecordingHotkey) return;
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                HotkeyProgressBar.Value = progress;
+                HotkeyProgressBar.Visibility = progress > 0 ? Visibility.Visible : Visibility.Collapsed;
             });
         }
 
@@ -358,7 +384,8 @@ namespace silence_.Pages
                 _recordedKeyCode = keyCode;
                 _recordedModifiers = modifiers;
 
-                HotkeyTextBox.Text = VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers);
+                var displayText = VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers);
+                HotkeyTextBox.Text = displayText;
                 StopRecordingHotkey();
 
                 App.Instance?.SettingsService.UpdateHotkey(keyCode, modifiers);

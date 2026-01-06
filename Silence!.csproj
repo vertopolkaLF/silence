@@ -19,7 +19,7 @@
       .NET auto-pads to 4 parts for AssemblyVersion/FileVersion.
       UpdateService.CurrentVersion reads from assembly, installer scripts read from here.
     -->
-    <Version>1.4.1</Version>
+    <Version>1.5</Version>
     
     <!-- Unpackaged deployment - no MSIX bullshit -->
     <EnableMsixTooling>false</EnableMsixTooling>

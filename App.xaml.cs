@@ -63,10 +63,15 @@ namespace silence_
 
             // Setup hotkey with modifiers
             _keyboardHookService.HotkeyPressed += OnHotkeyPressed;
+            _keyboardHookService.HoldHotkeyPressed += OnHoldHotkeyPressed;
+            _keyboardHookService.HoldHotkeyReleased += OnHoldHotkeyReleased;
             _keyboardHookService.StartHook(
                 _settingsService.Settings.HotkeyCode,
                 _settingsService.Settings.HotkeyModifiers,
-                _settingsService.Settings.IgnoreModifiers);
+                _settingsService.Settings.IgnoreModifiers,
+                _settingsService.Settings.HoldHotkeyCode,
+                _settingsService.Settings.HoldHotkeyModifiers,
+                _settingsService.Settings.IgnoreHoldModifiers);
         }
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -329,6 +334,172 @@ namespace silence_
             
             // Play sound feedback
             if (settings != null)
+            {
+                if (isMuted)
+                {
+                    SoundService.PlayMuteSound(settings);
+                }
+                else
+                {
+                    SoundService.PlayUnmuteSound(settings);
+                }
+            }
+        }
+
+        private void OnHoldHotkeyPressed()
+        {
+            var settings = _settingsService?.Settings;
+            var action = settings?.HoldAction ?? "Toggle";
+            var wasMuted = _microphoneService?.IsMuted() ?? false;
+            bool isMuted;
+
+            switch (action)
+            {
+                case "HoldToMute":
+                    // Force mute while holding
+                    if (!wasMuted)
+                    {
+                        isMuted = _microphoneService?.ToggleMute() ?? false;
+                        MuteStateChanged?.Invoke(isMuted);
+                    }
+                    else
+                    {
+                        isMuted = wasMuted;
+                    }
+                    break;
+
+                case "HoldToUnmute":
+                    // Force unmute while holding
+                    if (wasMuted)
+                    {
+                        isMuted = _microphoneService?.ToggleMute() ?? false;
+                        MuteStateChanged?.Invoke(isMuted);
+                    }
+                    else
+                    {
+                        isMuted = wasMuted;
+                    }
+                    break;
+
+                case "Toggle":
+                default:
+                    // Toggle current state
+                    isMuted = _microphoneService?.ToggleMute() ?? false;
+                    MuteStateChanged?.Invoke(isMuted);
+                    break;
+            }
+            
+            // Update overlay if enabled for hold hotkey
+            if (settings?.HoldShowOverlay == true)
+            {
+                if (settings?.OverlayEnabled == true && settings.OverlayVisibilityMode == "AfterToggle")
+                {
+                    ShowOverlayTemporarily();
+                }
+                else
+                {
+                    bool willBeVisible = settings?.OverlayEnabled == true && settings.OverlayVisibilityMode switch
+                    {
+                        "Always" => true,
+                        "WhenMuted" => isMuted,
+                        "WhenUnmuted" => !isMuted,
+                        _ => isMuted
+                    };
+                    
+                    if (willBeVisible)
+                    {
+                        _overlayWindow?.UpdateMuteState(isMuted);
+                    }
+                    
+                    UpdateOverlayVisibility();
+                }
+            }
+            
+            // Play sound feedback if enabled for hold hotkey
+            if (settings?.HoldPlaySounds == true && settings != null)
+            {
+                if (isMuted)
+                {
+                    SoundService.PlayMuteSound(settings);
+                }
+                else
+                {
+                    SoundService.PlayUnmuteSound(settings);
+                }
+            }
+        }
+
+        private void OnHoldHotkeyReleased()
+        {
+            var settings = _settingsService?.Settings;
+            var action = settings?.HoldAction ?? "Toggle";
+            var wasMuted = _microphoneService?.IsMuted() ?? false;
+            bool isMuted;
+
+            switch (action)
+            {
+                case "HoldToMute":
+                    // Unmute on release (if we muted on press)
+                    if (wasMuted)
+                    {
+                        isMuted = _microphoneService?.ToggleMute() ?? false;
+                        MuteStateChanged?.Invoke(isMuted);
+                    }
+                    else
+                    {
+                        isMuted = wasMuted;
+                    }
+                    break;
+
+                case "HoldToUnmute":
+                    // Mute on release (if we unmuted on press)
+                    if (!wasMuted)
+                    {
+                        isMuted = _microphoneService?.ToggleMute() ?? false;
+                        MuteStateChanged?.Invoke(isMuted);
+                    }
+                    else
+                    {
+                        isMuted = wasMuted;
+                    }
+                    break;
+
+                case "Toggle":
+                default:
+                    // Toggle back to original state
+                    isMuted = _microphoneService?.ToggleMute() ?? false;
+                    MuteStateChanged?.Invoke(isMuted);
+                    break;
+            }
+            
+            // Update overlay if enabled for hold hotkey
+            if (settings?.HoldShowOverlay == true)
+            {
+                if (settings?.OverlayEnabled == true && settings.OverlayVisibilityMode == "AfterToggle")
+                {
+                    ShowOverlayTemporarily();
+                }
+                else
+                {
+                    bool willBeVisible = settings?.OverlayEnabled == true && settings.OverlayVisibilityMode switch
+                    {
+                        "Always" => true,
+                        "WhenMuted" => isMuted,
+                        "WhenUnmuted" => !isMuted,
+                        _ => isMuted
+                    };
+                    
+                    if (willBeVisible)
+                    {
+                        _overlayWindow?.UpdateMuteState(isMuted);
+                    }
+                    
+                    UpdateOverlayVisibility();
+                }
+            }
+            
+            // Play sound feedback if enabled for hold hotkey
+            if (settings?.HoldPlaySounds == true && settings != null)
             {
                 if (isMuted)
                 {

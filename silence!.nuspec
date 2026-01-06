@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>silence</id>
-    <version>1.4.1.0</version>
+    <version>1.5.0.0</version>
     <packageSourceUrl>https://github.com/vertopolkaLF/silence</packageSourceUrl>
     <owners>vertopolkaLF</owners>
     <title>silence!</title>
@@ -35,6 +35,14 @@ A simple, lightweight microphone mute toggle for Windows with global hotkey supp
 - **Modern UI** - Mica/Acrylic backdrop, smooth animations, native Windows 10/11 look
 - **Portable** - No MSIX installer required, just extract and run
 
+## What's New in v1.5
+
+### Hold to Mute Feature
+- **Hold Hotkey Support** - Configure a separate hotkey that works while you hold it down
+- **Three Action Modes** - Toggle, hold-to-mute, or hold-to-unmute (push-to-talk)
+- **Modifier-Only Hotkeys** - Bind 2+ modifier keys as your hold hotkey
+- **Independent Settings** - Separate sound and overlay toggles for hold actions
+
 ## What's New in v1.4
 
 ### Complete Overlay Rewrite
@@ -60,7 +68,7 @@ A simple, lightweight microphone mute toggle for Windows with global hotkey supp
 - Windows 11 supported
 - .NET 8.0 Runtime (included in installer)
 ]]></description>
-    <releaseNotes>https://github.com/vertopolkaLF/silence/releases/tag/v1.4.1</releaseNotes>
+    <releaseNotes>https://github.com/vertopolkaLF/silence/releases/tag/v1.5</releaseNotes>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />
