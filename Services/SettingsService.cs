@@ -114,9 +114,40 @@ public class SettingsService
         SaveSettings();
     }
 
+    public void UpdateHoldHotkey(int keyCode, ModifierKeys modifiers)
+    {
+        _settings.HoldHotkeyCode = keyCode;
+        _settings.HoldHotkeyModifiers = modifiers;
+        SaveSettings();
+    }
+
     public void UpdateIgnoreModifiers(bool ignore)
     {
         _settings.IgnoreModifiers = ignore;
+        SaveSettings();
+    }
+
+    public void UpdateIgnoreHoldModifiers(bool ignore)
+    {
+        _settings.IgnoreHoldModifiers = ignore;
+        SaveSettings();
+    }
+
+    public void UpdateHoldPlaySounds(bool playSounds)
+    {
+        _settings.HoldPlaySounds = playSounds;
+        SaveSettings();
+    }
+
+    public void UpdateHoldShowOverlay(bool showOverlay)
+    {
+        _settings.HoldShowOverlay = showOverlay;
+        SaveSettings();
+    }
+
+    public void UpdateHoldAction(string action)
+    {
+        _settings.HoldAction = action;
         SaveSettings();
     }
 
@@ -245,16 +276,32 @@ public class SettingsService
     
     public void UpdateOverlayScale(int scale)
     {
-        _settings.OverlayScale = Math.Clamp(scale, 50, 200);
+        _settings.OverlayScale = Math.Clamp(scale, 10, 200);
+        SaveSettings();
+    }
+    
+    public void UpdateOverlayVariant(string variant)
+    {
+        _settings.OverlayVariant = variant;
         SaveSettings();
     }
 }
 
 public class AppSettings
 {
+    // Toggle hotkey settings
     public int HotkeyCode { get; set; } = 0x4D; // 'M' key
     public ModifierKeys HotkeyModifiers { get; set; } = ModifierKeys.Ctrl | ModifierKeys.Alt;
     public bool IgnoreModifiers { get; set; } = false; // Don't ignore modifiers for Ctrl+Alt+M
+    
+    // Hold hotkey settings
+    public int HoldHotkeyCode { get; set; } = 0; // Disabled by default
+    public ModifierKeys HoldHotkeyModifiers { get; set; } = ModifierKeys.None;
+    public bool IgnoreHoldModifiers { get; set; } = false;
+    public string HoldAction { get; set; } = "Toggle"; // Toggle, HoldToMute, HoldToUnmute
+    public bool HoldPlaySounds { get; set; } = true; // Play sounds when using hold hotkey
+    public bool HoldShowOverlay { get; set; } = true; // Show overlay when using hold hotkey
+    
     public string? SelectedMicrophoneId { get; set; }
     public bool AutoStartEnabled { get; set; } = false;
     public bool StartMinimized { get; set; } = false; // Show settings window on first launch
@@ -283,5 +330,6 @@ public class AppSettings
     public int OverlayContentOpacity { get; set; } = 100; // Overlay content (icon/text) opacity (20-100%)
     public int OverlayBorderRadius { get; set; } = 6; // Border radius in pixels (0-24)
     public bool OverlayShowBorder { get; set; } = true; // Show Win11 style border
-    public int OverlayScale { get; set; } = 100; // Overlay size scale (50-200%)
+    public int OverlayScale { get; set; } = 100; // Overlay size scale (10-200%)
+    public string OverlayVariant { get; set; } = "MicIcon"; // MicIcon, Dot
 }

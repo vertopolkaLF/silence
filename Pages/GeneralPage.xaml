@@ -90,22 +90,51 @@
 
             <!-- Hotkey Configuration -->
             <StackPanel Spacing="8">
-                <TextBlock Text="Hotkey" FontWeight="SemiBold" FontSize="14"/>
-                <Grid ColumnSpacing="12">
+                <TextBlock Text="Toggle Hotkey" FontWeight="SemiBold" FontSize="14"/>
+                
+                <!-- Toggle Mic Hotkey -->
+                <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="HotkeyTextBox" 
-                             Grid.Column="0"
-                             IsReadOnly="True"
-                             PlaceholderText="Press a key..."
-                             Text="Ctrl + Alt + M"/>
-                    <Button x:Name="RecordHotkeyButton" 
+                    <Grid Grid.Column="0">
+                        <TextBox x:Name="HotkeyTextBox" 
+                                 IsReadOnly="True"
+                                 PlaceholderText="Press a key..."
+                                 Text="Ctrl + Alt + M"/>
+                        <ProgressBar x:Name="HotkeyProgressBar"
+                                     Height="3"
+                                     VerticalAlignment="Bottom"
+                                     Margin="1,0,1,1"
+                                     Minimum="0"
+                                     Maximum="1"
+                                     Value="0"
+                                     Visibility="Collapsed"
+                                     ShowError="False"
+                                     ShowPaused="False"/>
+                    </Grid>
+                    <Button x:Name="ClearHotkeyButton" 
                             Grid.Column="1"
+                            Content="&#xE711;"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            ToolTipService.ToolTip="Clear hotkey"
+                            Click="ClearHotkeyButton_Click"/>
+                    <Button x:Name="RecordHotkeyButton" 
+                            Grid.Column="2"
                             Content="Record"
                             Click="RecordHotkeyButton_Click"/>
                 </Grid>
+                <TextBlock x:Name="HotkeyHintText"
+                           Text="Hold 2+ modifier keys for 1 second to bind them"
+                           FontSize="11"
+                           Opacity="0.6"
+                           Visibility="Collapsed"
+                           Margin="0,4,0,0"/>
                 <CheckBox x:Name="IgnoreModifiersCheckBox"
                           Content="Ignore modifiers (Shift, Ctrl, Alt, Win)"
                           IsChecked="False"
@@ -130,4 +159,3 @@
         </StackPanel>
     </ScrollViewer>
 </Page>
-

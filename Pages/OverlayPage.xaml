@@ -100,17 +100,105 @@
             <StackPanel x:Name="AppearancePanel" Spacing="12">
                 <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="24"/>
                 
-                <!-- Scale -->
+                <!-- Variant Selector -->
+                <StackPanel Spacing="12" Margin="0,12,0,0">
+                    <TextBlock Text="Overlay Style" FontWeight="SemiBold" FontSize="14"/>
+                    <Grid ColumnSpacing="12" ColumnDefinitions="52, 52, 52, 52, 52">
+                        <!-- Mic Icon Variant -->
+                        <Button x:Name="MicIconVariantButton"
+                                Grid.Column="0"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="8"
+                                Click="VariantButton_Click"
+                                Tag="MicIcon">
+                            <Button.Resources>
+                                <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+                            </Button.Resources>
+                            <StackPanel Spacing="4">
+                                <Border x:Name="MicIconVariantBorder"
+                                        Width="52" Height="52"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                    <Border Width="40" Height="40"
+                                            Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                            CornerRadius="6"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE720;" FontSize="20" Foreground="#28A745"/>
+                                    </Border>
+                                </Border>
+                                <TextBlock Text="Mic Icon" 
+                                           FontSize="11" 
+                                           HorizontalAlignment="Center"
+                                           Opacity="0.8"/>
+                            </StackPanel>
+                        </Button>
+                        
+                        <!-- Dot Variant -->
+                        <Button x:Name="DotVariantButton"
+                                Grid.Column="1"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="8"
+                                Click="VariantButton_Click"
+                                Tag="Dot">
+                            <Button.Resources>
+                                <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+                            </Button.Resources>
+                            <StackPanel Spacing="4">
+                                <Border x:Name="DotVariantBorder"
+                                        Width="52" Height="52"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                    <Ellipse Width="20" Height="20" 
+                                             Fill="#28A745"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Dot" 
+                                           FontSize="11" 
+                                           HorizontalAlignment="Center"
+                                           Opacity="0.8"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+                
+                <!-- Scale (Universal) -->
                 <StackPanel Spacing="8" Margin="0,12,0,0">
                     <TextBlock x:Name="ScaleLabel" Text="Size scale: 100%"/>
                     <Slider x:Name="ScaleSlider"
-                            Minimum="50"
+                            Minimum="10"
                             Maximum="200"
                             StepFrequency="5"
                             TickFrequency="25"
                             TickPlacement="Outside"
                             Value="100"
                             ValueChanged="ScaleSlider_ValueChanged"/>
+                </StackPanel>
+                
+                <!-- Content Opacity (Universal) -->
+                <StackPanel Spacing="8" Margin="0,8,0,0">
+                    <TextBlock x:Name="ContentOpacityLabel" Text="Opacity: 100%"/>
+                    <Slider x:Name="ContentOpacitySlider"
+                            Minimum="20"
+                            Maximum="100"
+                            StepFrequency="5"
+                            TickFrequency="10"
+                            TickPlacement="Outside"
+                            Value="100"
+                            ValueChanged="ContentOpacitySlider_ValueChanged"/>
+                </StackPanel>
+                
+                <!-- Mic Icon Specific Settings -->
+                <StackPanel x:Name="MicIconSettingsPanel" Spacing="12" Margin="0,12,0,0">
                 
                 <!-- Show Text -->
                 <ToggleSwitch x:Name="ShowTextToggle"
@@ -150,19 +238,6 @@
                             ValueChanged="OpacitySlider_ValueChanged"/>
                 </StackPanel>
                 
-                <!-- Content Opacity -->
-                <StackPanel Spacing="8" Margin="0,8,0,0">
-                    <TextBlock x:Name="ContentOpacityLabel" Text="Content opacity: 100%"/>
-                    <Slider x:Name="ContentOpacitySlider"
-                            Minimum="20"
-                            Maximum="100"
-                            StepFrequency="5"
-                            TickFrequency="10"
-                            TickPlacement="Outside"
-                            Value="100"
-                            ValueChanged="ContentOpacitySlider_ValueChanged"/>
-                </StackPanel>
-                
                 <!-- Border Radius -->
                 <StackPanel Spacing="8" Margin="0,8,0,0">
                     <TextBlock x:Name="BorderRadiusLabel" Text="Border radius: 6px"/>
@@ -185,6 +260,8 @@
                               Toggled="ShowBorderToggle_Toggled"/>
                 
                 </StackPanel>
+                <!-- End Mic Icon Specific Settings -->
+                
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

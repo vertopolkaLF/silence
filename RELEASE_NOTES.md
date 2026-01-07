@@ -1,3 +1,48 @@
+# 🎤 silence! v1.5 — Hold to Mute
+
+> **Press and hold. That's it.**
+
+## ✨ What's New in v1.5
+
+### 🎯 Hold to Mute Feature
+
+- **Hold Hotkey Support** — Configure a separate hotkey that works while you hold it down. Perfect for quick unmutes during meetings.
+
+- **Three Action Modes** — Choose how the hold hotkey behaves:
+
+  - **Toggle current state** — Flip between muted/unmuted while holding
+  - **Hold to mute** — Mute while holding, unmute on release (push-to-mute)
+  - **Hold to unmute** — Unmute while holding, mute on release (push-to-talk)
+
+- **Modifier-Only Hotkeys** — Bind 2+ modifier keys (Ctrl, Alt, Shift, Win) as your hold hotkey. Hold them for 1 second during recording to set. Great for avoiding conflicts with other apps.
+
+- **Independent Settings** — Hold hotkey has its own sound and overlay toggles. Want sounds on toggle but not on hold? Done.
+
+- **Flexible Modifier Matching** — Enable "Ignore modifiers" so your hold hotkey works even if you accidentally press extra keys.
+
+### 🎨 UI Improvements
+
+- **New Hold to Mute Page** — Dedicated settings page in the navigation tabs for configuring hold-to-mute behavior.
+
+- **Visual Recording Feedback** — Progress bar shows when you're holding modifiers during hotkey recording.
+
+- **Action Descriptions** — Clear explanations of what each action mode does.
+
+## 🔧 Technical Changes
+
+- Extended `KeyboardHookService` with hold hotkey detection and modifier-only binding
+- Added `ModifierHoldProgress` event for visual feedback during recording
+- Separate hold hotkey state management independent of toggle hotkey
+- Hold action respects individual sound and overlay preferences
+
+---
+
+<p align="center">
+  <b>Hold it. Release it. Simple.</b>
+</p>
+
+---
+
 # 🎤 silence! v1.4.1 — Polish & Fixes
 
 > **The little things matter.**
@@ -21,7 +66,6 @@
 - **Auto-Update Notifications** — Cleaned up notification system. No more debug spam, just clean update alerts.
 
 - **Tray Menu** — App name and version now shown in tray menu. Know what you're running at a glance.
-
 
 ---
 
@@ -48,6 +92,7 @@
 - **Background Styles** — Dark or light background. Because sometimes you want it to blend in, sometimes you want it to stand out.
 
 - **Opacity Controls** — Two separate sliders:
+
   - **Background opacity** (0-100%) — Control how transparent the background is
   - **Content opacity** (20-100%) — Control icon and text visibility independently
 
@@ -99,6 +144,7 @@
 - **Always-On-Top Indicator** — A floating microphone icon stays on top of all windows. No more "wait, am I muted?" moments.
 
 - **Three Visibility Modes** — Choose when to see the overlay:
+
   - **Always visible** — Never lose track of your mic status
   - **Visible when muted** — Show only when you're muted (default)
   - **Visible when unmuted** — Show only when you're live
@@ -131,6 +177,7 @@
 </p>
 
 ---
+
 ---
 
 # 🎤 silence! v1.2 — Sound Feedback
@@ -166,6 +213,7 @@
 </p>
 
 ---
+
 ---
 
 # 🎤 silence! v1.1 — Auto-Updates & Navigation Tabs
@@ -215,6 +263,7 @@
 </p>
 
 ---
+
 ---
 
 # 🎤 silence! v1.0 — Initial Release
@@ -276,6 +325,3 @@ Found a bug? Have a feature request? Open an issue on GitHub!
 <p align="center">
   <b>Made for people who are tired of that "you're on mute" moment.</b>
 </p>
-
-
-

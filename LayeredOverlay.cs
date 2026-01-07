@@ -249,6 +249,16 @@ public sealed class LayeredOverlay : IDisposable
         var settings = App.Instance?.SettingsService.Settings;
         if (settings == null) return;
         
+        string variant = settings.OverlayVariant;
+        
+        // Dot variant has its own simple rendering
+        if (variant == "Dot")
+        {
+            RenderDotVariant();
+            return;
+        }
+        
+        // MicIcon variant (original rendering)
         bool showText = settings.OverlayShowText;
         bool isDarkBackground = settings.OverlayBackgroundStyle == "Dark";
         bool isMonochrome = settings.OverlayIconStyle == "Monochrome";
@@ -407,6 +417,69 @@ public sealed class LayeredOverlay : IDisposable
             float textX = scaledPadding + scaledIconSize + scaledGap;
             float textCenterY = _currentHeight / 2f;
             g.DrawString(statusText, _textFont, textBrush, textX, textCenterY, textFormat);
+        }
+        
+        // Update layered window
+        UpdateLayeredWindowBitmap(bitmap, oldWidth != _currentWidth);
+    }
+    
+    private void RenderDotVariant()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        
+        var settings = App.Instance?.SettingsService.Settings;
+        if (settings == null) return;
+        
+        // Dot size based on scale setting
+        int baseDotSize = 24; // Base size at 100% scale
+        int dotSize = (int)(baseDotSize * _dpiScale);
+        
+        // Update dimensions if changed
+        int oldWidth = _currentWidth;
+        _currentWidth = dotSize;
+        _currentHeight = dotSize;
+        
+        // Handle anchor-based repositioning when width changes
+        if (oldWidth != _currentWidth && oldWidth > 0)
+        {
+            int widthDiff = _currentWidth - oldWidth;
+            
+            if (settings.OverlayPositionX > 60)
+            {
+                _currentX -= widthDiff;
+            }
+            else if (settings.OverlayPositionX >= 40)
+            {
+                _currentX -= widthDiff / 2;
+            }
+        }
+        
+        // Create bitmap with alpha channel
+        using var bitmap = new Bitmap(_currentWidth, _currentHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(bitmap);
+        
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.Clear(Color.Transparent);
+        
+        // Dot color based on mute state - simple red/green with content opacity
+        int baseContentOpacity = (int)(settings.OverlayContentOpacity * 255 / 100.0);
+        int contentOpacity = baseContentOpacity * _contentAlpha / 255;
+        
+        Color dotColor = _currentMuteState 
+            ? Color.FromArgb(contentOpacity, 220, 53, 69)   // Red when muted
+            : Color.FromArgb(contentOpacity, 40, 167, 69);  // Green when unmuted
+        
+        // Draw filled circle - subtract 1 from width/height to prevent clipping
+        using (var dotBrush = new SolidBrush(dotColor))
+        {
+            g.FillEllipse(dotBrush, 0, 0, _currentWidth - 1, _currentHeight - 1);
+        }
+        
+        // Positioning mode border
+        if (_isPositioning)
+        {
+            using var borderPen = new Pen(Color.FromArgb(255, 0, 120, 215), 2 * _dpiScale);
+            g.DrawEllipse(borderPen, 1, 1, _currentWidth - 3, _currentHeight - 3);
         }
         
         // Update layered window
