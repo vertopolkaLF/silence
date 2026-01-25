@@ -18,16 +18,6 @@
 
 - **Independent Settings** — Hold hotkey has its own sound and overlay toggles. Want sounds on toggle but not on hold? Done.
 
-- **Flexible Modifier Matching** — Enable "Ignore modifiers" so your hold hotkey works even if you accidentally press extra keys.
-
-### 🎨 UI Improvements
-
-- **New Hold to Mute Page** — Dedicated settings page in the navigation tabs for configuring hold-to-mute behavior.
-
-- **Visual Recording Feedback** — Progress bar shows when you're holding modifiers during hotkey recording.
-
-- **Action Descriptions** — Clear explanations of what each action mode does.
-
 ## 🔧 Technical Changes
 
 - Extended `KeyboardHookService` with hold hotkey detection and modifier-only binding
@@ -38,7 +28,7 @@
 ---
 
 <p align="center">
-  <b>Hold it. Release it. Simple.</b>
+  <b>Hold it. Sneeze it. Release it. </b>
 </p>
 
 ---

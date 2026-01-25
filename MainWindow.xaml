@@ -46,7 +46,7 @@
                             Spacing="8"
                             Margin="4,0,0,0">
                     <Image x:Name="AppIcon" 
-                           Source="Assets/BadgeLogo.scale-200.png" 
+                           Source="Assets/app.png" 
                            Width="16" 
                            Height="16"
                            VerticalAlignment="Center"/>
