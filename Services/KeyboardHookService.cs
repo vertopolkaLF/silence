@@ -10,15 +10,28 @@ namespace silence_.Services;
 public class KeyboardHookService : IDisposable
 {
     private const int WH_KEYBOARD_LL = 13;
+    private const int WH_MOUSE_LL = 14;
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_KEYUP = 0x0101;
     private const int WM_SYSKEYDOWN = 0x0104;
     private const int WM_SYSKEYUP = 0x0105;
+    private const int WM_LBUTTONDOWN = 0x0201;
+    private const int WM_LBUTTONUP = 0x0202;
+    private const int WM_RBUTTONDOWN = 0x0204;
+    private const int WM_RBUTTONUP = 0x0205;
+    private const int WM_MBUTTONDOWN = 0x0207;
+    private const int WM_MBUTTONUP = 0x0208;
+    private const int WM_XBUTTONDOWN = 0x020B;
+    private const int WM_XBUTTONUP = 0x020C;
 
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+    private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
     
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -43,8 +56,27 @@ public class KeyboardHookService : IDisposable
         public IntPtr dwExtraInfo;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public int mouseData;
+        public int flags;
+        public int time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int x;
+        public int y;
+    }
+
     private IntPtr _hookId = IntPtr.Zero;
+    private IntPtr _mouseHookId = IntPtr.Zero;
     private LowLevelKeyboardProc? _proc;
+    private LowLevelMouseProc? _mouseProc;
     private int _targetKey;
     private ModifierKeys _targetModifiers;
     private bool _ignoreModifiers;
@@ -61,6 +93,10 @@ public class KeyboardHookService : IDisposable
     private DateTime _modifierHoldStartTime;
     private bool _isWaitingForModifierHold;
     private System.Timers.Timer? _modifierHoldTimer;
+    private DateTime _mouseHoldStartTime;
+    private bool _isWaitingForMouseHold;
+    private int _pendingMouseHoldKey;
+    private System.Timers.Timer? _mouseHoldTimer;
 
     public event Action? HotkeyPressed;
     public event Action? HoldHotkeyPressed;
@@ -84,6 +120,7 @@ public class KeyboardHookService : IDisposable
         _ignoreHoldModifiers = ignoreHoldModifiers;
         _isHoldKeyPressed = false;
         _proc = HookCallback;
+        _mouseProc = MouseHookCallback;
         
         using var curProcess = Process.GetCurrentProcess();
         using var curModule = curProcess.MainModule;
@@ -91,7 +128,8 @@ public class KeyboardHookService : IDisposable
         if (curModule != null)
         {
             _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule.ModuleName), 0);
-            _isHooked = _hookId != IntPtr.Zero;
+            _mouseHookId = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, GetModuleHandle(curModule.ModuleName), 0);
+            _isHooked = _hookId != IntPtr.Zero || _mouseHookId != IntPtr.Zero;
         }
     }
 
@@ -101,8 +139,13 @@ public class KeyboardHookService : IDisposable
         {
             UnhookWindowsHookEx(_hookId);
             _hookId = IntPtr.Zero;
-            _isHooked = false;
         }
+        if (_mouseHookId != IntPtr.Zero)
+        {
+            UnhookWindowsHookEx(_mouseHookId);
+            _mouseHookId = IntPtr.Zero;
+        }
+        _isHooked = false;
     }
 
     public void UpdateHotkey(int virtualKeyCode, ModifierKeys modifiers, bool ignoreModifiers = true)
@@ -162,122 +205,193 @@ public class KeyboardHookService : IDisposable
                 }
                 else if (isKeyDown)
                 {
-                    // Non-modifier key pressed - complete recording immediately
-                    StopModifierHoldTimer();
-                    _isWaitingForModifierHold = false;
-                    // Use both tracked modifiers and current state to ensure we capture all held modifiers
-                    var finalModifiers = _currentModifiers | GetCurrentModifiers();
-                    KeyPressed?.Invoke(vkCode, finalModifiers);
-                    _currentModifiers = ModifierKeys.None;
+                    RecordNonModifierKey(vkCode);
                 }
             }
             else
             {
-                // Normal operation mode
                 if (isKeyDown)
                 {
-                    // For modifier-only hotkeys, we need to include the key being pressed
-                    var currentMods = GetCurrentModifiers();
-                    if (IsModifierKey(vkCode))
-                    {
-                        currentMods |= VkCodeToModifier(vkCode);
-                    }
-                    
-                    bool holdHotkeyTriggered = false;
-                    
-                    // Check modifier-only hold hotkey (holdKey == 0)
-                    if (_holdKey == 0 && _holdModifiers != ModifierKeys.None && !_isHoldKeyPressed && IsModifierKey(vkCode))
-                    {
-                        bool matches = _ignoreHoldModifiers 
-                            ? (currentMods & _holdModifiers) == _holdModifiers
-                            : currentMods == _holdModifiers;
-                        
-                        if (matches)
-                        {
-                            _isHoldKeyPressed = true;
-                            holdHotkeyTriggered = true;
-                            HoldHotkeyPressed?.Invoke();
-                        }
-                    }
-                    // Check key-based hold hotkey
-                    else if (vkCode == _holdKey && _holdKey > 0 && !_isHoldKeyPressed)
-                    {
-                        bool matches = _ignoreHoldModifiers 
-                            ? (currentMods & _holdModifiers) == _holdModifiers
-                            : currentMods == _holdModifiers;
-                        
-                        if (matches)
-                        {
-                            _isHoldKeyPressed = true;
-                            holdHotkeyTriggered = true;
-                            HoldHotkeyPressed?.Invoke();
-                        }
-                    }
-                    
-                    // Check modifier-only toggle hotkey (targetKey == 0)
-                    if (!holdHotkeyTriggered && _targetKey == 0 && _targetModifiers != ModifierKeys.None && IsModifierKey(vkCode))
-                    {
-                        bool matches = _ignoreModifiers 
-                            ? (currentMods & _targetModifiers) == _targetModifiers
-                            : currentMods == _targetModifiers;
-                        
-                        if (matches)
-                        {
-                            HotkeyPressed?.Invoke();
-                        }
-                    }
-                    // Check key-based toggle hotkey
-                    else if (!holdHotkeyTriggered && vkCode == _targetKey && _targetKey > 0)
-                    {
-                        // If the same key is used for both hotkeys, check if hold hotkey would match
-                        if (vkCode == _holdKey && _holdKey > 0)
-                        {
-                            bool wouldMatchHold = _ignoreHoldModifiers 
-                                ? (currentMods & _holdModifiers) == _holdModifiers
-                                : currentMods == _holdModifiers;
-                            
-                            if (wouldMatchHold)
-                            {
-                                return CallNextHookEx(_hookId, nCode, wParam, lParam);
-                            }
-                        }
-                        
-                        bool matches = _ignoreModifiers 
-                            ? (currentMods & _targetModifiers) == _targetModifiers
-                            : currentMods == _targetModifiers;
-                        
-                        if (matches)
-                        {
-                            HotkeyPressed?.Invoke();
-                        }
-                    }
+                    HandleKeyDown(vkCode);
                 }
                 else if (isKeyUp)
                 {
-                    // Check if hold hotkey was released (modifier-only or key-based)
-                    if (_holdKey == 0 && _holdModifiers != ModifierKeys.None && _isHoldKeyPressed)
-                    {
-                        // For modifier-only hold hotkey, check if any of the required modifiers were released
-                        if (IsModifierKey(vkCode))
-                        {
-                            var releasedMod = VkCodeToModifier(vkCode);
-                            if (_holdModifiers.HasFlag(releasedMod))
-                            {
-                                _isHoldKeyPressed = false;
-                                HoldHotkeyReleased?.Invoke();
-                            }
-                        }
-                    }
-                    else if (vkCode == _holdKey && _holdKey > 0 && _isHoldKeyPressed)
-                    {
-                        _isHoldKeyPressed = false;
-                        HoldHotkeyReleased?.Invoke();
-                    }
+                    HandleKeyUp(vkCode);
                 }
             }
         }
 
         return CallNextHookEx(_hookId, nCode, wParam, lParam);
+    }
+
+    private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0)
+        {
+            var message = (int)wParam;
+            var isButtonDown = message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN || message == WM_XBUTTONDOWN;
+            var isButtonUp = message == WM_LBUTTONUP || message == WM_RBUTTONUP || message == WM_MBUTTONUP || message == WM_XBUTTONUP;
+            int vkCode = 0;
+
+            if (message == WM_LBUTTONDOWN || message == WM_LBUTTONUP)
+            {
+                vkCode = VirtualKeys.LButton;
+            }
+            else if (message == WM_RBUTTONDOWN || message == WM_RBUTTONUP)
+            {
+                vkCode = VirtualKeys.RButton;
+            }
+            else if (message == WM_MBUTTONDOWN || message == WM_MBUTTONUP)
+            {
+                vkCode = VirtualKeys.MButton;
+            }
+            else if (message == WM_XBUTTONDOWN || message == WM_XBUTTONUP)
+            {
+                var hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                var xButton = (hookStruct.mouseData >> 16) & 0xFFFF;
+                vkCode = xButton == 2 ? VirtualKeys.XButton2 : VirtualKeys.XButton1;
+            }
+
+            if (vkCode != 0)
+            {
+                if (IsRecording && isButtonDown)
+                {
+                    if (vkCode is VirtualKeys.LButton or VirtualKeys.RButton)
+                    {
+                        StartMouseHoldTimer(vkCode);
+                    }
+                    else
+                    {
+                        RecordNonModifierKey(vkCode);
+                    }
+                }
+                else if (IsRecording && isButtonUp)
+                {
+                    if (_isWaitingForMouseHold && vkCode == _pendingMouseHoldKey)
+                    {
+                        _isWaitingForMouseHold = false;
+                        _pendingMouseHoldKey = 0;
+                        StopMouseHoldTimer();
+                    }
+                }
+                else if (!IsRecording)
+                {
+                    if (isButtonDown)
+                    {
+                        HandleKeyDown(vkCode);
+                    }
+                    else if (isButtonUp)
+                    {
+                        HandleKeyUp(vkCode);
+                    }
+                }
+            }
+        }
+
+        return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
+    }
+
+    private void RecordNonModifierKey(int vkCode)
+    {
+        StopModifierHoldTimer();
+        _isWaitingForModifierHold = false;
+        var finalModifiers = _currentModifiers | GetCurrentModifiers();
+        KeyPressed?.Invoke(vkCode, finalModifiers);
+        _currentModifiers = ModifierKeys.None;
+    }
+
+    private void HandleKeyDown(int vkCode)
+    {
+        var currentMods = GetCurrentModifiers();
+        if (IsModifierKey(vkCode))
+        {
+            currentMods |= VkCodeToModifier(vkCode);
+        }
+        
+        bool holdHotkeyTriggered = false;
+        
+        if (_holdKey == 0 && _holdModifiers != ModifierKeys.None && !_isHoldKeyPressed && IsModifierKey(vkCode))
+        {
+            bool matches = _ignoreHoldModifiers 
+                ? (currentMods & _holdModifiers) == _holdModifiers
+                : currentMods == _holdModifiers;
+            
+            if (matches)
+            {
+                _isHoldKeyPressed = true;
+                holdHotkeyTriggered = true;
+                HoldHotkeyPressed?.Invoke();
+            }
+        }
+        else if (vkCode == _holdKey && _holdKey > 0 && !_isHoldKeyPressed)
+        {
+            bool matches = _ignoreHoldModifiers 
+                ? (currentMods & _holdModifiers) == _holdModifiers
+                : currentMods == _holdModifiers;
+            
+            if (matches)
+            {
+                _isHoldKeyPressed = true;
+                holdHotkeyTriggered = true;
+                HoldHotkeyPressed?.Invoke();
+            }
+        }
+        
+        if (!holdHotkeyTriggered && _targetKey == 0 && _targetModifiers != ModifierKeys.None && IsModifierKey(vkCode))
+        {
+            bool matches = _ignoreModifiers 
+                ? (currentMods & _targetModifiers) == _targetModifiers
+                : currentMods == _targetModifiers;
+            
+            if (matches)
+            {
+                HotkeyPressed?.Invoke();
+            }
+        }
+        else if (!holdHotkeyTriggered && vkCode == _targetKey && _targetKey > 0)
+        {
+            if (vkCode == _holdKey && _holdKey > 0)
+            {
+                bool wouldMatchHold = _ignoreHoldModifiers 
+                    ? (currentMods & _holdModifiers) == _holdModifiers
+                    : currentMods == _holdModifiers;
+                
+                if (wouldMatchHold)
+                {
+                    return;
+                }
+            }
+            
+            bool matches = _ignoreModifiers 
+                ? (currentMods & _targetModifiers) == _targetModifiers
+                : currentMods == _targetModifiers;
+            
+            if (matches)
+            {
+                HotkeyPressed?.Invoke();
+            }
+        }
+    }
+
+    private void HandleKeyUp(int vkCode)
+    {
+        if (_holdKey == 0 && _holdModifiers != ModifierKeys.None && _isHoldKeyPressed)
+        {
+            if (IsModifierKey(vkCode))
+            {
+                var releasedMod = VkCodeToModifier(vkCode);
+                if (_holdModifiers.HasFlag(releasedMod))
+                {
+                    _isHoldKeyPressed = false;
+                    HoldHotkeyReleased?.Invoke();
+                }
+            }
+        }
+        else if (vkCode == _holdKey && _holdKey > 0 && _isHoldKeyPressed)
+        {
+            _isHoldKeyPressed = false;
+            HoldHotkeyReleased?.Invoke();
+        }
     }
 
     private static ModifierKeys GetCurrentModifiers()
@@ -377,11 +491,56 @@ public class KeyboardHookService : IDisposable
         }
     }
 
+    private void StartMouseHoldTimer(int vkCode)
+    {
+        StopMouseHoldTimer();
+        _mouseHoldStartTime = DateTime.Now;
+        _pendingMouseHoldKey = vkCode;
+        _isWaitingForMouseHold = true;
+        _mouseHoldTimer = new System.Timers.Timer(50);
+        _mouseHoldTimer.Elapsed += (s, e) =>
+        {
+            if (!_isWaitingForMouseHold || _pendingMouseHoldKey == 0)
+            {
+                StopMouseHoldTimer();
+                return;
+            }
+            
+            var elapsed = (DateTime.Now - _mouseHoldStartTime).TotalSeconds;
+            var progress = Math.Min(elapsed / 1.0, 1.0);
+            ModifierHoldProgress?.Invoke(progress);
+            if (elapsed >= 1.0)
+            {
+                var capturedKey = _pendingMouseHoldKey;
+                _isWaitingForMouseHold = false;
+                _pendingMouseHoldKey = 0;
+                StopMouseHoldTimer();
+                RecordNonModifierKey(capturedKey);
+            }
+        };
+        _mouseHoldTimer.AutoReset = true;
+        _mouseHoldTimer.Start();
+    }
+
+    private void StopMouseHoldTimer()
+    {
+        if (_mouseHoldTimer != null)
+        {
+            _mouseHoldTimer.Stop();
+            _mouseHoldTimer.Dispose();
+            _mouseHoldTimer = null;
+            ModifierHoldProgress?.Invoke(0);
+        }
+    }
+
     public void ResetRecordingState()
     {
         _currentModifiers = ModifierKeys.None;
         _isWaitingForModifierHold = false;
         StopModifierHoldTimer();
+        _isWaitingForMouseHold = false;
+        _pendingMouseHoldKey = 0;
+        StopMouseHoldTimer();
     }
 
     public bool IsHooked => _isHooked;
@@ -408,6 +567,11 @@ public enum ModifierKeys
 /// </summary>
 public static class VirtualKeys
 {
+    public const int LButton = 0x01;
+    public const int RButton = 0x02;
+    public const int MButton = 0x04;
+    public const int XButton1 = 0x05;
+    public const int XButton2 = 0x06;
     public const int F1 = 0x70;
     public const int F2 = 0x71;
     public const int F3 = 0x72;
@@ -446,6 +610,11 @@ public static class VirtualKeys
     {
         return vkCode switch
         {
+            0x01 => "Mouse Left",
+            0x02 => "Mouse Right",
+            0x04 => "Mouse Middle",
+            0x05 => "Mouse 4",
+            0x06 => "Mouse 5",
             >= 0x70 and <= 0x87 => $"F{vkCode - 0x70 + 1}",
             >= 0x30 and <= 0x39 => ((char)vkCode).ToString(),
             >= 0x41 and <= 0x5A => ((char)vkCode).ToString(),
