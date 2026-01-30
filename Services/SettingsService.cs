@@ -151,6 +151,33 @@ public class SettingsService
         SaveSettings();
     }
 
+    public void UpdateHoldMuteSound(string? preloadedKey, string? customPath)
+    {
+        _settings.HoldMuteSoundPreloaded = preloadedKey;
+        _settings.HoldMuteSoundCustomPath = customPath;
+        SaveSettings();
+    }
+
+    public void UpdateHoldUnmuteSound(string? preloadedKey, string? customPath)
+    {
+        _settings.HoldUnmuteSoundPreloaded = preloadedKey;
+        _settings.HoldUnmuteSoundCustomPath = customPath;
+        SaveSettings();
+    }
+
+    public void UpdateHoldSoundVolume(float volume)
+    {
+        if (volume < 0)
+        {
+            _settings.HoldSoundVolume = null;
+        }
+        else
+        {
+            _settings.HoldSoundVolume = Math.Clamp(volume, 0f, 1f);
+        }
+        SaveSettings();
+    }
+
     public void UpdateSelectedMicrophone(string? deviceId)
     {
         _settings.SelectedMicrophoneId = deviceId;
@@ -301,6 +328,13 @@ public class AppSettings
     public string HoldAction { get; set; } = "Toggle"; // Toggle, HoldToMute, HoldToUnmute
     public bool HoldPlaySounds { get; set; } = true; // Play sounds when using hold hotkey
     public bool HoldShowOverlay { get; set; } = true; // Show overlay when using hold hotkey
+    
+    // Hold hotkey sound settings (null = use default from Sounds tab)
+    public string? HoldMuteSoundPreloaded { get; set; } = null; // null = use default
+    public string? HoldMuteSoundCustomPath { get; set; } = null; // null = use default
+    public string? HoldUnmuteSoundPreloaded { get; set; } = null; // null = use default
+    public string? HoldUnmuteSoundCustomPath { get; set; } = null; // null = use default
+    public float? HoldSoundVolume { get; set; } = null; // null = use default volume
     
     public string? SelectedMicrophoneId { get; set; }
     public bool AutoStartEnabled { get; set; } = false;

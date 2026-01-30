@@ -1,3 +1,37 @@
+# 🎤 silence! v1.6.1 — Hold to Mute Enhancements
+
+> **More control over your hold hotkey.**
+
+## ✨ What's New in v1.6.1
+
+### 🎯 Single Modifier Binding
+
+- **Bind Single Modifiers** — You can now bind a single modifier key (Ctrl, Alt, Shift, or Win) as your hold hotkey. Hold it for 1 second during recording to set.
+
+### 🔊 Separate Sound Settings
+
+- **Independent Hold Sounds** — Configure separate sounds for hold-to-mute actions, or use defaults from the Sounds tab.
+
+- **Hold Volume Control** — Set a different volume for hold hotkey sounds, or use the default volume.
+
+- **Per-Action Sound Selection** — Choose different sounds for mute and unmute when using hold hotkey, completely independent from toggle hotkey sounds.
+
+---
+
+# 🎤 silence! v1.6 — Mouse Hotkeys
+
+> **Muting — now on your mouse too!**
+
+## ✨ What's New in v1.6
+
+### 🖱️ Mouse Button Hotkeys
+
+- **Mouse Button Support** — Bind mouse buttons to toggle or hold hotkeys, with modifier combinations.
+
+- **Hold-to-Record for LMB/RMB** — Left and right buttons require a 1-second hold during recording to prevent accidental binds.
+
+---
+
 # 🎤 silence! v1.5 — Hold to Mute
 
 > **Press and hold. That's it.**
@@ -9,7 +43,6 @@
 - **Hold Hotkey Support** — Configure a separate hotkey that works while you hold it down. Perfect for quick unmutes during meetings.
 
 - **Three Action Modes** — Choose how the hold hotkey behaves:
-
   - **Toggle current state** — Flip between muted/unmuted while holding
   - **Hold to mute** — Mute while holding, unmute on release (push-to-mute)
   - **Hold to unmute** — Unmute while holding, mute on release (push-to-talk)
@@ -82,7 +115,6 @@
 - **Background Styles** — Dark or light background. Because sometimes you want it to blend in, sometimes you want it to stand out.
 
 - **Opacity Controls** — Two separate sliders:
-
   - **Background opacity** (0-100%) — Control how transparent the background is
   - **Content opacity** (20-100%) — Control icon and text visibility independently
 
@@ -134,7 +166,6 @@
 - **Always-On-Top Indicator** — A floating microphone icon stays on top of all windows. No more "wait, am I muted?" moments.
 
 - **Three Visibility Modes** — Choose when to see the overlay:
-
   - **Always visible** — Never lose track of your mic status
   - **Visible when muted** — Show only when you're muted (default)
   - **Visible when unmuted** — Show only when you're live

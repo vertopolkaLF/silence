@@ -182,8 +182,8 @@ public class KeyboardHookService : IDisposable
                         var oldModifiers = _currentModifiers;
                         _currentModifiers |= VkCodeToModifier(vkCode);
                         
-                        // Start timer if we just got 2+ modifiers
-                        if (CountModifiers(_currentModifiers) >= 2 && CountModifiers(oldModifiers) < 2)
+                        // Start timer if we just got 1+ modifiers
+                        if (CountModifiers(_currentModifiers) >= 1 && CountModifiers(oldModifiers) < 1)
                         {
                             _modifierHoldStartTime = DateTime.Now;
                             _isWaitingForModifierHold = true;
@@ -194,8 +194,8 @@ public class KeyboardHookService : IDisposable
                     {
                         _currentModifiers &= ~VkCodeToModifier(vkCode);
                         
-                        // Stop timer if we no longer have 2+ modifiers
-                        if (CountModifiers(_currentModifiers) < 2)
+                        // Stop timer if we no longer have 1+ modifiers
+                        if (CountModifiers(_currentModifiers) < 1)
                         {
                             _isWaitingForModifierHold = false;
                             StopModifierHoldTimer();
@@ -455,7 +455,7 @@ public class KeyboardHookService : IDisposable
         _modifierHoldTimer = new System.Timers.Timer(50); // Update every 50ms
         _modifierHoldTimer.Elapsed += (s, e) =>
         {
-            if (!_isWaitingForModifierHold || CountModifiers(_currentModifiers) < 2)
+            if (!_isWaitingForModifierHold || CountModifiers(_currentModifiers) < 1)
             {
                 StopModifierHoldTimer();
                 return;
