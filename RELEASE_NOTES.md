@@ -1,3 +1,23 @@
+# 🎤 silence! v1.6.1 — Hold to Mute Enhancements
+
+> **More control over your hold hotkey.**
+
+## ✨ What's New in v1.6.1
+
+### 🎯 Single Modifier Binding
+
+- **Bind Single Modifiers** — You can now bind a single modifier key (Ctrl, Alt, Shift, or Win) as your hold hotkey. Hold it for 1 second during recording to set.
+
+### 🔊 Separate Sound Settings
+
+- **Independent Hold Sounds** — Configure separate sounds for hold-to-mute actions, or use defaults from the Sounds tab.
+
+- **Hold Volume Control** — Set a different volume for hold hotkey sounds, or use the default volume.
+
+- **Per-Action Sound Selection** — Choose different sounds for mute and unmute when using hold hotkey, completely independent from toggle hotkey sounds.
+
+---
+
 # 🎤 silence! v1.6 — Mouse Hotkeys
 
 > **Muting — now on your mouse too!**
