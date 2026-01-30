@@ -31,7 +31,7 @@
                     <Button x:Name="ClearHoldHotkeyButton" Grid.Column="1" Content="&#xE711;" FontFamily="{ThemeResource SymbolThemeFontFamily}" Width="32" Height="32" Padding="0" ToolTipService.ToolTip="Clear hotkey" Click="ClearHoldHotkeyButton_Click"/>
                     <Button x:Name="RecordHoldHotkeyButton" Grid.Column="2" Content="Record" Click="RecordHoldHotkeyButton_Click"/>
                 </Grid>
-                <TextBlock x:Name="HoldHotkeyHintText" Text="To bind LMB, RMB or 2 modifier keys - hold them for 1 second" FontSize="11" Opacity="0.6" Visibility="Collapsed" Margin="0,4,0,0"/>
+                <TextBlock x:Name="HoldHotkeyHintText" Text="To bind LMB, RMB or modifier keys - hold them for 1 second" FontSize="11" Opacity="0.6" Visibility="Collapsed" Margin="0,4,0,0"/>
                 <CheckBox x:Name="IgnoreHoldModifiersCheckBox" Content="Ignore modifiers (Shift, Ctrl, Alt, Win)" IsChecked="False" Checked="IgnoreHoldModifiersCheckBox_Changed" Unchecked="IgnoreHoldModifiersCheckBox_Changed"/>
             </StackPanel>
 
@@ -55,6 +55,112 @@
                 <CheckBox x:Name="HoldPlaySoundsCheckBox" Content="Play sounds" IsChecked="True" Checked="HoldPlaySoundsCheckBox_Changed" Unchecked="HoldPlaySoundsCheckBox_Changed"/>
 
                 <CheckBox x:Name="HoldShowOverlayCheckBox" Content="Show overlay" IsChecked="True" Checked="HoldShowOverlayCheckBox_Changed" Unchecked="HoldShowOverlayCheckBox_Changed"/>
+            </StackPanel>
+
+            <!-- Sound Settings -->
+            <StackPanel x:Name="SoundSettingsPanel" Spacing="12">
+                <TextBlock Text="Sound Settings" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock Text="Configure separate sounds for hold-to-mute or use defaults from Sounds tab" FontSize="12" Opacity="0.6" TextWrapping="Wrap"/>
+
+                <!-- Volume -->
+                <StackPanel Spacing="8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Volume" FontSize="13"/>
+                        <TextBlock x:Name="HoldVolumePercentText" 
+                                   Grid.Column="2"
+                                   Text="Default" 
+                                   Opacity="0.6" 
+                                   FontSize="13"/>
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" Glyph="&#xE992;" FontSize="14" VerticalAlignment="Center" Opacity="0.7"/>
+                        <Slider x:Name="HoldVolumeSlider"
+                                Grid.Column="1"
+                                Minimum="-1"
+                                Maximum="100"
+                                Value="-1"
+                                ValueChanged="HoldVolumeSlider_ValueChanged"
+                                VerticalAlignment="Center"/>
+                        <FontIcon Grid.Column="2" Glyph="&#xE995;" FontSize="14" VerticalAlignment="Center" Opacity="0.7"/>
+                        <Button x:Name="ResetHoldVolumeButton"
+                                Grid.Column="3"
+                                Content="Reset"
+                                Click="ResetHoldVolumeButton_Click"
+                                Padding="8,4"
+                                FontSize="12"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Mute Sound -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Mute Sound" FontSize="13"/>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="HoldMuteSoundComboBox"
+                                  Grid.Column="0"
+                                  HorizontalAlignment="Stretch"
+                                  SelectionChanged="HoldMuteSoundComboBox_SelectionChanged"
+                                  PlaceholderText="Default"/>
+                        <Button x:Name="PlayHoldMuteSoundButton"
+                                Grid.Column="1"
+                                ToolTipService.ToolTip="Play sound"
+                                Click="PlayHoldMuteSoundButton_Click"
+                                Padding="8,6">
+                            <FontIcon Glyph="&#xE768;" FontSize="12"/>
+                        </Button>
+                        <Button x:Name="ResetHoldMuteSoundButton"
+                                Grid.Column="2"
+                                Content="Reset"
+                                Click="ResetHoldMuteSoundButton_Click"
+                                Padding="8,4"
+                                FontSize="12"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Unmute Sound -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Unmute Sound" FontSize="13"/>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="HoldUnmuteSoundComboBox"
+                                  Grid.Column="0"
+                                  HorizontalAlignment="Stretch"
+                                  SelectionChanged="HoldUnmuteSoundComboBox_SelectionChanged"
+                                  PlaceholderText="Default"/>
+                        <Button x:Name="PlayHoldUnmuteSoundButton"
+                                Grid.Column="1"
+                                ToolTipService.ToolTip="Play sound"
+                                Click="PlayHoldUnmuteSoundButton_Click"
+                                Padding="8,6">
+                            <FontIcon Glyph="&#xE768;" FontSize="12"/>
+                        </Button>
+                        <Button x:Name="ResetHoldUnmuteSoundButton"
+                                Grid.Column="2"
+                                Content="Reset"
+                                Click="ResetHoldUnmuteSoundButton_Click"
+                                Padding="8,4"
+                                FontSize="12"/>
+                    </Grid>
+                </StackPanel>
             </StackPanel>
 
         </StackPanel>

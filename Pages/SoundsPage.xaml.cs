@@ -430,6 +430,7 @@ namespace silence_.Pages
 
     internal enum SoundType
     {
+        Default,
         Preloaded,
         Custom,
         Browse

@@ -418,13 +418,22 @@ namespace silence_
             // Play sound feedback if enabled for hold hotkey
             if (settings?.HoldPlaySounds == true && settings != null)
             {
+                // Use hold-specific sounds or fall back to default
+                var mutePreloaded = settings.HoldMuteSoundPreloaded ?? settings.MuteSoundPreloaded;
+                var muteCustom = settings.HoldMuteSoundCustomPath ?? settings.MuteSoundCustomPath;
+                var unmutePreloaded = settings.HoldUnmuteSoundPreloaded ?? settings.UnmuteSoundPreloaded;
+                var unmuteCustom = settings.HoldUnmuteSoundCustomPath ?? settings.UnmuteSoundCustomPath;
+                var volume = settings.HoldSoundVolume ?? settings.SoundVolume;
+                
                 if (isMuted)
                 {
-                    SoundService.PlayMuteSound(settings);
+                    var path = SoundService.GetSoundPath(mutePreloaded, muteCustom, true);
+                    SoundService.PlaySound(path, volume);
                 }
                 else
                 {
-                    SoundService.PlayUnmuteSound(settings);
+                    var path = SoundService.GetSoundPath(unmutePreloaded, unmuteCustom, false);
+                    SoundService.PlaySound(path, volume);
                 }
             }
         }
@@ -501,13 +510,22 @@ namespace silence_
             // Play sound feedback if enabled for hold hotkey
             if (settings?.HoldPlaySounds == true && settings != null)
             {
+                // Use hold-specific sounds or fall back to default
+                var mutePreloaded = settings.HoldMuteSoundPreloaded ?? settings.MuteSoundPreloaded;
+                var muteCustom = settings.HoldMuteSoundCustomPath ?? settings.MuteSoundCustomPath;
+                var unmutePreloaded = settings.HoldUnmuteSoundPreloaded ?? settings.UnmuteSoundPreloaded;
+                var unmuteCustom = settings.HoldUnmuteSoundCustomPath ?? settings.UnmuteSoundCustomPath;
+                var volume = settings.HoldSoundVolume ?? settings.SoundVolume;
+                
                 if (isMuted)
                 {
-                    SoundService.PlayMuteSound(settings);
+                    var path = SoundService.GetSoundPath(mutePreloaded, muteCustom, true);
+                    SoundService.PlaySound(path, volume);
                 }
                 else
                 {
-                    SoundService.PlayUnmuteSound(settings);
+                    var path = SoundService.GetSoundPath(unmutePreloaded, unmuteCustom, false);
+                    SoundService.PlaySound(path, volume);
                 }
             }
         }
