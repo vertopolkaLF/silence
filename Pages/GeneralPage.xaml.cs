@@ -74,22 +74,33 @@ namespace silence_.Pages
             var defaultItem = new ComboBoxItem { Content = "Default Microphone", Tag = (string?)null };
             MicrophoneComboBox.Items.Add(defaultItem);
 
+            var allMicsItem = new ComboBoxItem { Content = "All Microphones", Tag = MicrophoneService.ALL_MICROPHONES_ID };
+            MicrophoneComboBox.Items.Add(allMicsItem);
+
             int selectedIndex = 0;
             var selectedId = App.Instance?.SettingsService.Settings.SelectedMicrophoneId;
 
-            for (int i = 0; i < microphones.Count; i++)
+            // Check if "All Microphones" is selected
+            if (selectedId == MicrophoneService.ALL_MICROPHONES_ID)
             {
-                var mic = microphones[i];
-                var item = new ComboBoxItem 
-                { 
-                    Content = mic.IsDefault ? $"{mic.Name} (Default)" : mic.Name,
-                    Tag = mic.Id 
-                };
-                MicrophoneComboBox.Items.Add(item);
-
-                if (mic.Id == selectedId)
+                selectedIndex = 1;
+            }
+            else
+            {
+                for (int i = 0; i < microphones.Count; i++)
                 {
-                    selectedIndex = i + 1;
+                    var mic = microphones[i];
+                    var item = new ComboBoxItem 
+                    { 
+                        Content = mic.IsDefault ? $"{mic.Name} (Default)" : mic.Name,
+                        Tag = mic.Id 
+                    };
+                    MicrophoneComboBox.Items.Add(item);
+
+                    if (mic.Id == selectedId)
+                    {
+                        selectedIndex = i + 2; // +2 because of "Default" and "All Microphones"
+                    }
                 }
             }
 

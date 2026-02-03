@@ -13,11 +13,14 @@ public class MicrophoneService : IDisposable
     private MMDeviceEnumerator? _deviceEnumerator;
     private MMDevice? _selectedDevice;
     private string? _selectedDeviceId;
+    private bool _muteAllMicrophones;
     
     public event Action<bool>? MuteStateChanged;
     #pragma warning disable CS0067 // Event is never used - reserved for future use
     public event Action? DevicesChanged;
 #pragma warning restore CS0067
+
+    public const string ALL_MICROPHONES_ID = "__ALL_MICROPHONES__";
 
     public MicrophoneService()
     {
@@ -76,6 +79,7 @@ public class MicrophoneService : IDisposable
     public void SelectMicrophone(string? deviceId)
     {
         _selectedDeviceId = deviceId;
+        _muteAllMicrophones = deviceId == ALL_MICROPHONES_ID;
         UpdateSelectedDevice();
     }
 
@@ -85,6 +89,9 @@ public class MicrophoneService : IDisposable
         _selectedDevice = null;
 
         if (string.IsNullOrEmpty(_selectedDeviceId) || _deviceEnumerator == null) return;
+        
+        // Skip device selection if "All microphones" is selected
+        if (_muteAllMicrophones) return;
 
         try
         {
@@ -118,6 +125,11 @@ public class MicrophoneService : IDisposable
     /// </summary>
     public bool ToggleMute()
     {
+        if (_muteAllMicrophones)
+        {
+            return ToggleMuteAllMicrophones();
+        }
+
         var device = GetActiveDevice();
         if (device == null) return false;
 
@@ -135,10 +147,54 @@ public class MicrophoneService : IDisposable
     }
 
     /// <summary>
+    /// Toggles mute state of all microphones
+    /// </summary>
+    private bool ToggleMuteAllMicrophones()
+    {
+        if (_deviceEnumerator == null) return false;
+
+        try
+        {
+            var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            if (devices.Count == 0) return false;
+
+            // Get the current state from the first device
+            var currentState = devices[0].AudioEndpointVolume.Mute;
+            var newMuteState = !currentState;
+
+            // Apply to all devices
+            foreach (var device in devices)
+            {
+                try
+                {
+                    device.AudioEndpointVolume.Mute = newMuteState;
+                }
+                catch
+                {
+                    // Skip devices that fail
+                }
+            }
+
+            MuteStateChanged?.Invoke(newMuteState);
+            return newMuteState;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Sets mute state directly
     /// </summary>
     public void SetMute(bool muted)
     {
+        if (_muteAllMicrophones)
+        {
+            SetMuteAllMicrophones(muted);
+            return;
+        }
+
         var device = GetActiveDevice();
         if (device == null) return;
 
@@ -154,16 +210,72 @@ public class MicrophoneService : IDisposable
     }
 
     /// <summary>
+    /// Sets mute state for all microphones
+    /// </summary>
+    private void SetMuteAllMicrophones(bool muted)
+    {
+        if (_deviceEnumerator == null) return;
+
+        try
+        {
+            var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            foreach (var device in devices)
+            {
+                try
+                {
+                    device.AudioEndpointVolume.Mute = muted;
+                }
+                catch
+                {
+                    // Skip devices that fail
+                }
+            }
+
+            MuteStateChanged?.Invoke(muted);
+        }
+        catch
+        {
+            // Whatever
+        }
+    }
+
+    /// <summary>
     /// Gets current mute state
     /// </summary>
     public bool IsMuted()
     {
+        if (_muteAllMicrophones)
+        {
+            return GetMuteStateAllMicrophones();
+        }
+
         var device = GetActiveDevice();
         if (device == null) return false;
 
         try
         {
             return device.AudioEndpointVolume.Mute;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets mute state for all microphones (returns true if any mic is muted)
+    /// </summary>
+    private bool GetMuteStateAllMicrophones()
+    {
+        if (_deviceEnumerator == null) return false;
+
+        try
+        {
+            var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            if (devices.Count == 0) return false;
+
+            // Return the state of the first device
+            return devices[0].AudioEndpointVolume.Mute;
         }
         catch
         {
