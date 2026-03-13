@@ -71,6 +71,23 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  RelaunchAfterUpdate: String;
+  RelaunchArgs: String;
+  ResultCode: Integer;
+begin
+  if (CurStep <> ssDone) or not WizardSilent then
+    Exit;
+
+  RelaunchAfterUpdate := ExpandConstant('{param:RELAUNCHAFTERUPDATE|0}');
+  if RelaunchAfterUpdate <> '1' then
+    Exit;
+
+  RelaunchArgs := ExpandConstant('{param:RELAUNCHARGS|}');
+  Exec(ExpandConstant('{app}\{#MyAppExeName}'), RelaunchArgs, '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+end;
+
 // Check if app is running before uninstall
 function InitializeUninstall(): Boolean;
 var

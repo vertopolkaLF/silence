@@ -17,6 +17,7 @@ public class UpdateService : IDisposable
 {
     private const string GitHubApiUrl = "https://api.github.com/repos/vertopolkaLF/silence/releases/latest";
     private const string GitHubReleasesUrl = "https://github.com/vertopolkaLF/silence/releases/latest";
+    private const string RelaunchArgs = "--minimized";
     
     private readonly HttpClient _httpClient;
     private bool _disposed;
@@ -194,7 +195,7 @@ public class UpdateService : IDisposable
             var startInfo = new ProcessStartInfo
             {
                 FileName = installerPath,
-                Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
+                Arguments = $"/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /RELAUNCHAFTERUPDATE=1 /RELAUNCHARGS=\"{RelaunchArgs}\"",
                 UseShellExecute = true
             };
             
