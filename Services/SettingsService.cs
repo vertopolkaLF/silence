@@ -190,6 +190,12 @@ public class SettingsService
         SaveSettings();
     }
 
+    public void UpdateTrayIconStyle(string style)
+    {
+        _settings.TrayIconStyle = style;
+        SaveSettings();
+    }
+
     public void UpdateCheckForUpdatesOnStartup(bool check)
     {
         _settings.CheckForUpdatesOnStartup = check;
@@ -347,6 +353,7 @@ public class AppSettings
     public bool StartMinimized { get; set; } = false; // Show settings window on first launch
     public bool CheckForUpdatesOnStartup { get; set; } = true; // Check for updates when app starts
     public DateTime? LastUpdateCheck { get; set; } // Last time we checked for updates
+    public string TrayIconStyle { get; set; } = "Standard"; // Standard, FilledCircle
     
     // Sound settings
     public bool SoundsEnabled { get; set; } = false; // Sounds disabled by default

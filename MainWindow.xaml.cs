@@ -298,7 +298,7 @@ namespace silence_
         {
             _trayIcon = new TaskbarIcon
             {
-                NoLeftClickDelay = false // Add delay to handle double-click properly
+                NoLeftClickDelay = true
             };
             
             _trayMenu = new MenuFlyout();
@@ -342,7 +342,6 @@ namespace silence_
 
             _trayIcon.ContextFlyout = _trayMenu;
             _trayIcon.LeftClickCommand = new RelayCommand(() => App.Instance?.ToggleMute());
-            _trayIcon.DoubleClickCommand = new RelayCommand(ShowWindow);
             _trayIcon.ToolTipText = "silence! - Microphone ON";
 
             UpdateTrayIcon(false);
@@ -355,7 +354,8 @@ namespace silence_
 
             try
             {
-                var icon = CreateMicrophoneIcon(isMuted);
+                var style = App.Instance?.SettingsService.Settings.TrayIconStyle ?? "Standard";
+                var icon = CreateMicrophoneIcon(isMuted, style);
                 _trayIcon.Icon = icon;
                 _trayIcon.ToolTipText = isMuted ? "silence! - Microphone MUTED" : "silence! - Microphone ON";
             }
@@ -365,41 +365,95 @@ namespace silence_
             }
         }
 
-        private static Icon CreateMicrophoneIcon(bool isMuted)
+        public void RefreshTrayIcon()
+        {
+            UpdateTrayIcon(App.Instance?.MicrophoneService.IsMuted() ?? false);
+        }
+
+        private static Icon CreateMicrophoneIcon(bool isMuted, string style)
         {
             const int size = 32;
             using var bitmap = new Bitmap(size, size);
             using var g = Graphics.FromImage(bitmap);
-            
+
             g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
             g.Clear(System.Drawing.Color.Transparent);
 
-            var micColor = isMuted 
+            var stateColor = isMuted
                 ? System.Drawing.Color.FromArgb(220, 53, 69)
                 : System.Drawing.Color.FromArgb(40, 167, 69);
-            
-            using var brush = new SolidBrush(micColor);
-            using var pen = new Pen(micColor, 2);
 
-            g.FillEllipse(brush, 10, 4, 12, 8);
-            g.FillRectangle(brush, 10, 8, 12, 12);
-            g.FillEllipse(brush, 10, 12, 12, 8);
-            g.DrawArc(pen, 6, 12, 20, 12, 0, 180);
-            g.DrawLine(pen, 16, 24, 16, 28);
-            g.DrawLine(pen, 10, 28, 22, 28);
-
-            if (isMuted)
+            if (string.Equals(style, "FilledCircle", StringComparison.OrdinalIgnoreCase))
             {
-                using var whitePen = new Pen(System.Drawing.Color.White, 4);
-                g.DrawLine(whitePen, 4, 4, 28, 28);
-                g.DrawLine(whitePen, 28, 4, 4, 28);
-                
-                using var redPen = new Pen(System.Drawing.Color.FromArgb(220, 53, 69), 2);
-                g.DrawLine(redPen, 4, 4, 28, 28);
-                g.DrawLine(redPen, 28, 4, 4, 28);
+                DrawFilledCircleTrayIcon(g, size, stateColor);
+            }
+            else
+            {
+                DrawStandardTrayIcon(g, stateColor);
             }
 
-            return Icon.FromHandle(bitmap.GetHicon());
+            var iconHandle = bitmap.GetHicon();
+            try
+            {
+                using var icon = Icon.FromHandle(iconHandle);
+                return (Icon)icon.Clone();
+            }
+            finally
+            {
+                DestroyIcon(iconHandle);
+            }
+        }
+
+        private static void DrawStandardTrayIcon(Graphics g, System.Drawing.Color color)
+        {
+            using var brush = new SolidBrush(color);
+            using var pen = new Pen(color, 2.6f)
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round
+            };
+
+            using var bodyPath = CreateRoundedRectanglePath(new RectangleF(10.5f, 4f, 11f, 14f), 5.5f);
+            g.FillPath(brush, bodyPath);
+
+            g.DrawArc(pen, 6f, 11.5f, 20f, 13f, 0, 180);
+            g.DrawLine(pen, 16f, 24.5f, 16f, 27.5f);
+            g.DrawLine(pen, 11f, 27.5f, 21f, 27.5f);
+        }
+
+        private static void DrawFilledCircleTrayIcon(Graphics g, int size, System.Drawing.Color color)
+        {
+            using var circleBrush = new SolidBrush(color);
+            g.FillEllipse(circleBrush, 1, 1, size - 2, size - 2);
+
+            using var micBrush = new SolidBrush(System.Drawing.Color.White);
+            using var micPen = new Pen(System.Drawing.Color.White, 2.2f)
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round
+            };
+
+            using var bodyPath = CreateRoundedRectanglePath(new RectangleF(11f, 7f, 10f, 11f), 5f);
+            g.FillPath(micBrush, bodyPath);
+
+            g.DrawArc(micPen, 8f, 11f, 16f, 11f, 0, 180);
+            g.DrawLine(micPen, 16f, 22f, 16f, 24.5f);
+            g.DrawLine(micPen, 12f, 24.5f, 20f, 24.5f);
+        }
+
+        private static GraphicsPath CreateRoundedRectanglePath(RectangleF rect, float radius)
+        {
+            var diameter = radius * 2;
+            var path = new GraphicsPath();
+
+            path.AddArc(rect.X, rect.Y, diameter, diameter, 180, 90);
+            path.AddArc(rect.Right - diameter, rect.Y, diameter, diameter, 270, 90);
+            path.AddArc(rect.Right - diameter, rect.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+
+            return path;
         }
 
         private void PaneToggleButton_Click(object sender, RoutedEventArgs e)
@@ -485,6 +539,9 @@ namespace silence_
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
 
         [DllImport("user32.dll")]
         private static extern uint GetDpiForWindow(IntPtr hwnd);

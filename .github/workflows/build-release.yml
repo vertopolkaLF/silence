@@ -62,7 +62,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: portable-layout-v${{ steps.version.outputs.value }}
-          path: releases
+          path: |
+            releases/silence-v${{ steps.version.outputs.value }}-win-*
+            releases/*.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -83,7 +85,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: portable-layout-v${{ needs.build.outputs.version }}
-          path: .
+          path: releases
 
       - name: Build installers
         shell: pwsh
@@ -109,7 +111,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: portable-layout-v${{ needs.build.outputs.version }}
-          path: .
+          path: releases
 
       - name: Download installer assets
         uses: actions/download-artifact@v4

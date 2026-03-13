@@ -34,11 +34,16 @@
             <!-- Tray Icon Style -->
             <StackPanel Spacing="12">
                 <TextBlock Text="Tray Icon" FontWeight="SemiBold" FontSize="14"/>
-                <CheckBox x:Name="ColoredTrayIconCheckBox"
-                          Content="Use colored tray icon"
-                          IsChecked="True"/>
+                <ComboBox x:Name="TrayIconStyleComboBox"
+                          SelectionChanged="TrayIconStyleComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Standard" Tag="Standard"/>
+                    <ComboBoxItem Content="Filled circle" Tag="FilledCircle"/>
+                </ComboBox>
+                <TextBlock Text="Standard uses the microphone shape itself. Filled circle uses a full colored background with a microphone inside."
+                           Opacity="0.6"
+                           FontSize="12"
+                           TextWrapping="Wrap"/>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>
-
