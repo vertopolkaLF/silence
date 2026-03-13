@@ -17,9 +17,9 @@ namespace silence_.Pages
         public HoldToMutePage()
         {
             InitializeComponent();
+            ApplyLocalizedStrings();
             LoadSettings();
-            
-            // Subscribe to hotkey recording events
+
             if (App.Instance?.KeyboardHookService != null)
             {
                 App.Instance.KeyboardHookService.KeyPressed += OnKeyPressed;
@@ -28,14 +28,44 @@ namespace silence_.Pages
             }
         }
 
+        private void ApplyLocalizedStrings()
+        {
+            TitleTextBlock.Text = AppResources.GetString("HoldToMutePage.TitleText.Text");
+            DescriptionTextBlock.Text = AppResources.GetString("HoldToMutePage.DescriptionText.Text");
+            HotkeyLabelText.Text = AppResources.GetString("HoldToMutePage.HotkeyLabel.Text");
+            HoldHotkeyTextBox.PlaceholderText = AppResources.GetString("HoldToMutePage.HoldHotkeyTextBox.PlaceholderText");
+            ToolTipService.SetToolTip(ClearHoldHotkeyButton, AppResources.GetString("HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip"));
+            RecordHoldHotkeyButton.Content = AppResources.GetString("HoldToMutePage.RecordHoldHotkeyButton.Content");
+            HoldHotkeyHintText.Text = AppResources.GetString("HoldToMutePage.HoldHotkeyHintText.Text");
+            IgnoreHoldModifiersCheckBox.Content = AppResources.GetString("HoldToMutePage.IgnoreHoldModifiersCheckBox.Content");
+            ActionLabelText.Text = AppResources.GetString("HoldToMutePage.ActionLabel.Text");
+            ActionToggleItem.Content = AppResources.GetString("HoldToMutePage.ActionToggleItem.Content");
+            ActionHoldToMuteItem.Content = AppResources.GetString("HoldToMutePage.ActionHoldToMuteItem.Content");
+            ActionHoldToUnmuteItem.Content = AppResources.GetString("HoldToMutePage.ActionHoldToUnmuteItem.Content");
+            OptionsLabelText.Text = AppResources.GetString("HoldToMutePage.OptionsLabel.Text");
+            HoldPlaySoundsCheckBox.Content = AppResources.GetString("HoldToMutePage.HoldPlaySoundsCheckBox.Content");
+            HoldShowOverlayCheckBox.Content = AppResources.GetString("HoldToMutePage.HoldShowOverlayCheckBox.Content");
+            SoundSettingsTitleText.Text = AppResources.GetString("HoldToMutePage.SoundSettingsTitle.Text");
+            SoundSettingsDescriptionText.Text = AppResources.GetString("HoldToMutePage.SoundSettingsDescription.Text");
+            VolumeLabelText.Text = AppResources.GetString("HoldToMutePage.VolumeLabel.Text");
+            ResetHoldVolumeButton.Content = AppResources.GetString("HoldToMutePage.ResetHoldVolumeButton.Content");
+            MuteSoundLabelText.Text = AppResources.GetString("HoldToMutePage.MuteSoundLabel.Text");
+            HoldMuteSoundComboBox.PlaceholderText = AppResources.GetString("HoldToMutePage.HoldMuteSoundComboBox.PlaceholderText");
+            ToolTipService.SetToolTip(PlayHoldMuteSoundButton, AppResources.GetString("HoldToMutePage.PlayHoldMuteSoundButton.ToolTipService.ToolTip"));
+            ResetHoldMuteSoundButton.Content = AppResources.GetString("HoldToMutePage.ResetHoldMuteSoundButton.Content");
+            UnmuteSoundLabelText.Text = AppResources.GetString("HoldToMutePage.UnmuteSoundLabel.Text");
+            HoldUnmuteSoundComboBox.PlaceholderText = AppResources.GetString("HoldToMutePage.HoldUnmuteSoundComboBox.PlaceholderText");
+            ToolTipService.SetToolTip(PlayHoldUnmuteSoundButton, AppResources.GetString("HoldToMutePage.PlayHoldUnmuteSoundButton.ToolTipService.ToolTip"));
+            ResetHoldUnmuteSoundButton.Content = AppResources.GetString("HoldToMutePage.ResetHoldUnmuteSoundButton.Content");
+        }
+
         private void LoadSettings()
         {
             _isInitializing = true;
-            
+
             var settings = App.Instance?.SettingsService.Settings;
             if (settings == null) return;
 
-            // Load hold hotkey settings
             if (settings.HoldHotkeyCode > 0 || settings.HoldHotkeyModifiers != ModifierKeys.None)
             {
                 HoldHotkeyTextBox.Text = VirtualKeys.GetHotkeyDisplayString(settings.HoldHotkeyCode, settings.HoldHotkeyModifiers);
@@ -44,11 +74,11 @@ namespace silence_.Pages
             {
                 HoldHotkeyTextBox.Text = "";
             }
+
             IgnoreHoldModifiersCheckBox.IsChecked = settings.IgnoreHoldModifiers;
             HoldPlaySoundsCheckBox.IsChecked = settings.HoldPlaySounds;
             HoldShowOverlayCheckBox.IsChecked = settings.HoldShowOverlay;
-            
-            // Load action mode
+
             var actionIndex = settings.HoldAction switch
             {
                 "Toggle" => 0,
@@ -58,11 +88,10 @@ namespace silence_.Pages
             };
             HoldActionComboBox.SelectedIndex = actionIndex;
             UpdateActionDescription(settings.HoldAction);
-            
-            // Load sound settings
+
             PopulateSoundComboBoxes();
             LoadSoundSettings();
-            
+
             _isInitializing = false;
         }
 
@@ -76,14 +105,12 @@ namespace silence_.Pages
         {
             comboBox.Items.Clear();
 
-            // Add "Default" option
             comboBox.Items.Add(new ComboBoxItem
             {
-                Content = "Default (from Sounds tab)",
+                Content = AppResources.GetString("Sounds.DefaultFromSoundsTab"),
                 Tag = new SoundSelection { Type = SoundType.Default }
             });
 
-            // Add preloaded sounds
             foreach (var sound in SoundService.PreloadedSounds)
             {
                 comboBox.Items.Add(new ComboBoxItem
@@ -93,13 +120,12 @@ namespace silence_.Pages
                 });
             }
 
-            // Add separator if there are custom sounds
             var customSounds = App.Instance?.SoundService?.GetCustomSounds();
             if (customSounds?.Count > 0)
             {
                 comboBox.Items.Add(new ComboBoxItem
                 {
-                    Content = "─────────────",
+                    Content = AppResources.GetString("Sounds.ComboSeparator"),
                     IsEnabled = false,
                     Tag = null
                 });
@@ -108,22 +134,21 @@ namespace silence_.Pages
                 {
                     comboBox.Items.Add(new ComboBoxItem
                     {
-                        Content = $"🎵 {sound.DisplayName}",
+                        Content = AppResources.Format("Sounds.CustomItem", sound.DisplayName),
                         Tag = new SoundSelection { Type = SoundType.Custom, Path = sound.FilePath }
                     });
                 }
             }
 
-            // Add "Browse..." option at the end
             comboBox.Items.Add(new ComboBoxItem
             {
-                Content = "─────────────",
+                Content = AppResources.GetString("Sounds.ComboSeparator"),
                 IsEnabled = false,
                 Tag = null
             });
             comboBox.Items.Add(new ComboBoxItem
             {
-                Content = "📁 Browse for file...",
+                Content = AppResources.GetString("Sounds.BrowseForFile"),
                 Tag = new SoundSelection { Type = SoundType.Browse }
             });
         }
@@ -133,7 +158,6 @@ namespace silence_.Pages
             var settings = App.Instance?.SettingsService.Settings;
             if (settings == null) return;
 
-            // Volume
             if (settings.HoldSoundVolume.HasValue)
             {
                 HoldVolumeSlider.Value = settings.HoldSoundVolume.Value * 100;
@@ -142,26 +166,21 @@ namespace silence_.Pages
             else
             {
                 HoldVolumeSlider.Value = -1;
-                HoldVolumePercentText.Text = "Default";
+                HoldVolumePercentText.Text = AppResources.GetString("Common.Default");
             }
 
-            // Mute sound
             SelectSoundInComboBox(HoldMuteSoundComboBox, settings.HoldMuteSoundPreloaded, settings.HoldMuteSoundCustomPath);
-
-            // Unmute sound
             SelectSoundInComboBox(HoldUnmuteSoundComboBox, settings.HoldUnmuteSoundPreloaded, settings.HoldUnmuteSoundCustomPath);
         }
 
         private void SelectSoundInComboBox(ComboBox comboBox, string? preloadedKey, string? customPath)
         {
-            // If both are null, select "Default"
             if (string.IsNullOrEmpty(preloadedKey) && string.IsNullOrEmpty(customPath))
             {
-                comboBox.SelectedIndex = 0; // Default option
+                comboBox.SelectedIndex = 0;
                 return;
             }
 
-            // Custom path
             if (!string.IsNullOrEmpty(customPath))
             {
                 foreach (ComboBoxItem item in comboBox.Items)
@@ -174,7 +193,6 @@ namespace silence_.Pages
                 }
             }
 
-            // Preloaded sound
             if (!string.IsNullOrEmpty(preloadedKey))
             {
                 foreach (ComboBoxItem item in comboBox.Items)
@@ -187,7 +205,6 @@ namespace silence_.Pages
                 }
             }
 
-            // Default to "Default" option
             comboBox.SelectedIndex = 0;
         }
 
@@ -195,10 +212,10 @@ namespace silence_.Pages
         {
             ActionDescriptionText.Text = action switch
             {
-                "Toggle" => "Toggle between muted/unmuted while holding",
-                "HoldToMute" => "Mute while holding (unmute on release)",
-                "HoldToUnmute" => "Unmute while holding (mute on release)",
-                _ => "Toggle between muted/unmuted while holding"
+                "Toggle" => AppResources.GetString("HoldToMute.ActionDescription.Toggle"),
+                "HoldToMute" => AppResources.GetString("HoldToMute.ActionDescription.HoldToMute"),
+                "HoldToUnmute" => AppResources.GetString("HoldToMute.ActionDescription.HoldToUnmute"),
+                _ => AppResources.GetString("HoldToMute.ActionDescription.Toggle")
             };
         }
 
@@ -227,7 +244,7 @@ namespace silence_.Pages
         {
             var ignore = IgnoreHoldModifiersCheckBox.IsChecked ?? true;
             App.Instance?.SettingsService.UpdateIgnoreHoldModifiers(ignore);
-            
+
             var settings = App.Instance?.SettingsService.Settings;
             if (settings != null)
             {
@@ -241,7 +258,7 @@ namespace silence_.Pages
         private void HoldPlaySoundsCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (_isInitializing) return;
-            
+
             var playSounds = HoldPlaySoundsCheckBox.IsChecked ?? true;
             App.Instance?.SettingsService.UpdateHoldPlaySounds(playSounds);
         }
@@ -249,7 +266,7 @@ namespace silence_.Pages
         private void HoldShowOverlayCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (_isInitializing) return;
-            
+
             var showOverlay = HoldShowOverlayCheckBox.IsChecked ?? true;
             App.Instance?.SettingsService.UpdateHoldShowOverlay(showOverlay);
         }
@@ -257,7 +274,7 @@ namespace silence_.Pages
         private void HoldActionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_isInitializing) return;
-            
+
             if (HoldActionComboBox.SelectedItem is ComboBoxItem item)
             {
                 var action = item.Tag?.ToString() ?? "Toggle";
@@ -272,7 +289,7 @@ namespace silence_.Pages
 
             if (HoldVolumeSlider.Value < 0)
             {
-                HoldVolumePercentText.Text = "Default";
+                HoldVolumePercentText.Text = AppResources.GetString("Common.Default");
             }
             else
             {
@@ -284,7 +301,7 @@ namespace silence_.Pages
 
             if (HoldVolumeSlider.Value < 0)
             {
-                App.Instance?.SettingsService.UpdateHoldSoundVolume(-1); // Will be stored as null
+                App.Instance?.SettingsService.UpdateHoldSoundVolume(-1);
             }
             else
             {
@@ -297,7 +314,7 @@ namespace silence_.Pages
         {
             _isInitializing = true;
             HoldVolumeSlider.Value = -1;
-            HoldVolumePercentText.Text = "Default";
+            HoldVolumePercentText.Text = AppResources.GetString("Common.Default");
             _isInitializing = false;
             App.Instance?.SettingsService.UpdateHoldSoundVolume(-1);
         }
@@ -357,7 +374,7 @@ namespace silence_.Pages
         private void ResetHoldMuteSoundButton_Click(object sender, RoutedEventArgs e)
         {
             _isInitializing = true;
-            HoldMuteSoundComboBox.SelectedIndex = 0; // Default
+            HoldMuteSoundComboBox.SelectedIndex = 0;
             _isInitializing = false;
             App.Instance?.SettingsService.UpdateHoldMuteSound(null, null);
         }
@@ -365,7 +382,7 @@ namespace silence_.Pages
         private void ResetHoldUnmuteSoundButton_Click(object sender, RoutedEventArgs e)
         {
             _isInitializing = true;
-            HoldUnmuteSoundComboBox.SelectedIndex = 0; // Default
+            HoldUnmuteSoundComboBox.SelectedIndex = 0;
             _isInitializing = false;
             App.Instance?.SettingsService.UpdateHoldUnmuteSound(null, null);
         }
@@ -375,7 +392,6 @@ namespace silence_.Pages
             var settings = App.Instance?.SettingsService.Settings;
             if (settings == null) return;
 
-            // Get hold-specific sound or fall back to default
             var preloadedKey = settings.HoldMuteSoundPreloaded ?? settings.MuteSoundPreloaded;
             var customPath = settings.HoldMuteSoundCustomPath ?? settings.MuteSoundCustomPath;
             var volume = settings.HoldSoundVolume ?? settings.SoundVolume;
@@ -389,7 +405,6 @@ namespace silence_.Pages
             var settings = App.Instance?.SettingsService.Settings;
             if (settings == null) return;
 
-            // Get hold-specific sound or fall back to default
             var preloadedKey = settings.HoldUnmuteSoundPreloaded ?? settings.UnmuteSoundPreloaded;
             var customPath = settings.HoldUnmuteSoundCustomPath ?? settings.UnmuteSoundCustomPath;
             var volume = settings.HoldSoundVolume ?? settings.SoundVolume;
@@ -419,14 +434,11 @@ namespace silence_.Pages
             var soundService = App.Instance?.SoundService;
             if (file != null && soundService != null)
             {
-                // Add to custom sounds and use it
                 var addedPath = await soundService.AddCustomSoundAsync(file.Path);
                 if (addedPath != null)
                 {
-                    // Refresh comboboxes
                     PopulateSoundComboBoxes();
 
-                    // Set as current sound
                     if (isMute)
                     {
                         App.Instance?.SettingsService.UpdateHoldMuteSound(null, addedPath);
@@ -443,7 +455,6 @@ namespace silence_.Pages
                 }
             }
 
-            // Revert selection if cancelled or failed
             var settings = App.Instance?.SettingsService.Settings;
             if (isMute)
             {
@@ -466,13 +477,12 @@ namespace silence_.Pages
             _isRecordingHoldHotkey = true;
             _recordedKeyCode = 0;
             _recordedModifiers = ModifierKeys.None;
-            RecordHoldHotkeyButton.Content = "Cancel";
-            HoldHotkeyTextBox.Text = "Press keys...";
+            RecordHoldHotkeyButton.Content = AppResources.GetString("HoldToMute.Hotkey.RecordCancel");
+            HoldHotkeyTextBox.Text = AppResources.GetString("Hotkeys.RecordPrompt");
             HoldHotkeyHintText.Visibility = Visibility.Visible;
-            
-            // Focus the TextBox to prevent Space from clicking the button
+
             HoldHotkeyTextBox.Focus(FocusState.Programmatic);
-            
+
             if (App.Instance?.KeyboardHookService != null)
             {
                 App.Instance.KeyboardHookService.ResetRecordingState();
@@ -483,10 +493,10 @@ namespace silence_.Pages
         private void StopRecordingHoldHotkey()
         {
             _isRecordingHoldHotkey = false;
-            RecordHoldHotkeyButton.Content = "Record";
+            RecordHoldHotkeyButton.Content = AppResources.GetString("HoldToMute.Hotkey.Record");
             HoldHotkeyHintText.Visibility = Visibility.Collapsed;
             HoldHotkeyProgressBar.Visibility = Visibility.Collapsed;
-            
+
             if (App.Instance?.KeyboardHookService != null)
             {
                 App.Instance.KeyboardHookService.IsRecording = false;
@@ -502,8 +512,10 @@ namespace silence_.Pages
             {
                 _recordedModifiers = modifiers;
                 var display = VirtualKeys.GetHotkeyDisplayString(0, modifiers);
-                var text = string.IsNullOrEmpty(display) ? "Press keys..." : display + " + ...";
-                
+                var text = string.IsNullOrEmpty(display)
+                    ? AppResources.GetString("Hotkeys.RecordPrompt")
+                    : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
+
                 HoldHotkeyTextBox.Text = text;
             });
         }
@@ -529,7 +541,7 @@ namespace silence_.Pages
                 _recordedModifiers = modifiers;
 
                 var displayText = VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers);
-                
+
                 HoldHotkeyTextBox.Text = displayText;
                 StopRecordingHoldHotkey();
 
@@ -542,5 +554,17 @@ namespace silence_.Pages
         }
 
         #endregion
+
+        protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+
+            if (App.Instance?.KeyboardHookService != null)
+            {
+                App.Instance.KeyboardHookService.KeyPressed -= OnKeyPressed;
+                App.Instance.KeyboardHookService.ModifiersChanged -= OnModifiersChanged;
+                App.Instance.KeyboardHookService.ModifierHoldProgress -= OnModifierHoldProgress;
+            }
+        }
     }
 }

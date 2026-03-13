@@ -29,6 +29,7 @@
                         Spacing="0">
                 <!-- Menu Toggle Button -->
                 <Button x:Name="PaneToggleButton"
+                        x:Uid="MainWindow.PaneToggleButton"
                         Width="40"
                         Height="24"
                         Margin="4,4,4,4"
@@ -80,27 +81,27 @@
             </NavigationView.Resources>
             
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="GeneralNavItem" Content="General" Tag="General" IsSelected="True">
+                <NavigationViewItem x:Name="GeneralNavItem" x:Uid="MainWindow.GeneralNavItem" Content="General" Tag="General" IsSelected="True">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE713;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="HoldToMuteNavItem" Content="Hold to Mute" Tag="HoldToMute">
+                <NavigationViewItem x:Name="HoldToMuteNavItem" x:Uid="MainWindow.HoldToMuteNavItem" Content="Hold to Mute" Tag="HoldToMute">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE7C8;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="SoundsNavItem" Content="Sounds" Tag="Sounds">
+                <NavigationViewItem x:Name="SoundsNavItem" x:Uid="MainWindow.SoundsNavItem" Content="Sounds" Tag="Sounds">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE767;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="OverlayNavItem" Content="Overlay" Tag="Overlay">
+                <NavigationViewItem x:Name="OverlayNavItem" x:Uid="MainWindow.OverlayNavItem" Content="Overlay" Tag="Overlay">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE78B;"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="AppearanceNavItem" Content="Tray Icon" Tag="Appearance">
+                <NavigationViewItem x:Name="AppearanceNavItem" x:Uid="MainWindow.AppearanceNavItem" Content="Tray Icon" Tag="Appearance">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE790;"/>
                     </NavigationViewItem.Icon>
@@ -108,7 +109,7 @@
             </NavigationView.MenuItems>
             
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem x:Name="AboutNavItem" Content="About" Tag="About">
+                <NavigationViewItem x:Name="AboutNavItem" x:Uid="MainWindow.AboutNavItem" Content="About" Tag="About">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE946;"/>
                     </NavigationViewItem.Icon>
@@ -130,9 +131,10 @@
                         <StackPanel Spacing="12" HorizontalAlignment="Stretch">
                             <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE117;" FontSize="14" Foreground="{ThemeResource SystemFillColorAttentionBrush}"/>
-                                <TextBlock Text="Update Available" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock x:Name="UpdateAvailableText" x:Uid="MainWindow.UpdateAvailableText" Text="Update Available" FontWeight="SemiBold" FontSize="12"/>
                             </StackPanel>
                             <Button x:Name="UpdateDetailsButton"
+                                    x:Uid="MainWindow.UpdateDetailsButton"
                                     Content="View Details" 
                                     FontSize="11"
                                     Padding="8,4"
@@ -143,6 +145,7 @@
                     
                     <!-- Update notification - compact pane (icon only, aligned with nav items) -->
                     <Grid x:Name="UpdateNotificationCompact"
+                          x:Uid="MainWindow.UpdateNotificationCompact"
                           Visibility="Collapsed"
                           Height="36"
                           Margin="4,0,4,0"

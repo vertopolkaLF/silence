@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using silence_.Services;
 using Windows.UI;
 
 namespace silence_.Pages
@@ -14,6 +15,7 @@ namespace silence_.Pages
         public AppearancePage()
         {
             InitializeComponent();
+            ApplyLocalizedStrings();
             LoadSettings();
             UpdatePreviewState(App.Instance?.MicrophoneService.IsMuted() ?? false);
             _isInitializing = false;
@@ -22,6 +24,16 @@ namespace silence_.Pages
             {
                 App.Instance.MuteStateChanged += OnMuteStateChanged;
             }
+        }
+
+        private void ApplyLocalizedStrings()
+        {
+            TitleTextBlock.Text = AppResources.GetString("AppearancePage.TitleText.Text");
+            IconStyleLabelText.Text = AppResources.GetString("AppearancePage.IconStyleLabel.Text");
+            StandardLabelText.Text = AppResources.GetString("AppearancePage.StandardLabel.Text");
+            FilledCircleLabelText.Text = AppResources.GetString("AppearancePage.FilledCircleLabel.Text");
+            DotLabelText.Text = AppResources.GetString("AppearancePage.DotLabel.Text");
+            PreviewDescriptionText.Text = AppResources.GetString("AppearancePage.PreviewDescriptionText.Text");
         }
 
         private void LoadSettings()

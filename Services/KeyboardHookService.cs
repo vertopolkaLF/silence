@@ -610,28 +610,28 @@ public static class VirtualKeys
     {
         return vkCode switch
         {
-            0x01 => "Mouse Left",
-            0x02 => "Mouse Right",
-            0x04 => "Mouse Middle",
-            0x05 => "Mouse 4",
-            0x06 => "Mouse 5",
+            0x01 => AppResources.GetString("Hotkeys.Key.MouseLeft"),
+            0x02 => AppResources.GetString("Hotkeys.Key.MouseRight"),
+            0x04 => AppResources.GetString("Hotkeys.Key.MouseMiddle"),
+            0x05 => AppResources.GetString("Hotkeys.Key.Mouse4"),
+            0x06 => AppResources.GetString("Hotkeys.Key.Mouse5"),
             >= 0x70 and <= 0x87 => $"F{vkCode - 0x70 + 1}",
             >= 0x30 and <= 0x39 => ((char)vkCode).ToString(),
             >= 0x41 and <= 0x5A => ((char)vkCode).ToString(),
-            0x1B => "Escape",
-            0x20 => "Space",
-            0x2D => "Insert",
-            0x2E => "Delete",
-            0x13 => "Pause",
-            0x91 => "Scroll Lock",
-            0x2C => "Print Screen",
-            0x90 => "Num Lock",
-            0x6A => "Numpad *",
-            0x6B => "Numpad +",
-            0x6D => "Numpad -",
-            0x6E => "Numpad .",
-            0x6F => "Numpad /",
-            >= 0x60 and <= 0x69 => $"Numpad {vkCode - 0x60}",
+            0x1B => AppResources.GetString("Hotkeys.Key.Escape"),
+            0x20 => AppResources.GetString("Hotkeys.Key.Space"),
+            0x2D => AppResources.GetString("Hotkeys.Key.Insert"),
+            0x2E => AppResources.GetString("Hotkeys.Key.Delete"),
+            0x13 => AppResources.GetString("Hotkeys.Key.Pause"),
+            0x91 => AppResources.GetString("Hotkeys.Key.ScrollLock"),
+            0x2C => AppResources.GetString("Hotkeys.Key.PrintScreen"),
+            0x90 => AppResources.GetString("Hotkeys.Key.NumLock"),
+            0x6A => AppResources.GetString("Hotkeys.Key.NumpadMultiply"),
+            0x6B => AppResources.GetString("Hotkeys.Key.NumpadPlus"),
+            0x6D => AppResources.GetString("Hotkeys.Key.NumpadMinus"),
+            0x6E => AppResources.GetString("Hotkeys.Key.NumpadDecimal"),
+            0x6F => AppResources.GetString("Hotkeys.Key.NumpadDivide"),
+            >= 0x60 and <= 0x69 => AppResources.Format("Hotkeys.Key.NumpadNumber", vkCode - 0x60),
             0xC0 => "`",
             0xBD => "-",
             0xBB => "=",
@@ -643,7 +643,7 @@ public static class VirtualKeys
             0xBC => ",",
             0xBE => ".",
             0xBF => "/",
-            _ => $"Key {vkCode}"
+            _ => AppResources.Format("Hotkeys.Key.Generic", vkCode)
         };
     }
 
@@ -651,10 +651,10 @@ public static class VirtualKeys
     {
         var parts = new System.Collections.Generic.List<string>();
         
-        if (modifiers.HasFlag(ModifierKeys.Ctrl)) parts.Add("Ctrl");
-        if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
-        if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
-        if (modifiers.HasFlag(ModifierKeys.Win)) parts.Add("Win");
+        if (modifiers.HasFlag(ModifierKeys.Ctrl)) parts.Add(AppResources.GetString("Hotkeys.Modifier.Ctrl"));
+        if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add(AppResources.GetString("Hotkeys.Modifier.Alt"));
+        if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add(AppResources.GetString("Hotkeys.Modifier.Shift"));
+        if (modifiers.HasFlag(ModifierKeys.Win)) parts.Add(AppResources.GetString("Hotkeys.Modifier.Win"));
         
         if (keyCode > 0)
             parts.Add(GetKeyName(keyCode));

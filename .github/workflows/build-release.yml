@@ -2,28 +2,26 @@ name: Build Windows Release
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
-  release:
-    types:
-      - published
+    inputs:
+      publish_chocolatey:
+        description: "Push package to Chocolatey after creating the GitHub release"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-release-${{ github.event.release.tag_name || github.ref }}
-  cancel-in-progress: true
+  group: build-release-${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   build:
-    if: github.event_name != 'release'
     runs-on: windows-2022
     outputs:
       version: ${{ steps.version.outputs.value }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -49,10 +47,7 @@ jobs:
           }
 
           "value=$version" >> $env:GITHUB_OUTPUT
-
-          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -ne "v$version") {
-            throw "Git tag ${{ github.ref_name }} does not match project version v$version."
-          }
+          "release_tag=v$version" >> $env:GITHUB_OUTPUT
 
       - name: Build portable app bundles
         shell: pwsh
@@ -69,7 +64,6 @@ jobs:
           retention-days: 14
 
   installers:
-    if: github.event_name != 'release'
     needs: build
     runs-on: windows-2022
 
@@ -100,7 +94,6 @@ jobs:
           retention-days: 14
 
   github_release:
-    if: github.event_name != 'release' && github.ref_type == 'tag'
     needs:
       - build
       - installers
@@ -129,10 +122,10 @@ jobs:
             choco install gh --no-progress -y
           }
 
-      - name: Create or update draft release
+      - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ needs.build.outputs.release_tag }}
         shell: pwsh
         run: |
           $files = Get-ChildItem -Path releases -File |
@@ -148,13 +141,13 @@ jobs:
 
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:TAG_NAME $assetPaths --clobber
+            gh release edit $env:TAG_NAME --latest
           }
           else {
-            gh release create $env:TAG_NAME $assetPaths --title "silence! $env:TAG_NAME" --generate-notes --draft
+            gh release create $env:TAG_NAME $assetPaths --title "silence! $env:TAG_NAME" --generate-notes --latest
           }
 
-  chocolatey_pack:
-    if: github.event_name != 'release' && github.ref_type == 'tag'
+  chocolatey:
     needs:
       - build
       - installers
@@ -176,7 +169,7 @@ jobs:
         run: >
           .\build-chocolatey-release.ps1
           -Version '${{ needs.build.outputs.version }}'
-          -ReleaseTag '${{ github.ref_name }}'
+          -ReleaseTag '${{ needs.build.outputs.release_tag }}'
           -OutputDir 'releases'
           -InstallerX86Path 'releases\silence-v${{ needs.build.outputs.version }}-x86-setup.exe'
           -InstallerX64Path 'releases\silence-v${{ needs.build.outputs.version }}-x64-setup.exe'
@@ -196,10 +189,10 @@ jobs:
             choco install gh --no-progress -y
           }
 
-      - name: Attach Chocolatey package to draft release
+      - name: Attach Chocolatey package to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ needs.build.outputs.release_tag }}
         shell: pwsh
         run: |
           $packages = Get-ChildItem -Path releases -Filter *.nupkg -File
@@ -211,75 +204,21 @@ jobs:
           $packagePaths = $packages.FullName | ForEach-Object { $_ -replace '\\', '/' }
           gh release upload $env:TAG_NAME $packagePaths --clobber
 
-  chocolatey_publish:
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: windows-2022
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Check Chocolatey API key
-        id: choco_key
+      - name: Push Chocolatey package
+        if: inputs.publish_chocolatey
         env:
           CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:CHOCOLATEY_API_KEY)) {
-            Write-Host 'CHOCOLATEY_API_KEY is not configured. Skipping Chocolatey push.'
-            "available=false" >> $env:GITHUB_OUTPUT
-          }
-          else {
-            "available=true" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Ensure GitHub CLI
-        if: steps.choco_key.outputs.available == 'true'
-        shell: pwsh
-        run: |
-          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-            choco install gh --no-progress -y
-          }
-
-      - name: Download published release installers
-        if: steps.choco_key.outputs.available == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ github.event.release.tag_name }}
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
-          gh release download $env:TAG_NAME --dir release-assets --pattern "silence-v*-x86-setup.exe"
-          gh release download $env:TAG_NAME --dir release-assets --pattern "silence-v*-x64-setup.exe"
-
-      - name: Push Chocolatey package
-        if: steps.choco_key.outputs.available == 'true'
-        env:
-          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
-        shell: pwsh
-        run: |
-          $version = '${{ github.event.release.tag_name }}'.TrimStart('v')
-          $x86 = Get-ChildItem release-assets -Filter "silence-v*-x86-setup.exe" | Select-Object -First 1
-          $x64 = Get-ChildItem release-assets -Filter "silence-v*-x64-setup.exe" | Select-Object -First 1
-
-          if (-not $x86 -or -not $x64) {
-            throw 'Published release installers were not downloaded successfully.'
+            throw 'CHOCOLATEY_API_KEY secret is required when publish_chocolatey is enabled.'
           }
 
           .\build-chocolatey-release.ps1 `
-            -Version $version `
-            -ReleaseTag '${{ github.event.release.tag_name }}' `
+            -Version '${{ needs.build.outputs.version }}' `
+            -ReleaseTag '${{ needs.build.outputs.release_tag }}' `
             -OutputDir 'releases' `
-            -InstallerX86Path $x86.FullName `
-            -InstallerX64Path $x64.FullName `
+            -InstallerX86Path 'releases\silence-v${{ needs.build.outputs.version }}-x86-setup.exe' `
+            -InstallerX64Path 'releases\silence-v${{ needs.build.outputs.version }}-x64-setup.exe' `
             -Push `
             -ApiKey $env:CHOCOLATEY_API_KEY
-
-      - name: Upload published Chocolatey package
-        if: steps.choco_key.outputs.available == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: published-chocolatey-package-${{ github.event.release.tag_name }}
-          path: releases/*.nupkg
-          if-no-files-found: error
-          retention-days: 14

@@ -1,4 +1,4 @@
-# silence! v1.7 - Interactive Overlay
+# silence! v1.7 - Interactive Overlay + Tray Icon Control
 
 > **Click it. Drag it. Mute it.**
 
@@ -16,7 +16,19 @@
 
 - **Overlay Scale up to 400%** - Increased the maximum overlay size from 200% to 400%. If you want a giant mute badge on your screen, go nuts.
 
-- **All Microphones Option** - Not sure what mic to mute? Mute ALL OF THEM. They deserve that
+- **All Microphones Option** - Not sure what mic to mute? Mute ALL OF THEM. They deserve that.
+
+### Tray Icon Customization
+
+- **Three Tray Icon Styles** - Choose between the standard microphone icon, a filled circle variant, or a minimal dot.
+
+- **Live Tray Icon Preview** - The Appearance page now previews the current mute state, so you can see exactly how the tray icon will look when muted or unmuted.
+
+### Tray Menu Improvements
+
+- **Refresh Overlay Action** - Added a tray menu action to rebuild the overlay instantly if it gets stuck, glitches, or just decides to act like a little bastard.
+
+- **Faster Left Click Toggle** - Tray icon clicks now toggle immediately without waiting around for double-click handling.
 
 ### Other Fixes
 

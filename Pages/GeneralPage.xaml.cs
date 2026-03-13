@@ -26,6 +26,7 @@ namespace silence_.Pages
         public GeneralPage()
         {
             InitializeComponent();
+            ApplyLocalizedStrings();
             LoadSettings();
             
             // Subscribe to hotkey recording events
@@ -71,10 +72,18 @@ namespace silence_.Pages
 
             MicrophoneComboBox.Items.Clear();
             
-            var defaultItem = new ComboBoxItem { Content = "Default Microphone", Tag = (string?)null };
+            var defaultItem = new ComboBoxItem
+            {
+                Content = AppResources.GetString("General.Microphone.Default"),
+                Tag = (string?)null
+            };
             MicrophoneComboBox.Items.Add(defaultItem);
 
-            var allMicsItem = new ComboBoxItem { Content = "All Microphones", Tag = MicrophoneService.ALL_MICROPHONES_ID };
+            var allMicsItem = new ComboBoxItem
+            {
+                Content = AppResources.GetString("General.Microphone.All"),
+                Tag = MicrophoneService.ALL_MICROPHONES_ID
+            };
             MicrophoneComboBox.Items.Add(allMicsItem);
 
             int selectedIndex = 0;
@@ -92,7 +101,9 @@ namespace silence_.Pages
                     var mic = microphones[i];
                     var item = new ComboBoxItem 
                     { 
-                        Content = mic.IsDefault ? $"{mic.Name} (Default)" : mic.Name,
+                        Content = mic.IsDefault
+                            ? AppResources.Format("General.Microphone.NamedDefault", mic.Name)
+                            : mic.Name,
                         Tag = mic.Id 
                     };
                     MicrophoneComboBox.Items.Add(item);
@@ -115,8 +126,8 @@ namespace silence_.Pages
             if (_isFirstMuteUpdate)
             {
                 _isFirstMuteUpdate = false;
-                MuteStatusText.Text = isMuted ? "muted" : "unmuted";
-                MuteStatusTextAlt.Text = isMuted ? "unmuted" : "muted";
+                MuteStatusText.Text = GetMuteStatusText(isMuted);
+                MuteStatusTextAlt.Text = GetMuteStatusText(!isMuted);
                 MuteStatusText.Opacity = 1;
                 MuteStatusTextAlt.Opacity = 0;
                 MuteStatusTransform.TranslateY = 0;
@@ -138,7 +149,7 @@ namespace silence_.Pages
             double outDirection = isMuted ? -30 : 30;
             double inStartPos = isMuted ? 30 : -30;
 
-            MuteStatusTextAlt.Text = isMuted ? "muted" : "unmuted";
+            MuteStatusTextAlt.Text = GetMuteStatusText(isMuted);
             MuteStatusTransformAlt.TranslateY = inStartPos;
             MuteStatusTransformAlt.ScaleX = 0.8;
             MuteStatusTransformAlt.ScaleY = 0.8;
@@ -225,7 +236,7 @@ namespace silence_.Pages
 
             storyboard.Completed += (s, e) =>
             {
-                MuteStatusText.Text = isMuted ? "muted" : "unmuted";
+                MuteStatusText.Text = GetMuteStatusText(isMuted);
                 MuteStatusText.Opacity = 1;
                 MuteStatusTransform.TranslateY = 0;
                 MuteStatusTransform.ScaleX = 1;
@@ -334,8 +345,8 @@ namespace silence_.Pages
             _isRecordingHotkey = true;
             _recordedKeyCode = 0;
             _recordedModifiers = ModifierKeys.None;
-            RecordHotkeyButton.Content = "Cancel";
-            HotkeyTextBox.Text = "Press keys...";
+            RecordHotkeyButton.Content = AppResources.GetString("General.Hotkey.RecordCancel");
+            HotkeyTextBox.Text = AppResources.GetString("Hotkeys.RecordPrompt");
             HotkeyHintText.Visibility = Visibility.Visible;
             
             // Focus the TextBox to prevent Space from clicking the button
@@ -351,7 +362,7 @@ namespace silence_.Pages
         private void StopRecordingHotkey()
         {
             _isRecordingHotkey = false;
-            RecordHotkeyButton.Content = "Record";
+            RecordHotkeyButton.Content = AppResources.GetString("General.Hotkey.Record");
             HotkeyHintText.Visibility = Visibility.Collapsed;
             HotkeyProgressBar.Visibility = Visibility.Collapsed;
             
@@ -370,9 +381,27 @@ namespace silence_.Pages
             {
                 _recordedModifiers = modifiers;
                 var display = VirtualKeys.GetHotkeyDisplayString(0, modifiers);
-                var text = string.IsNullOrEmpty(display) ? "Press keys..." : display + " + ...";
+                var text = string.IsNullOrEmpty(display)
+                    ? AppResources.GetString("Hotkeys.RecordPrompt")
+                    : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
                 HotkeyTextBox.Text = text;
             });
+        }
+
+        private void ApplyLocalizedStrings()
+        {
+            MicrophoneStatusPrefixText.Text = AppResources.GetString("GeneralPage.MicrophoneStatusPrefixText.Text");
+            MicrophoneLabelText.Text = AppResources.GetString("GeneralPage.MicrophoneLabel.Text");
+            MicrophoneComboBox.PlaceholderText = AppResources.GetString("GeneralPage.MicrophoneComboBox.PlaceholderText");
+            ToggleHotkeyLabelText.Text = AppResources.GetString("GeneralPage.ToggleHotkeyLabel.Text");
+            HotkeyTextBox.PlaceholderText = AppResources.GetString("GeneralPage.HotkeyTextBox.PlaceholderText");
+            ToolTipService.SetToolTip(ClearHotkeyButton, AppResources.GetString("GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip"));
+            RecordHotkeyButton.Content = AppResources.GetString("GeneralPage.RecordHotkeyButton.Content");
+            HotkeyHintText.Text = AppResources.GetString("GeneralPage.HotkeyHintText.Text");
+            IgnoreModifiersCheckBox.Content = AppResources.GetString("GeneralPage.IgnoreModifiersCheckBox.Content");
+            StartupLabelText.Text = AppResources.GetString("GeneralPage.StartupLabel.Text");
+            AutoStartCheckBox.Content = AppResources.GetString("GeneralPage.AutoStartCheckBox.Content");
+            StartMinimizedCheckBox.Content = AppResources.GetString("GeneralPage.StartMinimizedCheckBox.Content");
         }
 
         private void OnModifierHoldProgress(double progress)
@@ -445,6 +474,28 @@ namespace silence_.Pages
         }
 
         #endregion
+
+        protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+
+            if (App.Instance?.KeyboardHookService != null)
+            {
+                App.Instance.KeyboardHookService.KeyPressed -= OnKeyPressed;
+                App.Instance.KeyboardHookService.ModifiersChanged -= OnModifiersChanged;
+                App.Instance.KeyboardHookService.ModifierHoldProgress -= OnModifierHoldProgress;
+            }
+
+            if (App.Instance != null)
+            {
+                App.Instance.MuteStateChanged -= OnMuteStateChanged;
+            }
+        }
+
+        private static string GetMuteStatusText(bool isMuted)
+        {
+            return AppResources.GetString(isMuted ? "General.MuteStatus.Muted" : "General.MuteStatus.Unmuted");
+        }
     }
 }
 

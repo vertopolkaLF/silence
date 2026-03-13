@@ -1,27 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Page x:Class="silence_.Pages.GeneralPage"
-    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d" Background="Transparent">
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      mc:Ignorable="d"
+      Background="Transparent">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel x:Name="ContentPanel" Spacing="20" Margin="24,24,24,24">
-
-            <!-- Compact header with mute status -->
             <Grid Height="50">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="MuteButton" Grid.Column="0" Tapped="MuteButton_Click" PointerEntered="MuteButton_PointerEntered" PointerExited="MuteButton_PointerExited" PointerPressed="MuteButton_PointerPressed" PointerReleased="MuteButton_PointerReleased" Width="50" Height="50" CornerRadius="25" VerticalAlignment="Center" Background="#28A745">
-                    <FontIcon x:Name="MuteIcon" FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE720;" FontSize="24" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,0"/>
+                <Border x:Name="MuteButton"
+                        Grid.Column="0"
+                        Tapped="MuteButton_Click"
+                        PointerEntered="MuteButton_PointerEntered"
+                        PointerExited="MuteButton_PointerExited"
+                        PointerPressed="MuteButton_PointerPressed"
+                        PointerReleased="MuteButton_PointerReleased"
+                        Width="50"
+                        Height="50"
+                        CornerRadius="25"
+                        VerticalAlignment="Center"
+                        Background="#28A745">
+                    <FontIcon x:Name="MuteIcon"
+                              FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                              Glyph="&#xE720;"
+                              FontSize="24"
+                              Foreground="White"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Margin="0,0,0,0"/>
                 </Border>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="4">
-                    <TextBlock Text="Microphone is" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                    <!-- Animated text container with clipping -->
+                    <TextBlock x:Name="MicrophoneStatusPrefixText"
+                               x:Uid="GeneralPage.MicrophoneStatusPrefixText"
+                               Text="Microphone is"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
                     <Grid Height="26" VerticalAlignment="Center">
                         <Grid.Clip>
                             <RectangleGeometry Rect="0,0,200,26"/>
@@ -40,17 +62,18 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Microphone Selection -->
             <StackPanel Spacing="8">
-                <TextBlock Text="Microphone" FontWeight="SemiBold" FontSize="14"/>
-                <ComboBox x:Name="MicrophoneComboBox" HorizontalAlignment="Stretch" SelectionChanged="MicrophoneComboBox_SelectionChanged" PlaceholderText="Select microphone..."/>
+                <TextBlock x:Name="MicrophoneLabelText" x:Uid="GeneralPage.MicrophoneLabel" Text="Microphone" FontWeight="SemiBold" FontSize="14"/>
+                <ComboBox x:Name="MicrophoneComboBox"
+                          x:Uid="GeneralPage.MicrophoneComboBox"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="MicrophoneComboBox_SelectionChanged"
+                          PlaceholderText="Select microphone..."/>
             </StackPanel>
 
-            <!-- Hotkey Configuration -->
             <StackPanel Spacing="8">
-                <TextBlock Text="Toggle Hotkey" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="ToggleHotkeyLabelText" x:Uid="GeneralPage.ToggleHotkeyLabel" Text="Toggle Hotkey" FontWeight="SemiBold" FontSize="14"/>
 
-                <!-- Toggle Mic Hotkey -->
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -58,23 +81,58 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Grid Grid.Column="0">
-                        <TextBox x:Name="HotkeyTextBox" IsReadOnly="True" PlaceholderText="Press a key..." Text="Ctrl + Alt + M"/>
+                        <TextBox x:Name="HotkeyTextBox"
+                                 x:Uid="GeneralPage.HotkeyTextBox"
+                                 IsReadOnly="True"
+                                 PlaceholderText="Press a key..."
+                                 Text="Ctrl + Alt + M"/>
                         <ProgressBar x:Name="HotkeyProgressBar" Height="3" VerticalAlignment="Bottom" Margin="1,0,1,1" Minimum="0" Maximum="1" Value="0" Visibility="Collapsed" ShowError="False" ShowPaused="False"/>
                     </Grid>
-                    <Button x:Name="ClearHotkeyButton" Grid.Column="1" Content="&#xE711;" FontFamily="{ThemeResource SymbolThemeFontFamily}" Width="32" Height="32" Padding="0" ToolTipService.ToolTip="Clear hotkey" Click="ClearHotkeyButton_Click"/>
-                    <Button x:Name="RecordHotkeyButton" Grid.Column="2" Content="Record" Click="RecordHotkeyButton_Click"/>
+                    <Button x:Name="ClearHotkeyButton"
+                            x:Uid="GeneralPage.ClearHotkeyButton"
+                            Grid.Column="1"
+                            Content="&#xE711;"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            ToolTipService.ToolTip="Clear hotkey"
+                            Click="ClearHotkeyButton_Click"/>
+                    <Button x:Name="RecordHotkeyButton"
+                            x:Uid="GeneralPage.RecordHotkeyButton"
+                            Grid.Column="2"
+                            Content="Record"
+                            Click="RecordHotkeyButton_Click"/>
                 </Grid>
-                <TextBlock x:Name="HotkeyHintText" Text="To bind LMB, RMB or 2 modifier keys - hold them for 1 second" FontSize="11" Opacity="0.6" Visibility="Collapsed" Margin="0,4,0,0"/>
-                <CheckBox x:Name="IgnoreModifiersCheckBox" Content="Ignore modifiers (Shift, Ctrl, Alt, Win)" IsChecked="False" Checked="IgnoreModifiersCheckBox_Changed" Unchecked="IgnoreModifiersCheckBox_Changed"/>
+                <TextBlock x:Name="HotkeyHintText"
+                           x:Uid="GeneralPage.HotkeyHintText"
+                           Text="To bind LMB, RMB or 2 modifier keys - hold them for 1 second"
+                           FontSize="11"
+                           Opacity="0.6"
+                           Visibility="Collapsed"
+                           Margin="0,4,0,0"/>
+                <CheckBox x:Name="IgnoreModifiersCheckBox"
+                          x:Uid="GeneralPage.IgnoreModifiersCheckBox"
+                          Content="Ignore modifiers (Shift, Ctrl, Alt, Win)"
+                          IsChecked="False"
+                          Checked="IgnoreModifiersCheckBox_Changed"
+                          Unchecked="IgnoreModifiersCheckBox_Changed"/>
             </StackPanel>
 
-            <!-- Startup Options -->
             <StackPanel Spacing="8">
-                <TextBlock Text="Startup" FontWeight="SemiBold" FontSize="14"/>
-                <CheckBox x:Name="AutoStartCheckBox" Content="Start with Windows" Checked="AutoStartCheckBox_Changed" Unchecked="AutoStartCheckBox_Changed"/>
-                <CheckBox x:Name="StartMinimizedCheckBox" Content="Start minimized to tray" IsChecked="False" Checked="StartMinimizedCheckBox_Changed" Unchecked="StartMinimizedCheckBox_Changed"/>
+                <TextBlock x:Name="StartupLabelText" x:Uid="GeneralPage.StartupLabel" Text="Startup" FontWeight="SemiBold" FontSize="14"/>
+                <CheckBox x:Name="AutoStartCheckBox"
+                          x:Uid="GeneralPage.AutoStartCheckBox"
+                          Content="Start with Windows"
+                          Checked="AutoStartCheckBox_Changed"
+                          Unchecked="AutoStartCheckBox_Changed"/>
+                <CheckBox x:Name="StartMinimizedCheckBox"
+                          x:Uid="GeneralPage.StartMinimizedCheckBox"
+                          Content="Start minimized to tray"
+                          IsChecked="False"
+                          Checked="StartMinimizedCheckBox_Changed"
+                          Unchecked="StartMinimizedCheckBox_Changed"/>
             </StackPanel>
-
         </StackPanel>
     </ScrollViewer>
 </Page>
