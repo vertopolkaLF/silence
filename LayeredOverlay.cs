@@ -14,12 +14,16 @@ namespace silence_;
 /// </summary>
 public sealed class LayeredOverlay : IDisposable
 {
+    private static LayeredOverlay? _instance;
     private IntPtr _hwnd;
     private bool _isVisible;
     private bool _isDisposed;
     private bool _isPositioning;
+    private bool _isButtonMode;
     private bool _isDragging;
     private POINT _dragOffset;
+    private POINT _pointerDownCursor;
+    private bool _dragStarted;
     
     // Overlay fade animation (show/hide whole window)
     private System.Timers.Timer? _fadeTimer;
@@ -56,6 +60,7 @@ public sealed class LayeredOverlay : IDisposable
     // Magnetic snap
     private const double MagneticRange = 200;
     private const double SnapThreshold = 8;
+    private const int DragStartThreshold = 6;
     
     // Fonts (created with DPI scaling)
     private Font? _iconFont;
@@ -77,6 +82,7 @@ public sealed class LayeredOverlay : IDisposable
     
     public LayeredOverlay()
     {
+        _instance = this;
         RegisterWindowClass();
         CreateOverlayWindow();
         
@@ -201,12 +207,28 @@ public sealed class LayeredOverlay : IDisposable
     {
         const uint WM_DISPLAYCHANGE = 0x007E;
         const uint WM_DPICHANGED = 0x02E0;
+        const uint WM_SETCURSOR = 0x0020;
         
         if (msg == WM_DISPLAYCHANGE || msg == WM_DPICHANGED)
         {
             // Resolution or DPI changed - need to update overlay position
             // Find the instance that owns this hwnd and trigger repositioning
             App.Instance?.OnDisplayChanged();
+        }
+
+        if (msg == WM_SETCURSOR && _instance?._hwnd == hwnd)
+        {
+            if (_instance._isPositioning)
+            {
+                SetCursor(LoadCursor(IntPtr.Zero, IDC_SIZEALL));
+                return new IntPtr(1);
+            }
+
+            if (_instance._isButtonMode)
+            {
+                SetCursor(LoadCursor(IntPtr.Zero, IDC_HAND));
+                return new IntPtr(1);
+            }
         }
         
         return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -238,7 +260,23 @@ public sealed class LayeredOverlay : IDisposable
     public void ApplySettings()
     {
         // Recalculate scale (includes user scale setting)
+        _isButtonMode = App.Instance?.SettingsService.Settings.OverlayButtonMode ?? false;
+        UpdateInteractionMode();
         UpdateDpiScale();
+        RenderOverlay();
+    }
+
+    public void SetButtonMode(bool enabled)
+    {
+        _isButtonMode = enabled;
+
+        if (!enabled && !_isPositioning)
+        {
+            _isDragging = false;
+            _dragStarted = false;
+        }
+
+        UpdateInteractionMode();
         RenderOverlay();
     }
     
@@ -666,7 +704,7 @@ public sealed class LayeredOverlay : IDisposable
     public void StartPositioning()
     {
         _isPositioning = true;
-        SetClickThrough(false);
+        UpdateInteractionMode();
         RenderOverlay();
         ShowOverlay();
     }
@@ -675,9 +713,15 @@ public sealed class LayeredOverlay : IDisposable
     {
         _isPositioning = false;
         _isDragging = false;
-        SetClickThrough(true);
+        _dragStarted = false;
+        UpdateInteractionMode();
         RenderOverlay();
         SaveCurrentPosition();
+    }
+
+    private void UpdateInteractionMode()
+    {
+        SetClickThrough(!_isPositioning && !_isButtonMode);
     }
     
     private void SetClickThrough(bool clickThrough)
@@ -761,10 +805,10 @@ public sealed class LayeredOverlay : IDisposable
     
     public void ProcessDrag()
     {
-        if (!_isPositioning) return;
+        if (!_isPositioning && (!_isButtonMode || !_isVisible || _overlayAlpha == 0)) return;
         
         // Check for Escape key to exit positioning mode
-        if ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0)
+        if (_isPositioning && (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0)
         {
             App.Instance?.StopOverlayPositioning();
             return;
@@ -784,6 +828,8 @@ public sealed class LayeredOverlay : IDisposable
                     _isDragging = true;
                     _dragOffset.X = cursorPos.X - _currentX;
                     _dragOffset.Y = cursorPos.Y - _currentY;
+                    _pointerDownCursor = cursorPos;
+                    _dragStarted = false;
                 }
             }
         }
@@ -792,10 +838,35 @@ public sealed class LayeredOverlay : IDisposable
             if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0)
             {
                 // Mouse released
+                bool shouldToggle = _isButtonMode && !_dragStarted &&
+                    cursorPos.X >= _currentX && cursorPos.X < _currentX + _currentWidth &&
+                    cursorPos.Y >= _currentY && cursorPos.Y < _currentY + _currentHeight;
+
                 _isDragging = false;
+                if (_dragStarted)
+                {
+                    SaveCurrentPosition();
+                }
+                _dragStarted = false;
+
+                if (shouldToggle)
+                {
+                    App.Instance?.ToggleMute();
+                }
             }
             else
             {
+                int deltaX = cursorPos.X - _pointerDownCursor.X;
+                int deltaY = cursorPos.Y - _pointerDownCursor.Y;
+                bool passedDragThreshold = Math.Abs(deltaX) >= DragStartThreshold || Math.Abs(deltaY) >= DragStartThreshold;
+
+                if (!_isPositioning && !_dragStarted && !passedDragThreshold)
+                {
+                    return;
+                }
+
+                _dragStarted = true;
+
                 // Dragging - calculate new position with magnetic snap
                 var settings = App.Instance?.SettingsService.Settings;
                 var workArea = GetTargetScreenWorkArea(settings?.OverlayScreenId ?? "PRIMARY");
@@ -867,6 +938,11 @@ public sealed class LayeredOverlay : IDisposable
             DestroyWindow(_hwnd);
             _hwnd = IntPtr.Zero;
         }
+
+        if (_instance == this)
+        {
+            _instance = null;
+        }
         
         GC.SuppressFinalize(this);
     }
@@ -899,6 +975,8 @@ public sealed class LayeredOverlay : IDisposable
     private const int MONITORINFOF_PRIMARY = 0x00000001;
     private const int VK_LBUTTON = 0x01;
     private const int VK_ESCAPE = 0x1B;
+    private static readonly IntPtr IDC_HAND = 32649;
+    private static readonly IntPtr IDC_SIZEALL = 32646;
     
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
@@ -1021,6 +1099,12 @@ public sealed class LayeredOverlay : IDisposable
     
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr LoadCursor(IntPtr hInstance, IntPtr lpCursorName);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetCursor(IntPtr hCursor);
     
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);

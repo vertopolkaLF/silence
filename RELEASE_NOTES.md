@@ -1,3 +1,25 @@
+# silence! v1.7 - Interactive Overlay
+
+> **Click it. Drag it. Mute it.**
+
+## What's New in v1.7
+
+### Overlay Button Mode
+
+- **Use Overlay as Mute Button** - Added a new overlay mode that disables click-through behavior and lets the overlay act like a real mute toggle.
+
+- **Click to Toggle Microphone** - Clicking the overlay now toggles the current microphone state directly. No tray click, no hotkey, no extra bullshit.
+
+- **Always-Available Dragging** - When button mode is enabled, the overlay can always be dragged to a new position without entering a separate positioning mode first.
+
+### Bigger Overlay, More Control
+
+- **Overlay Scale up to 400%** - Increased the maximum overlay size from 200% to 400%. If you want a giant mute badge on your screen, go nuts.
+
+- **All Microphones Option** - Not sure what mic to mute? Mute ALL OF THEM. They deserve that
+
+---
+
 # 🎤 silence! v1.6.1 — Hold to Mute Enhancements
 
 > **More control over your hold hotkey.**
@@ -43,6 +65,7 @@
 - **Hold Hotkey Support** — Configure a separate hotkey that works while you hold it down. Perfect for quick unmutes during meetings.
 
 - **Three Action Modes** — Choose how the hold hotkey behaves:
+
   - **Toggle current state** — Flip between muted/unmuted while holding
   - **Hold to mute** — Mute while holding, unmute on release (push-to-mute)
   - **Hold to unmute** — Unmute while holding, mute on release (push-to-talk)
@@ -115,6 +138,7 @@
 - **Background Styles** — Dark or light background. Because sometimes you want it to blend in, sometimes you want it to stand out.
 
 - **Opacity Controls** — Two separate sliders:
+
   - **Background opacity** (0-100%) — Control how transparent the background is
   - **Content opacity** (20-100%) — Control icon and text visibility independently
 
@@ -166,6 +190,7 @@
 - **Always-On-Top Indicator** — A floating microphone icon stays on top of all windows. No more "wait, am I muted?" moments.
 
 - **Three Visibility Modes** — Choose when to see the overlay:
+
   - **Always visible** — Never lose track of your mic status
   - **Visible when muted** — Show only when you're muted (default)
   - **Visible when unmuted** — Show only when you're live

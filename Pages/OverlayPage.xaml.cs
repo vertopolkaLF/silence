@@ -145,6 +145,8 @@ public sealed partial class OverlayPage : Page
         // Set scale
         ScaleSlider.Value = settings.OverlayScale;
         ScaleLabel.Text = $"Size scale: {settings.OverlayScale}%";
+        
+        OverlayButtonModeToggle.IsOn = settings.OverlayButtonMode;
 
         UpdatePositionText(settings);
     }
@@ -476,6 +478,14 @@ public sealed partial class OverlayPage : Page
     {
         // Temporarily show the overlay for preview
         App.Instance?.PreviewOverlay();
+    }
+
+    private void OverlayButtonModeToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing) return;
+
+        App.Instance?.SettingsService.UpdateOverlayButtonMode(OverlayButtonModeToggle.IsOn);
+        App.Instance?.ApplyOverlaySettings();
     }
     
     public void RefreshPositionText()

@@ -65,6 +65,15 @@
 
             <!-- Position -->
             <StackPanel x:Name="PositionPanel" Spacing="12">
+                <ToggleSwitch x:Name="OverlayButtonModeToggle"
+                              Header="Use overlay as mute button"
+                              OffContent="Click-through overlay"
+                              OnContent="Clickable mute toggle"
+                              Toggled="OverlayButtonModeToggle_Toggled"/>
+                <TextBlock Text="When enabled, the overlay stops being click-through, toggles the microphone on click, and can always be dragged."
+                           Opacity="0.6"
+                           FontSize="12"
+                           TextWrapping="Wrap"/>
                 <TextBlock x:Name="CurrentPositionText" 
                            Text="Current: Center, Bottom 20%"
                            Opacity="0.6"
@@ -176,7 +185,7 @@
                     <TextBlock x:Name="ScaleLabel" Text="Size scale: 100%"/>
                     <Slider x:Name="ScaleSlider"
                             Minimum="10"
-                            Maximum="200"
+                            Maximum="400"
                             StepFrequency="5"
                             TickFrequency="25"
                             TickPlacement="Outside"

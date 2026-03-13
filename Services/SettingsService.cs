@@ -303,13 +303,19 @@ public class SettingsService
     
     public void UpdateOverlayScale(int scale)
     {
-        _settings.OverlayScale = Math.Clamp(scale, 10, 200);
+        _settings.OverlayScale = Math.Clamp(scale, 10, 400);
         SaveSettings();
     }
     
     public void UpdateOverlayVariant(string variant)
     {
         _settings.OverlayVariant = variant;
+        SaveSettings();
+    }
+
+    public void UpdateOverlayButtonMode(bool enabled)
+    {
+        _settings.OverlayButtonMode = enabled;
         SaveSettings();
     }
 }
@@ -364,6 +370,7 @@ public class AppSettings
     public int OverlayContentOpacity { get; set; } = 100; // Overlay content (icon/text) opacity (20-100%)
     public int OverlayBorderRadius { get; set; } = 6; // Border radius in pixels (0-24)
     public bool OverlayShowBorder { get; set; } = true; // Show Win11 style border
-    public int OverlayScale { get; set; } = 100; // Overlay size scale (10-200%)
+    public int OverlayScale { get; set; } = 100; // Overlay size scale (10-400%)
     public string OverlayVariant { get; set; } = "MicIcon"; // MicIcon, Dot
+    public bool OverlayButtonMode { get; set; } = false; // Make overlay clickable and draggable
 }

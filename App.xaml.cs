@@ -112,6 +112,8 @@ namespace silence_
                     settings.OverlayScreenId);
             }
             
+            UpdateOverlayInputTimer();
+            
             // Update overlay visibility based on current state
             UpdateOverlayVisibility();
         }
@@ -121,6 +123,7 @@ namespace silence_
             if (_overlayWindow == null || _settingsService == null) return;
             
             var settings = _settingsService.Settings;
+            UpdateOverlayInputTimer();
             
             if (!settings.OverlayEnabled)
             {
@@ -202,10 +205,12 @@ namespace silence_
         
         public void ApplyOverlaySettings()
         {
-            if (_overlayWindow == null) return;
+            if (_overlayWindow == null || _settingsService == null) return;
             
             _overlayWindow.ApplySettings();
+            _overlayWindow.SetButtonMode(_settingsService.Settings.OverlayButtonMode);
             UpdateOverlayPosition();
+            UpdateOverlayInputTimer();
         }
         
         public void StartOverlayPositioning()
@@ -215,13 +220,7 @@ namespace silence_
             _isOverlayPositioning = true;
             _overlayWindow.StartPositioning();
             
-            // Start timer to process drag
-            _positioningTimer?.Stop();
-            _positioningTimer?.Dispose();
-            _positioningTimer = new System.Timers.Timer(16); // ~60fps
-            _positioningTimer.Elapsed += (s, e) => _overlayWindow?.ProcessDrag();
-            _positioningTimer.AutoReset = true;
-            _positioningTimer.Start();
+            UpdateOverlayInputTimer();
         }
         
         public void StopOverlayPositioning()
@@ -229,13 +228,8 @@ namespace silence_
             if (_overlayWindow == null) return;
             
             _isOverlayPositioning = false;
-            
-            // Stop positioning timer
-            _positioningTimer?.Stop();
-            _positioningTimer?.Dispose();
-            _positioningTimer = null;
-            
             _overlayWindow.StopPositioning();
+            UpdateOverlayInputTimer();
             UpdateOverlayVisibility();
             
             // Notify UI to reset button state
@@ -264,6 +258,32 @@ namespace silence_
             };
             _previewTimer.AutoReset = false;
             _previewTimer.Start();
+        }
+
+        private void UpdateOverlayInputTimer()
+        {
+            if (_overlayWindow == null || _settingsService == null) return;
+
+            bool shouldProcessInput = _isOverlayPositioning ||
+                (_settingsService.Settings.OverlayEnabled && _settingsService.Settings.OverlayButtonMode);
+
+            if (!shouldProcessInput)
+            {
+                _positioningTimer?.Stop();
+                _positioningTimer?.Dispose();
+                _positioningTimer = null;
+                return;
+            }
+
+            if (_positioningTimer != null)
+            {
+                return;
+            }
+
+            _positioningTimer = new System.Timers.Timer(16); // ~60fps
+            _positioningTimer.Elapsed += (s, e) => _overlayWindow?.ProcessDrag();
+            _positioningTimer.AutoReset = true;
+            _positioningTimer.Start();
         }
         
         private async Task CheckForUpdatesOnStartupAsync()
