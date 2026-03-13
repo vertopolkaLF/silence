@@ -18,6 +18,10 @@
 
 - **All Microphones Option** - Not sure what mic to mute? Mute ALL OF THEM. They deserve that
 
+### Other Fixes
+
+- **Fixed auto-restart after auto-update**
+
 ---
 
 # 🎤 silence! v1.6.1 — Hold to Mute Enhancements

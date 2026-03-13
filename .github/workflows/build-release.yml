@@ -1,0 +1,104 @@
+name: Build Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Read project version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$csproj = Get-Content 'Silence!.csproj'
+          $version = $csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+
+          if (-not $version) {
+            throw 'Version not found in Silence!.csproj.'
+          }
+
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -ne "v$version") {
+            throw "Git tag ${{ github.ref_name }} does not match project version v$version."
+          }
+
+      - name: Publish portable app bundles
+        shell: pwsh
+        run: .\publish-release.ps1
+
+      - name: Build Inno Setup installers
+        shell: pwsh
+        run: .\build-installers.ps1
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: silence-v${{ steps.version.outputs.value }}-windows
+          path: |
+            releases/*.zip
+            releases/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Ensure GitHub CLI
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+            choco install gh --no-progress -y
+          }
+
+      - name: Publish GitHub release assets
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path releases -File |
+            Where-Object { $_.Name -like '*.zip' -or $_.Name -like '*-setup.exe' } |
+            Sort-Object Name
+
+          if (-not $files) {
+            throw 'No release files found in releases.'
+          }
+
+          $assetPaths = $files.FullName | ForEach-Object { $_ -replace '\\', '/' }
+          gh release view $env:TAG_NAME *> $null
+
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG_NAME $assetPaths --clobber
+          }
+          else {
+            gh release create $env:TAG_NAME $assetPaths --title "silence! $env:TAG_NAME" --generate-notes
+          }
