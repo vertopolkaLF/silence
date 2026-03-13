@@ -15,6 +15,7 @@ namespace silence_.Pages
         {
             InitializeComponent();
             _isInitializing = true;
+            ApplyLocalizedStrings();
             
             // Show current version
             VersionText.Text = $"v{UpdateService.CurrentVersion}";
@@ -28,7 +29,7 @@ namespace silence_.Pages
             }
             else
             {
-                SelectLanguage(LocalizationService.SystemLanguage);
+                SelectLanguage(LocalizationService.EnglishLanguage);
             }
             
             // Check if we already have an update check result (e.g., from startup check)
@@ -40,6 +41,29 @@ namespace silence_.Pages
             }
 
             _isInitializing = false;
+        }
+
+        private void ApplyLocalizedStrings()
+        {
+            DescriptionTextBlock.Text = AppResources.GetString("AboutPage.DescriptionText.Text");
+            LanguageTitleText.Text = AppResources.GetString("AboutPage.LanguageTitle.Text");
+
+            UpdatesHeaderTextBlock.Text = AppResources.GetString("AboutPage.UpdatesHeaderText.Text");
+            CheckingTextBlock.Text = AppResources.GetString("AboutPage.CheckingText.Text");
+            UpToDateTextBlock.Text = AppResources.GetString("AboutPage.UpToDateText.Text");
+            UpdateAvailableText.Text = AppResources.GetString("AboutPage.UpdateAvailableText.Text");
+            NewVersionText.Text = AppResources.GetString("AboutPage.NewVersionText.Text");
+            DownloadUpdateButton.Content = AppResources.GetString("AboutPage.DownloadUpdateButton.Content");
+            ViewReleaseButton.Content = AppResources.GetString("AboutPage.ViewReleaseButton.Content");
+            DownloadingText.Text = AppResources.GetString("AboutPage.DownloadingText.Text");
+            ErrorText.Text = AppResources.GetString("AboutPage.ErrorText.Text");
+            CheckUpdatesButton.Content = AppResources.GetString("AboutPage.CheckUpdatesButton.Content");
+            AutoCheckToggle.Header = AppResources.GetString("AboutPage.AutoCheckToggle.Header");
+            ViewOnGitHubButton.Content = AppResources.GetString("AboutPage.ViewOnGitHubButton.Content");
+            MadeByTextBlock.Text = AppResources.GetString("AboutPage.MadeByText.Text");
+            CreditsTitleText.Text = AppResources.GetString("AboutPage.CreditsTitle.Text");
+            CreditWinUiTextBlock.Text = AppResources.GetString("AboutPage.CreditWinUiText.Text");
+            CreditNotifyIconTextBlock.Text = AppResources.GetString("AboutPage.CreditNotifyIconText.Text");
         }
         
         private void ShowUpdateAvailable(UpdateCheckResult result)
@@ -211,11 +235,11 @@ namespace silence_.Pages
 
         private void SelectLanguage(string? languageOverride)
         {
-            var normalized = LocalizationService.NormalizeRequestedLanguage(languageOverride);
+            var resolvedLanguage = LocalizationService.ResolveAppLanguage(languageOverride);
 
             foreach (ComboBoxItem item in LanguageComboBox.Items)
             {
-                if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(item.Tag?.ToString(), resolvedLanguage, StringComparison.OrdinalIgnoreCase))
                 {
                     LanguageComboBox.SelectedItem = item;
                     return;

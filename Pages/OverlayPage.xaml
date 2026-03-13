@@ -11,7 +11,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="24" Margin="24,24,24,24">
-            <TextBlock x:Uid="OverlayPage.TitleText" Text="Overlay" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TitleTextBlock" x:Uid="OverlayPage.TitleText" Text="Overlay" FontSize="24" FontWeight="SemiBold"/>
 
             <StackPanel Spacing="8">
                 <ToggleSwitch x:Name="OverlayEnabledToggle"
@@ -20,19 +20,20 @@
                               OffContent="Overlay disabled"
                               OnContent="Overlay enabled"
                               Toggled="OverlayEnabledToggle_Toggled"/>
-                <TextBlock x:Uid="OverlayPage.OverlayEnabledDescriptionText"
+                <TextBlock x:Name="OverlayEnabledDescriptionTextBlock"
+                           x:Uid="OverlayPage.OverlayEnabledDescriptionText"
                            Text="Shows mute status on top of all windows"
                            Opacity="0.6"
                            FontSize="12"/>
             </StackPanel>
 
             <StackPanel x:Name="VisibilityModePanel" Spacing="12">
-                <TextBlock x:Uid="OverlayPage.VisibilityModeLabel" Text="Visibility Mode" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="VisibilityModeLabelText" x:Uid="OverlayPage.VisibilityModeLabel" Text="Visibility Mode" FontWeight="SemiBold" FontSize="14"/>
                 <RadioButtons x:Name="VisibilityModeSelector" SelectionChanged="VisibilityModeSelector_SelectionChanged">
-                    <RadioButton x:Uid="OverlayPage.VisibilityAlwaysItem" Content="Always visible" Tag="Always"/>
-                    <RadioButton x:Uid="OverlayPage.VisibilityWhenMutedItem" Content="Visible when muted" Tag="WhenMuted" IsChecked="True"/>
-                    <RadioButton x:Uid="OverlayPage.VisibilityWhenUnmutedItem" Content="Visible when unmuted" Tag="WhenUnmuted"/>
-                    <RadioButton x:Uid="OverlayPage.VisibilityAfterToggleItem" Content="Show after toggle" Tag="AfterToggle"/>
+                    <RadioButton x:Name="VisibilityAlwaysItem" x:Uid="OverlayPage.VisibilityAlwaysItem" Content="Always visible" Tag="Always"/>
+                    <RadioButton x:Name="VisibilityWhenMutedItem" x:Uid="OverlayPage.VisibilityWhenMutedItem" Content="Visible when muted" Tag="WhenMuted" IsChecked="True"/>
+                    <RadioButton x:Name="VisibilityWhenUnmutedItem" x:Uid="OverlayPage.VisibilityWhenUnmutedItem" Content="Visible when unmuted" Tag="WhenUnmuted"/>
+                    <RadioButton x:Name="VisibilityAfterToggleItem" x:Uid="OverlayPage.VisibilityAfterToggleItem" Content="Show after toggle" Tag="AfterToggle"/>
                 </RadioButtons>
 
                 <StackPanel x:Name="DurationPanel" Spacing="8" Visibility="Collapsed" Margin="0,8,0,0">
@@ -49,30 +50,39 @@
             </StackPanel>
 
             <StackPanel x:Name="ScreenSelectionPanel" Spacing="12">
-                <TextBlock x:Uid="OverlayPage.ScreenLabel" Text="Screen" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="ScreenLabelText" x:Uid="OverlayPage.ScreenLabel" Text="Screen" FontWeight="SemiBold" FontSize="14"/>
                 <ComboBox x:Name="ScreenComboBox"
                           x:Uid="OverlayPage.ScreenComboBox"
                           HorizontalAlignment="Stretch"
                           SelectionChanged="ScreenComboBox_SelectionChanged"
                           PlaceholderText="Select screen..."/>
-                <TextBlock x:Uid="OverlayPage.ScreenDescriptionText"
+                <TextBlock x:Name="ScreenDescriptionTextBlock"
+                           x:Uid="OverlayPage.ScreenDescriptionText"
                            Text="Select which monitor to display the overlay on"
                            Opacity="0.6"
                            FontSize="12"/>
             </StackPanel>
 
             <StackPanel x:Name="PositionPanel" Spacing="12">
+                <TextBlock x:Name="OverlayButtonModeLabelText"
+                           Text="Use overlay as mute button"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
                 <ToggleSwitch x:Name="OverlayButtonModeToggle"
                               x:Uid="OverlayPage.OverlayButtonModeToggle"
-                              Header="Use overlay as mute button"
                               OffContent="Click-through overlay"
                               OnContent="Clickable mute toggle"
                               Toggled="OverlayButtonModeToggle_Toggled"/>
-                <TextBlock x:Uid="OverlayPage.OverlayButtonModeDescriptionText"
+                <TextBlock x:Name="OverlayButtonModeDescriptionTextBlock"
+                           x:Uid="OverlayPage.OverlayButtonModeDescriptionText"
                            Text="When enabled, the overlay stops being click-through, toggles the microphone on click, and can always be dragged."
                            Opacity="0.6"
                            FontSize="12"
                            TextWrapping="Wrap"/>
+                <TextBlock x:Name="PositionTitleText"
+                           Text="Overlay Position"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
                 <TextBlock x:Name="CurrentPositionText"
                            Text="Current: Center, Bottom 20%"
                            Opacity="0.6"
@@ -91,7 +101,8 @@
                             Style="{StaticResource AccentButtonStyle}"
                             HorizontalAlignment="Left"/>
                 </StackPanel>
-                <TextBlock x:Uid="OverlayPage.PositionDescriptionText"
+                <TextBlock x:Name="PositionDescriptionTextBlock"
+                           x:Uid="OverlayPage.PositionDescriptionText"
                            Text="Click to show overlay and drag it to desired position. The overlay will snap to center when close to the middle of the screen. Press ESC or click Done to save."
                            Opacity="0.6"
                            FontSize="12"
@@ -99,7 +110,7 @@
             </StackPanel>
 
             <StackPanel Spacing="12">
-                <TextBlock x:Uid="OverlayPage.PreviewLabel" Text="Preview" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="PreviewLabelText" x:Uid="OverlayPage.PreviewLabel" Text="Preview" FontWeight="SemiBold" FontSize="14"/>
                 <Button x:Name="PreviewOverlayButton"
                         x:Uid="OverlayPage.PreviewOverlayButton"
                         Content="Preview Overlay"
@@ -108,10 +119,10 @@
             </StackPanel>
 
             <StackPanel x:Name="AppearancePanel" Spacing="12">
-                <TextBlock x:Uid="OverlayPage.AppearanceTitle" Text="Appearance" FontWeight="SemiBold" FontSize="24"/>
+                <TextBlock x:Name="AppearanceTitleText" x:Uid="OverlayPage.AppearanceTitle" Text="Appearance" FontWeight="SemiBold" FontSize="24"/>
 
                 <StackPanel Spacing="12" Margin="0,12,0,0">
-                    <TextBlock x:Uid="OverlayPage.OverlayStyleLabel" Text="Overlay Style" FontWeight="SemiBold" FontSize="14"/>
+                    <TextBlock x:Name="OverlayStyleLabelText" x:Uid="OverlayPage.OverlayStyleLabel" Text="Overlay Style" FontWeight="SemiBold" FontSize="14"/>
                     <Grid ColumnSpacing="12" ColumnDefinitions="52, 52, 52, 52, 52">
                         <Button x:Name="MicIconVariantButton"
                                 Grid.Column="0"
@@ -139,7 +150,8 @@
                                         <FontIcon Glyph="&#xE720;" FontSize="20" Foreground="#28A745"/>
                                     </Border>
                                 </Border>
-                                <TextBlock x:Uid="OverlayPage.MicIconVariantLabel"
+                                <TextBlock x:Name="MicIconVariantLabelText"
+                                           x:Uid="OverlayPage.MicIconVariantLabel"
                                            Text="Mic Icon"
                                            FontSize="11"
                                            HorizontalAlignment="Center"
@@ -170,7 +182,8 @@
                                              HorizontalAlignment="Center"
                                              VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock x:Uid="OverlayPage.DotVariantLabel"
+                                <TextBlock x:Name="DotVariantLabelText"
+                                           x:Uid="OverlayPage.DotVariantLabel"
                                            Text="Dot"
                                            FontSize="11"
                                            HorizontalAlignment="Center"
@@ -212,20 +225,20 @@
                                   OnContent="Icon with text"
                                   Toggled="ShowTextToggle_Toggled"/>
 
-                    <TextBlock x:Uid="OverlayPage.IconStyleLabel" Text="Icon style" Margin="0,8,0,0"/>
+                    <TextBlock x:Name="IconStyleLabelText" x:Uid="OverlayPage.IconStyleLabel" Text="Icon style" Margin="0,8,0,0"/>
                     <ComboBox x:Name="IconStyleComboBox"
                               HorizontalAlignment="Stretch"
                               SelectionChanged="IconStyleComboBox_SelectionChanged">
-                        <ComboBoxItem x:Uid="OverlayPage.IconStyleColoredItem" Content="Colored (red/green)" Tag="Colored"/>
-                        <ComboBoxItem x:Uid="OverlayPage.IconStyleMonochromeItem" Content="Monochrome" Tag="Monochrome"/>
+                        <ComboBoxItem x:Name="IconStyleColoredItem" x:Uid="OverlayPage.IconStyleColoredItem" Content="Colored (red/green)" Tag="Colored"/>
+                        <ComboBoxItem x:Name="IconStyleMonochromeItem" x:Uid="OverlayPage.IconStyleMonochromeItem" Content="Monochrome" Tag="Monochrome"/>
                     </ComboBox>
 
-                    <TextBlock x:Uid="OverlayPage.BackgroundStyleLabel" Text="Background" Margin="0,8,0,0"/>
+                    <TextBlock x:Name="BackgroundStyleLabelText" x:Uid="OverlayPage.BackgroundStyleLabel" Text="Background" Margin="0,8,0,0"/>
                     <ComboBox x:Name="BackgroundStyleComboBox"
                               HorizontalAlignment="Stretch"
                               SelectionChanged="BackgroundStyleComboBox_SelectionChanged">
-                        <ComboBoxItem x:Uid="OverlayPage.BackgroundDarkItem" Content="Dark" Tag="Dark"/>
-                        <ComboBoxItem x:Uid="OverlayPage.BackgroundLightItem" Content="Light" Tag="Light"/>
+                        <ComboBoxItem x:Name="BackgroundDarkItem" x:Uid="OverlayPage.BackgroundDarkItem" Content="Dark" Tag="Dark"/>
+                        <ComboBoxItem x:Name="BackgroundLightItem" x:Uid="OverlayPage.BackgroundLightItem" Content="Light" Tag="Light"/>
                     </ComboBox>
 
                     <StackPanel Spacing="8" Margin="0,12,0,0">

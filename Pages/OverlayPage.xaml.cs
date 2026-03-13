@@ -17,6 +17,7 @@ public sealed partial class OverlayPage : Page
     public OverlayPage()
     {
         InitializeComponent();
+        ApplyLocalizedStrings();
         LoadSettings();
         LoadScreens();
         _isInitializing = false;
@@ -149,6 +150,49 @@ public sealed partial class OverlayPage : Page
         OverlayButtonModeToggle.IsOn = settings.OverlayButtonMode;
 
         UpdatePositionText(settings);
+    }
+
+    private void ApplyLocalizedStrings()
+    {
+        TitleTextBlock.Text = AppResources.GetString("OverlayPage.TitleText.Text");
+        OverlayEnabledToggle.Header = AppResources.GetString("OverlayPage.OverlayEnabledToggle.Header");
+        OverlayEnabledToggle.OffContent = AppResources.GetString("OverlayPage.OverlayEnabledToggle.OffContent");
+        OverlayEnabledToggle.OnContent = AppResources.GetString("OverlayPage.OverlayEnabledToggle.OnContent");
+        OverlayEnabledDescriptionTextBlock.Text = AppResources.GetString("OverlayPage.OverlayEnabledDescriptionText.Text");
+        VisibilityModeLabelText.Text = AppResources.GetString("OverlayPage.VisibilityModeLabel.Text");
+        VisibilityAlwaysItem.Content = AppResources.GetString("OverlayPage.VisibilityAlwaysItem.Content");
+        VisibilityWhenMutedItem.Content = AppResources.GetString("OverlayPage.VisibilityWhenMutedItem.Content");
+        VisibilityWhenUnmutedItem.Content = AppResources.GetString("OverlayPage.VisibilityWhenUnmutedItem.Content");
+        VisibilityAfterToggleItem.Content = AppResources.GetString("OverlayPage.VisibilityAfterToggleItem.Content");
+        ScreenLabelText.Text = AppResources.GetString("OverlayPage.ScreenLabel.Text");
+        ScreenComboBox.PlaceholderText = AppResources.GetString("OverlayPage.ScreenComboBox.PlaceholderText");
+        ScreenDescriptionTextBlock.Text = AppResources.GetString("OverlayPage.ScreenDescriptionText.Text");
+        OverlayButtonModeLabelText.Text = AppResources.GetString("OverlayPage.OverlayButtonModeLabel.Text");
+        OverlayButtonModeToggle.OffContent = AppResources.GetString("OverlayPage.OverlayButtonModeToggle.OffContent");
+        OverlayButtonModeToggle.OnContent = AppResources.GetString("OverlayPage.OverlayButtonModeToggle.OnContent");
+        OverlayButtonModeDescriptionTextBlock.Text = AppResources.GetString("OverlayPage.OverlayButtonModeDescriptionText.Text");
+        PositionTitleText.Text = AppResources.GetString("OverlayPage.PositionTitle.Text");
+        SetPositionButton.Content = AppResources.GetString("OverlayPage.SetPositionButton.Content");
+        DonePositionButton.Content = AppResources.GetString("OverlayPage.DonePositionButton.Content");
+        PositionDescriptionTextBlock.Text = AppResources.GetString("OverlayPage.PositionDescriptionText.Text");
+        PreviewLabelText.Text = AppResources.GetString("OverlayPage.PreviewLabel.Text");
+        PreviewOverlayButton.Content = AppResources.GetString("OverlayPage.PreviewOverlayButton.Content");
+        AppearanceTitleText.Text = AppResources.GetString("OverlayPage.AppearanceTitle.Text");
+        OverlayStyleLabelText.Text = AppResources.GetString("OverlayPage.OverlayStyleLabel.Text");
+        MicIconVariantLabelText.Text = AppResources.GetString("OverlayPage.MicIconVariantLabel.Text");
+        DotVariantLabelText.Text = AppResources.GetString("OverlayPage.DotVariantLabel.Text");
+        ShowTextToggle.Header = AppResources.GetString("OverlayPage.ShowTextToggle.Header");
+        ShowTextToggle.OffContent = AppResources.GetString("OverlayPage.ShowTextToggle.OffContent");
+        ShowTextToggle.OnContent = AppResources.GetString("OverlayPage.ShowTextToggle.OnContent");
+        IconStyleLabelText.Text = AppResources.GetString("OverlayPage.IconStyleLabel.Text");
+        IconStyleColoredItem.Content = AppResources.GetString("OverlayPage.IconStyleColoredItem.Content");
+        IconStyleMonochromeItem.Content = AppResources.GetString("OverlayPage.IconStyleMonochromeItem.Content");
+        BackgroundStyleLabelText.Text = AppResources.GetString("OverlayPage.BackgroundStyleLabel.Text");
+        BackgroundDarkItem.Content = AppResources.GetString("OverlayPage.BackgroundDarkItem.Content");
+        BackgroundLightItem.Content = AppResources.GetString("OverlayPage.BackgroundLightItem.Content");
+        ShowBorderToggle.Header = AppResources.GetString("OverlayPage.ShowBorderToggle.Header");
+        ShowBorderToggle.OffContent = AppResources.GetString("OverlayPage.ShowBorderToggle.OffContent");
+        ShowBorderToggle.OnContent = AppResources.GetString("OverlayPage.ShowBorderToggle.OnContent");
     }
 
     private void LoadScreens()

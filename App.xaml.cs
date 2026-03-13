@@ -54,6 +54,7 @@ namespace silence_
 
             // Initialize services
             _settingsService = new SettingsService();
+            _settingsService.EnsureLanguageInitialized();
             _microphoneService = new MicrophoneService();
             _keyboardHookService = new KeyboardHookService();
 
@@ -584,14 +585,14 @@ namespace silence_
 
         public void ApplyLanguageOverride(string? languageOverride)
         {
-            var normalizedLanguage = LocalizationService.NormalizeRequestedLanguage(languageOverride);
-            if (_settingsService?.Settings.LanguageOverride == normalizedLanguage)
+            var resolvedLanguage = LocalizationService.ResolveAppLanguage(languageOverride);
+            if (_settingsService?.Settings.LanguageOverride == resolvedLanguage)
             {
                 return;
             }
 
-            _settingsService?.UpdateLanguageOverride(normalizedLanguage);
-            _localizationService?.ApplyLanguage(normalizedLanguage);
+            _settingsService?.UpdateLanguageOverride(resolvedLanguage);
+            _localizationService?.ApplyLanguage(resolvedLanguage);
             _window?.RefreshLocalizedUI();
             RefreshOverlay();
         }

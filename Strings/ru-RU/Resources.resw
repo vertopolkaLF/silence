@@ -35,7 +35,7 @@
   <data name="AboutPage.DescriptionText.Text" xml:space="preserve"><value>Простая утилита для выключения и включения микрофона с глобальной горячей клавишей.</value></data>
   <data name="AboutPage.LanguageTitle.Text" xml:space="preserve"><value>Язык</value></data>
   <data name="AboutPage.LanguageSystemItem.Content" xml:space="preserve"><value>По умолчанию в системе</value></data>
-  <data name="AboutPage.LanguageEnglishItem.Content" xml:space="preserve"><value>English</value></data>
+  <data name="AboutPage.LanguageEnglishItem.Content" xml:space="preserve"><value>Английский</value></data>
   <data name="AboutPage.LanguageRussianItem.Content" xml:space="preserve"><value>Русский</value></data>
   <data name="AboutPage.UpdatesHeaderText.Text" xml:space="preserve"><value>Обновления</value></data>
   <data name="AboutPage.CheckingText.Text" xml:space="preserve"><value>Проверка обновлений...</value></data>
@@ -134,10 +134,12 @@
   <data name="OverlayPage.ScreenLabel.Text" xml:space="preserve"><value>Экран</value></data>
   <data name="OverlayPage.ScreenComboBox.PlaceholderText" xml:space="preserve"><value>Выберите экран...</value></data>
   <data name="OverlayPage.ScreenDescriptionText.Text" xml:space="preserve"><value>Выберите монитор, на котором показывать оверлей</value></data>
+  <data name="OverlayPage.OverlayButtonModeLabel.Text" xml:space="preserve"><value>Использовать оверлей как кнопку</value></data>
   <data name="OverlayPage.OverlayButtonModeToggle.Header" xml:space="preserve"><value>Использовать оверлей как кнопку</value></data>
   <data name="OverlayPage.OverlayButtonModeToggle.OffContent" xml:space="preserve"><value>Оверлей прозрачен для кликов</value></data>
   <data name="OverlayPage.OverlayButtonModeToggle.OnContent" xml:space="preserve"><value>Оверлей переключает микрофон</value></data>
   <data name="OverlayPage.OverlayButtonModeDescriptionText.Text" xml:space="preserve"><value>Когда включено, оверлей перестает пропускать клики, переключает микрофон по нажатию и его всегда можно перетаскивать.</value></data>
+  <data name="OverlayPage.PositionTitle.Text" xml:space="preserve"><value>Позиция оверлея</value></data>
   <data name="OverlayPage.SetPositionButton.Content" xml:space="preserve"><value>Задать позицию</value></data>
   <data name="OverlayPage.DonePositionButton.Content" xml:space="preserve"><value>Готово</value></data>
   <data name="OverlayPage.PositionDescriptionText.Text" xml:space="preserve"><value>Нажмите, чтобы показать оверлей и перетащить его в нужное место. Оверлей притягивается к центру, если подвести его близко к середине экрана. Нажмите ESC или «Готово», чтобы сохранить.</value></data>

@@ -38,7 +38,8 @@
                 </Border>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="4">
-                    <TextBlock x:Uid="GeneralPage.MicrophoneStatusPrefixText"
+                    <TextBlock x:Name="MicrophoneStatusPrefixText"
+                               x:Uid="GeneralPage.MicrophoneStatusPrefixText"
                                Text="Microphone is"
                                FontSize="18"
                                FontWeight="SemiBold"
@@ -62,7 +63,7 @@
             </Grid>
 
             <StackPanel Spacing="8">
-                <TextBlock x:Uid="GeneralPage.MicrophoneLabel" Text="Microphone" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="MicrophoneLabelText" x:Uid="GeneralPage.MicrophoneLabel" Text="Microphone" FontWeight="SemiBold" FontSize="14"/>
                 <ComboBox x:Name="MicrophoneComboBox"
                           x:Uid="GeneralPage.MicrophoneComboBox"
                           HorizontalAlignment="Stretch"
@@ -71,7 +72,7 @@
             </StackPanel>
 
             <StackPanel Spacing="8">
-                <TextBlock x:Uid="GeneralPage.ToggleHotkeyLabel" Text="Toggle Hotkey" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="ToggleHotkeyLabelText" x:Uid="GeneralPage.ToggleHotkeyLabel" Text="Toggle Hotkey" FontWeight="SemiBold" FontSize="14"/>
 
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
@@ -119,7 +120,7 @@
             </StackPanel>
 
             <StackPanel Spacing="8">
-                <TextBlock x:Uid="GeneralPage.StartupLabel" Text="Startup" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="StartupLabelText" x:Uid="GeneralPage.StartupLabel" Text="Startup" FontWeight="SemiBold" FontSize="14"/>
                 <CheckBox x:Name="AutoStartCheckBox"
                           x:Uid="GeneralPage.AutoStartCheckBox"
                           Content="Start with Windows"

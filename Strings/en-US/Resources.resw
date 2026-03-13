@@ -134,10 +134,12 @@
   <data name="OverlayPage.ScreenLabel.Text" xml:space="preserve"><value>Screen</value></data>
   <data name="OverlayPage.ScreenComboBox.PlaceholderText" xml:space="preserve"><value>Select screen...</value></data>
   <data name="OverlayPage.ScreenDescriptionText.Text" xml:space="preserve"><value>Select which monitor to display the overlay on</value></data>
+  <data name="OverlayPage.OverlayButtonModeLabel.Text" xml:space="preserve"><value>Use overlay as mute button</value></data>
   <data name="OverlayPage.OverlayButtonModeToggle.Header" xml:space="preserve"><value>Use overlay as mute button</value></data>
   <data name="OverlayPage.OverlayButtonModeToggle.OffContent" xml:space="preserve"><value>Click-through overlay</value></data>
   <data name="OverlayPage.OverlayButtonModeToggle.OnContent" xml:space="preserve"><value>Clickable mute toggle</value></data>
   <data name="OverlayPage.OverlayButtonModeDescriptionText.Text" xml:space="preserve"><value>When enabled, the overlay stops being click-through, toggles the microphone on click, and can always be dragged.</value></data>
+  <data name="OverlayPage.PositionTitle.Text" xml:space="preserve"><value>Overlay Position</value></data>
   <data name="OverlayPage.SetPositionButton.Content" xml:space="preserve"><value>Set Position</value></data>
   <data name="OverlayPage.DonePositionButton.Content" xml:space="preserve"><value>Done</value></data>
   <data name="OverlayPage.PositionDescriptionText.Text" xml:space="preserve"><value>Click to show overlay and drag it to desired position. The overlay will snap to center when close to the middle of the screen. Press ESC or click Done to save.</value></data>

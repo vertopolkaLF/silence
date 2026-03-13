@@ -17,6 +17,7 @@ namespace silence_.Pages
         public HoldToMutePage()
         {
             InitializeComponent();
+            ApplyLocalizedStrings();
             LoadSettings();
 
             if (App.Instance?.KeyboardHookService != null)
@@ -25,6 +26,37 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.ModifiersChanged += OnModifiersChanged;
                 App.Instance.KeyboardHookService.ModifierHoldProgress += OnModifierHoldProgress;
             }
+        }
+
+        private void ApplyLocalizedStrings()
+        {
+            TitleTextBlock.Text = AppResources.GetString("HoldToMutePage.TitleText.Text");
+            DescriptionTextBlock.Text = AppResources.GetString("HoldToMutePage.DescriptionText.Text");
+            HotkeyLabelText.Text = AppResources.GetString("HoldToMutePage.HotkeyLabel.Text");
+            HoldHotkeyTextBox.PlaceholderText = AppResources.GetString("HoldToMutePage.HoldHotkeyTextBox.PlaceholderText");
+            ToolTipService.SetToolTip(ClearHoldHotkeyButton, AppResources.GetString("HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip"));
+            RecordHoldHotkeyButton.Content = AppResources.GetString("HoldToMutePage.RecordHoldHotkeyButton.Content");
+            HoldHotkeyHintText.Text = AppResources.GetString("HoldToMutePage.HoldHotkeyHintText.Text");
+            IgnoreHoldModifiersCheckBox.Content = AppResources.GetString("HoldToMutePage.IgnoreHoldModifiersCheckBox.Content");
+            ActionLabelText.Text = AppResources.GetString("HoldToMutePage.ActionLabel.Text");
+            ActionToggleItem.Content = AppResources.GetString("HoldToMutePage.ActionToggleItem.Content");
+            ActionHoldToMuteItem.Content = AppResources.GetString("HoldToMutePage.ActionHoldToMuteItem.Content");
+            ActionHoldToUnmuteItem.Content = AppResources.GetString("HoldToMutePage.ActionHoldToUnmuteItem.Content");
+            OptionsLabelText.Text = AppResources.GetString("HoldToMutePage.OptionsLabel.Text");
+            HoldPlaySoundsCheckBox.Content = AppResources.GetString("HoldToMutePage.HoldPlaySoundsCheckBox.Content");
+            HoldShowOverlayCheckBox.Content = AppResources.GetString("HoldToMutePage.HoldShowOverlayCheckBox.Content");
+            SoundSettingsTitleText.Text = AppResources.GetString("HoldToMutePage.SoundSettingsTitle.Text");
+            SoundSettingsDescriptionText.Text = AppResources.GetString("HoldToMutePage.SoundSettingsDescription.Text");
+            VolumeLabelText.Text = AppResources.GetString("HoldToMutePage.VolumeLabel.Text");
+            ResetHoldVolumeButton.Content = AppResources.GetString("HoldToMutePage.ResetHoldVolumeButton.Content");
+            MuteSoundLabelText.Text = AppResources.GetString("HoldToMutePage.MuteSoundLabel.Text");
+            HoldMuteSoundComboBox.PlaceholderText = AppResources.GetString("HoldToMutePage.HoldMuteSoundComboBox.PlaceholderText");
+            ToolTipService.SetToolTip(PlayHoldMuteSoundButton, AppResources.GetString("HoldToMutePage.PlayHoldMuteSoundButton.ToolTipService.ToolTip"));
+            ResetHoldMuteSoundButton.Content = AppResources.GetString("HoldToMutePage.ResetHoldMuteSoundButton.Content");
+            UnmuteSoundLabelText.Text = AppResources.GetString("HoldToMutePage.UnmuteSoundLabel.Text");
+            HoldUnmuteSoundComboBox.PlaceholderText = AppResources.GetString("HoldToMutePage.HoldUnmuteSoundComboBox.PlaceholderText");
+            ToolTipService.SetToolTip(PlayHoldUnmuteSoundButton, AppResources.GetString("HoldToMutePage.PlayHoldUnmuteSoundButton.ToolTipService.ToolTip"));
+            ResetHoldUnmuteSoundButton.Content = AppResources.GetString("HoldToMutePage.ResetHoldUnmuteSoundButton.Content");
         }
 
         private void LoadSettings()

@@ -26,6 +26,7 @@ namespace silence_.Pages
         public GeneralPage()
         {
             InitializeComponent();
+            ApplyLocalizedStrings();
             LoadSettings();
             
             // Subscribe to hotkey recording events
@@ -385,6 +386,22 @@ namespace silence_.Pages
                     : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
                 HotkeyTextBox.Text = text;
             });
+        }
+
+        private void ApplyLocalizedStrings()
+        {
+            MicrophoneStatusPrefixText.Text = AppResources.GetString("GeneralPage.MicrophoneStatusPrefixText.Text");
+            MicrophoneLabelText.Text = AppResources.GetString("GeneralPage.MicrophoneLabel.Text");
+            MicrophoneComboBox.PlaceholderText = AppResources.GetString("GeneralPage.MicrophoneComboBox.PlaceholderText");
+            ToggleHotkeyLabelText.Text = AppResources.GetString("GeneralPage.ToggleHotkeyLabel.Text");
+            HotkeyTextBox.PlaceholderText = AppResources.GetString("GeneralPage.HotkeyTextBox.PlaceholderText");
+            ToolTipService.SetToolTip(ClearHotkeyButton, AppResources.GetString("GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip"));
+            RecordHotkeyButton.Content = AppResources.GetString("GeneralPage.RecordHotkeyButton.Content");
+            HotkeyHintText.Text = AppResources.GetString("GeneralPage.HotkeyHintText.Text");
+            IgnoreModifiersCheckBox.Content = AppResources.GetString("GeneralPage.IgnoreModifiersCheckBox.Content");
+            StartupLabelText.Text = AppResources.GetString("GeneralPage.StartupLabel.Text");
+            AutoStartCheckBox.Content = AppResources.GetString("GeneralPage.AutoStartCheckBox.Content");
+            StartMinimizedCheckBox.Content = AppResources.GetString("GeneralPage.StartMinimizedCheckBox.Content");
         }
 
         private void OnModifierHoldProgress(double progress)

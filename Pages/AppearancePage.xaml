@@ -11,10 +11,10 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="24" Margin="24,24,24,24">
-            <TextBlock x:Uid="AppearancePage.TitleText" Text="Tray Icon" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TitleTextBlock" x:Uid="AppearancePage.TitleText" Text="Tray Icon" FontSize="24" FontWeight="SemiBold"/>
 
             <StackPanel Spacing="12">
-                <TextBlock x:Uid="AppearancePage.IconStyleLabel" Text="Icon Style" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="IconStyleLabelText" x:Uid="AppearancePage.IconStyleLabel" Text="Icon Style" FontWeight="SemiBold" FontSize="14"/>
                 <Grid ColumnSpacing="12" ColumnDefinitions="52, 52, 52">
                     <Button x:Name="StandardVariantButton"
                             Grid.Column="0"
@@ -61,7 +61,8 @@
                                           StrokeEndLineCap="Round"/>
                                 </Grid>
                             </Border>
-                            <TextBlock x:Uid="AppearancePage.StandardLabel"
+                            <TextBlock x:Name="StandardLabelText"
+                                       x:Uid="AppearancePage.StandardLabel"
                                        Text="Standard"
                                        FontSize="11"
                                        HorizontalAlignment="Center"
@@ -114,7 +115,8 @@
                                           StrokeEndLineCap="Round"/>
                                 </Grid>
                             </Border>
-                            <TextBlock x:Uid="AppearancePage.FilledCircleLabel"
+                            <TextBlock x:Name="FilledCircleLabelText"
+                                       x:Uid="AppearancePage.FilledCircleLabel"
                                        Text="Filled circle"
                                        FontSize="11"
                                        HorizontalAlignment="Center"
@@ -148,7 +150,8 @@
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
-                            <TextBlock x:Uid="AppearancePage.DotLabel"
+                            <TextBlock x:Name="DotLabelText"
+                                       x:Uid="AppearancePage.DotLabel"
                                        Text="Dot"
                                        FontSize="11"
                                        HorizontalAlignment="Center"
@@ -156,7 +159,8 @@
                         </StackPanel>
                     </Button>
                 </Grid>
-                <TextBlock x:Uid="AppearancePage.PreviewDescriptionText"
+                <TextBlock x:Name="PreviewDescriptionText"
+                           x:Uid="AppearancePage.PreviewDescriptionText"
                            Text="Preview uses the current microphone state. Muted is red, unmuted is green."
                            Opacity="0.6"
                            FontSize="12"

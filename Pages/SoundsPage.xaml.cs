@@ -17,9 +17,30 @@ namespace silence_.Pages
         public SoundsPage()
         {
             InitializeComponent();
+            ApplyLocalizedStrings();
             CustomSoundsListView.ItemsSource = _customSounds;
             LoadSettings();
             _isInitializing = false;
+        }
+
+        private void ApplyLocalizedStrings()
+        {
+            TitleTextBlock.Text = AppResources.GetString("SoundsPage.TitleText.Text");
+            SoundsEnabledToggle.Header = AppResources.GetString("SoundsPage.SoundsEnabledToggle.Header");
+            SoundsEnabledToggle.OffContent = AppResources.GetString("SoundsPage.SoundsEnabledToggle.OffContent");
+            SoundsEnabledToggle.OnContent = AppResources.GetString("SoundsPage.SoundsEnabledToggle.OnContent");
+            VolumeLabelText.Text = AppResources.GetString("SoundsPage.VolumeLabel.Text");
+            MuteSoundLabelText.Text = AppResources.GetString("SoundsPage.MuteSoundLabel.Text");
+            MuteSoundComboBox.PlaceholderText = AppResources.GetString("SoundsPage.MuteSoundComboBox.PlaceholderText");
+            ToolTipService.SetToolTip(PlayMuteSoundButton, AppResources.GetString("SoundsPage.PlayMuteSoundButton.ToolTipService.ToolTip"));
+            ToolTipService.SetToolTip(RemoveMuteCustomSoundButton, AppResources.GetString("SoundsPage.RemoveMuteCustomSoundButton.ToolTipService.ToolTip"));
+            UnmuteSoundLabelText.Text = AppResources.GetString("SoundsPage.UnmuteSoundLabel.Text");
+            UnmuteSoundComboBox.PlaceholderText = AppResources.GetString("SoundsPage.UnmuteSoundComboBox.PlaceholderText");
+            ToolTipService.SetToolTip(PlayUnmuteSoundButton, AppResources.GetString("SoundsPage.PlayUnmuteSoundButton.ToolTipService.ToolTip"));
+            ToolTipService.SetToolTip(RemoveUnmuteCustomSoundButton, AppResources.GetString("SoundsPage.RemoveUnmuteCustomSoundButton.ToolTipService.ToolTip"));
+            CustomSoundsTitleText.Text = AppResources.GetString("SoundsPage.CustomSoundsTitle.Text");
+            CustomSoundsDescriptionText.Text = AppResources.GetString("SoundsPage.CustomSoundsDescription.Text");
+            AddCustomSoundButton.Content = AppResources.GetString("SoundsPage.AddCustomSoundButton.Content");
         }
 
         private void LoadSettings()

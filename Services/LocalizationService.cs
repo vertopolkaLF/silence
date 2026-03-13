@@ -31,9 +31,27 @@ public sealed class LocalizationService
 
     public string GetString(string resourceId)
     {
+        return TryResolveString(resourceId) ?? resourceId;
+    }
+
+    public bool TryGetString(string resourceId, out string value)
+    {
+        var resolvedValue = TryResolveString(resourceId);
+        if (!string.IsNullOrEmpty(resolvedValue))
+        {
+            value = resolvedValue;
+            return true;
+        }
+
+        value = string.Empty;
+        return false;
+    }
+
+    private string? TryResolveString(string resourceId)
+    {
         if (!EnsureResourcesInitialized())
         {
-            return resourceId;
+            return null;
         }
 
         foreach (var candidateId in GetLookupCandidates(resourceId))
@@ -51,7 +69,7 @@ public sealed class LocalizationService
             }
         }
 
-        return resourceId;
+        return null;
     }
 
     public string Format(string resourceId, params object[] arguments)
@@ -62,7 +80,7 @@ public sealed class LocalizationService
     public bool ApplyLanguage(string? requestedLanguage, bool notify = true)
     {
         var normalizedRequested = NormalizeRequestedLanguage(requestedLanguage);
-        var effectiveLanguage = ResolveEffectiveLanguage(normalizedRequested);
+        var effectiveLanguage = ResolveAppLanguage(requestedLanguage);
 
         RequestedLanguage = normalizedRequested;
         EffectiveLanguage = effectiveLanguage;
@@ -94,6 +112,11 @@ public sealed class LocalizationService
         }
 
         return ResolveSupportedLanguage(requestedLanguage) ?? SystemLanguage;
+    }
+
+    public static string ResolveAppLanguage(string? requestedLanguage)
+    {
+        return ResolveEffectiveLanguage(NormalizeRequestedLanguage(requestedLanguage));
     }
 
     private static string ResolveEffectiveLanguage(string requestedLanguage)
@@ -262,6 +285,17 @@ public static class AppResources
     public static string GetString(string resourceId)
     {
         return App.Instance?.LocalizationService.GetString(resourceId) ?? resourceId;
+    }
+
+    public static bool TryGetString(string resourceId, out string value)
+    {
+        if (App.Instance?.LocalizationService.TryGetString(resourceId, out value) == true)
+        {
+            return true;
+        }
+
+        value = string.Empty;
+        return false;
     }
 
     public static string Format(string resourceId, params object[] arguments)

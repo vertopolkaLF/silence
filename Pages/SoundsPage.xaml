@@ -11,7 +11,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="24" Margin="24,24,24,24">
-            <TextBlock x:Uid="SoundsPage.TitleText" Text="Sounds" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TitleTextBlock" x:Uid="SoundsPage.TitleText" Text="Sounds" FontSize="24" FontWeight="SemiBold"/>
 
             <StackPanel Spacing="8">
                 <ToggleSwitch x:Name="SoundsEnabledToggle"
@@ -29,7 +29,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock x:Uid="SoundsPage.VolumeLabel" Grid.Column="0" Text="Volume" FontWeight="SemiBold" FontSize="14"/>
+                    <TextBlock x:Name="VolumeLabelText" x:Uid="SoundsPage.VolumeLabel" Grid.Column="0" Text="Volume" FontWeight="SemiBold" FontSize="14"/>
                     <TextBlock x:Name="VolumePercentText"
                                Grid.Column="2"
                                Text="50%"
@@ -55,7 +55,7 @@
             </StackPanel>
 
             <StackPanel x:Name="MuteSoundPanel" Spacing="12">
-                <TextBlock x:Uid="SoundsPage.MuteSoundLabel" Text="Mute Sound" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="MuteSoundLabelText" x:Uid="SoundsPage.MuteSoundLabel" Text="Mute Sound" FontWeight="SemiBold" FontSize="14"/>
                 <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -100,7 +100,7 @@
             </StackPanel>
 
             <StackPanel x:Name="UnmuteSoundPanel" Spacing="12">
-                <TextBlock x:Uid="SoundsPage.UnmuteSoundLabel" Text="Unmute Sound" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="UnmuteSoundLabelText" x:Uid="SoundsPage.UnmuteSoundLabel" Text="Unmute Sound" FontWeight="SemiBold" FontSize="14"/>
                 <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -145,8 +145,8 @@
             </StackPanel>
 
             <StackPanel Spacing="12">
-                <TextBlock x:Uid="SoundsPage.CustomSoundsTitle" Text="Custom Sounds" FontWeight="SemiBold" FontSize="14"/>
-                <TextBlock x:Uid="SoundsPage.CustomSoundsDescription" Text="Add your own sound files (MP3, WAV, FLAC, OGG, M4A, WMA)" Opacity="0.6" FontSize="12"/>
+                <TextBlock x:Name="CustomSoundsTitleText" x:Uid="SoundsPage.CustomSoundsTitle" Text="Custom Sounds" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="CustomSoundsDescriptionText" x:Uid="SoundsPage.CustomSoundsDescription" Text="Add your own sound files (MP3, WAV, FLAC, OGG, M4A, WMA)" Opacity="0.6" FontSize="12"/>
                 <Button x:Name="AddCustomSoundButton"
                         x:Uid="SoundsPage.AddCustomSoundButton"
                         Content="Browse for sound file..."
