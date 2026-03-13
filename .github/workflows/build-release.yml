@@ -17,23 +17,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  precheck:
     runs-on: windows-2022
     outputs:
       version: ${{ steps.version.outputs.value }}
       release_tag: ${{ steps.version.outputs.release_tag }}
-    env:
-      DOTNET_NOLOGO: true
-      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      release_published: ${{ steps.release_check.outputs.published }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 8.0.x
 
       - name: Read project version
         id: version
@@ -49,6 +42,77 @@ jobs:
           "value=$version" >> $env:GITHUB_OUTPUT
           "release_tag=v$version" >> $env:GITHUB_OUTPUT
 
+      - name: Check existing GitHub release
+        id: release_check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+        shell: pwsh
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+
+          $releaseUri = "https://api.github.com/repos/${{ github.repository }}/releases/tags/$env:RELEASE_TAG"
+
+          try {
+            $release = Invoke-RestMethod -Uri $releaseUri -Headers $headers
+
+            if ($release.draft) {
+              Write-Host "Draft release $env:RELEASE_TAG exists. Build will continue." -ForegroundColor Yellow
+              "published=false" >> $env:GITHUB_OUTPUT
+            }
+            else {
+              Write-Host "Published release $env:RELEASE_TAG already exists. Build, installers, and GitHub release will be skipped." -ForegroundColor Yellow
+              "published=true" >> $env:GITHUB_OUTPUT
+            }
+          }
+          catch {
+            $statusCode = $null
+
+            if ($_.Exception.Response) {
+              $statusCode = [int]$_.Exception.Response.StatusCode
+            }
+
+            if ($statusCode -eq 404) {
+              Write-Host "Release $env:RELEASE_TAG does not exist yet. Build will continue." -ForegroundColor Cyan
+              "published=false" >> $env:GITHUB_OUTPUT
+            }
+            else {
+              throw
+            }
+          }
+
+  already_published:
+    needs: precheck
+    if: needs.precheck.outputs.release_published == 'true'
+    runs-on: windows-2022
+
+    steps:
+      - name: Report published release
+        shell: pwsh
+        run: |
+          Write-Host "Published release ${{ needs.precheck.outputs.release_tag }} already exists. Skipping build/installers/github release/chocolatey." -ForegroundColor Yellow
+
+  build:
+    needs: precheck
+    if: needs.precheck.outputs.release_published != 'true'
+    runs-on: windows-2022
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
       - name: Build portable app bundles
         shell: pwsh
         run: .\publish-release.ps1
@@ -56,15 +120,18 @@ jobs:
       - name: Upload portable build layout
         uses: actions/upload-artifact@v4
         with:
-          name: portable-layout-v${{ steps.version.outputs.value }}
+          name: portable-layout-v${{ needs.precheck.outputs.version }}
           path: |
-            releases/silence-v${{ steps.version.outputs.value }}-win-*
+            releases/silence-v${{ needs.precheck.outputs.version }}-win-*
             releases/*.zip
           if-no-files-found: error
           retention-days: 14
 
   installers:
-    needs: build
+    needs:
+      - precheck
+      - build
+    if: needs.precheck.outputs.release_published != 'true'
     runs-on: windows-2022
 
     steps:
@@ -78,7 +145,7 @@ jobs:
       - name: Download portable build layout
         uses: actions/download-artifact@v4
         with:
-          name: portable-layout-v${{ needs.build.outputs.version }}
+          name: portable-layout-v${{ needs.precheck.outputs.version }}
           path: releases
 
       - name: Build installers
@@ -88,15 +155,17 @@ jobs:
       - name: Upload installer assets
         uses: actions/upload-artifact@v4
         with:
-          name: installer-assets-v${{ needs.build.outputs.version }}
+          name: installer-assets-v${{ needs.precheck.outputs.version }}
           path: releases/*-setup.exe
           if-no-files-found: error
           retention-days: 14
 
   github_release:
     needs:
+      - precheck
       - build
       - installers
+    if: needs.precheck.outputs.release_published != 'true'
     runs-on: windows-2022
 
     steps:
@@ -106,13 +175,13 @@ jobs:
       - name: Download portable build layout
         uses: actions/download-artifact@v4
         with:
-          name: portable-layout-v${{ needs.build.outputs.version }}
+          name: portable-layout-v${{ needs.precheck.outputs.version }}
           path: releases
 
       - name: Download installer assets
         uses: actions/download-artifact@v4
         with:
-          name: installer-assets-v${{ needs.build.outputs.version }}
+          name: installer-assets-v${{ needs.precheck.outputs.version }}
           path: releases
 
       - name: Ensure GitHub CLI
@@ -125,7 +194,7 @@ jobs:
       - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ needs.build.outputs.release_tag }}
+          TAG_NAME: ${{ needs.precheck.outputs.release_tag }}
         shell: pwsh
         run: |
           $files = Get-ChildItem -Path releases -File |
@@ -149,9 +218,11 @@ jobs:
 
   chocolatey:
     needs:
+      - precheck
       - build
       - installers
       - github_release
+    if: needs.precheck.outputs.release_published != 'true'
     runs-on: windows-2022
 
     steps:
@@ -161,23 +232,23 @@ jobs:
       - name: Download installer assets
         uses: actions/download-artifact@v4
         with:
-          name: installer-assets-v${{ needs.build.outputs.version }}
+          name: installer-assets-v${{ needs.precheck.outputs.version }}
           path: releases
 
       - name: Build Chocolatey package
         shell: pwsh
         run: >
           .\build-chocolatey-release.ps1
-          -Version '${{ needs.build.outputs.version }}'
-          -ReleaseTag '${{ needs.build.outputs.release_tag }}'
+          -Version '${{ needs.precheck.outputs.version }}'
+          -ReleaseTag '${{ needs.precheck.outputs.release_tag }}'
           -OutputDir 'releases'
-          -InstallerX86Path 'releases\silence-v${{ needs.build.outputs.version }}-x86-setup.exe'
-          -InstallerX64Path 'releases\silence-v${{ needs.build.outputs.version }}-x64-setup.exe'
+          -InstallerX86Path 'releases\silence-v${{ needs.precheck.outputs.version }}-x86-setup.exe'
+          -InstallerX64Path 'releases\silence-v${{ needs.precheck.outputs.version }}-x64-setup.exe'
 
       - name: Upload Chocolatey package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chocolatey-package-v${{ needs.build.outputs.version }}
+          name: chocolatey-package-v${{ needs.precheck.outputs.version }}
           path: releases/*.nupkg
           if-no-files-found: error
           retention-days: 14
@@ -192,7 +263,7 @@ jobs:
       - name: Attach Chocolatey package to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ needs.build.outputs.release_tag }}
+          TAG_NAME: ${{ needs.precheck.outputs.release_tag }}
         shell: pwsh
         run: |
           $packages = Get-ChildItem -Path releases -Filter *.nupkg -File
@@ -215,10 +286,10 @@ jobs:
           }
 
           .\build-chocolatey-release.ps1 `
-            -Version '${{ needs.build.outputs.version }}' `
-            -ReleaseTag '${{ needs.build.outputs.release_tag }}' `
+            -Version '${{ needs.precheck.outputs.version }}' `
+            -ReleaseTag '${{ needs.precheck.outputs.release_tag }}' `
             -OutputDir 'releases' `
-            -InstallerX86Path 'releases\silence-v${{ needs.build.outputs.version }}-x86-setup.exe' `
-            -InstallerX64Path 'releases\silence-v${{ needs.build.outputs.version }}-x64-setup.exe' `
+            -InstallerX86Path 'releases\silence-v${{ needs.precheck.outputs.version }}-x86-setup.exe' `
+            -InstallerX64Path 'releases\silence-v${{ needs.precheck.outputs.version }}-x64-setup.exe' `
             -Push `
             -ApiKey $env:CHOCOLATEY_API_KEY
