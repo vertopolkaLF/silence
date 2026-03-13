@@ -8,33 +8,49 @@
     mc:Ignorable="d"
     Background="Transparent">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" 
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="24" Margin="24,24,24,24">
             <StackPanel Spacing="8" HorizontalAlignment="Center">
-                <Image Source="/Assets/app.png" 
-                       Width="64" 
+                <Image Source="/Assets/app.png"
+                       Width="64"
                        Height="64"
                        HorizontalAlignment="Center"/>
                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                    <TextBlock Text="silence!" 
-                               FontSize="28" 
+                    <TextBlock Text="silence!"
+                               FontSize="28"
                                FontWeight="Bold"
                                VerticalAlignment="Center"/>
                     <TextBlock x:Name="VersionText"
-                               Text="v1.0.0" 
+                               Text="v1.0.0"
                                FontSize="14"
                                Opacity="0.6"
                                VerticalAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
-            
-            <TextBlock Text="A simple microphone mute/unmute utility with global hotkey support."
+
+            <TextBlock x:Uid="AboutPage.DescriptionText"
+                       Text="A simple microphone mute/unmute utility with global hotkey support."
                        TextWrapping="Wrap"
                        TextAlignment="Center"
                        Opacity="0.8"/>
 
-            <!-- Update Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock x:Uid="AboutPage.LanguageTitle" Text="Language" FontWeight="SemiBold" FontSize="14"/>
+                    <ComboBox x:Name="LanguageComboBox"
+                              SelectionChanged="LanguageComboBox_SelectionChanged">
+                        <ComboBoxItem x:Uid="AboutPage.LanguageSystemItem" Content="System default" Tag="system"/>
+                        <ComboBoxItem x:Uid="AboutPage.LanguageEnglishItem" Content="English" Tag="en-US"/>
+                        <ComboBoxItem x:Uid="AboutPage.LanguageRussianItem" Content="Русский" Tag="ru-RU"/>
+                    </ComboBox>
+                </StackPanel>
+            </Border>
+
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
@@ -43,79 +59,83 @@
                 <StackPanel Spacing="12">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE895;" FontSize="16"/>
-                        <TextBlock Text="Updates" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock x:Uid="AboutPage.UpdatesHeaderText" Text="Updates" FontWeight="SemiBold" FontSize="14"/>
                     </StackPanel>
-                    
-                    <!-- Update Status -->
+
                     <StackPanel x:Name="UpdateStatusPanel" Spacing="8">
                         <StackPanel x:Name="CheckingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
                             <ProgressRing IsActive="True" Width="16" Height="16"/>
-                            <TextBlock Text="Checking for updates..." Opacity="0.8"/>
+                            <TextBlock x:Uid="AboutPage.CheckingText" Text="Checking for updates..." Opacity="0.8"/>
                         </StackPanel>
-                        
+
                         <StackPanel x:Name="UpToDatePanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
                             <FontIcon Glyph="&#xE73E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontSize="16"/>
-                            <TextBlock Text="You're up to date!" Opacity="0.8"/>
+                            <TextBlock x:Uid="AboutPage.UpToDateText" Text="You're up to date!" Opacity="0.8"/>
                         </StackPanel>
-                        
+
                         <StackPanel x:Name="UpdateAvailablePanel" Spacing="8" Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon Glyph="&#xE946;" Foreground="{ThemeResource SystemFillColorAttentionBrush}" FontSize="16"/>
-                                <TextBlock x:Name="UpdateAvailableText" Text="Update available!" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="UpdateAvailableText" x:Uid="AboutPage.UpdateAvailableText" Text="Update available!" FontWeight="SemiBold"/>
                             </StackPanel>
-                            <TextBlock x:Name="NewVersionText" Text="New version: v1.1.0" Opacity="0.7" FontSize="12"/>
+                            <TextBlock x:Name="NewVersionText" x:Uid="AboutPage.NewVersionText" Text="New version: v1.1.0" Opacity="0.7" FontSize="12"/>
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                <Button x:Name="DownloadUpdateButton" 
-                                        Content="Download &amp; Install" 
+                                <Button x:Name="DownloadUpdateButton"
+                                        x:Uid="AboutPage.DownloadUpdateButton"
+                                        Content="Download &amp; Install"
                                         Style="{ThemeResource AccentButtonStyle}"
                                         Click="DownloadUpdateButton_Click"/>
-                                <Button x:Name="ViewReleaseButton" 
-                                        Content="View Release" 
+                                <Button x:Name="ViewReleaseButton"
+                                        x:Uid="AboutPage.ViewReleaseButton"
+                                        Content="View Release"
                                         Click="ViewReleaseButton_Click"/>
                             </StackPanel>
                         </StackPanel>
-                        
+
                         <StackPanel x:Name="DownloadingPanel" Spacing="8" Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <ProgressRing IsActive="True" Width="16" Height="16"/>
-                                <TextBlock x:Name="DownloadingText" Text="Downloading update..." Opacity="0.8"/>
+                                <TextBlock x:Name="DownloadingText" x:Uid="AboutPage.DownloadingText" Text="Downloading update..." Opacity="0.8"/>
                             </StackPanel>
                             <ProgressBar x:Name="DownloadProgress" Minimum="0" Maximum="100" Value="0"/>
                         </StackPanel>
-                        
+
                         <StackPanel x:Name="ErrorPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
                             <FontIcon Glyph="&#xE783;" Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontSize="16"/>
-                            <TextBlock x:Name="ErrorText" Text="Failed to check for updates" Opacity="0.8" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="ErrorText" x:Uid="AboutPage.ErrorText" Text="Failed to check for updates" Opacity="0.8" TextWrapping="Wrap"/>
                         </StackPanel>
                     </StackPanel>
-                    
-                    <Button x:Name="CheckUpdatesButton" 
-                            Content="Check for Updates" 
+
+                    <Button x:Name="CheckUpdatesButton"
+                            x:Uid="AboutPage.CheckUpdatesButton"
+                            Content="Check for Updates"
                             Click="CheckUpdatesButton_Click"
                             HorizontalAlignment="Left"/>
-                    
+
                     <ToggleSwitch x:Name="AutoCheckToggle"
+                                  x:Uid="AboutPage.AutoCheckToggle"
                                   Header="Check for updates on startup"
                                   Toggled="AutoCheckToggle_Toggled"/>
                 </StackPanel>
             </Border>
-            
+
             <StackPanel Spacing="8" HorizontalAlignment="Center">
-                <HyperlinkButton Content="View on GitHub"
+                <HyperlinkButton x:Uid="AboutPage.ViewOnGitHubButton"
+                                 Content="View on GitHub"
                                  NavigateUri="https://github.com/vertopolkaLF/silence"
                                  HorizontalAlignment="Center"/>
-                <TextBlock Text="Made with ❤️ by vertopolkaLF" 
+                <TextBlock x:Uid="AboutPage.MadeByText"
+                           Text="Made with love by vertopolkaLF"
                            FontSize="12"
                            Opacity="0.5"
                            HorizontalAlignment="Center"/>
             </StackPanel>
-            
+
             <StackPanel Spacing="4" Margin="0,20,0,0">
-                <TextBlock Text="Credits" FontWeight="SemiBold" FontSize="14"/>
-                <TextBlock Text="• WinUI 3 - Microsoft" Opacity="0.7" FontSize="12"/>
-                <TextBlock Text="• H.NotifyIcon - havendv" Opacity="0.7" FontSize="12"/>
+                <TextBlock x:Uid="AboutPage.CreditsTitle" Text="Credits" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Uid="AboutPage.CreditWinUiText" Text="WinUI 3 - Microsoft" Opacity="0.7" FontSize="12"/>
+                <TextBlock x:Uid="AboutPage.CreditNotifyIconText" Text="H.NotifyIcon - havendv" Opacity="0.7" FontSize="12"/>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>
-

@@ -196,6 +196,12 @@ public class SettingsService
         SaveSettings();
     }
 
+    public void UpdateLanguageOverride(string? language)
+    {
+        _settings.LanguageOverride = LocalizationService.NormalizeRequestedLanguage(language);
+        SaveSettings();
+    }
+
     public void UpdateCheckForUpdatesOnStartup(bool check)
     {
         _settings.CheckForUpdatesOnStartup = check;
@@ -354,6 +360,7 @@ public class AppSettings
     public bool CheckForUpdatesOnStartup { get; set; } = true; // Check for updates when app starts
     public DateTime? LastUpdateCheck { get; set; } // Last time we checked for updates
     public string TrayIconStyle { get; set; } = "Standard"; // Standard, FilledCircle, Dot
+    public string? LanguageOverride { get; set; } = LocalizationService.SystemLanguage;
     
     // Sound settings
     public bool SoundsEnabled { get; set; } = false; // Sounds disabled by default

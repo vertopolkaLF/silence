@@ -26,8 +26,8 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
 
-    <!-- Reduce package size -->
-    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Keep only supported UI languages in publish output -->
+    <SatelliteResourceLanguages>en-US;ru-RU</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>

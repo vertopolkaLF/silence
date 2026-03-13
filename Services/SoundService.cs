@@ -21,15 +21,15 @@ public class SoundService : IDisposable
     // Preloaded sound names
     public static readonly List<PreloadedSound> PreloadedSounds = new()
     {
-        new PreloadedSound("None", null),
-        new PreloadedSound("8-Bit", "8bit"),
-        new PreloadedSound("Blob", "blob"),
-        new PreloadedSound("Digital", "digital"),
-        new PreloadedSound("Discord", "discord"),
-        new PreloadedSound("Pop", "pop"),
-        new PreloadedSound("Punchy", "punchy"),
-        new PreloadedSound("Sci-Fi", "scifi"),
-        new PreloadedSound("Vibrant", "vibrant"),
+        new PreloadedSound("Sounds.Preloaded.None", null),
+        new PreloadedSound("Sounds.Preloaded.8Bit", "8bit"),
+        new PreloadedSound("Sounds.Preloaded.Blob", "blob"),
+        new PreloadedSound("Sounds.Preloaded.Digital", "digital"),
+        new PreloadedSound("Sounds.Preloaded.Discord", "discord"),
+        new PreloadedSound("Sounds.Preloaded.Pop", "pop"),
+        new PreloadedSound("Sounds.Preloaded.Punchy", "punchy"),
+        new PreloadedSound("Sounds.Preloaded.SciFi", "scifi"),
+        new PreloadedSound("Sounds.Preloaded.Vibrant", "vibrant"),
     };
     
     public SoundService()
@@ -265,6 +265,10 @@ public class SoundService : IDisposable
     }
 }
 
-public record PreloadedSound(string DisplayName, string? Key);
+public record PreloadedSound(string NameResourceKey, string? Key)
+{
+    public string DisplayName => AppResources.GetString(NameResourceKey);
+}
+
 public record CustomSound(string DisplayName, string FilePath);
 

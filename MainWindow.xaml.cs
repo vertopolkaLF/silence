@@ -26,6 +26,12 @@ namespace silence_
 
         private string _currentPage = "General";
         private bool _updateAvailable = false;
+        private MenuFlyout? _trayMenu;
+        private MenuFlyoutItem? _appInfoItem;
+        private MenuFlyoutItem? _showItem;
+        private MenuFlyoutItem? _muteItem;
+        private MenuFlyoutItem? _refreshOverlayItem;
+        private MenuFlyoutItem? _exitItem;
 
         public void NavigateToAbout()
         {
@@ -85,6 +91,7 @@ namespace silence_
             SetupTrayIcon();
             
             UpdateTitleBarColors();
+            ApplyLocalizedStrings();
             
             if (Content is FrameworkElement rootElement)
             {
@@ -101,8 +108,14 @@ namespace silence_
             {
                 App.Instance.MuteStateChanged += OnMuteStateChanged;
                 App.Instance.UpdateAvailable += OnUpdateAvailable;
+                App.Instance.LocalizationService.LanguageChanged += OnLanguageChanged;
             }
             UpdateTrayIcon(App.Instance?.MicrophoneService.IsMuted() ?? false);
+        }
+
+        private void OnLanguageChanged()
+        {
+            DispatcherQueue.TryEnqueue(RefreshLocalizedUI);
         }
         
         private void OnUpdateAvailable(UpdateCheckResult result)
@@ -213,7 +226,7 @@ namespace silence_
                     _appWindow.Move(new PointInt32(centerX, centerY));
                 }
 
-                _appWindow.Title = "silence!";
+                _appWindow.Title = AppResources.GetString("App.Title");
                 SetWindowIcon();
             }
         }
@@ -292,8 +305,6 @@ namespace silence_
             }
         }
 
-        private MenuFlyout? _trayMenu;
-
         private void SetupTrayIcon()
         {
             _trayIcon = new TaskbarIcon
@@ -304,54 +315,55 @@ namespace silence_
             _trayMenu = new MenuFlyout();
             
             // App name and version (disabled)
-            var appInfoItem = new MenuFlyoutItem 
+            _appInfoItem = new MenuFlyoutItem
             { 
-                Text = $"silence! - v{UpdateService.CurrentVersion}",
+                Text = string.Empty,
                 IsEnabled = false
             };
-            _trayMenu.Items.Add(appInfoItem);
+            _trayMenu.Items.Add(_appInfoItem);
 
             _trayMenu.Items.Add(new MenuFlyoutSeparator());
             
-            var showItem = new MenuFlyoutItem 
+            _showItem = new MenuFlyoutItem
             { 
-                Text = "Show Settings",
+                Text = string.Empty,
                 Command = new RelayCommand(ShowWindow)
             };
-            _trayMenu.Items.Add(showItem);
+            _trayMenu.Items.Add(_showItem);
 
-            var muteItem = new MenuFlyoutItem 
+            _muteItem = new MenuFlyoutItem
             { 
-                Text = "Toggle Mute",
+                Text = string.Empty,
                 Command = new RelayCommand(() => App.Instance?.ToggleMute())
             };
-            _trayMenu.Items.Add(muteItem);
+            _trayMenu.Items.Add(_muteItem);
 
-            var refreshOverlayItem = new MenuFlyoutItem
+            _refreshOverlayItem = new MenuFlyoutItem
             {
-                Text = "Refresh Overlay",
+                Text = string.Empty,
                 Command = new RelayCommand(() => App.Instance?.RefreshOverlay())
             };
-            _trayMenu.Items.Add(refreshOverlayItem);
+            _trayMenu.Items.Add(_refreshOverlayItem);
 
             _trayMenu.Items.Add(new MenuFlyoutSeparator());
 
-            var exitItem = new MenuFlyoutItem 
+            _exitItem = new MenuFlyoutItem
             { 
-                Text = "Exit",
+                Text = string.Empty,
                 Command = new RelayCommand(() =>
                 {
                     _trayIcon?.Dispose();
                     App.Instance?.ExitApplication();
                 })
             };
-            _trayMenu.Items.Add(exitItem);
+            _trayMenu.Items.Add(_exitItem);
 
             _trayIcon.ContextFlyout = _trayMenu;
             _trayIcon.LeftClickCommand = new RelayCommand(() => App.Instance?.ToggleMute());
-            _trayIcon.ToolTipText = "silence! - Microphone ON";
+            _trayIcon.ToolTipText = string.Empty;
 
             UpdateTrayIcon(false);
+            ApplyLocalizedStrings();
             _trayIcon.ForceCreate();
         }
 
@@ -364,7 +376,9 @@ namespace silence_
                 var style = App.Instance?.SettingsService.Settings.TrayIconStyle ?? "Standard";
                 var icon = CreateMicrophoneIcon(isMuted, style);
                 _trayIcon.Icon = icon;
-                _trayIcon.ToolTipText = isMuted ? "silence! - Microphone MUTED" : "silence! - Microphone ON";
+                _trayIcon.ToolTipText = isMuted
+                    ? AppResources.GetString("Tray.Tooltip.Muted")
+                    : AppResources.GetString("Tray.Tooltip.Unmuted");
             }
             catch
             {
@@ -374,6 +388,13 @@ namespace silence_
 
         public void RefreshTrayIcon()
         {
+            UpdateTrayIcon(App.Instance?.MicrophoneService.IsMuted() ?? false);
+        }
+
+        public void RefreshLocalizedUI()
+        {
+            ApplyLocalizedStrings();
+            NavigateToPage(_currentPage, new SuppressNavigationTransitionInfo(), forceReload: true);
             UpdateTrayIcon(App.Instance?.MicrophoneService.IsMuted() ?? false);
         }
 
@@ -514,23 +535,7 @@ namespace silence_
                 var effect = newIndex > currentIndex 
                     ? SlideNavigationTransitionEffect.FromRight 
                     : SlideNavigationTransitionEffect.FromLeft;
-
-                Type? pageType = tag switch
-                {
-                    "General" => typeof(GeneralPage),
-                    "HoldToMute" => typeof(HoldToMutePage),
-                    "Sounds" => typeof(SoundsPage),
-                    "Appearance" => typeof(AppearancePage),
-                    "Overlay" => typeof(OverlayPage),
-                    "About" => typeof(AboutPage),
-                    _ => null
-                };
-
-                if (pageType != null)
-                {
-                    ContentFrame.Navigate(pageType, null, new SlideNavigationTransitionInfo { Effect = effect });
-                    _currentPage = tag;
-                }
+                NavigateToPage(tag, new SlideNavigationTransitionInfo { Effect = effect });
             }
         }
 
@@ -643,6 +648,78 @@ namespace silence_
         public void DisposeTrayIcon()
         {
             _trayIcon?.Dispose();
+        }
+
+        private void ApplyLocalizedStrings()
+        {
+            Title = AppResources.GetString("App.Title");
+            if (_appWindow != null)
+            {
+                _appWindow.Title = AppResources.GetString("App.Title");
+            }
+
+            ToolTipService.SetToolTip(PaneToggleButton, AppResources.GetString("MainWindow.PaneToggleButton.ToolTipService.ToolTip"));
+            ToolTipService.SetToolTip(UpdateNotificationCompact, AppResources.GetString("MainWindow.UpdateNotificationCompact.ToolTipService.ToolTip"));
+
+            GeneralNavItem.Content = AppResources.GetString("MainWindow.GeneralNavItem.Content");
+            HoldToMuteNavItem.Content = AppResources.GetString("MainWindow.HoldToMuteNavItem.Content");
+            SoundsNavItem.Content = AppResources.GetString("MainWindow.SoundsNavItem.Content");
+            OverlayNavItem.Content = AppResources.GetString("MainWindow.OverlayNavItem.Content");
+            AppearanceNavItem.Content = AppResources.GetString("MainWindow.AppearanceNavItem.Content");
+            AboutNavItem.Content = AppResources.GetString("MainWindow.AboutNavItem.Content");
+            UpdateAvailableText.Text = AppResources.GetString("MainWindow.UpdateAvailableText.Text");
+            UpdateDetailsButton.Content = AppResources.GetString("MainWindow.UpdateDetailsButton.Content");
+
+            if (_appInfoItem != null)
+            {
+                _appInfoItem.Text = AppResources.Format("Tray.Menu.AppInfo", UpdateService.CurrentVersion);
+            }
+
+            if (_showItem != null)
+            {
+                _showItem.Text = AppResources.GetString("Tray.Menu.ShowSettings");
+            }
+
+            if (_muteItem != null)
+            {
+                _muteItem.Text = AppResources.GetString("Tray.Menu.ToggleMute");
+            }
+
+            if (_refreshOverlayItem != null)
+            {
+                _refreshOverlayItem.Text = AppResources.GetString("Tray.Menu.RefreshOverlay");
+            }
+
+            if (_exitItem != null)
+            {
+                _exitItem.Text = AppResources.GetString("Tray.Menu.Exit");
+            }
+        }
+
+        private void NavigateToPage(string tag, NavigationTransitionInfo? transitionInfo, bool forceReload = false)
+        {
+            Type? pageType = tag switch
+            {
+                "General" => typeof(GeneralPage),
+                "HoldToMute" => typeof(HoldToMutePage),
+                "Sounds" => typeof(SoundsPage),
+                "Appearance" => typeof(AppearancePage),
+                "Overlay" => typeof(OverlayPage),
+                "About" => typeof(AboutPage),
+                _ => null
+            };
+
+            if (pageType == null)
+            {
+                return;
+            }
+
+            if (forceReload || tag != _currentPage)
+            {
+                ContentFrame.Navigate(pageType, null, transitionInfo ?? new SuppressNavigationTransitionInfo());
+            }
+
+            _currentPage = tag;
         }
     }
 

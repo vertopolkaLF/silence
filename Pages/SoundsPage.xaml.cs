@@ -4,7 +4,6 @@ using silence_.Services;
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
@@ -28,36 +27,29 @@ namespace silence_.Pages
             var settings = App.Instance?.SettingsService.Settings;
             if (settings == null) return;
 
-            // Load sounds enabled state
             SoundsEnabledToggle.IsOn = settings.SoundsEnabled;
             UpdateSoundPanelsVisibility(settings.SoundsEnabled);
 
-            // Load volume
             VolumeSlider.Value = settings.SoundVolume * 100;
             VolumePercentText.Text = $"{(int)(settings.SoundVolume * 100)}%";
 
-            // Populate comboboxes
             PopulateSoundComboBoxes();
-
-            // Load custom sounds list
             RefreshCustomSoundsList();
 
-            // Set selected sounds
             SelectSoundInComboBox(MuteSoundComboBox, settings.MuteSoundPreloaded, settings.MuteSoundCustomPath, true);
             SelectSoundInComboBox(UnmuteSoundComboBox, settings.UnmuteSoundPreloaded, settings.UnmuteSoundCustomPath, false);
         }
 
         private void PopulateSoundComboBoxes()
         {
-            PopulateSoundComboBox(MuteSoundComboBox, true);
-            PopulateSoundComboBox(UnmuteSoundComboBox, false);
+            PopulateSoundComboBox(MuteSoundComboBox);
+            PopulateSoundComboBox(UnmuteSoundComboBox);
         }
 
-        private void PopulateSoundComboBox(ComboBox comboBox, bool isMute)
+        private void PopulateSoundComboBox(ComboBox comboBox)
         {
             comboBox.Items.Clear();
 
-            // Add preloaded sounds
             foreach (var sound in SoundService.PreloadedSounds)
             {
                 comboBox.Items.Add(new ComboBoxItem
@@ -67,13 +59,12 @@ namespace silence_.Pages
                 });
             }
 
-            // Add separator if there are custom sounds
             var customSounds = App.Instance?.SoundService?.GetCustomSounds();
             if (customSounds?.Count > 0)
             {
                 comboBox.Items.Add(new ComboBoxItem
                 {
-                    Content = "─────────────",
+                    Content = AppResources.GetString("Sounds.ComboSeparator"),
                     IsEnabled = false,
                     Tag = null
                 });
@@ -82,38 +73,35 @@ namespace silence_.Pages
                 {
                     comboBox.Items.Add(new ComboBoxItem
                     {
-                        Content = $"🎵 {sound.DisplayName}",
+                        Content = AppResources.Format("Sounds.CustomItem", sound.DisplayName),
                         Tag = new SoundSelection { Type = SoundType.Custom, Path = sound.FilePath }
                     });
                 }
             }
 
-            // Add "Browse..." option at the end
             comboBox.Items.Add(new ComboBoxItem
             {
-                Content = "─────────────",
+                Content = AppResources.GetString("Sounds.ComboSeparator"),
                 IsEnabled = false,
                 Tag = null
             });
             comboBox.Items.Add(new ComboBoxItem
             {
-                Content = "📁 Browse for file...",
+                Content = AppResources.GetString("Sounds.BrowseForFile"),
                 Tag = new SoundSelection { Type = SoundType.Browse }
             });
         }
 
         private void SelectSoundInComboBox(ComboBox comboBox, string? preloadedKey, string? customPath, bool isMute)
         {
-            // Show custom sound indicator if using custom path
             var customGrid = isMute ? CustomMuteSoundGrid : CustomUnmuteSoundGrid;
             var customText = isMute ? CustomMuteSoundText : CustomUnmuteSoundText;
 
             if (!string.IsNullOrEmpty(customPath))
             {
                 customGrid.Visibility = Visibility.Visible;
-                customText.Text = $"Custom: {Path.GetFileName(customPath)}";
+                customText.Text = AppResources.Format("Sounds.CustomSelection", Path.GetFileName(customPath));
 
-                // Select the custom sound in combo if it exists
                 foreach (ComboBoxItem item in comboBox.Items)
                 {
                     if (item.Tag is SoundSelection sel && sel.Type == SoundType.Custom && sel.Path == customPath)
@@ -123,14 +111,12 @@ namespace silence_.Pages
                     }
                 }
 
-                // Custom path not in list anymore, select "None" and show indicator
                 comboBox.SelectedIndex = 0;
                 return;
             }
 
             customGrid.Visibility = Visibility.Collapsed;
 
-            // Select preloaded sound
             foreach (ComboBoxItem item in comboBox.Items)
             {
                 if (item.Tag is SoundSelection sel && sel.Type == SoundType.Preloaded && sel.Key == preloadedKey)
@@ -140,7 +126,6 @@ namespace silence_.Pages
                 }
             }
 
-            // Default to first item (None)
             comboBox.SelectedIndex = 0;
         }
 
@@ -172,7 +157,7 @@ namespace silence_.Pages
         private void SoundsEnabledToggle_Toggled(object sender, RoutedEventArgs e)
         {
             if (_isInitializing) return;
-            
+
             var enabled = SoundsEnabledToggle.IsOn;
             App.Instance?.SettingsService.UpdateSoundsEnabled(enabled);
             UpdateSoundPanelsVisibility(enabled);
@@ -180,14 +165,13 @@ namespace silence_.Pages
 
         private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
         {
-            // VolumePercentText might be null during initial XAML parsing
             if (VolumePercentText == null) return;
-            
+
             var volumePercent = (int)VolumeSlider.Value;
             VolumePercentText.Text = $"{volumePercent}%";
-            
+
             if (_isInitializing) return;
-            
+
             var volume = (float)(VolumeSlider.Value / 100.0);
             App.Instance?.SettingsService.UpdateSoundVolume(volume);
         }
@@ -213,7 +197,7 @@ namespace silence_.Pages
             {
                 App.Instance?.SettingsService.UpdateMuteSound(null, selection.Path);
                 CustomMuteSoundGrid.Visibility = Visibility.Visible;
-                CustomMuteSoundText.Text = $"Custom: {Path.GetFileName(selection.Path)}";
+                CustomMuteSoundText.Text = AppResources.Format("Sounds.CustomSelection", Path.GetFileName(selection.Path));
             }
         }
 
@@ -238,7 +222,7 @@ namespace silence_.Pages
             {
                 App.Instance?.SettingsService.UpdateUnmuteSound(null, selection.Path);
                 CustomUnmuteSoundGrid.Visibility = Visibility.Visible;
-                CustomUnmuteSoundText.Text = $"Custom: {Path.GetFileName(selection.Path)}";
+                CustomUnmuteSoundText.Text = AppResources.Format("Sounds.CustomSelection", Path.GetFileName(selection.Path));
             }
         }
 
@@ -248,8 +232,8 @@ namespace silence_.Pages
             if (settings == null) return;
 
             var path = App.Instance?.SoundService?.GetSoundPath(
-                settings.MuteSoundPreloaded, 
-                settings.MuteSoundCustomPath, 
+                settings.MuteSoundPreloaded,
+                settings.MuteSoundCustomPath,
                 true);
             App.Instance?.SoundService?.PlaySound(path, settings.SoundVolume);
         }
@@ -260,8 +244,8 @@ namespace silence_.Pages
             if (settings == null) return;
 
             var path = App.Instance?.SoundService?.GetSoundPath(
-                settings.UnmuteSoundPreloaded, 
-                settings.UnmuteSoundCustomPath, 
+                settings.UnmuteSoundPreloaded,
+                settings.UnmuteSoundCustomPath,
                 false);
             App.Instance?.SoundService?.PlaySound(path, settings.SoundVolume);
         }
@@ -270,8 +254,7 @@ namespace silence_.Pages
         {
             App.Instance?.SettingsService.UpdateMuteSound("sifi", null);
             CustomMuteSoundGrid.Visibility = Visibility.Collapsed;
-            
-            // Re-select preloaded sound
+
             _isInitializing = true;
             SelectSoundInComboBox(MuteSoundComboBox, "sifi", null, true);
             _isInitializing = false;
@@ -281,8 +264,7 @@ namespace silence_.Pages
         {
             App.Instance?.SettingsService.UpdateUnmuteSound("sifi", null);
             CustomUnmuteSoundGrid.Visibility = Visibility.Collapsed;
-            
-            // Re-select preloaded sound
+
             _isInitializing = true;
             SelectSoundInComboBox(UnmuteSoundComboBox, "sifi", null, false);
             _isInitializing = false;
@@ -299,7 +281,6 @@ namespace silence_.Pages
             picker.FileTypeFilter.Add(".m4a");
             picker.FileTypeFilter.Add(".wma");
 
-            // Get window handle for the picker
             var hwnd = WindowNative.GetWindowHandle(App.Instance?.MainWindowInstance);
             InitializeWithWindow.Initialize(picker, hwnd);
 
@@ -313,8 +294,7 @@ namespace silence_.Pages
             if (addedPath != null)
             {
                 RefreshCustomSoundsList();
-                
-                // Refresh comboboxes to include new sound
+
                 _isInitializing = true;
                 var settings = App.Instance?.SettingsService.Settings;
                 PopulateSoundComboBoxes();
@@ -339,22 +319,18 @@ namespace silence_.Pages
             InitializeWithWindow.Initialize(picker, hwnd);
 
             var file = await picker.PickSingleFileAsync();
-            
+
             _isInitializing = true;
-            
+
             var soundService = App.Instance?.SoundService;
             if (file != null && soundService != null)
             {
-                // Add to custom sounds and use it
                 var addedPath = await soundService.AddCustomSoundAsync(file.Path);
                 if (addedPath != null)
                 {
                     RefreshCustomSoundsList();
-                    
-                    // Refresh comboboxes
                     PopulateSoundComboBoxes();
-                    
-                    // Set as current sound
+
                     if (isMute)
                     {
                         App.Instance?.SettingsService.UpdateMuteSound(null, addedPath);
@@ -365,13 +341,12 @@ namespace silence_.Pages
                         App.Instance?.SettingsService.UpdateUnmuteSound(null, addedPath);
                         SelectSoundInComboBox(UnmuteSoundComboBox, null, addedPath, false);
                     }
-                    
+
                     _isInitializing = false;
                     return;
                 }
             }
-            
-            // Revert selection if cancelled or failed
+
             var settings = App.Instance?.SettingsService.Settings;
             if (isMute)
             {
@@ -381,7 +356,7 @@ namespace silence_.Pages
             {
                 SelectSoundInComboBox(UnmuteSoundComboBox, settings?.UnmuteSoundPreloaded, settings?.UnmuteSoundCustomPath, false);
             }
-            
+
             _isInitializing = false;
         }
 
@@ -402,8 +377,7 @@ namespace silence_.Pages
                 if (deleted)
                 {
                     _customSounds.Remove(sound);
-                    
-                    // Check if this sound was selected and reset if so
+
                     var settings = App.Instance?.SettingsService.Settings;
                     if (settings?.MuteSoundCustomPath == sound.FilePath)
                     {
@@ -413,8 +387,7 @@ namespace silence_.Pages
                     {
                         App.Instance?.SettingsService.UpdateUnmuteSound("sifi", null);
                     }
-                    
-                    // Refresh comboboxes
+
                     _isInitializing = true;
                     settings = App.Instance?.SettingsService.Settings;
                     PopulateSoundComboBoxes();
@@ -439,8 +412,7 @@ namespace silence_.Pages
     internal class SoundSelection
     {
         public SoundType Type { get; set; }
-        public string? Key { get; set; }  // For preloaded sounds
-        public string? Path { get; set; } // For custom sounds
+        public string? Key { get; set; }
+        public string? Path { get; set; }
     }
 }
-

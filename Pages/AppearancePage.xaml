@@ -8,14 +8,13 @@
     mc:Ignorable="d"
     Background="Transparent">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" 
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="24" Margin="24,24,24,24">
-            <TextBlock Text="Tray Icon" FontSize="24" FontWeight="SemiBold"/>
-            
-            <!-- Tray Icon Style -->
+            <TextBlock x:Uid="AppearancePage.TitleText" Text="Tray Icon" FontSize="24" FontWeight="SemiBold"/>
+
             <StackPanel Spacing="12">
-                <TextBlock Text="Icon Style" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Uid="AppearancePage.IconStyleLabel" Text="Icon Style" FontWeight="SemiBold" FontSize="14"/>
                 <Grid ColumnSpacing="12" ColumnDefinitions="52, 52, 52">
                     <Button x:Name="StandardVariantButton"
                             Grid.Column="0"
@@ -30,7 +29,8 @@
                         </Button.Resources>
                         <StackPanel Spacing="4">
                             <Border x:Name="StandardVariantBorder"
-                                    Width="52" Height="52"
+                                    Width="52"
+                                    Height="52"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
@@ -61,7 +61,8 @@
                                           StrokeEndLineCap="Round"/>
                                 </Grid>
                             </Border>
-                            <TextBlock Text="Standard"
+                            <TextBlock x:Uid="AppearancePage.StandardLabel"
+                                       Text="Standard"
                                        FontSize="11"
                                        HorizontalAlignment="Center"
                                        Opacity="0.8"/>
@@ -81,7 +82,8 @@
                         </Button.Resources>
                         <StackPanel Spacing="4">
                             <Border x:Name="FilledCircleVariantBorder"
-                                    Width="52" Height="52"
+                                    Width="52"
+                                    Height="52"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
@@ -112,7 +114,8 @@
                                           StrokeEndLineCap="Round"/>
                                 </Grid>
                             </Border>
-                            <TextBlock Text="Filled circle"
+                            <TextBlock x:Uid="AppearancePage.FilledCircleLabel"
+                                       Text="Filled circle"
                                        FontSize="11"
                                        HorizontalAlignment="Center"
                                        Opacity="0.8"/>
@@ -132,25 +135,29 @@
                         </Button.Resources>
                         <StackPanel Spacing="4">
                             <Border x:Name="DotVariantBorder"
-                                    Width="52" Height="52"
+                                    Width="52"
+                                    Height="52"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                                 <Ellipse x:Name="DotPreview"
-                                         Width="20" Height="20"
+                                         Width="20"
+                                         Height="20"
                                          Fill="#28A745"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
-                            <TextBlock Text="Dot"
+                            <TextBlock x:Uid="AppearancePage.DotLabel"
+                                       Text="Dot"
                                        FontSize="11"
                                        HorizontalAlignment="Center"
                                        Opacity="0.8"/>
                         </StackPanel>
                     </Button>
                 </Grid>
-                <TextBlock Text="Preview uses the current microphone state. Muted is red, unmuted is green."
+                <TextBlock x:Uid="AppearancePage.PreviewDescriptionText"
+                           Text="Preview uses the current microphone state. Muted is red, unmuted is green."
                            Opacity="0.6"
                            FontSize="12"
                            TextWrapping="Wrap"/>

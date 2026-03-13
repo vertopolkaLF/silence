@@ -9,10 +9,12 @@ namespace silence_.Pages
     {
         private UpdateService? _updateService;
         private UpdateCheckResult? _lastCheckResult;
+        private bool _isInitializing;
 
         public AboutPage()
         {
             InitializeComponent();
+            _isInitializing = true;
             
             // Show current version
             VersionText.Text = $"v{UpdateService.CurrentVersion}";
@@ -22,6 +24,11 @@ namespace silence_.Pages
             if (settings != null)
             {
                 AutoCheckToggle.IsOn = settings.CheckForUpdatesOnStartup;
+                SelectLanguage(settings.LanguageOverride);
+            }
+            else
+            {
+                SelectLanguage(LocalizationService.SystemLanguage);
             }
             
             // Check if we already have an update check result (e.g., from startup check)
@@ -31,22 +38,25 @@ namespace silence_.Pages
                 _lastCheckResult = cachedResult;
                 ShowUpdateAvailable(cachedResult);
             }
+
+            _isInitializing = false;
         }
         
         private void ShowUpdateAvailable(UpdateCheckResult result)
         {
             HideAllPanels();
             UpdateAvailablePanel.Visibility = Visibility.Visible;
-            NewVersionText.Text = $"New version: v{result.LatestVersion}";
+            NewVersionText.Text = AppResources.Format("Update.NewVersion", result.LatestVersion ?? string.Empty);
             
             // Hide the "Check for Updates" button when update is available
             CheckUpdatesButton.Visibility = Visibility.Collapsed;
+            DownloadUpdateButton.Content = AppResources.GetString("AboutPage.DownloadUpdateButton.Content");
             
             // Disable download button if no installer found for current arch
             DownloadUpdateButton.IsEnabled = !string.IsNullOrEmpty(result.DownloadUrl);
             if (!DownloadUpdateButton.IsEnabled)
             {
-                DownloadUpdateButton.Content = "No installer available";
+                DownloadUpdateButton.Content = AppResources.GetString("Update.NoInstallerAvailable");
             }
         }
 
@@ -73,22 +83,23 @@ namespace silence_.Pages
                 if (!_lastCheckResult.Success)
                 {
                     ErrorPanel.Visibility = Visibility.Visible;
-                    ErrorText.Text = _lastCheckResult.ErrorMessage ?? "Unknown error";
+                    ErrorText.Text = _lastCheckResult.ErrorMessage ?? AppResources.GetString("Update.Error.Unknown");
                     CheckUpdatesButton.Visibility = Visibility.Visible;
                 }
                 else if (_lastCheckResult.IsUpdateAvailable)
                 {
                     UpdateAvailablePanel.Visibility = Visibility.Visible;
-                    NewVersionText.Text = $"New version: v{_lastCheckResult.LatestVersion}";
+                    NewVersionText.Text = AppResources.Format("Update.NewVersion", _lastCheckResult.LatestVersion ?? string.Empty);
                     
                     // Hide the "Check for Updates" button when update is available
                     CheckUpdatesButton.Visibility = Visibility.Collapsed;
+                    DownloadUpdateButton.Content = AppResources.GetString("AboutPage.DownloadUpdateButton.Content");
                     
                     // Disable download button if no installer found for current arch
                     DownloadUpdateButton.IsEnabled = !string.IsNullOrEmpty(_lastCheckResult.DownloadUrl);
                     if (!DownloadUpdateButton.IsEnabled)
                     {
-                        DownloadUpdateButton.Content = "No installer for your platform";
+                        DownloadUpdateButton.Content = AppResources.GetString("Update.NoInstallerForPlatform");
                     }
                 }
                 else
@@ -132,7 +143,7 @@ namespace silence_.Pages
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     DownloadProgress.Value = percent;
-                    DownloadingText.Text = $"Downloading... {percent:F0}%";
+                    DownloadingText.Text = AppResources.Format("Update.DownloadingProgress", percent);
                 });
             });
 
@@ -145,7 +156,7 @@ namespace silence_.Pages
 
                 if (result.Success && !string.IsNullOrEmpty(result.FilePath))
                 {
-                    DownloadingText.Text = "Starting installer...";
+                    DownloadingText.Text = AppResources.GetString("Update.StartingInstaller");
                     
                     // Launch installer and exit
                     UpdateService.LaunchInstallerAndExit(result.FilePath);
@@ -154,7 +165,7 @@ namespace silence_.Pages
                 {
                     HideAllPanels();
                     ErrorPanel.Visibility = Visibility.Visible;
-                    ErrorText.Text = result.ErrorMessage ?? "Download failed";
+                    ErrorText.Text = result.ErrorMessage ?? AppResources.GetString("Update.Error.DownloadFailed");
                 }
             }
             catch (Exception ex)
@@ -179,6 +190,16 @@ namespace silence_.Pages
             App.Instance?.SettingsService.UpdateCheckForUpdatesOnStartup(AutoCheckToggle.IsOn);
         }
 
+        private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isInitializing) return;
+
+            if (LanguageComboBox.SelectedItem is ComboBoxItem item)
+            {
+                App.Instance?.ApplyLanguageOverride(item.Tag?.ToString());
+            }
+        }
+
         private void HideAllPanels()
         {
             CheckingPanel.Visibility = Visibility.Collapsed;
@@ -186,6 +207,22 @@ namespace silence_.Pages
             UpdateAvailablePanel.Visibility = Visibility.Collapsed;
             DownloadingPanel.Visibility = Visibility.Collapsed;
             ErrorPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void SelectLanguage(string? languageOverride)
+        {
+            var normalized = LocalizationService.NormalizeRequestedLanguage(languageOverride);
+
+            foreach (ComboBoxItem item in LanguageComboBox.Items)
+            {
+                if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    LanguageComboBox.SelectedItem = item;
+                    return;
+                }
+            }
+
+            LanguageComboBox.SelectedIndex = 0;
         }
     }
 }

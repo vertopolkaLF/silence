@@ -318,7 +318,9 @@ public sealed class LayeredOverlay : IDisposable
         
         // Calculate dimensions
         int oldWidth = _currentWidth;
-        string statusText = _currentMuteState ? "Microphone is muted" : "Microphone is unmuted";
+        string statusText = _currentMuteState
+            ? AppResources.GetString("Overlay.Status.Muted")
+            : AppResources.GetString("Overlay.Status.Unmuted");
         
         if (showText)
         {
