@@ -11,35 +11,146 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" 
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="24" Margin="24,24,24,24">
-            <TextBlock Text="Appearance" FontSize="24" FontWeight="SemiBold"/>
-            
-            <!-- Theme Selection -->
-            <StackPanel Spacing="12">
-                <TextBlock Text="Theme" FontWeight="SemiBold" FontSize="14"/>
-                <RadioButtons x:Name="ThemeSelector" SelectionChanged="ThemeSelector_SelectionChanged">
-                    <RadioButton Content="Use system setting" Tag="Default" IsChecked="True"/>
-                    <RadioButton Content="Light" Tag="Light"/>
-                    <RadioButton Content="Dark" Tag="Dark"/>
-                </RadioButtons>
-            </StackPanel>
-            
-            <!-- Accent Color -->
-            <StackPanel Spacing="12">
-                <TextBlock Text="Accent Color" FontWeight="SemiBold" FontSize="14"/>
-                <TextBlock Text="Uses Windows accent color" 
-                           Opacity="0.6" 
-                           FontSize="12"/>
-            </StackPanel>
+            <TextBlock Text="Tray Icon" FontSize="24" FontWeight="SemiBold"/>
             
             <!-- Tray Icon Style -->
             <StackPanel Spacing="12">
-                <TextBlock Text="Tray Icon" FontWeight="SemiBold" FontSize="14"/>
-                <ComboBox x:Name="TrayIconStyleComboBox"
-                          SelectionChanged="TrayIconStyleComboBox_SelectionChanged">
-                    <ComboBoxItem Content="Standard" Tag="Standard"/>
-                    <ComboBoxItem Content="Filled circle" Tag="FilledCircle"/>
-                </ComboBox>
-                <TextBlock Text="Standard uses the microphone shape itself. Filled circle uses a full colored background with a microphone inside."
+                <TextBlock Text="Icon Style" FontWeight="SemiBold" FontSize="14"/>
+                <Grid ColumnSpacing="12" ColumnDefinitions="52, 52, 52">
+                    <Button x:Name="StandardVariantButton"
+                            Grid.Column="0"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="8"
+                            Click="TrayIconVariantButton_Click"
+                            Tag="Standard">
+                        <Button.Resources>
+                            <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+                        </Button.Resources>
+                        <StackPanel Spacing="4">
+                            <Border x:Name="StandardVariantBorder"
+                                    Width="52" Height="52"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                <Grid Width="32" Height="32"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center">
+                                    <Path x:Name="StandardMicBodyPath"
+                                          Fill="#28A745"
+                                          Data="M16,4 C19.3,4 22,6.7 22,10 L22,16 C22,19.3 19.3,22 16,22 C12.7,22 10,19.3 10,16 L10,10 C10,6.7 12.7,4 16,4 Z"/>
+                                    <Path x:Name="StandardMicArcPath"
+                                          Stroke="#28A745"
+                                          StrokeThickness="2.6"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          Data="M6,16 C6,21.5 10.5,26 16,26 C21.5,26 26,21.5 26,16"/>
+                                    <Line x:Name="StandardMicStemLine"
+                                          X1="16" Y1="26" X2="16" Y2="29"
+                                          Stroke="#28A745"
+                                          StrokeThickness="2.6"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                    <Line x:Name="StandardMicBaseLine"
+                                          X1="11" Y1="29" X2="21" Y2="29"
+                                          Stroke="#28A745"
+                                          StrokeThickness="2.6"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                </Grid>
+                            </Border>
+                            <TextBlock Text="Standard"
+                                       FontSize="11"
+                                       HorizontalAlignment="Center"
+                                       Opacity="0.8"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="FilledCircleVariantButton"
+                            Grid.Column="1"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="8"
+                            Click="TrayIconVariantButton_Click"
+                            Tag="FilledCircle">
+                        <Button.Resources>
+                            <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+                        </Button.Resources>
+                        <StackPanel Spacing="4">
+                            <Border x:Name="FilledCircleVariantBorder"
+                                    Width="52" Height="52"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                <Grid Width="32" Height="32"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center">
+                                    <Ellipse x:Name="FilledCirclePreview"
+                                             Width="32"
+                                             Height="32"
+                                             Fill="#28A745"/>
+                                    <Path Data="M16,7 C18.8,7 21,9.2 21,12 L21,16 C21,18.8 18.8,21 16,21 C13.2,21 11,18.8 11,16 L11,12 C11,9.2 13.2,7 16,7 Z"
+                                          Fill="White"/>
+                                    <Path Data="M8.5,16 C8.5,20.1 11.9,23.5 16,23.5 C20.1,23.5 23.5,20.1 23.5,16"
+                                          Stroke="White"
+                                          StrokeThickness="2.2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                    <Line X1="16" Y1="23.5" X2="16" Y2="26"
+                                          Stroke="White"
+                                          StrokeThickness="2.2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                    <Line X1="12" Y1="26" X2="20" Y2="26"
+                                          Stroke="White"
+                                          StrokeThickness="2.2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                </Grid>
+                            </Border>
+                            <TextBlock Text="Filled circle"
+                                       FontSize="11"
+                                       HorizontalAlignment="Center"
+                                       Opacity="0.8"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="DotVariantButton"
+                            Grid.Column="2"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="8"
+                            Click="TrayIconVariantButton_Click"
+                            Tag="Dot">
+                        <Button.Resources>
+                            <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+                        </Button.Resources>
+                        <StackPanel Spacing="4">
+                            <Border x:Name="DotVariantBorder"
+                                    Width="52" Height="52"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                <Ellipse x:Name="DotPreview"
+                                         Width="20" Height="20"
+                                         Fill="#28A745"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Dot"
+                                       FontSize="11"
+                                       HorizontalAlignment="Center"
+                                       Opacity="0.8"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                <TextBlock Text="Preview uses the current microphone state. Muted is red, unmuted is green."
                            Opacity="0.6"
                            FontSize="12"
                            TextWrapping="Wrap"/>

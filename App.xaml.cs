@@ -117,6 +117,30 @@ namespace silence_
             // Update overlay visibility based on current state
             UpdateOverlayVisibility();
         }
+
+        public void RefreshOverlay()
+        {
+            var wasPositioning = _isOverlayPositioning;
+
+            _previewTimer?.Stop();
+            _previewTimer?.Dispose();
+            _previewTimer = null;
+
+            _positioningTimer?.Stop();
+            _positioningTimer?.Dispose();
+            _positioningTimer = null;
+
+            _overlayWindow?.Dispose();
+            _overlayWindow = null;
+
+            InitializeOverlay();
+
+            if (wasPositioning)
+            {
+                _overlayWindow?.StartPositioning();
+                UpdateOverlayInputTimer();
+            }
+        }
         
         public void UpdateOverlayVisibility()
         {
@@ -572,6 +596,7 @@ namespace silence_
             _positioningTimer?.Stop();
             _positioningTimer?.Dispose();
             _overlayWindow?.Dispose();
+            _overlayWindow = null;
             _window?.DisposeTrayIcon();
             _window?.Close();
             Environment.Exit(0);

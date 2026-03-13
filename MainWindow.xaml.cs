@@ -327,6 +327,13 @@ namespace silence_
             };
             _trayMenu.Items.Add(muteItem);
 
+            var refreshOverlayItem = new MenuFlyoutItem
+            {
+                Text = "Refresh Overlay",
+                Command = new RelayCommand(() => App.Instance?.RefreshOverlay())
+            };
+            _trayMenu.Items.Add(refreshOverlayItem);
+
             _trayMenu.Items.Add(new MenuFlyoutSeparator());
 
             var exitItem = new MenuFlyoutItem 
@@ -388,6 +395,10 @@ namespace silence_
             {
                 DrawFilledCircleTrayIcon(g, size, stateColor);
             }
+            else if (string.Equals(style, "Dot", StringComparison.OrdinalIgnoreCase))
+            {
+                DrawDotTrayIcon(g, size, stateColor);
+            }
             else
             {
                 DrawStandardTrayIcon(g, stateColor);
@@ -440,6 +451,14 @@ namespace silence_
             g.DrawArc(micPen, 8f, 11f, 16f, 11f, 0, 180);
             g.DrawLine(micPen, 16f, 22f, 16f, 24.5f);
             g.DrawLine(micPen, 12f, 24.5f, 20f, 24.5f);
+        }
+
+        private static void DrawDotTrayIcon(Graphics g, int size, System.Drawing.Color color)
+        {
+            const int dotSize = 20;
+            int offset = (size - dotSize) / 2;
+            using var brush = new SolidBrush(color);
+            g.FillEllipse(brush, offset, offset, dotSize, dotSize);
         }
 
         private static GraphicsPath CreateRoundedRectanglePath(RectangleF rect, float radius)
