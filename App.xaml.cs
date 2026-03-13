@@ -13,6 +13,7 @@ namespace silence_
         private MicrophoneService? _microphoneService;
         private KeyboardHookService? _keyboardHookService;
         private SettingsService? _settingsService;
+        private LocalizationService? _localizationService;
         private UpdateService? _updateService;
         private NotificationService? _notificationService;
         private SoundService? _soundService;
@@ -25,6 +26,7 @@ namespace silence_
         public MicrophoneService MicrophoneService => _microphoneService!;
         public KeyboardHookService KeyboardHookService => _keyboardHookService!;
         public SettingsService SettingsService => _settingsService!;
+        public LocalizationService LocalizationService => _localizationService!;
         public UpdateService UpdateService => _updateService ??= new UpdateService();
         public NotificationService NotificationService => _notificationService ??= new NotificationService();
         public SoundService SoundService => _soundService ??= new SoundService();
@@ -52,6 +54,7 @@ namespace silence_
 
             // Initialize services
             _settingsService = new SettingsService();
+            _settingsService.EnsureLanguageInitialized();
             _microphoneService = new MicrophoneService();
             _keyboardHookService = new KeyboardHookService();
 
@@ -76,6 +79,7 @@ namespace silence_
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
         {
+            _localizationService ??= new LocalizationService(_settingsService!.Settings.LanguageOverride);
             _window = new MainWindow();
             
             // Initialize overlay window
@@ -577,6 +581,20 @@ namespace silence_
         public void ToggleMute()
         {
             OnHotkeyPressed();
+        }
+
+        public void ApplyLanguageOverride(string? languageOverride)
+        {
+            var resolvedLanguage = LocalizationService.ResolveAppLanguage(languageOverride);
+            if (_settingsService?.Settings.LanguageOverride == resolvedLanguage)
+            {
+                return;
+            }
+
+            _settingsService?.UpdateLanguageOverride(resolvedLanguage);
+            _localizationService?.ApplyLanguage(resolvedLanguage);
+            _window?.RefreshLocalizedUI();
+            RefreshOverlay();
         }
 
         public void HideMainWindow()

@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="App.Title" xml:space="preserve"><value>silence!</value></data>
+  <data name="MainWindow.PaneToggleButton.ToolTipService.ToolTip" xml:space="preserve"><value>Переключить меню</value></data>
+  <data name="MainWindow.GeneralNavItem.Content" xml:space="preserve"><value>Общие</value></data>
+  <data name="MainWindow.HoldToMuteNavItem.Content" xml:space="preserve"><value>Удержание</value></data>
+  <data name="MainWindow.SoundsNavItem.Content" xml:space="preserve"><value>Звуки</value></data>
+  <data name="MainWindow.OverlayNavItem.Content" xml:space="preserve"><value>Оверлей</value></data>
+  <data name="MainWindow.AppearanceNavItem.Content" xml:space="preserve"><value>Значок в трее</value></data>
+  <data name="MainWindow.AboutNavItem.Content" xml:space="preserve"><value>О приложении</value></data>
+  <data name="MainWindow.UpdateAvailableText.Text" xml:space="preserve"><value>Есть обновление</value></data>
+  <data name="MainWindow.UpdateDetailsButton.Content" xml:space="preserve"><value>Подробнее</value></data>
+  <data name="MainWindow.UpdateNotificationCompact.ToolTipService.ToolTip" xml:space="preserve"><value>Есть обновление</value></data>
+  <data name="Tray.Menu.AppInfo" xml:space="preserve"><value>silence! - v{0}</value></data>
+  <data name="Tray.Menu.ShowSettings" xml:space="preserve"><value>Открыть настройки</value></data>
+  <data name="Tray.Menu.ToggleMute" xml:space="preserve"><value>Переключить микрофон</value></data>
+  <data name="Tray.Menu.RefreshOverlay" xml:space="preserve"><value>Обновить оверлей</value></data>
+  <data name="Tray.Menu.Exit" xml:space="preserve"><value>Выход</value></data>
+  <data name="Tray.Tooltip.Muted" xml:space="preserve"><value>silence! - микрофон выключен</value></data>
+  <data name="Tray.Tooltip.Unmuted" xml:space="preserve"><value>silence! - микрофон включен</value></data>
+
+  <data name="AboutPage.DescriptionText.Text" xml:space="preserve"><value>Простая утилита для выключения и включения микрофона с глобальной горячей клавишей.</value></data>
+  <data name="AboutPage.LanguageTitle.Text" xml:space="preserve"><value>Язык</value></data>
+  <data name="AboutPage.LanguageSystemItem.Content" xml:space="preserve"><value>По умолчанию в системе</value></data>
+  <data name="AboutPage.LanguageEnglishItem.Content" xml:space="preserve"><value>Английский</value></data>
+  <data name="AboutPage.LanguageRussianItem.Content" xml:space="preserve"><value>Русский</value></data>
+  <data name="AboutPage.UpdatesHeaderText.Text" xml:space="preserve"><value>Обновления</value></data>
+  <data name="AboutPage.CheckingText.Text" xml:space="preserve"><value>Проверка обновлений...</value></data>
+  <data name="AboutPage.UpToDateText.Text" xml:space="preserve"><value>У вас последняя версия!</value></data>
+  <data name="AboutPage.UpdateAvailableText.Text" xml:space="preserve"><value>Доступно обновление!</value></data>
+  <data name="AboutPage.NewVersionText.Text" xml:space="preserve"><value>Новая версия: v1.1.0</value></data>
+  <data name="AboutPage.DownloadUpdateButton.Content" xml:space="preserve"><value>Скачать и установить</value></data>
+  <data name="AboutPage.ViewReleaseButton.Content" xml:space="preserve"><value>Открыть релиз</value></data>
+  <data name="AboutPage.DownloadingText.Text" xml:space="preserve"><value>Скачивание обновления...</value></data>
+  <data name="AboutPage.ErrorText.Text" xml:space="preserve"><value>Не удалось проверить обновления</value></data>
+  <data name="AboutPage.CheckUpdatesButton.Content" xml:space="preserve"><value>Проверить обновления</value></data>
+  <data name="AboutPage.AutoCheckToggle.Header" xml:space="preserve"><value>Проверять обновления при запуске</value></data>
+  <data name="AboutPage.ViewOnGitHubButton.Content" xml:space="preserve"><value>Открыть на GitHub</value></data>
+  <data name="AboutPage.MadeByText.Text" xml:space="preserve"><value>Сделано с любовью от vertopolkaLF</value></data>
+  <data name="AboutPage.CreditsTitle.Text" xml:space="preserve"><value>Благодарности</value></data>
+  <data name="AboutPage.CreditWinUiText.Text" xml:space="preserve"><value>WinUI 3 - Microsoft</value></data>
+  <data name="AboutPage.CreditNotifyIconText.Text" xml:space="preserve"><value>H.NotifyIcon - havendv</value></data>
+
+  <data name="GeneralPage.MicrophoneStatusPrefixText.Text" xml:space="preserve"><value>Микрофон</value></data>
+  <data name="GeneralPage.MicrophoneLabel.Text" xml:space="preserve"><value>Микрофон</value></data>
+  <data name="GeneralPage.MicrophoneComboBox.PlaceholderText" xml:space="preserve"><value>Выберите микрофон...</value></data>
+  <data name="GeneralPage.ToggleHotkeyLabel.Text" xml:space="preserve"><value>Горячая клавиша</value></data>
+  <data name="GeneralPage.HotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Нажмите клавишу...</value></data>
+  <data name="GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Очистить сочетание</value></data>
+  <data name="GeneralPage.RecordHotkeyButton.Content" xml:space="preserve"><value>Записать</value></data>
+  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>Чтобы назначить ЛКМ, ПКМ или 2 модификатора, удерживайте их 1 секунду</value></data>
+  <data name="GeneralPage.IgnoreModifiersCheckBox.Content" xml:space="preserve"><value>Игнорировать модификаторы (Shift, Ctrl, Alt, Win)</value></data>
+  <data name="GeneralPage.StartupLabel.Text" xml:space="preserve"><value>Запуск</value></data>
+  <data name="GeneralPage.AutoStartCheckBox.Content" xml:space="preserve"><value>Запускать вместе с Windows</value></data>
+  <data name="GeneralPage.StartMinimizedCheckBox.Content" xml:space="preserve"><value>Запускать свернутым в трей</value></data>
+
+  <data name="HoldToMutePage.TitleText.Text" xml:space="preserve"><value>Удержание</value></data>
+  <data name="HoldToMutePage.DescriptionText.Text" xml:space="preserve"><value>Выключайте или включайте микрофон, пока удерживаете горячую клавишу</value></data>
+  <data name="HoldToMutePage.HotkeyLabel.Text" xml:space="preserve"><value>Горячая клавиша</value></data>
+  <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Не задано</value></data>
+  <data name="HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Очистить сочетание</value></data>
+  <data name="HoldToMutePage.RecordHoldHotkeyButton.Content" xml:space="preserve"><value>Записать</value></data>
+  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>Чтобы назначить ЛКМ, ПКМ или модификаторы, удерживайте их 1 секунду</value></data>
+  <data name="HoldToMutePage.IgnoreHoldModifiersCheckBox.Content" xml:space="preserve"><value>Игнорировать модификаторы (Shift, Ctrl, Alt, Win)</value></data>
+  <data name="HoldToMutePage.ActionLabel.Text" xml:space="preserve"><value>Действие</value></data>
+  <data name="HoldToMutePage.ActionToggleItem.Content" xml:space="preserve"><value>Переключать текущее состояние</value></data>
+  <data name="HoldToMutePage.ActionHoldToMuteItem.Content" xml:space="preserve"><value>Выключать при удержании</value></data>
+  <data name="HoldToMutePage.ActionHoldToUnmuteItem.Content" xml:space="preserve"><value>Включать при удержании</value></data>
+  <data name="HoldToMutePage.OptionsLabel.Text" xml:space="preserve"><value>Параметры</value></data>
+  <data name="HoldToMutePage.HoldPlaySoundsCheckBox.Content" xml:space="preserve"><value>Воспроизводить звуки</value></data>
+  <data name="HoldToMutePage.HoldShowOverlayCheckBox.Content" xml:space="preserve"><value>Показывать оверлей</value></data>
+  <data name="HoldToMutePage.SoundSettingsTitle.Text" xml:space="preserve"><value>Настройки звука</value></data>
+  <data name="HoldToMutePage.SoundSettingsDescription.Text" xml:space="preserve"><value>Настройте отдельные звуки для удержания или используйте значения из вкладки «Звуки»</value></data>
+  <data name="HoldToMutePage.VolumeLabel.Text" xml:space="preserve"><value>Громкость</value></data>
+  <data name="HoldToMutePage.ResetHoldVolumeButton.Content" xml:space="preserve"><value>Сбросить</value></data>
+  <data name="HoldToMutePage.MuteSoundLabel.Text" xml:space="preserve"><value>Звук выключения</value></data>
+  <data name="HoldToMutePage.HoldMuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>По умолчанию</value></data>
+  <data name="HoldToMutePage.PlayHoldMuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Воспроизвести звук</value></data>
+  <data name="HoldToMutePage.ResetHoldMuteSoundButton.Content" xml:space="preserve"><value>Сбросить</value></data>
+  <data name="HoldToMutePage.UnmuteSoundLabel.Text" xml:space="preserve"><value>Звук включения</value></data>
+  <data name="HoldToMutePage.HoldUnmuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>По умолчанию</value></data>
+  <data name="HoldToMutePage.PlayHoldUnmuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Воспроизвести звук</value></data>
+  <data name="HoldToMutePage.ResetHoldUnmuteSoundButton.Content" xml:space="preserve"><value>Сбросить</value></data>
+
+  <data name="SoundsPage.TitleText.Text" xml:space="preserve"><value>Звуки</value></data>
+  <data name="SoundsPage.SoundsEnabledToggle.Header" xml:space="preserve"><value>Включить звуки</value></data>
+  <data name="SoundsPage.SoundsEnabledToggle.OffContent" xml:space="preserve"><value>Звуки отключены</value></data>
+  <data name="SoundsPage.SoundsEnabledToggle.OnContent" xml:space="preserve"><value>Звуки включены</value></data>
+  <data name="SoundsPage.VolumeLabel.Text" xml:space="preserve"><value>Громкость</value></data>
+  <data name="SoundsPage.MuteSoundLabel.Text" xml:space="preserve"><value>Звук выключения</value></data>
+  <data name="SoundsPage.MuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>Выберите звук...</value></data>
+  <data name="SoundsPage.PlayMuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Воспроизвести звук</value></data>
+  <data name="SoundsPage.RemoveMuteCustomSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Удалить свой звук</value></data>
+  <data name="SoundsPage.UnmuteSoundLabel.Text" xml:space="preserve"><value>Звук включения</value></data>
+  <data name="SoundsPage.UnmuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>Выберите звук...</value></data>
+  <data name="SoundsPage.PlayUnmuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Воспроизвести звук</value></data>
+  <data name="SoundsPage.RemoveUnmuteCustomSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Удалить свой звук</value></data>
+  <data name="SoundsPage.CustomSoundsTitle.Text" xml:space="preserve"><value>Свои звуки</value></data>
+  <data name="SoundsPage.CustomSoundsDescription.Text" xml:space="preserve"><value>Добавьте свои звуковые файлы (MP3, WAV, FLAC, OGG, M4A, WMA)</value></data>
+  <data name="SoundsPage.AddCustomSoundButton.Content" xml:space="preserve"><value>Выбрать звуковой файл...</value></data>
+  <data name="SoundsPage.CustomListPlayButton.ToolTipService.ToolTip" xml:space="preserve"><value>Воспроизвести</value></data>
+  <data name="SoundsPage.CustomListDeleteButton.ToolTipService.ToolTip" xml:space="preserve"><value>Удалить</value></data>
+
+  <data name="AppearancePage.TitleText.Text" xml:space="preserve"><value>Значок в трее</value></data>
+  <data name="AppearancePage.IconStyleLabel.Text" xml:space="preserve"><value>Стиль значка</value></data>
+  <data name="AppearancePage.StandardLabel.Text" xml:space="preserve"><value>Стандартный</value></data>
+  <data name="AppearancePage.FilledCircleLabel.Text" xml:space="preserve"><value>Заполненный круг</value></data>
+  <data name="AppearancePage.DotLabel.Text" xml:space="preserve"><value>Точка</value></data>
+  <data name="AppearancePage.PreviewDescriptionText.Text" xml:space="preserve"><value>Превью использует текущее состояние микрофона. Выключенный микрофон красный, включенный зеленый.</value></data>
+
+  <data name="OverlayPage.TitleText.Text" xml:space="preserve"><value>Оверлей</value></data>
+  <data name="OverlayPage.OverlayEnabledToggle.Header" xml:space="preserve"><value>Включить оверлей</value></data>
+  <data name="OverlayPage.OverlayEnabledToggle.OffContent" xml:space="preserve"><value>Оверлей выключен</value></data>
+  <data name="OverlayPage.OverlayEnabledToggle.OnContent" xml:space="preserve"><value>Оверлей включен</value></data>
+  <data name="OverlayPage.OverlayEnabledDescriptionText.Text" xml:space="preserve"><value>Показывает состояние микрофона поверх всех окон</value></data>
+  <data name="OverlayPage.VisibilityModeLabel.Text" xml:space="preserve"><value>Режим видимости</value></data>
+  <data name="OverlayPage.VisibilityAlwaysItem.Content" xml:space="preserve"><value>Всегда показывать</value></data>
+  <data name="OverlayPage.VisibilityWhenMutedItem.Content" xml:space="preserve"><value>Показывать, когда микрофон выключен</value></data>
+  <data name="OverlayPage.VisibilityWhenUnmutedItem.Content" xml:space="preserve"><value>Показывать, когда микрофон включен</value></data>
+  <data name="OverlayPage.VisibilityAfterToggleItem.Content" xml:space="preserve"><value>Показывать после переключения</value></data>
+  <data name="OverlayPage.ScreenLabel.Text" xml:space="preserve"><value>Экран</value></data>
+  <data name="OverlayPage.ScreenComboBox.PlaceholderText" xml:space="preserve"><value>Выберите экран...</value></data>
+  <data name="OverlayPage.ScreenDescriptionText.Text" xml:space="preserve"><value>Выберите монитор, на котором показывать оверлей</value></data>
+  <data name="OverlayPage.OverlayButtonModeLabel.Text" xml:space="preserve"><value>Использовать оверлей как кнопку</value></data>
+  <data name="OverlayPage.OverlayButtonModeToggle.Header" xml:space="preserve"><value>Использовать оверлей как кнопку</value></data>
+  <data name="OverlayPage.OverlayButtonModeToggle.OffContent" xml:space="preserve"><value>Оверлей прозрачен для кликов</value></data>
+  <data name="OverlayPage.OverlayButtonModeToggle.OnContent" xml:space="preserve"><value>Оверлей переключает микрофон</value></data>
+  <data name="OverlayPage.OverlayButtonModeDescriptionText.Text" xml:space="preserve"><value>Когда включено, оверлей перестает пропускать клики, переключает микрофон по нажатию и его всегда можно перетаскивать.</value></data>
+  <data name="OverlayPage.PositionTitle.Text" xml:space="preserve"><value>Позиция оверлея</value></data>
+  <data name="OverlayPage.SetPositionButton.Content" xml:space="preserve"><value>Задать позицию</value></data>
+  <data name="OverlayPage.DonePositionButton.Content" xml:space="preserve"><value>Готово</value></data>
+  <data name="OverlayPage.PositionDescriptionText.Text" xml:space="preserve"><value>Нажмите, чтобы показать оверлей и перетащить его в нужное место. Оверлей притягивается к центру, если подвести его близко к середине экрана. Нажмите ESC или «Готово», чтобы сохранить.</value></data>
+  <data name="OverlayPage.PreviewLabel.Text" xml:space="preserve"><value>Предпросмотр</value></data>
+  <data name="OverlayPage.PreviewOverlayButton.Content" xml:space="preserve"><value>Показать оверлей</value></data>
+  <data name="OverlayPage.AppearanceTitle.Text" xml:space="preserve"><value>Внешний вид</value></data>
+  <data name="OverlayPage.OverlayStyleLabel.Text" xml:space="preserve"><value>Стиль оверлея</value></data>
+  <data name="OverlayPage.MicIconVariantLabel.Text" xml:space="preserve"><value>Иконка микрофона</value></data>
+  <data name="OverlayPage.DotVariantLabel.Text" xml:space="preserve"><value>Точка</value></data>
+  <data name="OverlayPage.ShowTextToggle.Header" xml:space="preserve"><value>Показывать текст</value></data>
+  <data name="OverlayPage.ShowTextToggle.OffContent" xml:space="preserve"><value>Только значок</value></data>
+  <data name="OverlayPage.ShowTextToggle.OnContent" xml:space="preserve"><value>Значок и текст</value></data>
+  <data name="OverlayPage.IconStyleLabel.Text" xml:space="preserve"><value>Стиль значка</value></data>
+  <data name="OverlayPage.IconStyleColoredItem.Content" xml:space="preserve"><value>Цветной (красный/зеленый)</value></data>
+  <data name="OverlayPage.IconStyleMonochromeItem.Content" xml:space="preserve"><value>Монохромный</value></data>
+  <data name="OverlayPage.BackgroundStyleLabel.Text" xml:space="preserve"><value>Фон</value></data>
+  <data name="OverlayPage.BackgroundDarkItem.Content" xml:space="preserve"><value>Темный</value></data>
+  <data name="OverlayPage.BackgroundLightItem.Content" xml:space="preserve"><value>Светлый</value></data>
+  <data name="OverlayPage.ShowBorderToggle.Header" xml:space="preserve"><value>Граница оверлея</value></data>
+  <data name="OverlayPage.ShowBorderToggle.OffContent" xml:space="preserve"><value>Без границы</value></data>
+  <data name="OverlayPage.ShowBorderToggle.OnContent" xml:space="preserve"><value>Показывать границу</value></data>
+
+  <data name="Common.Default" xml:space="preserve"><value>По умолчанию</value></data>
+  <data name="Sounds.DefaultFromSoundsTab" xml:space="preserve"><value>По умолчанию (из вкладки «Звуки»)</value></data>
+  <data name="Sounds.ComboSeparator" xml:space="preserve"><value>-------------</value></data>
+  <data name="Sounds.BrowseForFile" xml:space="preserve"><value>Выбрать файл...</value></data>
+  <data name="Sounds.CustomItem" xml:space="preserve"><value>Свой: {0}</value></data>
+  <data name="Sounds.CustomSelection" xml:space="preserve"><value>Свой: {0}</value></data>
+  <data name="Sounds.Preloaded.None" xml:space="preserve"><value>Нет</value></data>
+  <data name="Sounds.Preloaded.8Bit" xml:space="preserve"><value>8-Bit</value></data>
+  <data name="Sounds.Preloaded.Blob" xml:space="preserve"><value>Blob</value></data>
+  <data name="Sounds.Preloaded.Digital" xml:space="preserve"><value>Digital</value></data>
+  <data name="Sounds.Preloaded.Discord" xml:space="preserve"><value>Discord</value></data>
+  <data name="Sounds.Preloaded.Pop" xml:space="preserve"><value>Pop</value></data>
+  <data name="Sounds.Preloaded.Punchy" xml:space="preserve"><value>Punchy</value></data>
+  <data name="Sounds.Preloaded.SciFi" xml:space="preserve"><value>Sci-Fi</value></data>
+  <data name="Sounds.Preloaded.Vibrant" xml:space="preserve"><value>Vibrant</value></data>
+  <data name="Hotkeys.RecordPrompt" xml:space="preserve"><value>Нажмите клавиши...</value></data>
+  <data name="Hotkeys.RecordPromptWithModifiers" xml:space="preserve"><value>{0} + ...</value></data>
+  <data name="Hotkeys.Modifier.Ctrl" xml:space="preserve"><value>Ctrl</value></data>
+  <data name="Hotkeys.Modifier.Alt" xml:space="preserve"><value>Alt</value></data>
+  <data name="Hotkeys.Modifier.Shift" xml:space="preserve"><value>Shift</value></data>
+  <data name="Hotkeys.Modifier.Win" xml:space="preserve"><value>Win</value></data>
+  <data name="Hotkeys.Key.MouseLeft" xml:space="preserve"><value>Левая кнопка мыши</value></data>
+  <data name="Hotkeys.Key.MouseRight" xml:space="preserve"><value>Правая кнопка мыши</value></data>
+  <data name="Hotkeys.Key.MouseMiddle" xml:space="preserve"><value>Средняя кнопка мыши</value></data>
+  <data name="Hotkeys.Key.Mouse4" xml:space="preserve"><value>Кнопка мыши 4</value></data>
+  <data name="Hotkeys.Key.Mouse5" xml:space="preserve"><value>Кнопка мыши 5</value></data>
+  <data name="Hotkeys.Key.Escape" xml:space="preserve"><value>Escape</value></data>
+  <data name="Hotkeys.Key.Space" xml:space="preserve"><value>Пробел</value></data>
+  <data name="Hotkeys.Key.Insert" xml:space="preserve"><value>Insert</value></data>
+  <data name="Hotkeys.Key.Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Hotkeys.Key.Pause" xml:space="preserve"><value>Pause</value></data>
+  <data name="Hotkeys.Key.ScrollLock" xml:space="preserve"><value>Scroll Lock</value></data>
+  <data name="Hotkeys.Key.PrintScreen" xml:space="preserve"><value>Print Screen</value></data>
+  <data name="Hotkeys.Key.NumLock" xml:space="preserve"><value>Num Lock</value></data>
+  <data name="Hotkeys.Key.NumpadMultiply" xml:space="preserve"><value>Numpad *</value></data>
+  <data name="Hotkeys.Key.NumpadPlus" xml:space="preserve"><value>Numpad +</value></data>
+  <data name="Hotkeys.Key.NumpadMinus" xml:space="preserve"><value>Numpad -</value></data>
+  <data name="Hotkeys.Key.NumpadDecimal" xml:space="preserve"><value>Numpad .</value></data>
+  <data name="Hotkeys.Key.NumpadDivide" xml:space="preserve"><value>Numpad /</value></data>
+  <data name="Hotkeys.Key.NumpadNumber" xml:space="preserve"><value>Numpad {0}</value></data>
+  <data name="Hotkeys.Key.Generic" xml:space="preserve"><value>Клавиша {0}</value></data>
+  <data name="General.Microphone.Default" xml:space="preserve"><value>Микрофон по умолчанию</value></data>
+  <data name="General.Microphone.All" xml:space="preserve"><value>Все микрофоны</value></data>
+  <data name="General.Microphone.NamedDefault" xml:space="preserve"><value>{0} (по умолчанию)</value></data>
+  <data name="General.MuteStatus.Muted" xml:space="preserve"><value>выключен</value></data>
+  <data name="General.MuteStatus.Unmuted" xml:space="preserve"><value>включен</value></data>
+  <data name="General.Hotkey.Record" xml:space="preserve"><value>Записать</value></data>
+  <data name="General.Hotkey.RecordCancel" xml:space="preserve"><value>Отмена</value></data>
+  <data name="HoldToMute.ActionDescription.Toggle" xml:space="preserve"><value>Переключать микрофон, пока клавиша удерживается</value></data>
+  <data name="HoldToMute.ActionDescription.HoldToMute" xml:space="preserve"><value>Выключать при удержании (включать при отпускании)</value></data>
+  <data name="HoldToMute.ActionDescription.HoldToUnmute" xml:space="preserve"><value>Включать при удержании (выключать при отпускании)</value></data>
+  <data name="HoldToMute.Hotkey.Record" xml:space="preserve"><value>Записать</value></data>
+  <data name="HoldToMute.Hotkey.RecordCancel" xml:space="preserve"><value>Отмена</value></data>
+  <data name="Update.NewVersion" xml:space="preserve"><value>Новая версия: v{0}</value></data>
+  <data name="Update.NoInstallerAvailable" xml:space="preserve"><value>Установщик недоступен</value></data>
+  <data name="Update.NoInstallerForPlatform" xml:space="preserve"><value>Нет установщика для вашей платформы</value></data>
+  <data name="Update.DownloadingProgress" xml:space="preserve"><value>Скачивание... {0:F0}%</value></data>
+  <data name="Update.StartingInstaller" xml:space="preserve"><value>Запуск установщика...</value></data>
+  <data name="Update.Error.Unknown" xml:space="preserve"><value>Неизвестная ошибка</value></data>
+  <data name="Update.Error.DownloadFailed" xml:space="preserve"><value>Не удалось скачать обновление</value></data>
+  <data name="Update.Error.GitHubApiStatus" xml:space="preserve"><value>GitHub API вернул {0}</value></data>
+  <data name="Update.Error.ParseResponse" xml:space="preserve"><value>Не удалось разобрать ответ GitHub</value></data>
+  <data name="Update.Error.Network" xml:space="preserve"><value>Сетевая ошибка: {0}</value></data>
+  <data name="Update.Error.Timeout" xml:space="preserve"><value>Истекло время ожидания запроса</value></data>
+  <data name="Update.Error.Unexpected" xml:space="preserve"><value>Непредвиденная ошибка: {0}</value></data>
+  <data name="Notification.UpdateAvailable.Title" xml:space="preserve"><value>Доступно обновление: v{0}</value></data>
+  <data name="Notification.UpdateAvailable.Body" xml:space="preserve"><value>Новая версия silence! готова к установке</value></data>
+  <data name="Notification.UpdateAvailable.Install" xml:space="preserve"><value>Установить обновление</value></data>
+  <data name="Notification.UpdateFailed.Title" xml:space="preserve"><value>Не удалось установить обновление</value></data>
+  <data name="Notification.UpdateFailed.Body" xml:space="preserve"><value>Не удалось скачать обновление</value></data>
+  <data name="Overlay.Status.Muted" xml:space="preserve"><value>Микрофон выключен</value></data>
+  <data name="Overlay.Status.Unmuted" xml:space="preserve"><value>Микрофон включен</value></data>
+  <data name="Overlay.Duration" xml:space="preserve"><value>Длительность: {0:F1} c</value></data>
+  <data name="Overlay.BackgroundOpacity" xml:space="preserve"><value>Непрозрачность фона: {0}%</value></data>
+  <data name="Overlay.ContentOpacity" xml:space="preserve"><value>Непрозрачность: {0}%</value></data>
+  <data name="Overlay.BorderRadius" xml:space="preserve"><value>Скругление углов: {0}px</value></data>
+  <data name="Overlay.Scale" xml:space="preserve"><value>Размер: {0}%</value></data>
+  <data name="Overlay.Screen.Primary" xml:space="preserve"><value>Основной экран</value></data>
+  <data name="Overlay.Screen.Named" xml:space="preserve"><value>Экран {0}: {1} ({2}x{3})</value></data>
+  <data name="Overlay.Screen.NamedPrimary" xml:space="preserve"><value>Экран {0}: {1} ({2}x{3}) - основной</value></data>
+  <data name="Overlay.Position.Center" xml:space="preserve"><value>Центр</value></data>
+  <data name="Overlay.Position.Left" xml:space="preserve"><value>Слева {0:F0}%</value></data>
+  <data name="Overlay.Position.Right" xml:space="preserve"><value>Справа {0:F0}%</value></data>
+  <data name="Overlay.Position.Middle" xml:space="preserve"><value>Середина</value></data>
+  <data name="Overlay.Position.Top" xml:space="preserve"><value>Сверху {0:F0}%</value></data>
+  <data name="Overlay.Position.Bottom" xml:space="preserve"><value>Снизу {0:F0}%</value></data>
+  <data name="Overlay.Position.Current" xml:space="preserve"><value>Текущее положение: {0}, {1}</value></data>
+</root>

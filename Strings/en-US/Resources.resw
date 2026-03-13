@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="App.Title" xml:space="preserve"><value>silence!</value></data>
+  <data name="MainWindow.PaneToggleButton.ToolTipService.ToolTip" xml:space="preserve"><value>Toggle menu</value></data>
+  <data name="MainWindow.GeneralNavItem.Content" xml:space="preserve"><value>General</value></data>
+  <data name="MainWindow.HoldToMuteNavItem.Content" xml:space="preserve"><value>Hold to Mute</value></data>
+  <data name="MainWindow.SoundsNavItem.Content" xml:space="preserve"><value>Sounds</value></data>
+  <data name="MainWindow.OverlayNavItem.Content" xml:space="preserve"><value>Overlay</value></data>
+  <data name="MainWindow.AppearanceNavItem.Content" xml:space="preserve"><value>Tray Icon</value></data>
+  <data name="MainWindow.AboutNavItem.Content" xml:space="preserve"><value>About</value></data>
+  <data name="MainWindow.UpdateAvailableText.Text" xml:space="preserve"><value>Update Available</value></data>
+  <data name="MainWindow.UpdateDetailsButton.Content" xml:space="preserve"><value>View Details</value></data>
+  <data name="MainWindow.UpdateNotificationCompact.ToolTipService.ToolTip" xml:space="preserve"><value>Update Available</value></data>
+  <data name="Tray.Menu.AppInfo" xml:space="preserve"><value>silence! - v{0}</value></data>
+  <data name="Tray.Menu.ShowSettings" xml:space="preserve"><value>Show Settings</value></data>
+  <data name="Tray.Menu.ToggleMute" xml:space="preserve"><value>Toggle Mute</value></data>
+  <data name="Tray.Menu.RefreshOverlay" xml:space="preserve"><value>Refresh Overlay</value></data>
+  <data name="Tray.Menu.Exit" xml:space="preserve"><value>Exit</value></data>
+  <data name="Tray.Tooltip.Muted" xml:space="preserve"><value>silence! - Microphone MUTED</value></data>
+  <data name="Tray.Tooltip.Unmuted" xml:space="preserve"><value>silence! - Microphone ON</value></data>
+
+  <data name="AboutPage.DescriptionText.Text" xml:space="preserve"><value>A simple microphone mute/unmute utility with global hotkey support.</value></data>
+  <data name="AboutPage.LanguageTitle.Text" xml:space="preserve"><value>Language</value></data>
+  <data name="AboutPage.LanguageSystemItem.Content" xml:space="preserve"><value>System default</value></data>
+  <data name="AboutPage.LanguageEnglishItem.Content" xml:space="preserve"><value>English</value></data>
+  <data name="AboutPage.LanguageRussianItem.Content" xml:space="preserve"><value>Russian</value></data>
+  <data name="AboutPage.UpdatesHeaderText.Text" xml:space="preserve"><value>Updates</value></data>
+  <data name="AboutPage.CheckingText.Text" xml:space="preserve"><value>Checking for updates...</value></data>
+  <data name="AboutPage.UpToDateText.Text" xml:space="preserve"><value>You're up to date!</value></data>
+  <data name="AboutPage.UpdateAvailableText.Text" xml:space="preserve"><value>Update available!</value></data>
+  <data name="AboutPage.NewVersionText.Text" xml:space="preserve"><value>New version: v1.1.0</value></data>
+  <data name="AboutPage.DownloadUpdateButton.Content" xml:space="preserve"><value>Download &amp; Install</value></data>
+  <data name="AboutPage.ViewReleaseButton.Content" xml:space="preserve"><value>View Release</value></data>
+  <data name="AboutPage.DownloadingText.Text" xml:space="preserve"><value>Downloading update...</value></data>
+  <data name="AboutPage.ErrorText.Text" xml:space="preserve"><value>Failed to check for updates</value></data>
+  <data name="AboutPage.CheckUpdatesButton.Content" xml:space="preserve"><value>Check for Updates</value></data>
+  <data name="AboutPage.AutoCheckToggle.Header" xml:space="preserve"><value>Check for updates on startup</value></data>
+  <data name="AboutPage.ViewOnGitHubButton.Content" xml:space="preserve"><value>View on GitHub</value></data>
+  <data name="AboutPage.MadeByText.Text" xml:space="preserve"><value>Made with love by vertopolkaLF</value></data>
+  <data name="AboutPage.CreditsTitle.Text" xml:space="preserve"><value>Credits</value></data>
+  <data name="AboutPage.CreditWinUiText.Text" xml:space="preserve"><value>WinUI 3 - Microsoft</value></data>
+  <data name="AboutPage.CreditNotifyIconText.Text" xml:space="preserve"><value>H.NotifyIcon - havendv</value></data>
+
+  <data name="GeneralPage.MicrophoneStatusPrefixText.Text" xml:space="preserve"><value>Microphone is</value></data>
+  <data name="GeneralPage.MicrophoneLabel.Text" xml:space="preserve"><value>Microphone</value></data>
+  <data name="GeneralPage.MicrophoneComboBox.PlaceholderText" xml:space="preserve"><value>Select microphone...</value></data>
+  <data name="GeneralPage.ToggleHotkeyLabel.Text" xml:space="preserve"><value>Toggle Hotkey</value></data>
+  <data name="GeneralPage.HotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Press a key...</value></data>
+  <data name="GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Clear hotkey</value></data>
+  <data name="GeneralPage.RecordHotkeyButton.Content" xml:space="preserve"><value>Record</value></data>
+  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>To bind LMB, RMB or 2 modifier keys - hold them for 1 second</value></data>
+  <data name="GeneralPage.IgnoreModifiersCheckBox.Content" xml:space="preserve"><value>Ignore modifiers (Shift, Ctrl, Alt, Win)</value></data>
+  <data name="GeneralPage.StartupLabel.Text" xml:space="preserve"><value>Startup</value></data>
+  <data name="GeneralPage.AutoStartCheckBox.Content" xml:space="preserve"><value>Start with Windows</value></data>
+  <data name="GeneralPage.StartMinimizedCheckBox.Content" xml:space="preserve"><value>Start minimized to tray</value></data>
+
+  <data name="HoldToMutePage.TitleText.Text" xml:space="preserve"><value>Hold to Mute</value></data>
+  <data name="HoldToMutePage.DescriptionText.Text" xml:space="preserve"><value>Mute/unmute your microphone while holding a hotkey</value></data>
+  <data name="HoldToMutePage.HotkeyLabel.Text" xml:space="preserve"><value>Hotkey</value></data>
+  <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Not set</value></data>
+  <data name="HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Clear hotkey</value></data>
+  <data name="HoldToMutePage.RecordHoldHotkeyButton.Content" xml:space="preserve"><value>Record</value></data>
+  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>To bind LMB, RMB or modifier keys - hold them for 1 second</value></data>
+  <data name="HoldToMutePage.IgnoreHoldModifiersCheckBox.Content" xml:space="preserve"><value>Ignore modifiers (Shift, Ctrl, Alt, Win)</value></data>
+  <data name="HoldToMutePage.ActionLabel.Text" xml:space="preserve"><value>Action</value></data>
+  <data name="HoldToMutePage.ActionToggleItem.Content" xml:space="preserve"><value>Toggle current state</value></data>
+  <data name="HoldToMutePage.ActionHoldToMuteItem.Content" xml:space="preserve"><value>Hold to mute</value></data>
+  <data name="HoldToMutePage.ActionHoldToUnmuteItem.Content" xml:space="preserve"><value>Hold to unmute</value></data>
+  <data name="HoldToMutePage.OptionsLabel.Text" xml:space="preserve"><value>Options</value></data>
+  <data name="HoldToMutePage.HoldPlaySoundsCheckBox.Content" xml:space="preserve"><value>Play sounds</value></data>
+  <data name="HoldToMutePage.HoldShowOverlayCheckBox.Content" xml:space="preserve"><value>Show overlay</value></data>
+  <data name="HoldToMutePage.SoundSettingsTitle.Text" xml:space="preserve"><value>Sound Settings</value></data>
+  <data name="HoldToMutePage.SoundSettingsDescription.Text" xml:space="preserve"><value>Configure separate sounds for hold-to-mute or use defaults from Sounds tab</value></data>
+  <data name="HoldToMutePage.VolumeLabel.Text" xml:space="preserve"><value>Volume</value></data>
+  <data name="HoldToMutePage.ResetHoldVolumeButton.Content" xml:space="preserve"><value>Reset</value></data>
+  <data name="HoldToMutePage.MuteSoundLabel.Text" xml:space="preserve"><value>Mute Sound</value></data>
+  <data name="HoldToMutePage.HoldMuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>Default</value></data>
+  <data name="HoldToMutePage.PlayHoldMuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Play sound</value></data>
+  <data name="HoldToMutePage.ResetHoldMuteSoundButton.Content" xml:space="preserve"><value>Reset</value></data>
+  <data name="HoldToMutePage.UnmuteSoundLabel.Text" xml:space="preserve"><value>Unmute Sound</value></data>
+  <data name="HoldToMutePage.HoldUnmuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>Default</value></data>
+  <data name="HoldToMutePage.PlayHoldUnmuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Play sound</value></data>
+  <data name="HoldToMutePage.ResetHoldUnmuteSoundButton.Content" xml:space="preserve"><value>Reset</value></data>
+
+  <data name="SoundsPage.TitleText.Text" xml:space="preserve"><value>Sounds</value></data>
+  <data name="SoundsPage.SoundsEnabledToggle.Header" xml:space="preserve"><value>Enable sounds</value></data>
+  <data name="SoundsPage.SoundsEnabledToggle.OffContent" xml:space="preserve"><value>Sounds disabled</value></data>
+  <data name="SoundsPage.SoundsEnabledToggle.OnContent" xml:space="preserve"><value>Sounds enabled</value></data>
+  <data name="SoundsPage.VolumeLabel.Text" xml:space="preserve"><value>Volume</value></data>
+  <data name="SoundsPage.MuteSoundLabel.Text" xml:space="preserve"><value>Mute Sound</value></data>
+  <data name="SoundsPage.MuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>Select sound...</value></data>
+  <data name="SoundsPage.PlayMuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Play sound</value></data>
+  <data name="SoundsPage.RemoveMuteCustomSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Remove custom sound</value></data>
+  <data name="SoundsPage.UnmuteSoundLabel.Text" xml:space="preserve"><value>Unmute Sound</value></data>
+  <data name="SoundsPage.UnmuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>Select sound...</value></data>
+  <data name="SoundsPage.PlayUnmuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Play sound</value></data>
+  <data name="SoundsPage.RemoveUnmuteCustomSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Remove custom sound</value></data>
+  <data name="SoundsPage.CustomSoundsTitle.Text" xml:space="preserve"><value>Custom Sounds</value></data>
+  <data name="SoundsPage.CustomSoundsDescription.Text" xml:space="preserve"><value>Add your own sound files (MP3, WAV, FLAC, OGG, M4A, WMA)</value></data>
+  <data name="SoundsPage.AddCustomSoundButton.Content" xml:space="preserve"><value>Browse for sound file...</value></data>
+  <data name="SoundsPage.CustomListPlayButton.ToolTipService.ToolTip" xml:space="preserve"><value>Play</value></data>
+  <data name="SoundsPage.CustomListDeleteButton.ToolTipService.ToolTip" xml:space="preserve"><value>Delete</value></data>
+
+  <data name="AppearancePage.TitleText.Text" xml:space="preserve"><value>Tray Icon</value></data>
+  <data name="AppearancePage.IconStyleLabel.Text" xml:space="preserve"><value>Icon Style</value></data>
+  <data name="AppearancePage.StandardLabel.Text" xml:space="preserve"><value>Standard</value></data>
+  <data name="AppearancePage.FilledCircleLabel.Text" xml:space="preserve"><value>Filled circle</value></data>
+  <data name="AppearancePage.DotLabel.Text" xml:space="preserve"><value>Dot</value></data>
+  <data name="AppearancePage.PreviewDescriptionText.Text" xml:space="preserve"><value>Preview uses the current microphone state. Muted is red, unmuted is green.</value></data>
+
+  <data name="OverlayPage.TitleText.Text" xml:space="preserve"><value>Overlay</value></data>
+  <data name="OverlayPage.OverlayEnabledToggle.Header" xml:space="preserve"><value>Enable overlay</value></data>
+  <data name="OverlayPage.OverlayEnabledToggle.OffContent" xml:space="preserve"><value>Overlay disabled</value></data>
+  <data name="OverlayPage.OverlayEnabledToggle.OnContent" xml:space="preserve"><value>Overlay enabled</value></data>
+  <data name="OverlayPage.OverlayEnabledDescriptionText.Text" xml:space="preserve"><value>Shows mute status on top of all windows</value></data>
+  <data name="OverlayPage.VisibilityModeLabel.Text" xml:space="preserve"><value>Visibility Mode</value></data>
+  <data name="OverlayPage.VisibilityAlwaysItem.Content" xml:space="preserve"><value>Always visible</value></data>
+  <data name="OverlayPage.VisibilityWhenMutedItem.Content" xml:space="preserve"><value>Visible when muted</value></data>
+  <data name="OverlayPage.VisibilityWhenUnmutedItem.Content" xml:space="preserve"><value>Visible when unmuted</value></data>
+  <data name="OverlayPage.VisibilityAfterToggleItem.Content" xml:space="preserve"><value>Show after toggle</value></data>
+  <data name="OverlayPage.ScreenLabel.Text" xml:space="preserve"><value>Screen</value></data>
+  <data name="OverlayPage.ScreenComboBox.PlaceholderText" xml:space="preserve"><value>Select screen...</value></data>
+  <data name="OverlayPage.ScreenDescriptionText.Text" xml:space="preserve"><value>Select which monitor to display the overlay on</value></data>
+  <data name="OverlayPage.OverlayButtonModeLabel.Text" xml:space="preserve"><value>Use overlay as mute button</value></data>
+  <data name="OverlayPage.OverlayButtonModeToggle.Header" xml:space="preserve"><value>Use overlay as mute button</value></data>
+  <data name="OverlayPage.OverlayButtonModeToggle.OffContent" xml:space="preserve"><value>Click-through overlay</value></data>
+  <data name="OverlayPage.OverlayButtonModeToggle.OnContent" xml:space="preserve"><value>Clickable mute toggle</value></data>
+  <data name="OverlayPage.OverlayButtonModeDescriptionText.Text" xml:space="preserve"><value>When enabled, the overlay stops being click-through, toggles the microphone on click, and can always be dragged.</value></data>
+  <data name="OverlayPage.PositionTitle.Text" xml:space="preserve"><value>Overlay Position</value></data>
+  <data name="OverlayPage.SetPositionButton.Content" xml:space="preserve"><value>Set Position</value></data>
+  <data name="OverlayPage.DonePositionButton.Content" xml:space="preserve"><value>Done</value></data>
+  <data name="OverlayPage.PositionDescriptionText.Text" xml:space="preserve"><value>Click to show overlay and drag it to desired position. The overlay will snap to center when close to the middle of the screen. Press ESC or click Done to save.</value></data>
+  <data name="OverlayPage.PreviewLabel.Text" xml:space="preserve"><value>Preview</value></data>
+  <data name="OverlayPage.PreviewOverlayButton.Content" xml:space="preserve"><value>Preview Overlay</value></data>
+  <data name="OverlayPage.AppearanceTitle.Text" xml:space="preserve"><value>Appearance</value></data>
+  <data name="OverlayPage.OverlayStyleLabel.Text" xml:space="preserve"><value>Overlay Style</value></data>
+  <data name="OverlayPage.MicIconVariantLabel.Text" xml:space="preserve"><value>Mic Icon</value></data>
+  <data name="OverlayPage.DotVariantLabel.Text" xml:space="preserve"><value>Dot</value></data>
+  <data name="OverlayPage.ShowTextToggle.Header" xml:space="preserve"><value>Show text</value></data>
+  <data name="OverlayPage.ShowTextToggle.OffContent" xml:space="preserve"><value>Icon only</value></data>
+  <data name="OverlayPage.ShowTextToggle.OnContent" xml:space="preserve"><value>Icon with text</value></data>
+  <data name="OverlayPage.IconStyleLabel.Text" xml:space="preserve"><value>Icon style</value></data>
+  <data name="OverlayPage.IconStyleColoredItem.Content" xml:space="preserve"><value>Colored (red/green)</value></data>
+  <data name="OverlayPage.IconStyleMonochromeItem.Content" xml:space="preserve"><value>Monochrome</value></data>
+  <data name="OverlayPage.BackgroundStyleLabel.Text" xml:space="preserve"><value>Background</value></data>
+  <data name="OverlayPage.BackgroundDarkItem.Content" xml:space="preserve"><value>Dark</value></data>
+  <data name="OverlayPage.BackgroundLightItem.Content" xml:space="preserve"><value>Light</value></data>
+  <data name="OverlayPage.ShowBorderToggle.Header" xml:space="preserve"><value>Overlay border</value></data>
+  <data name="OverlayPage.ShowBorderToggle.OffContent" xml:space="preserve"><value>No border</value></data>
+  <data name="OverlayPage.ShowBorderToggle.OnContent" xml:space="preserve"><value>Show border</value></data>
+
+  <data name="Common.Default" xml:space="preserve"><value>Default</value></data>
+  <data name="Sounds.DefaultFromSoundsTab" xml:space="preserve"><value>Default (from Sounds tab)</value></data>
+  <data name="Sounds.ComboSeparator" xml:space="preserve"><value>-------------</value></data>
+  <data name="Sounds.BrowseForFile" xml:space="preserve"><value>Browse for file...</value></data>
+  <data name="Sounds.CustomItem" xml:space="preserve"><value>Custom: {0}</value></data>
+  <data name="Sounds.CustomSelection" xml:space="preserve"><value>Custom: {0}</value></data>
+  <data name="Sounds.Preloaded.None" xml:space="preserve"><value>None</value></data>
+  <data name="Sounds.Preloaded.8Bit" xml:space="preserve"><value>8-Bit</value></data>
+  <data name="Sounds.Preloaded.Blob" xml:space="preserve"><value>Blob</value></data>
+  <data name="Sounds.Preloaded.Digital" xml:space="preserve"><value>Digital</value></data>
+  <data name="Sounds.Preloaded.Discord" xml:space="preserve"><value>Discord</value></data>
+  <data name="Sounds.Preloaded.Pop" xml:space="preserve"><value>Pop</value></data>
+  <data name="Sounds.Preloaded.Punchy" xml:space="preserve"><value>Punchy</value></data>
+  <data name="Sounds.Preloaded.SciFi" xml:space="preserve"><value>Sci-Fi</value></data>
+  <data name="Sounds.Preloaded.Vibrant" xml:space="preserve"><value>Vibrant</value></data>
+  <data name="Hotkeys.RecordPrompt" xml:space="preserve"><value>Press keys...</value></data>
+  <data name="Hotkeys.RecordPromptWithModifiers" xml:space="preserve"><value>{0} + ...</value></data>
+  <data name="Hotkeys.Modifier.Ctrl" xml:space="preserve"><value>Ctrl</value></data>
+  <data name="Hotkeys.Modifier.Alt" xml:space="preserve"><value>Alt</value></data>
+  <data name="Hotkeys.Modifier.Shift" xml:space="preserve"><value>Shift</value></data>
+  <data name="Hotkeys.Modifier.Win" xml:space="preserve"><value>Win</value></data>
+  <data name="Hotkeys.Key.MouseLeft" xml:space="preserve"><value>Mouse Left</value></data>
+  <data name="Hotkeys.Key.MouseRight" xml:space="preserve"><value>Mouse Right</value></data>
+  <data name="Hotkeys.Key.MouseMiddle" xml:space="preserve"><value>Mouse Middle</value></data>
+  <data name="Hotkeys.Key.Mouse4" xml:space="preserve"><value>Mouse 4</value></data>
+  <data name="Hotkeys.Key.Mouse5" xml:space="preserve"><value>Mouse 5</value></data>
+  <data name="Hotkeys.Key.Escape" xml:space="preserve"><value>Escape</value></data>
+  <data name="Hotkeys.Key.Space" xml:space="preserve"><value>Space</value></data>
+  <data name="Hotkeys.Key.Insert" xml:space="preserve"><value>Insert</value></data>
+  <data name="Hotkeys.Key.Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Hotkeys.Key.Pause" xml:space="preserve"><value>Pause</value></data>
+  <data name="Hotkeys.Key.ScrollLock" xml:space="preserve"><value>Scroll Lock</value></data>
+  <data name="Hotkeys.Key.PrintScreen" xml:space="preserve"><value>Print Screen</value></data>
+  <data name="Hotkeys.Key.NumLock" xml:space="preserve"><value>Num Lock</value></data>
+  <data name="Hotkeys.Key.NumpadMultiply" xml:space="preserve"><value>Numpad *</value></data>
+  <data name="Hotkeys.Key.NumpadPlus" xml:space="preserve"><value>Numpad +</value></data>
+  <data name="Hotkeys.Key.NumpadMinus" xml:space="preserve"><value>Numpad -</value></data>
+  <data name="Hotkeys.Key.NumpadDecimal" xml:space="preserve"><value>Numpad .</value></data>
+  <data name="Hotkeys.Key.NumpadDivide" xml:space="preserve"><value>Numpad /</value></data>
+  <data name="Hotkeys.Key.NumpadNumber" xml:space="preserve"><value>Numpad {0}</value></data>
+  <data name="Hotkeys.Key.Generic" xml:space="preserve"><value>Key {0}</value></data>
+  <data name="General.Microphone.Default" xml:space="preserve"><value>Default Microphone</value></data>
+  <data name="General.Microphone.All" xml:space="preserve"><value>All Microphones</value></data>
+  <data name="General.Microphone.NamedDefault" xml:space="preserve"><value>{0} (Default)</value></data>
+  <data name="General.MuteStatus.Muted" xml:space="preserve"><value>muted</value></data>
+  <data name="General.MuteStatus.Unmuted" xml:space="preserve"><value>unmuted</value></data>
+  <data name="General.Hotkey.Record" xml:space="preserve"><value>Record</value></data>
+  <data name="General.Hotkey.RecordCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="HoldToMute.ActionDescription.Toggle" xml:space="preserve"><value>Toggle between muted/unmuted while holding</value></data>
+  <data name="HoldToMute.ActionDescription.HoldToMute" xml:space="preserve"><value>Mute while holding (unmute on release)</value></data>
+  <data name="HoldToMute.ActionDescription.HoldToUnmute" xml:space="preserve"><value>Unmute while holding (mute on release)</value></data>
+  <data name="HoldToMute.Hotkey.Record" xml:space="preserve"><value>Record</value></data>
+  <data name="HoldToMute.Hotkey.RecordCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Update.NewVersion" xml:space="preserve"><value>New version: v{0}</value></data>
+  <data name="Update.NoInstallerAvailable" xml:space="preserve"><value>No installer available</value></data>
+  <data name="Update.NoInstallerForPlatform" xml:space="preserve"><value>No installer for your platform</value></data>
+  <data name="Update.DownloadingProgress" xml:space="preserve"><value>Downloading... {0:F0}%</value></data>
+  <data name="Update.StartingInstaller" xml:space="preserve"><value>Starting installer...</value></data>
+  <data name="Update.Error.Unknown" xml:space="preserve"><value>Unknown error</value></data>
+  <data name="Update.Error.DownloadFailed" xml:space="preserve"><value>Download failed</value></data>
+  <data name="Update.Error.GitHubApiStatus" xml:space="preserve"><value>GitHub API returned {0}</value></data>
+  <data name="Update.Error.ParseResponse" xml:space="preserve"><value>Failed to parse GitHub response</value></data>
+  <data name="Update.Error.Network" xml:space="preserve"><value>Network error: {0}</value></data>
+  <data name="Update.Error.Timeout" xml:space="preserve"><value>Request timed out</value></data>
+  <data name="Update.Error.Unexpected" xml:space="preserve"><value>Unexpected error: {0}</value></data>
+  <data name="Notification.UpdateAvailable.Title" xml:space="preserve"><value>Update Available: v{0}</value></data>
+  <data name="Notification.UpdateAvailable.Body" xml:space="preserve"><value>A new version of silence! is ready to install</value></data>
+  <data name="Notification.UpdateAvailable.Install" xml:space="preserve"><value>Install Update</value></data>
+  <data name="Notification.UpdateFailed.Title" xml:space="preserve"><value>Update Installation Failed</value></data>
+  <data name="Notification.UpdateFailed.Body" xml:space="preserve"><value>Failed to download the update</value></data>
+  <data name="Overlay.Status.Muted" xml:space="preserve"><value>Microphone is muted</value></data>
+  <data name="Overlay.Status.Unmuted" xml:space="preserve"><value>Microphone is unmuted</value></data>
+  <data name="Overlay.Duration" xml:space="preserve"><value>Duration: {0:F1}s</value></data>
+  <data name="Overlay.BackgroundOpacity" xml:space="preserve"><value>Background opacity: {0}%</value></data>
+  <data name="Overlay.ContentOpacity" xml:space="preserve"><value>Opacity: {0}%</value></data>
+  <data name="Overlay.BorderRadius" xml:space="preserve"><value>Border radius: {0}px</value></data>
+  <data name="Overlay.Scale" xml:space="preserve"><value>Size scale: {0}%</value></data>
+  <data name="Overlay.Screen.Primary" xml:space="preserve"><value>Primary Screen</value></data>
+  <data name="Overlay.Screen.Named" xml:space="preserve"><value>Screen {0}: {1} ({2}x{3})</value></data>
+  <data name="Overlay.Screen.NamedPrimary" xml:space="preserve"><value>Screen {0}: {1} ({2}x{3}) - Primary</value></data>
+  <data name="Overlay.Position.Center" xml:space="preserve"><value>Center</value></data>
+  <data name="Overlay.Position.Left" xml:space="preserve"><value>Left {0:F0}%</value></data>
+  <data name="Overlay.Position.Right" xml:space="preserve"><value>Right {0:F0}%</value></data>
+  <data name="Overlay.Position.Middle" xml:space="preserve"><value>Middle</value></data>
+  <data name="Overlay.Position.Top" xml:space="preserve"><value>Top {0:F0}%</value></data>
+  <data name="Overlay.Position.Bottom" xml:space="preserve"><value>Bottom {0:F0}%</value></data>
+  <data name="Overlay.Position.Current" xml:space="preserve"><value>Current: {0}, {1}</value></data>
+</root>

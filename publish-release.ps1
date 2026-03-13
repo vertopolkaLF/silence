@@ -20,7 +20,7 @@ $architectures = @(
 $targetFramework = "net8.0-windows10.0.19041.0"
 
 # Keep only these folders (required for WinUI to work)
-$keepFolders = @("Assets", "Microsoft.UI.Xaml", "en-us")
+$keepFolders = @("Assets", "Microsoft.UI.Xaml", "en-us", "ru-ru")
 
 function Resolve-BuildPath {
     param(

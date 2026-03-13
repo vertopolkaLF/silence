@@ -59,7 +59,7 @@ public class UpdateService : IDisposable
                 return new UpdateCheckResult
                 {
                     Success = false,
-                    ErrorMessage = $"GitHub API returned {response.StatusCode}"
+                    ErrorMessage = AppResources.Format("Update.Error.GitHubApiStatus", response.StatusCode)
                 };
             }
 
@@ -71,7 +71,7 @@ public class UpdateService : IDisposable
                 return new UpdateCheckResult
                 {
                     Success = false,
-                    ErrorMessage = "Failed to parse GitHub response"
+                    ErrorMessage = AppResources.GetString("Update.Error.ParseResponse")
                 };
             }
 
@@ -116,7 +116,7 @@ public class UpdateService : IDisposable
             return new UpdateCheckResult
             {
                 Success = false,
-                ErrorMessage = $"Network error: {ex.Message}"
+                ErrorMessage = AppResources.Format("Update.Error.Network", ex.Message)
             };
         }
         catch (TaskCanceledException)
@@ -124,7 +124,7 @@ public class UpdateService : IDisposable
             return new UpdateCheckResult
             {
                 Success = false,
-                ErrorMessage = "Request timed out"
+                ErrorMessage = AppResources.GetString("Update.Error.Timeout")
             };
         }
         catch (Exception ex)
@@ -132,7 +132,7 @@ public class UpdateService : IDisposable
             return new UpdateCheckResult
             {
                 Success = false,
-                ErrorMessage = $"Unexpected error: {ex.Message}"
+                ErrorMessage = AppResources.Format("Update.Error.Unexpected", ex.Message)
             };
         }
     }

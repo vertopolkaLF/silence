@@ -8,34 +8,34 @@
     mc:Ignorable="d"
     Background="Transparent">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" 
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="24" Margin="24,24,24,24">
-            <TextBlock Text="Overlay" FontSize="24" FontWeight="SemiBold"/>
-            
-            <!-- Enable/Disable Overlay -->
+            <TextBlock x:Name="TitleTextBlock" x:Uid="OverlayPage.TitleText" Text="Overlay" FontSize="24" FontWeight="SemiBold"/>
+
             <StackPanel Spacing="8">
                 <ToggleSwitch x:Name="OverlayEnabledToggle"
+                              x:Uid="OverlayPage.OverlayEnabledToggle"
                               Header="Enable overlay"
                               OffContent="Overlay disabled"
                               OnContent="Overlay enabled"
                               Toggled="OverlayEnabledToggle_Toggled"/>
-                <TextBlock Text="Shows mute status on top of all windows"
+                <TextBlock x:Name="OverlayEnabledDescriptionTextBlock"
+                           x:Uid="OverlayPage.OverlayEnabledDescriptionText"
+                           Text="Shows mute status on top of all windows"
                            Opacity="0.6"
                            FontSize="12"/>
             </StackPanel>
 
-            <!-- Visibility Mode -->
             <StackPanel x:Name="VisibilityModePanel" Spacing="12">
-                <TextBlock Text="Visibility Mode" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="VisibilityModeLabelText" x:Uid="OverlayPage.VisibilityModeLabel" Text="Visibility Mode" FontWeight="SemiBold" FontSize="14"/>
                 <RadioButtons x:Name="VisibilityModeSelector" SelectionChanged="VisibilityModeSelector_SelectionChanged">
-                    <RadioButton Content="Always visible" Tag="Always"/>
-                    <RadioButton Content="Visible when muted" Tag="WhenMuted" IsChecked="True"/>
-                    <RadioButton Content="Visible when unmuted" Tag="WhenUnmuted"/>
-                    <RadioButton Content="Show after toggle" Tag="AfterToggle"/>
+                    <RadioButton x:Name="VisibilityAlwaysItem" x:Uid="OverlayPage.VisibilityAlwaysItem" Content="Always visible" Tag="Always"/>
+                    <RadioButton x:Name="VisibilityWhenMutedItem" x:Uid="OverlayPage.VisibilityWhenMutedItem" Content="Visible when muted" Tag="WhenMuted" IsChecked="True"/>
+                    <RadioButton x:Name="VisibilityWhenUnmutedItem" x:Uid="OverlayPage.VisibilityWhenUnmutedItem" Content="Visible when unmuted" Tag="WhenUnmuted"/>
+                    <RadioButton x:Name="VisibilityAfterToggleItem" x:Uid="OverlayPage.VisibilityAfterToggleItem" Content="Show after toggle" Tag="AfterToggle"/>
                 </RadioButtons>
-                
-                <!-- Duration slider (only visible when AfterToggle is selected) -->
+
                 <StackPanel x:Name="DurationPanel" Spacing="8" Visibility="Collapsed" Margin="0,8,0,0">
                     <TextBlock x:Name="DurationLabel" Text="Duration: 2.0s"/>
                     <Slider x:Name="DurationSlider"
@@ -49,71 +49,81 @@
                 </StackPanel>
             </StackPanel>
 
-            
-
-            <!-- Screen Selection -->
             <StackPanel x:Name="ScreenSelectionPanel" Spacing="12">
-                <TextBlock Text="Screen" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="ScreenLabelText" x:Uid="OverlayPage.ScreenLabel" Text="Screen" FontWeight="SemiBold" FontSize="14"/>
                 <ComboBox x:Name="ScreenComboBox"
+                          x:Uid="OverlayPage.ScreenComboBox"
                           HorizontalAlignment="Stretch"
                           SelectionChanged="ScreenComboBox_SelectionChanged"
                           PlaceholderText="Select screen..."/>
-                <TextBlock Text="Select which monitor to display the overlay on"
+                <TextBlock x:Name="ScreenDescriptionTextBlock"
+                           x:Uid="OverlayPage.ScreenDescriptionText"
+                           Text="Select which monitor to display the overlay on"
                            Opacity="0.6"
                            FontSize="12"/>
             </StackPanel>
 
-            <!-- Position -->
             <StackPanel x:Name="PositionPanel" Spacing="12">
+                <TextBlock x:Name="OverlayButtonModeLabelText"
+                           Text="Use overlay as mute button"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
                 <ToggleSwitch x:Name="OverlayButtonModeToggle"
-                              Header="Use overlay as mute button"
+                              x:Uid="OverlayPage.OverlayButtonModeToggle"
                               OffContent="Click-through overlay"
                               OnContent="Clickable mute toggle"
                               Toggled="OverlayButtonModeToggle_Toggled"/>
-                <TextBlock Text="When enabled, the overlay stops being click-through, toggles the microphone on click, and can always be dragged."
+                <TextBlock x:Name="OverlayButtonModeDescriptionTextBlock"
+                           x:Uid="OverlayPage.OverlayButtonModeDescriptionText"
+                           Text="When enabled, the overlay stops being click-through, toggles the microphone on click, and can always be dragged."
                            Opacity="0.6"
                            FontSize="12"
                            TextWrapping="Wrap"/>
-                <TextBlock x:Name="CurrentPositionText" 
+                <TextBlock x:Name="PositionTitleText"
+                           Text="Overlay Position"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
+                <TextBlock x:Name="CurrentPositionText"
                            Text="Current: Center, Bottom 20%"
                            Opacity="0.6"
                            FontSize="12"/>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button x:Name="SetPositionButton"
+                            x:Uid="OverlayPage.SetPositionButton"
                             Content="Set Position"
                             Click="SetPositionButton_Click"
                             HorizontalAlignment="Left"/>
                     <Button x:Name="DonePositionButton"
+                            x:Uid="OverlayPage.DonePositionButton"
                             Content="Done"
                             Click="DonePositionButton_Click"
                             Visibility="Collapsed"
                             Style="{StaticResource AccentButtonStyle}"
                             HorizontalAlignment="Left"/>
                 </StackPanel>
-                <TextBlock Text="Click to show overlay and drag it to desired position. The overlay will snap to center when close to the middle of the screen. Press ESC or click Done to save."
+                <TextBlock x:Name="PositionDescriptionTextBlock"
+                           x:Uid="OverlayPage.PositionDescriptionText"
+                           Text="Click to show overlay and drag it to desired position. The overlay will snap to center when close to the middle of the screen. Press ESC or click Done to save."
                            Opacity="0.6"
                            FontSize="12"
                            TextWrapping="Wrap"/>
             </StackPanel>
 
-            <!-- Preview/Test -->
             <StackPanel Spacing="12">
-                <TextBlock Text="Preview" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="PreviewLabelText" x:Uid="OverlayPage.PreviewLabel" Text="Preview" FontWeight="SemiBold" FontSize="14"/>
                 <Button x:Name="PreviewOverlayButton"
+                        x:Uid="OverlayPage.PreviewOverlayButton"
                         Content="Preview Overlay"
                         Click="PreviewOverlayButton_Click"
                         HorizontalAlignment="Left"/>
             </StackPanel>
-            
-            <!-- Appearance Settings -->
+
             <StackPanel x:Name="AppearancePanel" Spacing="12">
-                <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="24"/>
-                
-                <!-- Variant Selector -->
+                <TextBlock x:Name="AppearanceTitleText" x:Uid="OverlayPage.AppearanceTitle" Text="Appearance" FontWeight="SemiBold" FontSize="24"/>
+
                 <StackPanel Spacing="12" Margin="0,12,0,0">
-                    <TextBlock Text="Overlay Style" FontWeight="SemiBold" FontSize="14"/>
+                    <TextBlock x:Name="OverlayStyleLabelText" x:Uid="OverlayPage.OverlayStyleLabel" Text="Overlay Style" FontWeight="SemiBold" FontSize="14"/>
                     <Grid ColumnSpacing="12" ColumnDefinitions="52, 52, 52, 52, 52">
-                        <!-- Mic Icon Variant -->
                         <Button x:Name="MicIconVariantButton"
                                 Grid.Column="0"
                                 Padding="0"
@@ -140,14 +150,15 @@
                                         <FontIcon Glyph="&#xE720;" FontSize="20" Foreground="#28A745"/>
                                     </Border>
                                 </Border>
-                                <TextBlock Text="Mic Icon" 
-                                           FontSize="11" 
+                                <TextBlock x:Name="MicIconVariantLabelText"
+                                           x:Uid="OverlayPage.MicIconVariantLabel"
+                                           Text="Mic Icon"
+                                           FontSize="11"
                                            HorizontalAlignment="Center"
                                            Opacity="0.8"/>
                             </StackPanel>
                         </Button>
-                        
-                        <!-- Dot Variant -->
+
                         <Button x:Name="DotVariantButton"
                                 Grid.Column="1"
                                 Padding="0"
@@ -166,21 +177,22 @@
                                         BorderThickness="1"
                                         CornerRadius="8"
                                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                                    <Ellipse Width="20" Height="20" 
+                                    <Ellipse Width="20" Height="20"
                                              Fill="#28A745"
                                              HorizontalAlignment="Center"
                                              VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock Text="Dot" 
-                                           FontSize="11" 
+                                <TextBlock x:Name="DotVariantLabelText"
+                                           x:Uid="OverlayPage.DotVariantLabel"
+                                           Text="Dot"
+                                           FontSize="11"
                                            HorizontalAlignment="Center"
                                            Opacity="0.8"/>
                             </StackPanel>
                         </Button>
                     </Grid>
                 </StackPanel>
-                
-                <!-- Scale (Universal) -->
+
                 <StackPanel Spacing="8" Margin="0,12,0,0">
                     <TextBlock x:Name="ScaleLabel" Text="Size scale: 100%"/>
                     <Slider x:Name="ScaleSlider"
@@ -192,8 +204,7 @@
                             Value="100"
                             ValueChanged="ScaleSlider_ValueChanged"/>
                 </StackPanel>
-                
-                <!-- Content Opacity (Universal) -->
+
                 <StackPanel Spacing="8" Margin="0,8,0,0">
                     <TextBlock x:Name="ContentOpacityLabel" Text="Opacity: 100%"/>
                     <Slider x:Name="ContentOpacitySlider"
@@ -205,72 +216,63 @@
                             Value="100"
                             ValueChanged="ContentOpacitySlider_ValueChanged"/>
                 </StackPanel>
-                
-                <!-- Mic Icon Specific Settings -->
+
                 <StackPanel x:Name="MicIconSettingsPanel" Spacing="12" Margin="0,12,0,0">
-                
-                <!-- Show Text -->
-                <ToggleSwitch x:Name="ShowTextToggle"
-                              Header="Show text"
-                              OffContent="Icon only"
-                              OnContent="Icon with text"
-                              Toggled="ShowTextToggle_Toggled"/>
-                
-                <!-- Icon Style -->
-                <TextBlock Text="Icon style" Margin="0,8,0,0"/>
-                <ComboBox x:Name="IconStyleComboBox"
-                          HorizontalAlignment="Stretch"
-                          SelectionChanged="IconStyleComboBox_SelectionChanged">
-                    <ComboBoxItem Content="Colored (red/green)" Tag="Colored"/>
-                    <ComboBoxItem Content="Monochrome" Tag="Monochrome"/>
-                </ComboBox>
-                
-                <!-- Background Style -->
-                <TextBlock Text="Background" Margin="0,8,0,0"/>
-                <ComboBox x:Name="BackgroundStyleComboBox"
-                          HorizontalAlignment="Stretch"
-                          SelectionChanged="BackgroundStyleComboBox_SelectionChanged">
-                    <ComboBoxItem Content="Dark" Tag="Dark"/>
-                    <ComboBoxItem Content="Light" Tag="Light"/>
-                </ComboBox>
-                
-                <!-- Background Opacity -->
-                <StackPanel Spacing="8" Margin="0,12,0,0">
-                    <TextBlock x:Name="OpacityLabel" Text="Background opacity: 90%"/>
-                    <Slider x:Name="OpacitySlider"
-                            Minimum="0"
-                            Maximum="100"
-                            StepFrequency="5"
-                            TickFrequency="10"
-                            TickPlacement="Outside"
-                            Value="90"
-                            ValueChanged="OpacitySlider_ValueChanged"/>
+                    <ToggleSwitch x:Name="ShowTextToggle"
+                                  x:Uid="OverlayPage.ShowTextToggle"
+                                  Header="Show text"
+                                  OffContent="Icon only"
+                                  OnContent="Icon with text"
+                                  Toggled="ShowTextToggle_Toggled"/>
+
+                    <TextBlock x:Name="IconStyleLabelText" x:Uid="OverlayPage.IconStyleLabel" Text="Icon style" Margin="0,8,0,0"/>
+                    <ComboBox x:Name="IconStyleComboBox"
+                              HorizontalAlignment="Stretch"
+                              SelectionChanged="IconStyleComboBox_SelectionChanged">
+                        <ComboBoxItem x:Name="IconStyleColoredItem" x:Uid="OverlayPage.IconStyleColoredItem" Content="Colored (red/green)" Tag="Colored"/>
+                        <ComboBoxItem x:Name="IconStyleMonochromeItem" x:Uid="OverlayPage.IconStyleMonochromeItem" Content="Monochrome" Tag="Monochrome"/>
+                    </ComboBox>
+
+                    <TextBlock x:Name="BackgroundStyleLabelText" x:Uid="OverlayPage.BackgroundStyleLabel" Text="Background" Margin="0,8,0,0"/>
+                    <ComboBox x:Name="BackgroundStyleComboBox"
+                              HorizontalAlignment="Stretch"
+                              SelectionChanged="BackgroundStyleComboBox_SelectionChanged">
+                        <ComboBoxItem x:Name="BackgroundDarkItem" x:Uid="OverlayPage.BackgroundDarkItem" Content="Dark" Tag="Dark"/>
+                        <ComboBoxItem x:Name="BackgroundLightItem" x:Uid="OverlayPage.BackgroundLightItem" Content="Light" Tag="Light"/>
+                    </ComboBox>
+
+                    <StackPanel Spacing="8" Margin="0,12,0,0">
+                        <TextBlock x:Name="OpacityLabel" Text="Background opacity: 90%"/>
+                        <Slider x:Name="OpacitySlider"
+                                Minimum="0"
+                                Maximum="100"
+                                StepFrequency="5"
+                                TickFrequency="10"
+                                TickPlacement="Outside"
+                                Value="90"
+                                ValueChanged="OpacitySlider_ValueChanged"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="8" Margin="0,8,0,0">
+                        <TextBlock x:Name="BorderRadiusLabel" Text="Border radius: 6px"/>
+                        <Slider x:Name="BorderRadiusSlider"
+                                Minimum="0"
+                                Maximum="24"
+                                StepFrequency="1"
+                                TickFrequency="4"
+                                TickPlacement="Outside"
+                                Value="6"
+                                ValueChanged="BorderRadiusSlider_ValueChanged"/>
+                    </StackPanel>
+
+                    <ToggleSwitch x:Name="ShowBorderToggle"
+                                  x:Uid="OverlayPage.ShowBorderToggle"
+                                  Header="Overlay border"
+                                  OffContent="No border"
+                                  OnContent="Show border"
+                                  Margin="0,8,0,0"
+                                  Toggled="ShowBorderToggle_Toggled"/>
                 </StackPanel>
-                
-                <!-- Border Radius -->
-                <StackPanel Spacing="8" Margin="0,8,0,0">
-                    <TextBlock x:Name="BorderRadiusLabel" Text="Border radius: 6px"/>
-                    <Slider x:Name="BorderRadiusSlider"
-                            Minimum="0"
-                            Maximum="24"
-                            StepFrequency="1"
-                            TickFrequency="4"
-                            TickPlacement="Outside"
-                            Value="6"
-                            ValueChanged="BorderRadiusSlider_ValueChanged"/>
-                </StackPanel>
-                
-                <!-- Show Border -->
-                <ToggleSwitch x:Name="ShowBorderToggle"
-                              Header="Overlay border"
-                              OffContent="No border"
-                              OnContent="Show border"
-                              Margin="0,8,0,0"
-                              Toggled="ShowBorderToggle_Toggled"/>
-                
-                </StackPanel>
-                <!-- End Mic Icon Specific Settings -->
-                
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

@@ -8,21 +8,20 @@
     mc:Ignorable="d"
     Background="Transparent">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" 
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="24" Margin="24,24,24,24">
-            <TextBlock Text="Sounds" FontSize="24" FontWeight="SemiBold"/>
-            
-            <!-- Enable/Disable Sounds -->
+            <TextBlock x:Name="TitleTextBlock" x:Uid="SoundsPage.TitleText" Text="Sounds" FontSize="24" FontWeight="SemiBold"/>
+
             <StackPanel Spacing="8">
                 <ToggleSwitch x:Name="SoundsEnabledToggle"
+                              x:Uid="SoundsPage.SoundsEnabledToggle"
                               Header="Enable sounds"
                               OffContent="Sounds disabled"
                               OnContent="Sounds enabled"
                               Toggled="SoundsEnabledToggle_Toggled"/>
             </StackPanel>
 
-            <!-- Volume -->
             <StackPanel x:Name="VolumePanel" Spacing="8">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -30,11 +29,11 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Volume" FontWeight="SemiBold" FontSize="14"/>
-                    <TextBlock x:Name="VolumePercentText" 
+                    <TextBlock x:Name="VolumeLabelText" x:Uid="SoundsPage.VolumeLabel" Grid.Column="0" Text="Volume" FontWeight="SemiBold" FontSize="14"/>
+                    <TextBlock x:Name="VolumePercentText"
                                Grid.Column="2"
-                               Text="50%" 
-                               Opacity="0.6" 
+                               Text="50%"
+                               Opacity="0.6"
                                FontSize="14"/>
                 </Grid>
                 <Grid ColumnSpacing="12">
@@ -55,20 +54,21 @@
                 </Grid>
             </StackPanel>
 
-            <!-- Mute Sound -->
             <StackPanel x:Name="MuteSoundPanel" Spacing="12">
-                <TextBlock Text="Mute Sound" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="MuteSoundLabelText" x:Uid="SoundsPage.MuteSoundLabel" Text="Mute Sound" FontWeight="SemiBold" FontSize="14"/>
                 <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <ComboBox x:Name="MuteSoundComboBox"
+                              x:Uid="SoundsPage.MuteSoundComboBox"
                               Grid.Column="0"
                               HorizontalAlignment="Stretch"
                               SelectionChanged="MuteSoundComboBox_SelectionChanged"
                               PlaceholderText="Select sound..."/>
                     <Button x:Name="PlayMuteSoundButton"
+                            x:Uid="SoundsPage.PlayMuteSoundButton"
                             Grid.Column="1"
                             ToolTipService.ToolTip="Play sound"
                             Click="PlayMuteSoundButton_Click"
@@ -76,8 +76,7 @@
                         <FontIcon Glyph="&#xE768;" FontSize="14"/>
                     </Button>
                 </Grid>
-                
-                <!-- Custom mute sound indicator -->
+
                 <Grid x:Name="CustomMuteSoundGrid" Visibility="Collapsed" ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -90,6 +89,7 @@
                                TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center"/>
                     <Button x:Name="RemoveMuteCustomSoundButton"
+                            x:Uid="SoundsPage.RemoveMuteCustomSoundButton"
                             Grid.Column="1"
                             ToolTipService.ToolTip="Remove custom sound"
                             Click="RemoveMuteCustomSoundButton_Click"
@@ -99,20 +99,21 @@
                 </Grid>
             </StackPanel>
 
-            <!-- Unmute Sound -->
             <StackPanel x:Name="UnmuteSoundPanel" Spacing="12">
-                <TextBlock Text="Unmute Sound" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="UnmuteSoundLabelText" x:Uid="SoundsPage.UnmuteSoundLabel" Text="Unmute Sound" FontWeight="SemiBold" FontSize="14"/>
                 <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <ComboBox x:Name="UnmuteSoundComboBox"
+                              x:Uid="SoundsPage.UnmuteSoundComboBox"
                               Grid.Column="0"
                               HorizontalAlignment="Stretch"
                               SelectionChanged="UnmuteSoundComboBox_SelectionChanged"
                               PlaceholderText="Select sound..."/>
                     <Button x:Name="PlayUnmuteSoundButton"
+                            x:Uid="SoundsPage.PlayUnmuteSoundButton"
                             Grid.Column="1"
                             ToolTipService.ToolTip="Play sound"
                             Click="PlayUnmuteSoundButton_Click"
@@ -120,8 +121,7 @@
                         <FontIcon Glyph="&#xE768;" FontSize="14"/>
                     </Button>
                 </Grid>
-                
-                <!-- Custom unmute sound indicator -->
+
                 <Grid x:Name="CustomUnmuteSoundGrid" Visibility="Collapsed" ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -134,6 +134,7 @@
                                TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center"/>
                     <Button x:Name="RemoveUnmuteCustomSoundButton"
+                            x:Uid="SoundsPage.RemoveUnmuteCustomSoundButton"
                             Grid.Column="1"
                             ToolTipService.ToolTip="Remove custom sound"
                             Click="RemoveUnmuteCustomSoundButton_Click"
@@ -143,18 +144,15 @@
                 </Grid>
             </StackPanel>
 
-            <!-- Add Custom Sound Section -->
             <StackPanel Spacing="12">
-                <TextBlock Text="Custom Sounds" FontWeight="SemiBold" FontSize="14"/>
-                <TextBlock Text="Add your own sound files (MP3, WAV, FLAC, OGG, M4A, WMA)"
-                           Opacity="0.6"
-                           FontSize="12"/>
+                <TextBlock x:Name="CustomSoundsTitleText" x:Uid="SoundsPage.CustomSoundsTitle" Text="Custom Sounds" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock x:Name="CustomSoundsDescriptionText" x:Uid="SoundsPage.CustomSoundsDescription" Text="Add your own sound files (MP3, WAV, FLAC, OGG, M4A, WMA)" Opacity="0.6" FontSize="12"/>
                 <Button x:Name="AddCustomSoundButton"
+                        x:Uid="SoundsPage.AddCustomSoundButton"
                         Content="Browse for sound file..."
                         Click="AddCustomSoundButton_Click"
                         HorizontalAlignment="Left"/>
-                
-                <!-- Custom sounds list -->
+
                 <ListView x:Name="CustomSoundsListView"
                           SelectionMode="None"
                           MaxHeight="200">
@@ -170,12 +168,14 @@
                                            Text="{Binding DisplayName}"
                                            VerticalAlignment="Center"/>
                                 <Button Grid.Column="1"
+                                        x:Uid="SoundsPage.CustomListPlayButton"
                                         ToolTipService.ToolTip="Play"
                                         Click="PlayCustomSoundButton_Click"
                                         Padding="8,4">
                                     <FontIcon Glyph="&#xE768;" FontSize="12"/>
                                 </Button>
                                 <Button Grid.Column="2"
+                                        x:Uid="SoundsPage.CustomListDeleteButton"
                                         ToolTipService.ToolTip="Delete"
                                         Click="DeleteCustomSoundButton_Click"
                                         Padding="8,4">
@@ -189,4 +189,3 @@
         </StackPanel>
     </ScrollViewer>
 </Page>
-

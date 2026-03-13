@@ -17,6 +17,7 @@ public sealed partial class OverlayPage : Page
     public OverlayPage()
     {
         InitializeComponent();
+        ApplyLocalizedStrings();
         LoadSettings();
         LoadScreens();
         _isInitializing = false;
@@ -97,7 +98,7 @@ public sealed partial class OverlayPage : Page
         
         // Set duration slider
         DurationSlider.Value = settings.OverlayShowDuration;
-        DurationLabel.Text = $"Duration: {settings.OverlayShowDuration:F1}s";
+        DurationLabel.Text = AppResources.Format("Overlay.Duration", settings.OverlayShowDuration);
         UpdateDurationPanelVisibility(settings.OverlayVisibilityMode);
         
         // Set variant
@@ -130,25 +131,68 @@ public sealed partial class OverlayPage : Page
         
         // Set opacity sliders
         OpacitySlider.Value = settings.OverlayOpacity;
-        OpacityLabel.Text = $"Background opacity: {settings.OverlayOpacity}%";
+        OpacityLabel.Text = AppResources.Format("Overlay.BackgroundOpacity", settings.OverlayOpacity);
         
         ContentOpacitySlider.Value = settings.OverlayContentOpacity;
-        ContentOpacityLabel.Text = $"Opacity: {settings.OverlayContentOpacity}%";
+        ContentOpacityLabel.Text = AppResources.Format("Overlay.ContentOpacity", settings.OverlayContentOpacity);
         
         // Set border radius
         BorderRadiusSlider.Value = settings.OverlayBorderRadius;
-        BorderRadiusLabel.Text = $"Border radius: {settings.OverlayBorderRadius}px";
+        BorderRadiusLabel.Text = AppResources.Format("Overlay.BorderRadius", settings.OverlayBorderRadius);
         
         // Set show border
         ShowBorderToggle.IsOn = settings.OverlayShowBorder;
         
         // Set scale
         ScaleSlider.Value = settings.OverlayScale;
-        ScaleLabel.Text = $"Size scale: {settings.OverlayScale}%";
+        ScaleLabel.Text = AppResources.Format("Overlay.Scale", settings.OverlayScale);
         
         OverlayButtonModeToggle.IsOn = settings.OverlayButtonMode;
 
         UpdatePositionText(settings);
+    }
+
+    private void ApplyLocalizedStrings()
+    {
+        TitleTextBlock.Text = AppResources.GetString("OverlayPage.TitleText.Text");
+        OverlayEnabledToggle.Header = AppResources.GetString("OverlayPage.OverlayEnabledToggle.Header");
+        OverlayEnabledToggle.OffContent = AppResources.GetString("OverlayPage.OverlayEnabledToggle.OffContent");
+        OverlayEnabledToggle.OnContent = AppResources.GetString("OverlayPage.OverlayEnabledToggle.OnContent");
+        OverlayEnabledDescriptionTextBlock.Text = AppResources.GetString("OverlayPage.OverlayEnabledDescriptionText.Text");
+        VisibilityModeLabelText.Text = AppResources.GetString("OverlayPage.VisibilityModeLabel.Text");
+        VisibilityAlwaysItem.Content = AppResources.GetString("OverlayPage.VisibilityAlwaysItem.Content");
+        VisibilityWhenMutedItem.Content = AppResources.GetString("OverlayPage.VisibilityWhenMutedItem.Content");
+        VisibilityWhenUnmutedItem.Content = AppResources.GetString("OverlayPage.VisibilityWhenUnmutedItem.Content");
+        VisibilityAfterToggleItem.Content = AppResources.GetString("OverlayPage.VisibilityAfterToggleItem.Content");
+        ScreenLabelText.Text = AppResources.GetString("OverlayPage.ScreenLabel.Text");
+        ScreenComboBox.PlaceholderText = AppResources.GetString("OverlayPage.ScreenComboBox.PlaceholderText");
+        ScreenDescriptionTextBlock.Text = AppResources.GetString("OverlayPage.ScreenDescriptionText.Text");
+        OverlayButtonModeLabelText.Text = AppResources.GetString("OverlayPage.OverlayButtonModeLabel.Text");
+        OverlayButtonModeToggle.OffContent = AppResources.GetString("OverlayPage.OverlayButtonModeToggle.OffContent");
+        OverlayButtonModeToggle.OnContent = AppResources.GetString("OverlayPage.OverlayButtonModeToggle.OnContent");
+        OverlayButtonModeDescriptionTextBlock.Text = AppResources.GetString("OverlayPage.OverlayButtonModeDescriptionText.Text");
+        PositionTitleText.Text = AppResources.GetString("OverlayPage.PositionTitle.Text");
+        SetPositionButton.Content = AppResources.GetString("OverlayPage.SetPositionButton.Content");
+        DonePositionButton.Content = AppResources.GetString("OverlayPage.DonePositionButton.Content");
+        PositionDescriptionTextBlock.Text = AppResources.GetString("OverlayPage.PositionDescriptionText.Text");
+        PreviewLabelText.Text = AppResources.GetString("OverlayPage.PreviewLabel.Text");
+        PreviewOverlayButton.Content = AppResources.GetString("OverlayPage.PreviewOverlayButton.Content");
+        AppearanceTitleText.Text = AppResources.GetString("OverlayPage.AppearanceTitle.Text");
+        OverlayStyleLabelText.Text = AppResources.GetString("OverlayPage.OverlayStyleLabel.Text");
+        MicIconVariantLabelText.Text = AppResources.GetString("OverlayPage.MicIconVariantLabel.Text");
+        DotVariantLabelText.Text = AppResources.GetString("OverlayPage.DotVariantLabel.Text");
+        ShowTextToggle.Header = AppResources.GetString("OverlayPage.ShowTextToggle.Header");
+        ShowTextToggle.OffContent = AppResources.GetString("OverlayPage.ShowTextToggle.OffContent");
+        ShowTextToggle.OnContent = AppResources.GetString("OverlayPage.ShowTextToggle.OnContent");
+        IconStyleLabelText.Text = AppResources.GetString("OverlayPage.IconStyleLabel.Text");
+        IconStyleColoredItem.Content = AppResources.GetString("OverlayPage.IconStyleColoredItem.Content");
+        IconStyleMonochromeItem.Content = AppResources.GetString("OverlayPage.IconStyleMonochromeItem.Content");
+        BackgroundStyleLabelText.Text = AppResources.GetString("OverlayPage.BackgroundStyleLabel.Text");
+        BackgroundDarkItem.Content = AppResources.GetString("OverlayPage.BackgroundDarkItem.Content");
+        BackgroundLightItem.Content = AppResources.GetString("OverlayPage.BackgroundLightItem.Content");
+        ShowBorderToggle.Header = AppResources.GetString("OverlayPage.ShowBorderToggle.Header");
+        ShowBorderToggle.OffContent = AppResources.GetString("OverlayPage.ShowBorderToggle.OffContent");
+        ShowBorderToggle.OnContent = AppResources.GetString("OverlayPage.ShowBorderToggle.OnContent");
     }
 
     private void LoadScreens()
@@ -157,9 +201,9 @@ public sealed partial class OverlayPage : Page
         ScreenComboBox.Items.Clear();
 
         // Add "Primary Screen" option first
-        _screens.Add(new ScreenInfo 
-        { 
-            DisplayName = "Primary Screen", 
+        _screens.Add(new ScreenInfo
+        {
+            DisplayName = AppResources.GetString("Overlay.Screen.Primary"),
             DeviceName = "PRIMARY",
             IsPrimary = true
         });
@@ -172,7 +216,12 @@ public sealed partial class OverlayPage : Page
         {
             var screenInfo = new ScreenInfo
             {
-                DisplayName = $"Screen {screenIndex}: {monitor.DeviceName} ({monitor.WorkArea.Width}x{monitor.WorkArea.Height}){(monitor.IsPrimary ? " - Primary" : "")}",
+                DisplayName = AppResources.Format(
+                    monitor.IsPrimary ? "Overlay.Screen.NamedPrimary" : "Overlay.Screen.Named",
+                    screenIndex,
+                    monitor.DeviceName,
+                    monitor.WorkArea.Width,
+                    monitor.WorkArea.Height),
                 DeviceName = monitor.DeviceName,
                 WorkArea = monitor.WorkArea,
                 IsPrimary = monitor.IsPrimary
@@ -283,32 +332,32 @@ public sealed partial class OverlayPage : Page
         // Horizontal position
         if (Math.Abs(settings.OverlayPositionX - 50) < 1)
         {
-            horizontalPos = "Center";
+            horizontalPos = AppResources.GetString("Overlay.Position.Center");
         }
         else if (settings.OverlayPositionX < 50)
         {
-            horizontalPos = $"Left {settings.OverlayPositionX:F0}%";
+            horizontalPos = AppResources.Format("Overlay.Position.Left", settings.OverlayPositionX);
         }
         else
         {
-            horizontalPos = $"Right {100 - settings.OverlayPositionX:F0}%";
+            horizontalPos = AppResources.Format("Overlay.Position.Right", 100 - settings.OverlayPositionX);
         }
 
         // Vertical position
         if (Math.Abs(settings.OverlayPositionY - 50) < 1)
         {
-            verticalPos = "Middle";
+            verticalPos = AppResources.GetString("Overlay.Position.Middle");
         }
         else if (settings.OverlayPositionY < 50)
         {
-            verticalPos = $"Top {settings.OverlayPositionY:F0}%";
+            verticalPos = AppResources.Format("Overlay.Position.Top", settings.OverlayPositionY);
         }
         else
         {
-            verticalPos = $"Bottom {100 - settings.OverlayPositionY:F0}%";
+            verticalPos = AppResources.Format("Overlay.Position.Bottom", 100 - settings.OverlayPositionY);
         }
 
-        CurrentPositionText.Text = $"Current: {horizontalPos}, {verticalPos}";
+        CurrentPositionText.Text = AppResources.Format("Overlay.Position.Current", horizontalPos, verticalPos);
     }
 
     private void UpdatePanelsEnabled(bool enabled)
@@ -358,7 +407,7 @@ public sealed partial class OverlayPage : Page
         if (_isInitializing) return;
         
         var duration = Math.Round(e.NewValue, 1);
-        DurationLabel.Text = $"Duration: {duration:F1}s";
+        DurationLabel.Text = AppResources.Format("Overlay.Duration", duration);
         App.Instance?.SettingsService.UpdateOverlayShowDuration(duration);
     }
     
@@ -399,7 +448,7 @@ public sealed partial class OverlayPage : Page
         if (_isInitializing) return;
         
         var opacity = (int)e.NewValue;
-        OpacityLabel.Text = $"Background opacity: {opacity}%";
+        OpacityLabel.Text = AppResources.Format("Overlay.BackgroundOpacity", opacity);
         App.Instance?.SettingsService.UpdateOverlayOpacity(opacity);
         App.Instance?.ApplyOverlaySettings();
     }
@@ -409,7 +458,7 @@ public sealed partial class OverlayPage : Page
         if (_isInitializing) return;
         
         var opacity = (int)e.NewValue;
-        ContentOpacityLabel.Text = $"Opacity: {opacity}%";
+        ContentOpacityLabel.Text = AppResources.Format("Overlay.ContentOpacity", opacity);
         App.Instance?.SettingsService.UpdateOverlayContentOpacity(opacity);
         App.Instance?.ApplyOverlaySettings();
     }
@@ -419,7 +468,7 @@ public sealed partial class OverlayPage : Page
         if (_isInitializing) return;
         
         var radius = (int)e.NewValue;
-        BorderRadiusLabel.Text = $"Border radius: {radius}px";
+        BorderRadiusLabel.Text = AppResources.Format("Overlay.BorderRadius", radius);
         App.Instance?.SettingsService.UpdateOverlayBorderRadius(radius);
         App.Instance?.ApplyOverlaySettings();
     }
@@ -437,7 +486,7 @@ public sealed partial class OverlayPage : Page
         if (_isInitializing) return;
         
         var scale = (int)e.NewValue;
-        ScaleLabel.Text = $"Size scale: {scale}%";
+        ScaleLabel.Text = AppResources.Format("Overlay.Scale", scale);
         App.Instance?.SettingsService.UpdateOverlayScale(scale);
         App.Instance?.ApplyOverlaySettings();
     }
@@ -499,6 +548,16 @@ public sealed partial class OverlayPage : Page
         // Also reset button visibility
         SetPositionButton.Visibility = Visibility.Visible;
         DonePositionButton.Visibility = Visibility.Collapsed;
+    }
+
+    protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+
+        if (App.Instance != null)
+        {
+            App.Instance.OverlayPositioningStopped -= OnOverlayPositioningStopped;
+        }
     }
 }
 

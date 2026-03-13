@@ -71,12 +71,12 @@ public class NotificationService : IDisposable
             var toastXml = $@"<toast launch=""action=openAbout"">
     <visual>
         <binding template=""ToastGeneric"">
-            <text>Update Available: v{version}</text>
-            <text>A new version of silence! is ready to install</text>
+            <text>{System.Security.SecurityElement.Escape(AppResources.Format("Notification.UpdateAvailable.Title", version))}</text>
+            <text>{System.Security.SecurityElement.Escape(AppResources.GetString("Notification.UpdateAvailable.Body"))}</text>
         </binding>
     </visual>
     <actions>
-        <action content=""Install Update"" arguments=""action=installUpdate;downloadUrl={downloadUrl};fileName={fileName}"" />
+        <action content=""{System.Security.SecurityElement.Escape(AppResources.GetString("Notification.UpdateAvailable.Install"))}"" arguments=""action=installUpdate;downloadUrl={downloadUrl};fileName={fileName}"" />
     </actions>
 </toast>";
 
@@ -189,8 +189,8 @@ public class NotificationService : IDisposable
 <toast>
     <visual>
         <binding template=""ToastGeneric"">
-            <text>Update Installation Failed</text>
-            <text>" + (result.ErrorMessage ?? "Failed to download the update") + @"</text>
+            <text>" + System.Security.SecurityElement.Escape(AppResources.GetString("Notification.UpdateFailed.Title")) + @"</text>
+            <text>" + System.Security.SecurityElement.Escape(result.ErrorMessage ?? AppResources.GetString("Notification.UpdateFailed.Body")) + @"</text>
         </binding>
     </visual>
 </toast>";
