@@ -17,8 +17,79 @@ $architectures = @(
     @{ rid = "win-arm64"; platform = "ARM64" }
 )
 
+$targetFramework = "net8.0-windows10.0.19041.0"
+
 # Keep only these folders (required for WinUI to work)
 $keepFolders = @("Assets", "Microsoft.UI.Xaml", "en-us")
+
+function Resolve-BuildPath {
+    param(
+        [string]$Platform,
+        [string]$Rid
+    )
+
+    $candidates = @(
+        "bin\$Platform\Release\$targetFramework\$Rid",
+        "bin\Release\$targetFramework\$Rid",
+        "bin\$Platform\Release\$targetFramework",
+        "bin\Release\$targetFramework"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    $resolved = Get-ChildItem "bin" -Directory -Recurse -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.FullName -like "*\$targetFramework\*" -and
+            ($_.FullName -like "*\$Rid*" -or $_.FullName -like "*\$Platform*")
+        } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
+
+    if ($resolved) {
+        return $resolved.FullName
+    }
+
+    return $null
+}
+
+function Resolve-PublishPath {
+    param(
+        [string]$Platform,
+        [string]$Rid
+    )
+
+    $candidates = @(
+        "bin\Release\$targetFramework\$Rid\publish",
+        "bin\$Platform\Release\$targetFramework\$Rid\publish",
+        "bin\Release\$targetFramework\publish",
+        "bin\$Platform\Release\$targetFramework\publish"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    $resolved = Get-ChildItem "bin" -Directory -Recurse -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -eq "publish" -and
+            $_.FullName -like "*\$targetFramework\*" -and
+            ($_.FullName -like "*\$Rid*" -or $_.FullName -like "*\$Platform*")
+        } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
+
+    if ($resolved) {
+        return $resolved.FullName
+    }
+
+    return $null
+}
 
 Write-Host "Building silence! v$version for all architectures..." -ForegroundColor Cyan
 Write-Host "Architectures: x64, x86, ARM64" -ForegroundColor Cyan
@@ -45,14 +116,22 @@ foreach ($arch in $architectures) {
     dotnet publish -c Release -r $rid --self-contained true -p:Platform=$platform -p:PublishReadyToRun=true | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
-        $buildPath = "bin\$platform\Release\net8.0-windows10.0.19041.0\$rid"
-        $publishPath = "bin\Release\net8.0-windows10.0.19041.0\$rid\publish"
+        $buildPath = Resolve-BuildPath -Platform $platform -Rid $rid
+        $publishPath = Resolve-PublishPath -Platform $platform -Rid $rid
         $releasePath = "releases\silence-v$version-$rid"
+
+        if (-not $publishPath) {
+            Write-Host "  FAILED - Publish output folder not found for $rid" -ForegroundColor Red
+            $results += @{ arch = $rid; folder = 0; zip = 0; status = "FAILED" }
+            continue
+        }
         
         # Copy missing WinUI resources from build to publish (.xbf and .pri files)
         Write-Host "  Copying WinUI resources..." -ForegroundColor Gray
-        Copy-Item "$buildPath\*.xbf" -Destination $publishPath -Force -ErrorAction SilentlyContinue
-        Copy-Item "$buildPath\*.pri" -Destination $publishPath -Force -ErrorAction SilentlyContinue
+        if ($buildPath) {
+            Copy-Item (Join-Path $buildPath "*.xbf") -Destination $publishPath -Force -ErrorAction SilentlyContinue
+            Copy-Item (Join-Path $buildPath "*.pri") -Destination $publishPath -Force -ErrorAction SilentlyContinue
+        }
         
         # Remove unnecessary localization folders from publish
         Write-Host "  Removing localization folders..." -ForegroundColor Gray
