@@ -94,7 +94,7 @@ jobs:
       - name: Report published release
         shell: pwsh
         run: |
-          Write-Host "Published release ${{ needs.precheck.outputs.release_tag }} already exists. Skipping build/installers/github release/chocolatey." -ForegroundColor Yellow
+          Write-Host "Published release ${{ needs.precheck.outputs.release_tag }} already exists. Skipping build/installers/github release and reusing the published installers for Chocolatey." -ForegroundColor Yellow
 
   build:
     needs: precheck
@@ -222,18 +222,38 @@ jobs:
       - build
       - installers
       - github_release
-    if: needs.precheck.outputs.release_published != 'true'
+    if: always() && needs.precheck.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.installers.result == 'success' || needs.installers.result == 'skipped') && (needs.github_release.result == 'success' || needs.github_release.result == 'skipped')
     runs-on: windows-2022
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Download installer assets
+      - name: Download installer artifacts
+        if: needs.precheck.outputs.release_published != 'true'
         uses: actions/download-artifact@v4
         with:
           name: installer-assets-v${{ needs.precheck.outputs.version }}
           path: releases
+
+      - name: Ensure GitHub CLI
+        if: needs.precheck.outputs.release_published == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+            choco install gh --no-progress -y
+          }
+
+      - name: Download installers from published GitHub release
+        if: needs.precheck.outputs.release_published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ needs.precheck.outputs.release_tag }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path releases -Force | Out-Null
+          gh release download $env:TAG_NAME --dir releases --pattern "silence-v${{ needs.precheck.outputs.version }}-x86-setup.exe"
+          gh release download $env:TAG_NAME --dir releases --pattern "silence-v${{ needs.precheck.outputs.version }}-x64-setup.exe"
 
       - name: Build Chocolatey package
         shell: pwsh
