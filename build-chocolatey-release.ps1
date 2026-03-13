@@ -158,12 +158,16 @@ try {
         throw "Failed to build Chocolatey package."
     }
 
-    $packageName = "silence.$packageVersion.nupkg"
-    $packageFile = Join-Path $packageWorkDir $packageName
-    Require-File -Path $packageFile -Description "Chocolatey package"
+    $packageFile = Get-ChildItem -Path $packageWorkDir -Filter "silence*.nupkg" -File |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
 
-    $finalPackage = Join-Path $outputPath $packageName
-    Copy-Item $packageFile $finalPackage -Force
+    if (-not $packageFile) {
+        throw "Chocolatey package not found in $packageWorkDir"
+    }
+
+    $finalPackage = Join-Path $outputPath $packageFile.Name
+    Copy-Item $packageFile.FullName $finalPackage -Force
 
     Write-Host ""
     Write-Host "Package created: $finalPackage" -ForegroundColor Green
