@@ -1,29 +1,96 @@
 # silence! Chocolatey Package Builder
-# Creates a Chocolatey package from a GitHub release
-# Requires: choco CLI
+# Builds a Chocolatey package from local installer files.
 
 param(
-    [string]$Version,        # Version to package (e.g., "1.4")
-    [switch]$SkipPush,       # Skip pushing to Chocolatey.org
-    [switch]$TestInstall     # Test install locally after building
+    [string]$Version,
+    [string]$InstallerX86Path,
+    [string]$InstallerX64Path,
+    [string]$Repository = "vertopolkaLF/silence",
+    [string]$ReleaseTag,
+    [string]$OutputDir = "releases",
+    [switch]$Push,
+    [string]$ApiKey,
+    [switch]$TestInstall
 )
 
 $ErrorActionPreference = "Stop"
 
-# ============================================
-# Version Detection
-# ============================================
-if (-not $Version) {
-    $csprojPath = "Silence!.csproj"
-    if (Test-Path $csprojPath) {
-        [xml]$csproj = Get-Content $csprojPath
-        $Version = $csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
-        if (-not $Version) { $Version = "1.0" }
-    } else {
-        Write-Host "ERROR: Could not detect version. Specify with -Version parameter." -ForegroundColor Red
-        exit 1
+function Get-ProjectVersion {
+    $csprojPath = Join-Path $PSScriptRoot "Silence!.csproj"
+
+    if (-not (Test-Path $csprojPath)) {
+        throw "Could not detect version. Specify -Version explicitly."
+    }
+
+    [xml]$csproj = Get-Content $csprojPath
+    $detectedVersion = $csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+
+    if (-not $detectedVersion) {
+        throw "Version not found in Silence!.csproj."
+    }
+
+    return $detectedVersion
+}
+
+function Convert-ToPackageVersion {
+    param(
+        [Parameter(Mandatory)]
+        [string]$SemanticVersion
+    )
+
+    $versionParts = $SemanticVersion.Split(".")
+
+    switch ($versionParts.Count) {
+        1 { return "$SemanticVersion.0.0.0" }
+        2 { return "$SemanticVersion.0.0" }
+        3 { return "$SemanticVersion.0" }
+        default { return $SemanticVersion }
     }
 }
+
+function Require-File {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [Parameter(Mandatory)]
+        [string]$Description
+    )
+
+    if (-not (Test-Path $Path)) {
+        throw "$Description not found: $Path"
+    }
+}
+
+if (-not $Version) {
+    $Version = Get-ProjectVersion
+}
+
+if (-not $ReleaseTag) {
+    $ReleaseTag = "v$Version"
+}
+
+if (-not $InstallerX86Path) {
+    $InstallerX86Path = Join-Path $PSScriptRoot "releases\silence-v$Version-x86-setup.exe"
+}
+
+if (-not $InstallerX64Path) {
+    $InstallerX64Path = Join-Path $PSScriptRoot "releases\silence-v$Version-x64-setup.exe"
+}
+
+Require-File -Path $InstallerX86Path -Description "x86 installer"
+Require-File -Path $InstallerX64Path -Description "x64 installer"
+
+$packageVersion = Convert-ToPackageVersion -SemanticVersion $Version
+$releaseBaseUrl = "https://github.com/$Repository/releases/download/$ReleaseTag"
+$releasePageUrl = "https://github.com/$Repository/releases/tag/$ReleaseTag"
+
+$outputPath = if ([System.IO.Path]::IsPathRooted($OutputDir)) {
+    $OutputDir
+} else {
+    Join-Path $PSScriptRoot $OutputDir
+}
+
+New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
 
 Write-Host ""
 Write-Host "=======================================================" -ForegroundColor Magenta
@@ -31,196 +98,96 @@ Write-Host "    silence! Chocolatey Package Builder v$Version" -ForegroundColor 
 Write-Host "=======================================================" -ForegroundColor Magenta
 Write-Host ""
 
-# Check if choco is installed
 $chocoExists = Get-Command choco -ErrorAction SilentlyContinue
 if (-not $chocoExists) {
-    Write-Host "ERROR: Chocolatey CLI (choco) not found!" -ForegroundColor Red
-    Write-Host "Install from: https://chocolatey.org/install" -ForegroundColor Yellow
-    exit 1
+    throw "Chocolatey CLI (choco) not found."
 }
 
-# Navigate to Chocolatey folder
-$chocoDir = Join-Path $PSScriptRoot "Chocolatey"
-if (-not (Test-Path $chocoDir)) {
-    Write-Host "ERROR: Chocolatey folder not found at $chocoDir" -ForegroundColor Red
-    exit 1
-}
+$checksum32 = (Get-FileHash -Algorithm SHA256 $InstallerX86Path).Hash
+$checksum64 = (Get-FileHash -Algorithm SHA256 $InstallerX64Path).Hash
 
-Push-Location $chocoDir
+Write-Host "x86 installer: $InstallerX86Path" -ForegroundColor Cyan
+Write-Host "x64 installer: $InstallerX64Path" -ForegroundColor Cyan
+Write-Host "x86 SHA256: $checksum32" -ForegroundColor Green
+Write-Host "x64 SHA256: $checksum64" -ForegroundColor Green
+Write-Host ""
+
+$templateDir = Join-Path $PSScriptRoot "Chocolatey"
+Require-File -Path $templateDir -Description "Chocolatey template directory"
+
+$packageWorkDir = Join-Path $env:TEMP ("silence-choco-" + [guid]::NewGuid().ToString("N"))
+Copy-Item $templateDir $packageWorkDir -Recurse -Force
+Get-ChildItem $packageWorkDir -Filter *.nupkg -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
+$installScriptPath = Join-Path $packageWorkDir "tools\chocolateyinstall.ps1"
+$verificationPath = Join-Path $packageWorkDir "tools\VERIFICATION.txt"
+$nuspecPath = Join-Path $packageWorkDir "silence!.nuspec"
+
+$replacements = @{
+    "__URL32__"      = "$releaseBaseUrl/silence-v$Version-x86-setup.exe"
+    "__URL64__"      = "$releaseBaseUrl/silence-v$Version-x64-setup.exe"
+    "__CHECKSUM32__" = $checksum32
+    "__CHECKSUM64__" = $checksum64
+    "__VERSION__"    = $Version
+}
 
 try {
-    # ============================================
-    # Step 1: Download installers and get checksums
-    # ============================================
-    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "  STEP 1: Downloading installers for checksum" -ForegroundColor Cyan
-    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host ""
-    
-    $baseUrl = "https://github.com/vertopolkaLF/silence/releases/download/v$Version"
-    $tempX86 = Join-Path $env:TEMP "silence-v$Version-x86-temp.exe"
-    $tempX64 = Join-Path $env:TEMP "silence-v$Version-x64-temp.exe"
-    
-    try {
-        Write-Host "  Downloading x86 installer..." -ForegroundColor Gray
-        Invoke-WebRequest -Uri "$baseUrl/silence-v$Version-x86-setup.exe" -OutFile $tempX86 -UseBasicParsing
-        
-        Write-Host "  Downloading x64 installer..." -ForegroundColor Gray
-        Invoke-WebRequest -Uri "$baseUrl/silence-v$Version-x64-setup.exe" -OutFile $tempX64 -UseBasicParsing
-        
-        Write-Host ""
-        Write-Host "  Calculating checksums..." -ForegroundColor Yellow
-        $checksum32 = (Get-FileHash -Algorithm SHA256 $tempX86).Hash
-        $checksum64 = (Get-FileHash -Algorithm SHA256 $tempX64).Hash
-        
-        Write-Host "  x86 SHA256: $checksum32" -ForegroundColor Green
-        Write-Host "  x64 SHA256: $checksum64" -ForegroundColor Green
-        Write-Host ""
-        
-        Remove-Item $tempX86, $tempX64 -ErrorAction SilentlyContinue
-        
-    } catch {
-        Write-Host "ERROR: Failed to download installers from GitHub!" -ForegroundColor Red
-        Write-Host "Make sure release v$Version exists and is published." -ForegroundColor Yellow
-        Write-Host "URL: https://github.com/vertopolkaLF/silence/releases/tag/v$Version" -ForegroundColor Yellow
-        exit 1
-    }
-    
-    # ============================================
-    # Step 2: Update chocolateyinstall.ps1
-    # ============================================
-    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "  STEP 2: Updating chocolateyinstall.ps1" -ForegroundColor Cyan
-    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host ""
-    
-    $installScriptPath = "tools\chocolateyinstall.ps1"
-    if (-not (Test-Path $installScriptPath)) {
-        Write-Host "ERROR: $installScriptPath not found!" -ForegroundColor Red
-        exit 1
-    }
-    
     $installScript = Get-Content $installScriptPath -Raw
-    $installScript = $installScript -replace "checksum\s*=\s*'[^']*'", "checksum      = '$checksum32'"
-    $installScript = $installScript -replace "checksum64\s*=\s*'[^']*'", "checksum64    = '$checksum64'"
-    $installScript = $installScript -replace "v[\d\.]+/", "v$Version/"
-    Set-Content $installScriptPath -Value $installScript -NoNewline
-    
-    Write-Host "  Updated checksums and version URLs" -ForegroundColor Green
-    Write-Host ""
-    
-    # ============================================
-    # Step 3: Update nuspec
-    # ============================================
-    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "  STEP 3: Updating nuspec file" -ForegroundColor Cyan
-    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host ""
-    
-    $nuspecPath = "silence!.nuspec"
-    if (-not (Test-Path $nuspecPath)) {
-        Write-Host "ERROR: $nuspecPath not found!" -ForegroundColor Red
-        exit 1
+    foreach ($token in $replacements.Keys) {
+        $installScript = $installScript.Replace($token, $replacements[$token])
     }
-    
-    $nuspec = [xml](Get-Content $nuspecPath)
-    $nuspec.package.metadata.version = "$Version"
-    $nuspec.package.metadata.releaseNotes = "https://github.com/vertopolkaLF/silence/releases/tag/v$Version"
-    $nuspec.Save((Resolve-Path $nuspecPath))
-    
-    Write-Host "  Updated version to $Version" -ForegroundColor Green
-    Write-Host "  Updated release notes URL" -ForegroundColor Green
-    Write-Host ""
-    
-    # ============================================
-    # Step 4: Build package
-    # ============================================
-    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "  STEP 4: Building Chocolatey package" -ForegroundColor Cyan
-    Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host ""
-    
-    & choco pack
-    
+    Set-Content -Path $installScriptPath -Value $installScript -NoNewline
+
+    if (Test-Path $verificationPath) {
+        $verification = Get-Content $verificationPath -Raw
+        foreach ($token in $replacements.Keys) {
+            $verification = $verification.Replace($token, $replacements[$token])
+        }
+        Set-Content -Path $verificationPath -Value $verification -NoNewline
+    }
+
+    [xml]$nuspec = Get-Content $nuspecPath
+    $nuspec.package.metadata.version = $packageVersion
+    $nuspec.package.metadata.releaseNotes = $releasePageUrl
+    $nuspec.Save($nuspecPath)
+
+    Push-Location $packageWorkDir
+
+    & choco pack ".\silence!.nuspec"
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Failed to build Chocolatey package!" -ForegroundColor Red
-        exit 1
+        throw "Failed to build Chocolatey package."
     }
-    
-    $packageFile = "silence.$Version.nupkg"
-    if (-not (Test-Path $packageFile)) {
-        Write-Host "ERROR: Package file not created: $packageFile" -ForegroundColor Red
-        exit 1
-    }
-    
-    $packageSize = [math]::Round((Get-Item $packageFile).Length / 1KB, 2)
+
+    $packageName = "silence.$packageVersion.nupkg"
+    $packageFile = Join-Path $packageWorkDir $packageName
+    Require-File -Path $packageFile -Description "Chocolatey package"
+
+    $finalPackage = Join-Path $outputPath $packageName
+    Copy-Item $packageFile $finalPackage -Force
+
     Write-Host ""
-    Write-Host "  Package created: $packageFile ($packageSize KB)" -ForegroundColor Green
-    Write-Host ""
-    
-    # ============================================
-    # Step 5: Test install (optional)
-    # ============================================
+    Write-Host "Package created: $finalPackage" -ForegroundColor Green
+
     if ($TestInstall) {
-        Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host "  STEP 5: Testing local installation" -ForegroundColor Cyan
-        Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host ""
-        
-        Write-Host "  Installing silence from local package..." -ForegroundColor Yellow
-        & choco install silence -s . -y
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host ""
-            Write-Host "  Test installation successful!" -ForegroundColor Green
-            Write-Host "  To uninstall: choco uninstall silence -y" -ForegroundColor Cyan
-            Write-Host ""
-        } else {
-            Write-Host "  Test installation failed!" -ForegroundColor Red
+        & choco install silence -s $packageWorkDir -y
+        if ($LASTEXITCODE -ne 0) {
+            throw "Test installation failed."
         }
     }
-    
-    # ============================================
-    # Step 6: Push to Chocolatey.org (optional)
-    # ============================================
-    if (-not $SkipPush) {
-        Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host "  STEP 6: Pushing to Chocolatey.org" -ForegroundColor Cyan
-        Write-Host "-------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host ""
-        
-        Write-Host "  Pushing $packageFile to Chocolatey.org..." -ForegroundColor Yellow
-        & choco push $packageFile --source https://push.chocolatey.org/
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host ""
-            Write-Host "=======================================================" -ForegroundColor Green
-            Write-Host "  SUCCESS! Package pushed to Chocolatey.org" -ForegroundColor Green
-            Write-Host "=======================================================" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "  Package will be available after moderation at:" -ForegroundColor Cyan
-            Write-Host "  https://community.chocolatey.org/packages/silence" -ForegroundColor White
-            Write-Host ""
-        } else {
-            Write-Host ""
-            Write-Host "ERROR: Failed to push package!" -ForegroundColor Red
-            Write-Host "Make sure you're authenticated with Chocolatey.org" -ForegroundColor Yellow
-            Write-Host "Set API key: choco apikey --key YOUR_KEY --source https://push.chocolatey.org/" -ForegroundColor Yellow
-            exit 1
+
+    if ($Push) {
+        if (-not $ApiKey) {
+            throw "Chocolatey API key is required when -Push is used."
         }
-    } else {
-        Write-Host ""
-        Write-Host "=======================================================" -ForegroundColor Green
-        Write-Host "  SUCCESS! Package built: $packageFile" -ForegroundColor Green
-        Write-Host "=======================================================" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "Next steps:" -ForegroundColor Cyan
-        Write-Host "  Test locally:  choco install silence -s . -y" -ForegroundColor White
-        Write-Host "  Uninstall:     choco uninstall silence -y" -ForegroundColor White
-        Write-Host "  Push to repo:  choco push $packageFile --source https://push.chocolatey.org/" -ForegroundColor White
-        Write-Host ""
+
+        & choco push $finalPackage --source https://push.chocolatey.org/ --api-key $ApiKey
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to push Chocolatey package."
+        }
+
+        Write-Host "Chocolatey package pushed successfully." -ForegroundColor Green
     }
-    
 } finally {
-    Pop-Location
+    Pop-Location -ErrorAction SilentlyContinue
+    Remove-Item $packageWorkDir -Recurse -Force -ErrorAction SilentlyContinue
 }

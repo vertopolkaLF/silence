@@ -1,0 +1,15 @@
+VERIFICATION
+Verification is intended to assist the Chocolatey moderators and community
+in verifying that this package's contents are trustworthy.
+
+Files
+- x86 installer: __URL32__
+- x64 installer: __URL64__
+
+Checksums
+- checksum type: SHA256
+- x86: __CHECKSUM32__
+- x64: __CHECKSUM64__
+
+Release
+- version: __VERSION__
