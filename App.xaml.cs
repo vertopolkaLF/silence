@@ -661,7 +661,7 @@ namespace silence_
                 return;
             }
 
-            if (!dispatcher.TryEnqueue(action))
+            if (!dispatcher.TryEnqueue(() => action()))
             {
                 System.Diagnostics.Debug.WriteLine("App: failed to marshal overlay action to UI thread.");
             }

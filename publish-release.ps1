@@ -91,6 +91,33 @@ function Resolve-PublishPath {
     return $null
 }
 
+function Invoke-WithRetry {
+    param(
+        [scriptblock]$Operation,
+        [string]$Description,
+        [int]$MaxAttempts = 5,
+        [int]$DelaySeconds = 2
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            & $Operation
+            return $true
+        }
+        catch {
+            if ($attempt -eq $MaxAttempts) {
+                Write-Host "  $Description failed after $MaxAttempts attempts: $($_.Exception.Message)" -ForegroundColor Red
+                return $false
+            }
+
+            Write-Host "  $Description failed on attempt ${attempt}/${MaxAttempts}: $($_.Exception.Message). Retrying..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+
+    return $false
+}
+
 Write-Host "Building silence! v$version for all architectures..." -ForegroundColor Cyan
 Write-Host "Architectures: x64, x86, ARM64" -ForegroundColor Cyan
 
@@ -113,7 +140,7 @@ foreach ($arch in $architectures) {
     Write-Host "Publishing $rid..." -ForegroundColor Yellow
     Write-Host "========================================" -ForegroundColor Cyan
     
-    dotnet publish -c Release -r $rid --self-contained true -p:Platform=$platform -p:PublishReadyToRun=true | Out-Null
+    $publishOutput = & dotnet publish -c Release -r $rid --self-contained true -p:Platform=$platform -p:PublishReadyToRun=true 2>&1
     
     if ($LASTEXITCODE -eq 0) {
         $buildPath = Resolve-BuildPath -Platform $platform -Rid $rid
@@ -145,12 +172,23 @@ foreach ($arch in $architectures) {
         # Copy published files (including subdirectories)
         Copy-Item "$publishPath\*" -Destination $releasePath -Recurse -Force
         
-        # Create ZIP archive
         $zipName = "silence-v$version-$rid.zip"
-        Compress-Archive -Path "$releasePath\*" -DestinationPath "releases\$zipName" -Force
-        
+        $zipPath = "releases\$zipName"
+        $archiveCreated = Invoke-WithRetry -Description "Creating ZIP archive for $rid" -Operation {
+            if (Test-Path $zipPath) {
+                Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            }
+
+            Compress-Archive -Path "$releasePath\*" -DestinationPath $zipPath -Force -ErrorAction Stop
+        }
+
+        if (-not $archiveCreated -or -not (Test-Path $zipPath)) {
+            $results += @{ arch = $rid; folder = 0; zip = 0; status = "FAILED" }
+            continue
+        }
+
         # Get sizes
-        $zipSize = [math]::Round((Get-Item "releases\$zipName").Length / 1MB, 2)
+        $zipSize = [math]::Round((Get-Item $zipPath).Length / 1MB, 2)
         $folderSize = [math]::Round((Get-ChildItem $releasePath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 2)
         
         Write-Host "  OK - $folderSize MB (ZIP: $zipSize MB)" -ForegroundColor Green
@@ -158,6 +196,7 @@ foreach ($arch in $architectures) {
         $successCount++
     } else {
         Write-Host "  FAILED!" -ForegroundColor Red
+        $publishOutput | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
         $results += @{ arch = $rid; folder = 0; zip = 0; status = "FAILED" }
     }
 }
