@@ -187,38 +187,51 @@ public class MicrophoneService : IDisposable
     /// <summary>
     /// Sets mute state directly
     /// </summary>
-    public void SetMute(bool muted)
+    public bool? SetMute(bool muted)
     {
         if (_muteAllMicrophones)
         {
-            SetMuteAllMicrophones(muted);
-            return;
+            return SetMuteAllMicrophones(muted);
         }
 
         var device = GetActiveDevice();
-        if (device == null) return;
+        if (device == null) return null;
 
         try
         {
+            if (device.AudioEndpointVolume.Mute == muted)
+            {
+                return muted;
+            }
+
             device.AudioEndpointVolume.Mute = muted;
             MuteStateChanged?.Invoke(muted);
+            return muted;
         }
         catch
         {
-            // Whatever
+            return null;
         }
     }
 
     /// <summary>
     /// Sets mute state for all microphones
     /// </summary>
-    private void SetMuteAllMicrophones(bool muted)
+    private bool? SetMuteAllMicrophones(bool muted)
     {
-        if (_deviceEnumerator == null) return;
+        if (_deviceEnumerator == null) return null;
 
         try
         {
             var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            if (devices.Count == 0) return null;
+
+            var currentState = devices[0].AudioEndpointVolume.Mute;
+            if (currentState == muted)
+            {
+                return muted;
+            }
+
             foreach (var device in devices)
             {
                 try
@@ -232,10 +245,11 @@ public class MicrophoneService : IDisposable
             }
 
             MuteStateChanged?.Invoke(muted);
+            return muted;
         }
         catch
         {
-            // Whatever
+            return null;
         }
     }
 

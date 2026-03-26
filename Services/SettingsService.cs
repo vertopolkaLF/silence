@@ -1,6 +1,8 @@
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 namespace silence_.Services;
@@ -26,6 +28,7 @@ public class SettingsService
         _settingsPath = Path.Combine(appDataPath, "settings.json");
         
         _settings = LoadSettings();
+        EnsureHotkeyBindingsInitialized();
     }
 
     public AppSettings Settings => _settings;
@@ -107,11 +110,81 @@ public class SettingsService
         }
     }
 
+    public IReadOnlyList<HotkeyBindingSettings> GetHotkeyBindings()
+    {
+        EnsureHotkeyBindingsInitialized();
+        return _settings.HotkeyBindings!
+            .Select(binding => binding.Clone())
+            .ToList();
+    }
+
+    public IReadOnlyList<HotkeyBindingSettings> GetHotkeyBindings(string action)
+    {
+        EnsureHotkeyBindingsInitialized();
+        return _settings.HotkeyBindings!
+            .Where(binding => string.Equals(binding.Action, action, StringComparison.OrdinalIgnoreCase))
+            .Select(binding => binding.Clone())
+            .ToList();
+    }
+
+    public HotkeyBindingSettings GetHotkeyBinding(string action)
+    {
+        EnsureHotkeyBindingsInitialized();
+        return GetOrCreateHotkeyBinding(action).Clone();
+    }
+
+    public HotkeyBindingSettings AddHotkeyBinding(string action)
+    {
+        EnsureHotkeyBindingsInitialized();
+
+        var binding = CreateEmptyBinding(action);
+        _settings.HotkeyBindings!.Add(binding);
+        SyncLegacyHotkeyFields();
+        SaveSettings();
+        return binding.Clone();
+    }
+
+    public void UpdateHotkeyBinding(string bindingId, int keyCode, ModifierKeys modifiers)
+    {
+        EnsureHotkeyBindingsInitialized();
+
+        var binding = GetHotkeyBindingById(bindingId);
+        binding.KeyCode = keyCode;
+        binding.Modifiers = modifiers;
+        SyncLegacyHotkeyFields();
+        SaveSettings();
+    }
+
+    public void UpdateHotkeyBindingIgnoreModifiers(string bindingId, bool ignore)
+    {
+        EnsureHotkeyBindingsInitialized();
+
+        var binding = GetHotkeyBindingById(bindingId);
+        binding.IgnoreModifiers = ignore;
+        SyncLegacyHotkeyFields();
+        SaveSettings();
+    }
+
+    public void RemoveHotkeyBinding(string bindingId)
+    {
+        EnsureHotkeyBindingsInitialized();
+
+        var removed = _settings.HotkeyBindings!.RemoveAll(binding =>
+            string.Equals(binding.Id, bindingId, StringComparison.OrdinalIgnoreCase));
+
+        if (removed == 0)
+        {
+            return;
+        }
+
+        SyncLegacyHotkeyFields();
+        SaveSettings();
+    }
+
     public void UpdateHotkey(int keyCode, ModifierKeys modifiers)
     {
-        _settings.HotkeyCode = keyCode;
-        _settings.HotkeyModifiers = modifiers;
-        SaveSettings();
+        var binding = GetOrCreateHotkeyBinding(HotkeyActions.Toggle);
+        UpdateHotkeyBinding(binding.Id, keyCode, modifiers);
     }
 
     public void UpdateHoldHotkey(int keyCode, ModifierKeys modifiers)
@@ -123,8 +196,8 @@ public class SettingsService
 
     public void UpdateIgnoreModifiers(bool ignore)
     {
-        _settings.IgnoreModifiers = ignore;
-        SaveSettings();
+        var binding = GetOrCreateHotkeyBinding(HotkeyActions.Toggle);
+        UpdateHotkeyBindingIgnoreModifiers(binding.Id, ignore);
     }
 
     public void UpdateIgnoreHoldModifiers(bool ignore)
@@ -342,6 +415,165 @@ public class SettingsService
         _settings.OverlayButtonMode = enabled;
         SaveSettings();
     }
+
+    private void EnsureHotkeyBindingsInitialized()
+    {
+        var bindings = _settings.HotkeyBindings;
+        var didChange = false;
+
+        if (bindings == null)
+        {
+            bindings = new List<HotkeyBindingSettings>();
+            _settings.HotkeyBindings = bindings;
+            didChange = true;
+        }
+
+        var normalizedBindings = new List<HotkeyBindingSettings>();
+        foreach (var binding in bindings)
+        {
+            if (binding == null)
+            {
+                didChange = true;
+                continue;
+            }
+
+            if (!HotkeyActions.StandardActions.Contains(binding.Action, StringComparer.OrdinalIgnoreCase))
+            {
+                didChange = true;
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(binding.Id))
+            {
+                binding.Id = CreateBindingId();
+                didChange = true;
+            }
+
+            var normalizedAction = HotkeyActions.StandardActions.First(action =>
+                string.Equals(action, binding.Action, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.Equals(binding.Action, normalizedAction, StringComparison.Ordinal))
+            {
+                binding.Action = normalizedAction;
+                didChange = true;
+            }
+
+            normalizedBindings.Add(binding);
+        }
+
+        if (normalizedBindings.Count == 0)
+        {
+            normalizedBindings.Add(CreateDefaultBinding(HotkeyActions.Toggle));
+            didChange = true;
+        }
+
+        _settings.HotkeyBindings = normalizedBindings;
+        SyncLegacyHotkeyFields();
+
+        if (didChange)
+        {
+            SaveSettings();
+        }
+    }
+
+    private HotkeyBindingSettings GetOrCreateHotkeyBinding(string action)
+    {
+        EnsureHotkeyBindingsInitialized();
+
+        var binding = _settings.HotkeyBindings!.FirstOrDefault(existing =>
+            string.Equals(existing.Action, action, StringComparison.OrdinalIgnoreCase));
+
+        if (binding != null)
+        {
+            return binding;
+        }
+
+        binding = CreateDefaultBinding(action);
+        _settings.HotkeyBindings!.Add(binding);
+        SaveSettings();
+        return binding;
+    }
+
+    private HotkeyBindingSettings GetHotkeyBindingById(string bindingId)
+    {
+        var binding = _settings.HotkeyBindings!.FirstOrDefault(existing =>
+            string.Equals(existing.Id, bindingId, StringComparison.OrdinalIgnoreCase));
+
+        if (binding != null)
+        {
+            return binding;
+        }
+
+        throw new InvalidOperationException($"Hotkey binding '{bindingId}' was not found.");
+    }
+
+    private HotkeyBindingSettings CreateDefaultBinding(string action)
+    {
+        return action switch
+        {
+            HotkeyActions.Toggle => new HotkeyBindingSettings
+            {
+                Id = CreateBindingId(),
+                Action = HotkeyActions.Toggle,
+                KeyCode = _settings.HotkeyCode,
+                Modifiers = _settings.HotkeyModifiers,
+                IgnoreModifiers = _settings.IgnoreModifiers
+            },
+            HotkeyActions.Mute => new HotkeyBindingSettings
+            {
+                Id = CreateBindingId(),
+                Action = HotkeyActions.Mute,
+                KeyCode = 0,
+                Modifiers = ModifierKeys.None,
+                IgnoreModifiers = false
+            },
+            HotkeyActions.Unmute => new HotkeyBindingSettings
+            {
+                Id = CreateBindingId(),
+                Action = HotkeyActions.Unmute,
+                KeyCode = 0,
+                Modifiers = ModifierKeys.None,
+                IgnoreModifiers = false
+            },
+            _ => new HotkeyBindingSettings
+            {
+                Id = CreateBindingId(),
+                Action = action,
+                KeyCode = 0,
+                Modifiers = ModifierKeys.None,
+                IgnoreModifiers = false
+            }
+        };
+    }
+
+    private HotkeyBindingSettings CreateEmptyBinding(string action)
+    {
+        return new HotkeyBindingSettings
+        {
+            Id = CreateBindingId(),
+            Action = action,
+            KeyCode = 0,
+            Modifiers = ModifierKeys.None,
+            IgnoreModifiers = false
+        };
+    }
+
+    private void SyncLegacyHotkeyFields()
+    {
+        var toggleBinding = _settings.HotkeyBindings?
+            .Where(binding => string.Equals(binding.Action, HotkeyActions.Toggle, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(binding => binding.KeyCode > 0 || binding.Modifiers != ModifierKeys.None)
+            .FirstOrDefault();
+
+        _settings.HotkeyCode = toggleBinding?.KeyCode ?? 0;
+        _settings.HotkeyModifiers = toggleBinding?.Modifiers ?? ModifierKeys.None;
+        _settings.IgnoreModifiers = toggleBinding?.IgnoreModifiers ?? false;
+    }
+
+    private static string CreateBindingId()
+    {
+        return Guid.NewGuid().ToString("N");
+    }
 }
 
 public class AppSettings
@@ -350,6 +582,7 @@ public class AppSettings
     public int HotkeyCode { get; set; } = 0x4D; // 'M' key
     public ModifierKeys HotkeyModifiers { get; set; } = ModifierKeys.Ctrl | ModifierKeys.Alt;
     public bool IgnoreModifiers { get; set; } = false; // Don't ignore modifiers for Ctrl+Alt+M
+    public List<HotkeyBindingSettings>? HotkeyBindings { get; set; }
     
     // Hold hotkey settings
     public int HoldHotkeyCode { get; set; } = 0; // Disabled by default
@@ -399,4 +632,34 @@ public class AppSettings
     public int OverlayScale { get; set; } = 100; // Overlay size scale (10-400%)
     public string OverlayVariant { get; set; } = "MicIcon"; // MicIcon, Dot
     public bool OverlayButtonMode { get; set; } = false; // Make overlay clickable and draggable
+}
+
+public static class HotkeyActions
+{
+    public const string Toggle = "Toggle";
+    public const string Mute = "Mute";
+    public const string Unmute = "Unmute";
+
+    public static readonly string[] StandardActions = new[] { Toggle, Mute, Unmute };
+}
+
+public class HotkeyBindingSettings
+{
+    public string Id { get; set; } = "";
+    public string Action { get; set; } = HotkeyActions.Toggle;
+    public int KeyCode { get; set; }
+    public ModifierKeys Modifiers { get; set; } = ModifierKeys.None;
+    public bool IgnoreModifiers { get; set; }
+
+    public HotkeyBindingSettings Clone()
+    {
+        return new HotkeyBindingSettings
+        {
+            Id = Id,
+            Action = Action,
+            KeyCode = KeyCode,
+            Modifiers = Modifiers,
+            IgnoreModifiers = IgnoreModifiers
+        };
+    }
 }

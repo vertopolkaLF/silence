@@ -4,19 +4,18 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using silence_.Services;
 using System;
+using System.Collections.Generic;
 
 namespace silence_.Pages
 {
     public sealed partial class GeneralPage : Page
     {
-        private bool _isRecordingHotkey;
+        private string? _recordingBindingId;
         private bool _isMuted;
-        private int _recordedKeyCode;
-        private ModifierKeys _recordedModifiers;
         private bool _isHovering;
         private bool _isFirstMuteUpdate = true;
+        private readonly Dictionary<string, HotkeyRowControls> _hotkeyRows = new();
 
-        // Colors for mute button
         private static readonly Windows.UI.Color MutedColor = Windows.UI.Color.FromArgb(255, 205, 60, 70);
         private static readonly Windows.UI.Color MutedHoverColor = Windows.UI.Color.FromArgb(255, 160, 40, 50);
         private static readonly Windows.UI.Color UnmutedColor = Windows.UI.Color.FromArgb(255, 40, 167, 69);
@@ -28,8 +27,7 @@ namespace silence_.Pages
             InitializeComponent();
             ApplyLocalizedStrings();
             LoadSettings();
-            
-            // Subscribe to hotkey recording events
+
             if (App.Instance?.KeyboardHookService != null)
             {
                 App.Instance.KeyboardHookService.KeyPressed += OnKeyPressed;
@@ -37,7 +35,6 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.ModifierHoldProgress += OnModifierHoldProgress;
             }
 
-            // Subscribe to mute state changes
             if (App.Instance != null)
             {
                 App.Instance.MuteStateChanged += OnMuteStateChanged;
@@ -54,12 +51,13 @@ namespace silence_.Pages
         private void LoadSettings()
         {
             var settings = App.Instance?.SettingsService.Settings;
-            if (settings == null) return;
+            if (settings == null)
+            {
+                return;
+            }
 
             RefreshMicrophones();
-
-            HotkeyTextBox.Text = VirtualKeys.GetHotkeyDisplayString(settings.HotkeyCode, settings.HotkeyModifiers);
-            IgnoreModifiersCheckBox.IsChecked = settings.IgnoreModifiers;
+            ReloadHotkeyRows();
 
             AutoStartCheckBox.IsChecked = App.Instance?.SettingsService.IsAutoStartEnabled() ?? false;
             StartMinimizedCheckBox.IsChecked = settings.StartMinimized;
@@ -71,7 +69,7 @@ namespace silence_.Pages
             if (microphones == null) return;
 
             MicrophoneComboBox.Items.Clear();
-            
+
             var defaultItem = new ComboBoxItem
             {
                 Content = AppResources.GetString("General.Microphone.Default"),
@@ -89,7 +87,6 @@ namespace silence_.Pages
             int selectedIndex = 0;
             var selectedId = App.Instance?.SettingsService.Settings.SelectedMicrophoneId;
 
-            // Check if "All Microphones" is selected
             if (selectedId == MicrophoneService.ALL_MICROPHONES_ID)
             {
                 selectedIndex = 1;
@@ -99,18 +96,18 @@ namespace silence_.Pages
                 for (int i = 0; i < microphones.Count; i++)
                 {
                     var mic = microphones[i];
-                    var item = new ComboBoxItem 
-                    { 
+                    var item = new ComboBoxItem
+                    {
                         Content = mic.IsDefault
                             ? AppResources.Format("General.Microphone.NamedDefault", mic.Name)
                             : mic.Name,
-                        Tag = mic.Id 
+                        Tag = mic.Id
                     };
                     MicrophoneComboBox.Items.Add(item);
 
                     if (mic.Id == selectedId)
                     {
-                        selectedIndex = i + 2; // +2 because of "Default" and "All Microphones"
+                        selectedIndex = i + 2;
                     }
                 }
             }
@@ -122,7 +119,7 @@ namespace silence_.Pages
         {
             var stateChanged = _isMuted != isMuted;
             _isMuted = isMuted;
-            
+
             if (_isFirstMuteUpdate)
             {
                 _isFirstMuteUpdate = false;
@@ -137,6 +134,7 @@ namespace silence_.Pages
             {
                 AnimateMuteText(isMuted);
             }
+
             UpdateButtonColor();
         }
 
@@ -153,7 +151,7 @@ namespace silence_.Pages
             MuteStatusTransformAlt.TranslateY = inStartPos;
             MuteStatusTransformAlt.ScaleX = 0.8;
             MuteStatusTransformAlt.ScaleY = 0.8;
-            
+
             var slideOut = new DoubleAnimation
             {
                 To = outDirection,
@@ -241,7 +239,7 @@ namespace silence_.Pages
                 MuteStatusTransform.TranslateY = 0;
                 MuteStatusTransform.ScaleX = 1;
                 MuteStatusTransform.ScaleY = 1;
-                
+
                 MuteStatusTextAlt.Opacity = 0;
                 MuteStatusTransformAlt.TranslateY = isMuted ? -30 : 30;
             };
@@ -254,7 +252,7 @@ namespace silence_.Pages
             var color = _isMuted
                 ? (_isHovering ? MutedHoverColor : MutedColor)
                 : (_isHovering ? UnmutedHoverColor : UnmutedColor);
-            
+
             AnimateButtonColor(color);
         }
 
@@ -321,37 +319,83 @@ namespace silence_.Pages
             }
         }
 
+        private void AddHotkeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not string action)
+            {
+                return;
+            }
+
+            App.Instance?.SettingsService.AddHotkeyBinding(action);
+            ReloadHotkeyRows();
+            RefreshHotkeyRegistration();
+        }
+
         private void RecordHotkeyButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_isRecordingHotkey)
+            if (sender is not Button button || button.Tag is not string bindingId)
+            {
+                return;
+            }
+
+            if (_recordingBindingId == bindingId)
             {
                 StopRecordingHotkey();
             }
             else
             {
-                StartRecordingHotkey();
+                StartRecordingHotkey(bindingId);
             }
         }
 
         private void ClearHotkeyButton_Click(object sender, RoutedEventArgs e)
         {
-            HotkeyTextBox.Text = "";
-            App.Instance?.SettingsService.UpdateHotkey(0, ModifierKeys.None);
-            App.Instance?.KeyboardHookService.UpdateHotkey(0, ModifierKeys.None, IgnoreModifiersCheckBox.IsChecked ?? true);
+            if (sender is not Button button || button.Tag is not string bindingId)
+            {
+                return;
+            }
+
+            if (_recordingBindingId == bindingId)
+            {
+                StopRecordingHotkey();
+            }
+
+            App.Instance?.SettingsService.UpdateHotkeyBinding(bindingId, 0, ModifierKeys.None);
+            ReloadHotkeyRows();
+            RefreshHotkeyRegistration();
         }
 
-        private void StartRecordingHotkey()
+        private void RemoveHotkeyButton_Click(object sender, RoutedEventArgs e)
         {
-            _isRecordingHotkey = true;
-            _recordedKeyCode = 0;
-            _recordedModifiers = ModifierKeys.None;
-            RecordHotkeyButton.Content = AppResources.GetString("General.Hotkey.RecordCancel");
-            HotkeyTextBox.Text = AppResources.GetString("Hotkeys.RecordPrompt");
-            HotkeyHintText.Visibility = Visibility.Visible;
-            
-            // Focus the TextBox to prevent Space from clicking the button
-            HotkeyTextBox.Focus(FocusState.Programmatic);
-            
+            if (sender is not Button button || button.Tag is not string bindingId)
+            {
+                return;
+            }
+
+            if (_recordingBindingId == bindingId)
+            {
+                StopRecordingHotkey();
+            }
+
+            App.Instance?.SettingsService.RemoveHotkeyBinding(bindingId);
+            ReloadHotkeyRows();
+            RefreshHotkeyRegistration();
+        }
+
+        private void StartRecordingHotkey(string bindingId)
+        {
+            if (_recordingBindingId != null)
+            {
+                StopRecordingHotkey();
+            }
+
+            _recordingBindingId = bindingId;
+            var controls = GetHotkeyRow(bindingId);
+            controls.RecordButton.Content = AppResources.GetString("General.Hotkey.RecordCancel");
+            controls.TextBox.Text = AppResources.GetString("Hotkeys.RecordPrompt");
+            controls.HintText.Visibility = Visibility.Visible;
+            controls.TextBox.Focus(FocusState.Programmatic);
+
             if (App.Instance?.KeyboardHookService != null)
             {
                 App.Instance.KeyboardHookService.ResetRecordingState();
@@ -361,11 +405,15 @@ namespace silence_.Pages
 
         private void StopRecordingHotkey()
         {
-            _isRecordingHotkey = false;
-            RecordHotkeyButton.Content = AppResources.GetString("General.Hotkey.Record");
-            HotkeyHintText.Visibility = Visibility.Collapsed;
-            HotkeyProgressBar.Visibility = Visibility.Collapsed;
-            
+            if (_recordingBindingId != null && _hotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+            {
+                controls.RecordButton.Content = AppResources.GetString("General.Hotkey.Record");
+                controls.HintText.Visibility = Visibility.Collapsed;
+                controls.ProgressBar.Visibility = Visibility.Collapsed;
+            }
+
+            _recordingBindingId = null;
+
             if (App.Instance?.KeyboardHookService != null)
             {
                 App.Instance.KeyboardHookService.IsRecording = false;
@@ -375,80 +423,80 @@ namespace silence_.Pages
 
         private void OnModifiersChanged(ModifierKeys modifiers)
         {
-            if (!_isRecordingHotkey) return;
+            if (_recordingBindingId == null)
+            {
+                return;
+            }
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                _recordedModifiers = modifiers;
+                if (!_hotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                {
+                    return;
+                }
+
                 var display = VirtualKeys.GetHotkeyDisplayString(0, modifiers);
-                var text = string.IsNullOrEmpty(display)
+                controls.TextBox.Text = string.IsNullOrEmpty(display)
                     ? AppResources.GetString("Hotkeys.RecordPrompt")
                     : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
-                HotkeyTextBox.Text = text;
             });
-        }
-
-        private void ApplyLocalizedStrings()
-        {
-            MicrophoneStatusPrefixText.Text = AppResources.GetString("GeneralPage.MicrophoneStatusPrefixText.Text");
-            MicrophoneLabelText.Text = AppResources.GetString("GeneralPage.MicrophoneLabel.Text");
-            MicrophoneComboBox.PlaceholderText = AppResources.GetString("GeneralPage.MicrophoneComboBox.PlaceholderText");
-            ToggleHotkeyLabelText.Text = AppResources.GetString("GeneralPage.ToggleHotkeyLabel.Text");
-            HotkeyTextBox.PlaceholderText = AppResources.GetString("GeneralPage.HotkeyTextBox.PlaceholderText");
-            ToolTipService.SetToolTip(ClearHotkeyButton, AppResources.GetString("GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip"));
-            RecordHotkeyButton.Content = AppResources.GetString("GeneralPage.RecordHotkeyButton.Content");
-            HotkeyHintText.Text = AppResources.GetString("GeneralPage.HotkeyHintText.Text");
-            IgnoreModifiersCheckBox.Content = AppResources.GetString("GeneralPage.IgnoreModifiersCheckBox.Content");
-            StartupLabelText.Text = AppResources.GetString("GeneralPage.StartupLabel.Text");
-            AutoStartCheckBox.Content = AppResources.GetString("GeneralPage.AutoStartCheckBox.Content");
-            StartMinimizedCheckBox.Content = AppResources.GetString("GeneralPage.StartMinimizedCheckBox.Content");
         }
 
         private void OnModifierHoldProgress(double progress)
         {
-            if (!_isRecordingHotkey) return;
+            if (_recordingBindingId == null)
+            {
+                return;
+            }
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                HotkeyProgressBar.Value = progress;
-                HotkeyProgressBar.Visibility = progress > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (!_hotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                {
+                    return;
+                }
+
+                controls.ProgressBar.Value = progress;
+                controls.ProgressBar.Visibility = progress > 0 ? Visibility.Visible : Visibility.Collapsed;
             });
         }
 
         private void OnKeyPressed(int keyCode, ModifierKeys modifiers)
         {
-            if (!_isRecordingHotkey) return;
+            if (_recordingBindingId == null)
+            {
+                return;
+            }
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                _recordedKeyCode = keyCode;
-                _recordedModifiers = modifiers;
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_hotkeyRows.TryGetValue(bindingId, out var controls))
+                {
+                    return;
+                }
 
-                var displayText = VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers);
-                HotkeyTextBox.Text = displayText;
+                var ignoreModifiers = controls.IgnoreCheckBox.IsChecked ?? true;
+
                 StopRecordingHotkey();
 
-                App.Instance?.SettingsService.UpdateHotkey(keyCode, modifiers);
-                App.Instance?.KeyboardHookService.UpdateHotkey(
-                    keyCode,
-                    modifiers,
-                    IgnoreModifiersCheckBox.IsChecked ?? true);
+                App.Instance?.SettingsService.UpdateHotkeyBinding(bindingId, keyCode, modifiers);
+                App.Instance?.SettingsService.UpdateHotkeyBindingIgnoreModifiers(bindingId, ignoreModifiers);
+                ReloadHotkeyRows();
+                RefreshHotkeyRegistration();
             });
         }
 
         private void IgnoreModifiersCheckBox_Changed(object sender, RoutedEventArgs e)
         {
-            var ignore = IgnoreModifiersCheckBox.IsChecked ?? true;
-            App.Instance?.SettingsService.UpdateIgnoreModifiers(ignore);
-            
-            var settings = App.Instance?.SettingsService.Settings;
-            if (settings != null)
+            if (sender is not CheckBox checkBox || checkBox.Tag is not string bindingId)
             {
-                App.Instance?.KeyboardHookService.UpdateHotkey(
-                    settings.HotkeyCode,
-                    settings.HotkeyModifiers,
-                    ignore);
+                return;
             }
+
+            var ignore = checkBox.IsChecked ?? true;
+            App.Instance?.SettingsService.UpdateHotkeyBindingIgnoreModifiers(bindingId, ignore);
+            RefreshHotkeyRegistration();
         }
 
         private void AutoStartCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -463,21 +511,12 @@ namespace silence_.Pages
             App.Instance?.SettingsService.UpdateStartMinimized(minimized);
         }
 
-        private void HideButton_Click(object sender, RoutedEventArgs e)
-        {
-            App.Instance?.HideMainWindow();
-        }
-
-        private void ExitButton_Click(object sender, RoutedEventArgs e)
-        {
-            App.Instance?.ExitApplication();
-        }
-
         #endregion
 
         protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+            StopRecordingHotkey();
 
             if (App.Instance?.KeyboardHookService != null)
             {
@@ -492,10 +531,242 @@ namespace silence_.Pages
             }
         }
 
+        private void ApplyLocalizedStrings()
+        {
+            MicrophoneStatusPrefixText.Text = AppResources.GetString("GeneralPage.MicrophoneStatusPrefixText.Text");
+            MicrophoneLabelText.Text = AppResources.GetString("GeneralPage.MicrophoneLabel.Text");
+            MicrophoneComboBox.PlaceholderText = AppResources.GetString("GeneralPage.MicrophoneComboBox.PlaceholderText");
+
+            HotkeysLabelText.Text = AppResources.GetString("GeneralPage.HotkeysLabel.Text");
+            ToggleHotkeyLabelText.Text = AppResources.GetString("GeneralPage.ToggleHotkeyLabel.Text");
+            MuteHotkeyLabelText.Text = AppResources.GetString("GeneralPage.MuteHotkeyLabel.Text");
+            UnmuteHotkeyLabelText.Text = AppResources.GetString("GeneralPage.UnmuteHotkeyLabel.Text");
+
+            AddToggleHotkeyButton.Content = AppResources.GetString("GeneralPage.AddHotkeyButton.Content");
+            AddMuteHotkeyButton.Content = AppResources.GetString("GeneralPage.AddHotkeyButton.Content");
+            AddUnmuteHotkeyButton.Content = AppResources.GetString("GeneralPage.AddHotkeyButton.Content");
+
+            StartupLabelText.Text = AppResources.GetString("GeneralPage.StartupLabel.Text");
+            AutoStartCheckBox.Content = AppResources.GetString("GeneralPage.AutoStartCheckBox.Content");
+            StartMinimizedCheckBox.Content = AppResources.GetString("GeneralPage.StartMinimizedCheckBox.Content");
+        }
+
+        private void ReloadHotkeyRows()
+        {
+            if (_recordingBindingId != null)
+            {
+                StopRecordingHotkey();
+            }
+
+            _hotkeyRows.Clear();
+            ToggleHotkeysPanel.Children.Clear();
+            MuteHotkeysPanel.Children.Clear();
+            UnmuteHotkeysPanel.Children.Clear();
+
+            BuildHotkeyRowsForAction(HotkeyActions.Toggle);
+            BuildHotkeyRowsForAction(HotkeyActions.Mute);
+            BuildHotkeyRowsForAction(HotkeyActions.Unmute);
+        }
+
+        private void BuildHotkeyRowsForAction(string action)
+        {
+            var bindings = App.Instance?.SettingsService.GetHotkeyBindings(action);
+            if (bindings == null)
+            {
+                return;
+            }
+
+            var host = GetHotkeyHost(action);
+            foreach (var binding in bindings)
+            {
+                var row = CreateHotkeyRow(binding);
+                _hotkeyRows[binding.Id] = row;
+                host.Children.Add(row.Container);
+            }
+        }
+
+        private HotkeyRowControls CreateHotkeyRow(HotkeyBindingSettings binding)
+        {
+            var container = new StackPanel
+            {
+                Spacing = 6
+            };
+
+            var grid = new Grid
+            {
+                ColumnSpacing = 8
+            };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var textHost = new Grid();
+            var textBox = new TextBox
+            {
+                IsReadOnly = true,
+                PlaceholderText = AppResources.GetString("GeneralPage.HotkeyTextBox.PlaceholderText"),
+                Text = GetDisplayText(binding.KeyCode, binding.Modifiers)
+            };
+            var progressBar = new ProgressBar
+            {
+                Height = 3,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(1, 0, 1, 1),
+                Minimum = 0,
+                Maximum = 1,
+                Value = 0,
+                Visibility = Visibility.Collapsed,
+                ShowError = false,
+                ShowPaused = false
+            };
+            textHost.Children.Add(textBox);
+            textHost.Children.Add(progressBar);
+            Grid.SetColumn(textHost, 0);
+            grid.Children.Add(textHost);
+
+            var clearButton = new Button
+            {
+                Tag = binding.Id,
+                Content = "\uE711",
+                FontFamily = Application.Current.Resources["SymbolThemeFontFamily"] as FontFamily,
+                Width = 32,
+                Height = 32,
+                Padding = new Thickness(0)
+            };
+            clearButton.Click += ClearHotkeyButton_Click;
+            ToolTipService.SetToolTip(clearButton, AppResources.GetString("GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip"));
+            Grid.SetColumn(clearButton, 1);
+            grid.Children.Add(clearButton);
+
+            var recordButton = new Button
+            {
+                Tag = binding.Id,
+                Content = AppResources.GetString("GeneralPage.RecordHotkeyButton.Content")
+            };
+            recordButton.Click += RecordHotkeyButton_Click;
+            Grid.SetColumn(recordButton, 2);
+            grid.Children.Add(recordButton);
+
+            var removeButton = new Button
+            {
+                Tag = binding.Id,
+                Content = "\uE74D",
+                FontFamily = Application.Current.Resources["SymbolThemeFontFamily"] as FontFamily,
+                Width = 32,
+                Height = 32,
+                Padding = new Thickness(0)
+            };
+            removeButton.Click += RemoveHotkeyButton_Click;
+            ToolTipService.SetToolTip(removeButton, AppResources.GetString("GeneralPage.RemoveHotkeyButton.ToolTipService.ToolTip"));
+            Grid.SetColumn(removeButton, 3);
+            grid.Children.Add(removeButton);
+
+            var hintText = new TextBlock
+            {
+                Text = AppResources.GetString("GeneralPage.HotkeyHintText.Text"),
+                FontSize = 11,
+                Opacity = 0.6,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+
+            var ignoreCheckBox = new CheckBox
+            {
+                Tag = binding.Id,
+                Content = AppResources.GetString("GeneralPage.IgnoreModifiersCheckBox.Content"),
+                IsChecked = binding.IgnoreModifiers
+            };
+            ignoreCheckBox.Checked += IgnoreModifiersCheckBox_Changed;
+            ignoreCheckBox.Unchecked += IgnoreModifiersCheckBox_Changed;
+
+            container.Children.Add(grid);
+            container.Children.Add(hintText);
+            container.Children.Add(ignoreCheckBox);
+
+            return new HotkeyRowControls(binding.Id, binding.Action, container, textBox, progressBar, hintText, recordButton, clearButton, removeButton, ignoreCheckBox);
+        }
+
+        private void RefreshHotkeyRegistration()
+        {
+            var bindings = App.Instance?.SettingsService.GetHotkeyBindings();
+            if (bindings == null)
+            {
+                return;
+            }
+
+            App.Instance?.KeyboardHookService.UpdateHotkeys(bindings);
+        }
+
+        private HotkeyRowControls GetHotkeyRow(string bindingId)
+        {
+            if (_hotkeyRows.TryGetValue(bindingId, out var row))
+            {
+                return row;
+            }
+
+            throw new InvalidOperationException($"Hotkey row '{bindingId}' was not found.");
+        }
+
+        private StackPanel GetHotkeyHost(string action)
+        {
+            return action switch
+            {
+                HotkeyActions.Toggle => ToggleHotkeysPanel,
+                HotkeyActions.Mute => MuteHotkeysPanel,
+                HotkeyActions.Unmute => UnmuteHotkeysPanel,
+                _ => throw new ArgumentOutOfRangeException(nameof(action), action, null)
+            };
+        }
+
         private static string GetMuteStatusText(bool isMuted)
         {
             return AppResources.GetString(isMuted ? "General.MuteStatus.Muted" : "General.MuteStatus.Unmuted");
         }
+
+        private static string GetDisplayText(int keyCode, ModifierKeys modifiers)
+        {
+            return keyCode > 0 || modifiers != ModifierKeys.None
+                ? VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers)
+                : string.Empty;
+        }
+
+        private sealed class HotkeyRowControls
+        {
+            public HotkeyRowControls(
+                string bindingId,
+                string action,
+                StackPanel container,
+                TextBox textBox,
+                ProgressBar progressBar,
+                TextBlock hintText,
+                Button recordButton,
+                Button clearButton,
+                Button removeButton,
+                CheckBox ignoreCheckBox)
+            {
+                BindingId = bindingId;
+                Action = action;
+                Container = container;
+                TextBox = textBox;
+                ProgressBar = progressBar;
+                HintText = hintText;
+                RecordButton = recordButton;
+                ClearButton = clearButton;
+                RemoveButton = removeButton;
+                IgnoreCheckBox = ignoreCheckBox;
+            }
+
+            public string BindingId { get; }
+            public string Action { get; }
+            public StackPanel Container { get; }
+            public TextBox TextBox { get; }
+            public ProgressBar ProgressBar { get; }
+            public TextBlock HintText { get; }
+            public Button RecordButton { get; }
+            public Button ClearButton { get; }
+            public Button RemoveButton { get; }
+            public CheckBox IgnoreCheckBox { get; }
+        }
     }
 }
-

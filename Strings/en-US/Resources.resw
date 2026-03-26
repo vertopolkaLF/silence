@@ -57,9 +57,14 @@
   <data name="GeneralPage.MicrophoneStatusPrefixText.Text" xml:space="preserve"><value>Microphone is</value></data>
   <data name="GeneralPage.MicrophoneLabel.Text" xml:space="preserve"><value>Microphone</value></data>
   <data name="GeneralPage.MicrophoneComboBox.PlaceholderText" xml:space="preserve"><value>Select microphone...</value></data>
-  <data name="GeneralPage.ToggleHotkeyLabel.Text" xml:space="preserve"><value>Toggle Hotkey</value></data>
+  <data name="GeneralPage.HotkeysLabel.Text" xml:space="preserve"><value>Hotkeys</value></data>
+  <data name="GeneralPage.ToggleHotkeyLabel.Text" xml:space="preserve"><value>Toggle microphone</value></data>
+  <data name="GeneralPage.MuteHotkeyLabel.Text" xml:space="preserve"><value>Mute microphone</value></data>
+  <data name="GeneralPage.UnmuteHotkeyLabel.Text" xml:space="preserve"><value>Unmute microphone</value></data>
+  <data name="GeneralPage.AddHotkeyButton.Content" xml:space="preserve"><value>Add hotkey</value></data>
   <data name="GeneralPage.HotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Press a key...</value></data>
   <data name="GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Clear hotkey</value></data>
+  <data name="GeneralPage.RemoveHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Remove hotkey</value></data>
   <data name="GeneralPage.RecordHotkeyButton.Content" xml:space="preserve"><value>Record</value></data>
   <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>To bind LMB, RMB or 2 modifier keys - hold them for 1 second</value></data>
   <data name="GeneralPage.IgnoreModifiersCheckBox.Content" xml:space="preserve"><value>Ignore modifiers (Shift, Ctrl, Alt, Win)</value></data>

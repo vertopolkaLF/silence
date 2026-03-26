@@ -71,52 +71,56 @@
                           PlaceholderText="Select microphone..."/>
             </StackPanel>
 
-            <StackPanel Spacing="8">
-                <TextBlock x:Name="ToggleHotkeyLabelText" x:Uid="GeneralPage.ToggleHotkeyLabel" Text="Toggle Hotkey" FontWeight="SemiBold" FontSize="14"/>
+            <StackPanel Spacing="16">
+                <TextBlock x:Name="HotkeysLabelText" Text="Hotkeys" FontWeight="SemiBold" FontSize="14"/>
 
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <Grid Grid.Column="0">
-                        <TextBox x:Name="HotkeyTextBox"
-                                 x:Uid="GeneralPage.HotkeyTextBox"
-                                 IsReadOnly="True"
-                                 PlaceholderText="Press a key..."
-                                 Text="Ctrl + Alt + M"/>
-                        <ProgressBar x:Name="HotkeyProgressBar" Height="3" VerticalAlignment="Bottom" Margin="1,0,1,1" Minimum="0" Maximum="1" Value="0" Visibility="Collapsed" ShowError="False" ShowPaused="False"/>
+                <StackPanel Spacing="8">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ToggleHotkeyLabelText" Text="Toggle microphone" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                        <Button x:Name="AddToggleHotkeyButton"
+                                Grid.Column="1"
+                                Tag="Toggle"
+                                Content="Add hotkey"
+                                Click="AddHotkeyButton_Click"/>
                     </Grid>
-                    <Button x:Name="ClearHotkeyButton"
-                            x:Uid="GeneralPage.ClearHotkeyButton"
-                            Grid.Column="1"
-                            Content="&#xE711;"
-                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                            Width="32"
-                            Height="32"
-                            Padding="0"
-                            ToolTipService.ToolTip="Clear hotkey"
-                            Click="ClearHotkeyButton_Click"/>
-                    <Button x:Name="RecordHotkeyButton"
-                            x:Uid="GeneralPage.RecordHotkeyButton"
-                            Grid.Column="2"
-                            Content="Record"
-                            Click="RecordHotkeyButton_Click"/>
-                </Grid>
-                <TextBlock x:Name="HotkeyHintText"
-                           x:Uid="GeneralPage.HotkeyHintText"
-                           Text="To bind LMB, RMB or 2 modifier keys - hold them for 1 second"
-                           FontSize="11"
-                           Opacity="0.6"
-                           Visibility="Collapsed"
-                           Margin="0,4,0,0"/>
-                <CheckBox x:Name="IgnoreModifiersCheckBox"
-                          x:Uid="GeneralPage.IgnoreModifiersCheckBox"
-                          Content="Ignore modifiers (Shift, Ctrl, Alt, Win)"
-                          IsChecked="False"
-                          Checked="IgnoreModifiersCheckBox_Changed"
-                          Unchecked="IgnoreModifiersCheckBox_Changed"/>
+                    <StackPanel x:Name="ToggleHotkeysPanel" Spacing="12"/>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="MuteHotkeyLabelText" Text="Mute microphone" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                        <Button x:Name="AddMuteHotkeyButton"
+                                Grid.Column="1"
+                                Tag="Mute"
+                                Content="Add hotkey"
+                                Click="AddHotkeyButton_Click"/>
+                    </Grid>
+                    <StackPanel x:Name="MuteHotkeysPanel" Spacing="12"/>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="UnmuteHotkeyLabelText" Text="Unmute microphone" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                        <Button x:Name="AddUnmuteHotkeyButton"
+                                Grid.Column="1"
+                                Tag="Unmute"
+                                Content="Add hotkey"
+                                Click="AddHotkeyButton_Click"/>
+                    </Grid>
+                    <StackPanel x:Name="UnmuteHotkeysPanel" Spacing="12"/>
+                </StackPanel>
             </StackPanel>
 
             <StackPanel Spacing="8">
