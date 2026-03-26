@@ -79,13 +79,13 @@ public class KeyboardHookService : IDisposable
     private LowLevelKeyboardProc? _proc;
     private LowLevelMouseProc? _mouseProc;
     private readonly List<HotkeyBindingSettings> _hotkeys = new();
+    private readonly List<HoldHotkeyBindingSettings> _holdHotkeys = new();
     private bool _isHooked;
 
     // Hold hotkey support
-    private int _holdKey;
-    private ModifierKeys _holdModifiers;
     private bool _ignoreHoldModifiers;
     private bool _isHoldKeyPressed;
+    private HoldHotkeyBindingSettings? _activeHoldHotkey;
 
     // Current modifier state for recording
     private ModifierKeys _currentModifiers;
@@ -106,16 +106,18 @@ public class KeyboardHookService : IDisposable
 
     public bool IsRecording { get; set; }
 
-    public void StartHook(IEnumerable<HotkeyBindingSettings>? hotkeys = null,
-        int holdKeyCode = 0, ModifierKeys holdModifiers = ModifierKeys.None, bool ignoreHoldModifiers = true)
+    public void StartHook(
+        IEnumerable<HotkeyBindingSettings>? hotkeys = null,
+        IEnumerable<HoldHotkeyBindingSettings>? holdHotkeys = null,
+        bool ignoreHoldModifiers = true)
     {
         StopHook();
 
         UpdateHotkeys(hotkeys);
-        _holdKey = holdKeyCode;
-        _holdModifiers = holdModifiers;
+        UpdateHoldHotkeys(holdHotkeys);
         _ignoreHoldModifiers = ignoreHoldModifiers;
         _isHoldKeyPressed = false;
+        _activeHoldHotkey = null;
         _proc = HookCallback;
         _mouseProc = MouseHookCallback;
         
@@ -185,12 +187,44 @@ public class KeyboardHookService : IDisposable
         });
     }
 
-    public void UpdateHoldHotkey(int virtualKeyCode, ModifierKeys modifiers, bool ignoreModifiers = true)
+    public void UpdateHoldHotkeys(IEnumerable<HoldHotkeyBindingSettings>? holdHotkeys, bool ignoreModifiers = true)
     {
-        _holdKey = virtualKeyCode;
-        _holdModifiers = modifiers;
+        _holdHotkeys.Clear();
+
+        if (holdHotkeys != null)
+        {
+            foreach (var hotkey in holdHotkeys)
+            {
+                if (hotkey == null)
+                {
+                    continue;
+                }
+
+                _holdHotkeys.Add(new HoldHotkeyBindingSettings
+                {
+                    Id = hotkey.Id,
+                    KeyCode = hotkey.KeyCode,
+                    Modifiers = hotkey.Modifiers
+                });
+            }
+        }
+
         _ignoreHoldModifiers = ignoreModifiers;
         _isHoldKeyPressed = false;
+        _activeHoldHotkey = null;
+    }
+
+    public void UpdateHoldHotkey(int virtualKeyCode, ModifierKeys modifiers, bool ignoreModifiers = true)
+    {
+        UpdateHoldHotkeys(new[]
+        {
+            new HoldHotkeyBindingSettings
+            {
+                Id = "legacy",
+                KeyCode = virtualKeyCode,
+                Modifiers = modifiers
+            }
+        }, ignoreModifiers);
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -338,36 +372,7 @@ public class KeyboardHookService : IDisposable
             currentMods |= VkCodeToModifier(vkCode);
         }
         
-        bool holdHotkeyTriggered = false;
-        
-        if (_holdKey == 0 && _holdModifiers != ModifierKeys.None && !_isHoldKeyPressed && IsModifierKey(vkCode))
-        {
-            bool matches = _ignoreHoldModifiers 
-                ? (currentMods & _holdModifiers) == _holdModifiers
-                : currentMods == _holdModifiers;
-            
-            if (matches)
-            {
-                _isHoldKeyPressed = true;
-                holdHotkeyTriggered = true;
-                HoldHotkeyPressed?.Invoke();
-            }
-        }
-        else if (vkCode == _holdKey && _holdKey > 0 && !_isHoldKeyPressed)
-        {
-            bool matches = _ignoreHoldModifiers 
-                ? (currentMods & _holdModifiers) == _holdModifiers
-                : currentMods == _holdModifiers;
-            
-            if (matches)
-            {
-                _isHoldKeyPressed = true;
-                holdHotkeyTriggered = true;
-                HoldHotkeyPressed?.Invoke();
-            }
-        }
-        
-        if (holdHotkeyTriggered)
+        if (TryHandleHoldHotkeyDown(vkCode, currentMods))
         {
             return;
         }
@@ -390,8 +395,7 @@ public class KeyboardHookService : IDisposable
                 continue;
             }
 
-            if (vkCode == _holdKey && _holdKey > 0 &&
-                ModifiersMatch(currentMods, _holdModifiers, _ignoreHoldModifiers))
+            if (IsConflictingWithHoldHotkey(vkCode, currentMods))
             {
                 return;
             }
@@ -406,21 +410,28 @@ public class KeyboardHookService : IDisposable
 
     private void HandleKeyUp(int vkCode)
     {
-        if (_holdKey == 0 && _holdModifiers != ModifierKeys.None && _isHoldKeyPressed)
+        if (!_isHoldKeyPressed || _activeHoldHotkey == null)
+        {
+            return;
+        }
+
+        if (_activeHoldHotkey.KeyCode == 0 && _activeHoldHotkey.Modifiers != ModifierKeys.None)
         {
             if (IsModifierKey(vkCode))
             {
                 var releasedMod = VkCodeToModifier(vkCode);
-                if (_holdModifiers.HasFlag(releasedMod))
+                if (_activeHoldHotkey.Modifiers.HasFlag(releasedMod))
                 {
                     _isHoldKeyPressed = false;
+                    _activeHoldHotkey = null;
                     HoldHotkeyReleased?.Invoke();
                 }
             }
         }
-        else if (vkCode == _holdKey && _holdKey > 0 && _isHoldKeyPressed)
+        else if (vkCode == _activeHoldHotkey.KeyCode && _activeHoldHotkey.KeyCode > 0)
         {
             _isHoldKeyPressed = false;
+            _activeHoldHotkey = null;
             HoldHotkeyReleased?.Invoke();
         }
     }
@@ -484,6 +495,65 @@ public class KeyboardHookService : IDisposable
         return ignoreModifiers
             ? (currentMods & requiredMods) == requiredMods
             : currentMods == requiredMods;
+    }
+
+    private bool TryHandleHoldHotkeyDown(int vkCode, ModifierKeys currentMods)
+    {
+        if (_isHoldKeyPressed)
+        {
+            return false;
+        }
+
+        foreach (var holdHotkey in _holdHotkeys)
+        {
+            if (holdHotkey.KeyCode == 0 && holdHotkey.Modifiers != ModifierKeys.None && IsModifierKey(vkCode))
+            {
+                if (ModifiersMatch(currentMods, holdHotkey.Modifiers, _ignoreHoldModifiers))
+                {
+                    _isHoldKeyPressed = true;
+                    _activeHoldHotkey = holdHotkey;
+                    HoldHotkeyPressed?.Invoke();
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (holdHotkey.KeyCode > 0 && vkCode == holdHotkey.KeyCode &&
+                ModifiersMatch(currentMods, holdHotkey.Modifiers, _ignoreHoldModifiers))
+            {
+                _isHoldKeyPressed = true;
+                _activeHoldHotkey = holdHotkey;
+                HoldHotkeyPressed?.Invoke();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsConflictingWithHoldHotkey(int vkCode, ModifierKeys currentMods)
+    {
+        foreach (var holdHotkey in _holdHotkeys)
+        {
+            if (holdHotkey.KeyCode == 0 && holdHotkey.Modifiers != ModifierKeys.None && IsModifierKey(vkCode))
+            {
+                if (ModifiersMatch(currentMods, holdHotkey.Modifiers, _ignoreHoldModifiers))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (holdHotkey.KeyCode > 0 && vkCode == holdHotkey.KeyCode &&
+                ModifiersMatch(currentMods, holdHotkey.Modifiers, _ignoreHoldModifiers))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void StartModifierHoldTimer()

@@ -74,7 +74,7 @@
 
   <data name="HoldToMutePage.TitleText.Text" xml:space="preserve"><value>Удержание</value></data>
   <data name="HoldToMutePage.DescriptionText.Text" xml:space="preserve"><value>Выключайте или включайте микрофон, пока удерживаете горячую клавишу</value></data>
-  <data name="HoldToMutePage.HotkeyLabel.Text" xml:space="preserve"><value>Горячая клавиша</value></data>
+  <data name="HoldToMutePage.HotkeyLabel.Text" xml:space="preserve"><value>Горячие клавиши</value></data>
   <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Не задано</value></data>
   <data name="HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Очистить сочетание</value></data>
   <data name="HoldToMutePage.RecordHoldHotkeyButton.Content" xml:space="preserve"><value>Записать</value></data>

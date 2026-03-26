@@ -29,6 +29,7 @@ public class SettingsService
         
         _settings = LoadSettings();
         EnsureHotkeyBindingsInitialized();
+        EnsureHoldHotkeyBindingsInitialized();
     }
 
     public AppSettings Settings => _settings;
@@ -127,12 +128,6 @@ public class SettingsService
             .ToList();
     }
 
-    public HotkeyBindingSettings GetHotkeyBinding(string action)
-    {
-        EnsureHotkeyBindingsInitialized();
-        return GetOrCreateHotkeyBinding(action).Clone();
-    }
-
     public HotkeyBindingSettings AddHotkeyBinding(string action)
     {
         EnsureHotkeyBindingsInitialized();
@@ -189,8 +184,53 @@ public class SettingsService
 
     public void UpdateHoldHotkey(int keyCode, ModifierKeys modifiers)
     {
-        _settings.HoldHotkeyCode = keyCode;
-        _settings.HoldHotkeyModifiers = modifiers;
+        var binding = GetOrCreateHoldHotkeyBinding();
+        UpdateHoldHotkeyBinding(binding.Id, keyCode, modifiers);
+    }
+
+    public IReadOnlyList<HoldHotkeyBindingSettings> GetHoldHotkeyBindings()
+    {
+        EnsureHoldHotkeyBindingsInitialized();
+        return _settings.HoldHotkeyBindings!
+            .Select(binding => binding.Clone())
+            .ToList();
+    }
+
+    public HoldHotkeyBindingSettings AddHoldHotkeyBinding()
+    {
+        EnsureHoldHotkeyBindingsInitialized();
+
+        var binding = CreateEmptyHoldBinding();
+        _settings.HoldHotkeyBindings!.Add(binding);
+        SyncLegacyHoldHotkeyFields();
+        SaveSettings();
+        return binding.Clone();
+    }
+
+    public void UpdateHoldHotkeyBinding(string bindingId, int keyCode, ModifierKeys modifiers)
+    {
+        EnsureHoldHotkeyBindingsInitialized();
+
+        var binding = GetHoldHotkeyBindingById(bindingId);
+        binding.KeyCode = keyCode;
+        binding.Modifiers = modifiers;
+        SyncLegacyHoldHotkeyFields();
+        SaveSettings();
+    }
+
+    public void RemoveHoldHotkeyBinding(string bindingId)
+    {
+        EnsureHoldHotkeyBindingsInitialized();
+
+        var removed = _settings.HoldHotkeyBindings!.RemoveAll(binding =>
+            string.Equals(binding.Id, bindingId, StringComparison.OrdinalIgnoreCase));
+
+        if (removed == 0)
+        {
+            return;
+        }
+
+        SyncLegacyHoldHotkeyFields();
         SaveSettings();
     }
 
@@ -476,6 +516,57 @@ public class SettingsService
         }
     }
 
+    private void EnsureHoldHotkeyBindingsInitialized()
+    {
+        var bindings = _settings.HoldHotkeyBindings;
+        var didChange = false;
+
+        if (bindings == null)
+        {
+            bindings = new List<HoldHotkeyBindingSettings>();
+            _settings.HoldHotkeyBindings = bindings;
+            didChange = true;
+        }
+
+        var normalizedBindings = new List<HoldHotkeyBindingSettings>();
+        foreach (var binding in bindings)
+        {
+            if (binding == null)
+            {
+                didChange = true;
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(binding.Id))
+            {
+                binding.Id = CreateBindingId();
+                didChange = true;
+            }
+
+            normalizedBindings.Add(binding);
+        }
+
+        if (normalizedBindings.Count == 0 &&
+            (_settings.HoldHotkeyCode > 0 || _settings.HoldHotkeyModifiers != ModifierKeys.None))
+        {
+            normalizedBindings.Add(new HoldHotkeyBindingSettings
+            {
+                Id = CreateBindingId(),
+                KeyCode = _settings.HoldHotkeyCode,
+                Modifiers = _settings.HoldHotkeyModifiers
+            });
+            didChange = true;
+        }
+
+        _settings.HoldHotkeyBindings = normalizedBindings;
+        SyncLegacyHoldHotkeyFields();
+
+        if (didChange)
+        {
+            SaveSettings();
+        }
+    }
+
     private HotkeyBindingSettings GetOrCreateHotkeyBinding(string action)
     {
         EnsureHotkeyBindingsInitialized();
@@ -494,6 +585,23 @@ public class SettingsService
         return binding;
     }
 
+    private HoldHotkeyBindingSettings GetOrCreateHoldHotkeyBinding()
+    {
+        EnsureHoldHotkeyBindingsInitialized();
+
+        var binding = _settings.HoldHotkeyBindings!.FirstOrDefault();
+        if (binding != null)
+        {
+            return binding;
+        }
+
+        binding = CreateEmptyHoldBinding();
+        _settings.HoldHotkeyBindings!.Add(binding);
+        SyncLegacyHoldHotkeyFields();
+        SaveSettings();
+        return binding;
+    }
+
     private HotkeyBindingSettings GetHotkeyBindingById(string bindingId)
     {
         var binding = _settings.HotkeyBindings!.FirstOrDefault(existing =>
@@ -505,6 +613,19 @@ public class SettingsService
         }
 
         throw new InvalidOperationException($"Hotkey binding '{bindingId}' was not found.");
+    }
+
+    private HoldHotkeyBindingSettings GetHoldHotkeyBindingById(string bindingId)
+    {
+        var binding = _settings.HoldHotkeyBindings!.FirstOrDefault(existing =>
+            string.Equals(existing.Id, bindingId, StringComparison.OrdinalIgnoreCase));
+
+        if (binding != null)
+        {
+            return binding;
+        }
+
+        throw new InvalidOperationException($"Hold hotkey binding '{bindingId}' was not found.");
     }
 
     private HotkeyBindingSettings CreateDefaultBinding(string action)
@@ -558,6 +679,16 @@ public class SettingsService
         };
     }
 
+    private HoldHotkeyBindingSettings CreateEmptyHoldBinding()
+    {
+        return new HoldHotkeyBindingSettings
+        {
+            Id = CreateBindingId(),
+            KeyCode = 0,
+            Modifiers = ModifierKeys.None
+        };
+    }
+
     private void SyncLegacyHotkeyFields()
     {
         var toggleBinding = _settings.HotkeyBindings?
@@ -570,6 +701,13 @@ public class SettingsService
         _settings.IgnoreModifiers = toggleBinding?.IgnoreModifiers ?? false;
     }
 
+    private void SyncLegacyHoldHotkeyFields()
+    {
+        var holdBinding = _settings.HoldHotkeyBindings?.FirstOrDefault();
+        _settings.HoldHotkeyCode = holdBinding?.KeyCode ?? 0;
+        _settings.HoldHotkeyModifiers = holdBinding?.Modifiers ?? ModifierKeys.None;
+    }
+
     private static string CreateBindingId()
     {
         return Guid.NewGuid().ToString("N");
@@ -579,15 +717,16 @@ public class SettingsService
 public class AppSettings
 {
     // Toggle hotkey settings
-    public int HotkeyCode { get; set; } = 0x4D; // 'M' key
-    public ModifierKeys HotkeyModifiers { get; set; } = ModifierKeys.Ctrl | ModifierKeys.Alt;
-    public bool IgnoreModifiers { get; set; } = false; // Don't ignore modifiers for Ctrl+Alt+M
+    public int HotkeyCode { get; set; } = 0; // Empty by default
+    public ModifierKeys HotkeyModifiers { get; set; } = ModifierKeys.None;
+    public bool IgnoreModifiers { get; set; } = false;
     public List<HotkeyBindingSettings>? HotkeyBindings { get; set; }
     
     // Hold hotkey settings
     public int HoldHotkeyCode { get; set; } = 0; // Disabled by default
     public ModifierKeys HoldHotkeyModifiers { get; set; } = ModifierKeys.None;
     public bool IgnoreHoldModifiers { get; set; } = false;
+    public List<HoldHotkeyBindingSettings>? HoldHotkeyBindings { get; set; }
     public string HoldAction { get; set; } = "Toggle"; // Toggle, HoldToMute, HoldToUnmute
     public bool HoldPlaySounds { get; set; } = true; // Play sounds when using hold hotkey
     public bool HoldShowOverlay { get; set; } = true; // Show overlay when using hold hotkey
@@ -660,6 +799,23 @@ public class HotkeyBindingSettings
             KeyCode = KeyCode,
             Modifiers = Modifiers,
             IgnoreModifiers = IgnoreModifiers
+        };
+    }
+}
+
+public class HoldHotkeyBindingSettings
+{
+    public string Id { get; set; } = "";
+    public int KeyCode { get; set; }
+    public ModifierKeys Modifiers { get; set; } = ModifierKeys.None;
+
+    public HoldHotkeyBindingSettings Clone()
+    {
+        return new HoldHotkeyBindingSettings
+        {
+            Id = Id,
+            KeyCode = KeyCode,
+            Modifiers = Modifiers
         };
     }
 }

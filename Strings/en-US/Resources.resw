@@ -74,7 +74,7 @@
 
   <data name="HoldToMutePage.TitleText.Text" xml:space="preserve"><value>Hold to Mute</value></data>
   <data name="HoldToMutePage.DescriptionText.Text" xml:space="preserve"><value>Mute/unmute your microphone while holding a hotkey</value></data>
-  <data name="HoldToMutePage.HotkeyLabel.Text" xml:space="preserve"><value>Hotkey</value></data>
+  <data name="HoldToMutePage.HotkeyLabel.Text" xml:space="preserve"><value>Hotkeys</value></data>
   <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Not set</value></data>
   <data name="HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Clear hotkey</value></data>
   <data name="HoldToMutePage.RecordHoldHotkeyButton.Content" xml:space="preserve"><value>Record</value></data>

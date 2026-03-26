@@ -1,7 +1,9 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using silence_.Services;
 using System;
+using System.Collections.Generic;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
@@ -9,10 +11,9 @@ namespace silence_.Pages
 {
     public sealed partial class HoldToMutePage : Page
     {
-        private bool _isRecordingHoldHotkey;
-        private int _recordedKeyCode;
-        private ModifierKeys _recordedModifiers;
+        private string? _recordingBindingId;
         private bool _isInitializing;
+        private readonly Dictionary<string, HoldHotkeyRowControls> _holdHotkeyRows = new();
 
         public HoldToMutePage()
         {
@@ -33,10 +34,7 @@ namespace silence_.Pages
             TitleTextBlock.Text = AppResources.GetString("HoldToMutePage.TitleText.Text");
             DescriptionTextBlock.Text = AppResources.GetString("HoldToMutePage.DescriptionText.Text");
             HotkeyLabelText.Text = AppResources.GetString("HoldToMutePage.HotkeyLabel.Text");
-            HoldHotkeyTextBox.PlaceholderText = AppResources.GetString("HoldToMutePage.HoldHotkeyTextBox.PlaceholderText");
-            ToolTipService.SetToolTip(ClearHoldHotkeyButton, AppResources.GetString("HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip"));
-            RecordHoldHotkeyButton.Content = AppResources.GetString("HoldToMutePage.RecordHoldHotkeyButton.Content");
-            HoldHotkeyHintText.Text = AppResources.GetString("HoldToMutePage.HoldHotkeyHintText.Text");
+            AddHoldHotkeyButton.Content = AppResources.GetString("GeneralPage.AddHotkeyButton.Content");
             IgnoreHoldModifiersCheckBox.Content = AppResources.GetString("HoldToMutePage.IgnoreHoldModifiersCheckBox.Content");
             ActionLabelText.Text = AppResources.GetString("HoldToMutePage.ActionLabel.Text");
             ActionToggleItem.Content = AppResources.GetString("HoldToMutePage.ActionToggleItem.Content");
@@ -64,29 +62,24 @@ namespace silence_.Pages
             _isInitializing = true;
 
             var settings = App.Instance?.SettingsService.Settings;
-            if (settings == null) return;
-
-            if (settings.HoldHotkeyCode > 0 || settings.HoldHotkeyModifiers != ModifierKeys.None)
+            if (settings == null)
             {
-                HoldHotkeyTextBox.Text = VirtualKeys.GetHotkeyDisplayString(settings.HoldHotkeyCode, settings.HoldHotkeyModifiers);
-            }
-            else
-            {
-                HoldHotkeyTextBox.Text = "";
+                _isInitializing = false;
+                return;
             }
 
+            ReloadHoldHotkeyRows();
             IgnoreHoldModifiersCheckBox.IsChecked = settings.IgnoreHoldModifiers;
             HoldPlaySoundsCheckBox.IsChecked = settings.HoldPlaySounds;
             HoldShowOverlayCheckBox.IsChecked = settings.HoldShowOverlay;
 
-            var actionIndex = settings.HoldAction switch
+            HoldActionComboBox.SelectedIndex = settings.HoldAction switch
             {
                 "Toggle" => 0,
                 "HoldToMute" => 1,
                 "HoldToUnmute" => 2,
                 _ => 0
             };
-            HoldActionComboBox.SelectedIndex = actionIndex;
             UpdateActionDescription(settings.HoldAction);
 
             PopulateSoundComboBoxes();
@@ -94,6 +87,280 @@ namespace silence_.Pages
 
             _isInitializing = false;
         }
+
+        private void ReloadHoldHotkeyRows()
+        {
+            if (_recordingBindingId != null)
+            {
+                StopRecordingHoldHotkey();
+            }
+
+            _holdHotkeyRows.Clear();
+            HoldHotkeysPanel.Children.Clear();
+
+            var bindings = App.Instance?.SettingsService.GetHoldHotkeyBindings();
+            if (bindings == null)
+            {
+                return;
+            }
+
+            foreach (var binding in bindings)
+            {
+                var row = CreateHoldHotkeyRow(binding);
+                _holdHotkeyRows[binding.Id] = row;
+                HoldHotkeysPanel.Children.Add(row.Container);
+            }
+        }
+
+        private HoldHotkeyRowControls CreateHoldHotkeyRow(HoldHotkeyBindingSettings binding)
+        {
+            var container = new StackPanel
+            {
+                Spacing = 6
+            };
+
+            var grid = new Grid
+            {
+                ColumnSpacing = 8
+            };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var textHost = new Grid();
+            var textBox = new TextBox
+            {
+                IsReadOnly = true,
+                PlaceholderText = AppResources.GetString("HoldToMutePage.HoldHotkeyTextBox.PlaceholderText"),
+                Text = GetDisplayText(binding.KeyCode, binding.Modifiers)
+            };
+            var progressBar = new ProgressBar
+            {
+                Height = 3,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(1, 0, 1, 1),
+                Minimum = 0,
+                Maximum = 1,
+                Value = 0,
+                Visibility = Visibility.Collapsed,
+                ShowError = false,
+                ShowPaused = false
+            };
+            textHost.Children.Add(textBox);
+            textHost.Children.Add(progressBar);
+            Grid.SetColumn(textHost, 0);
+            grid.Children.Add(textHost);
+
+            var clearButton = new Button
+            {
+                Tag = binding.Id,
+                Content = "\uE711",
+                FontFamily = Application.Current.Resources["SymbolThemeFontFamily"] as FontFamily,
+                Width = 32,
+                Height = 32,
+                Padding = new Thickness(0)
+            };
+            clearButton.Click += ClearHoldHotkeyButton_Click;
+            ToolTipService.SetToolTip(clearButton, AppResources.GetString("HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip"));
+            Grid.SetColumn(clearButton, 1);
+            grid.Children.Add(clearButton);
+
+            var recordButton = new Button
+            {
+                Tag = binding.Id,
+                Content = AppResources.GetString("HoldToMutePage.RecordHoldHotkeyButton.Content")
+            };
+            recordButton.Click += RecordHoldHotkeyButton_Click;
+            Grid.SetColumn(recordButton, 2);
+            grid.Children.Add(recordButton);
+
+            var removeButton = new Button
+            {
+                Tag = binding.Id,
+                Content = "\uE74D",
+                FontFamily = Application.Current.Resources["SymbolThemeFontFamily"] as FontFamily,
+                Width = 32,
+                Height = 32,
+                Padding = new Thickness(0)
+            };
+            removeButton.Click += RemoveHoldHotkeyButton_Click;
+            ToolTipService.SetToolTip(removeButton, AppResources.GetString("GeneralPage.RemoveHotkeyButton.ToolTipService.ToolTip"));
+            Grid.SetColumn(removeButton, 3);
+            grid.Children.Add(removeButton);
+
+            var hintText = new TextBlock
+            {
+                Text = AppResources.GetString("HoldToMutePage.HoldHotkeyHintText.Text"),
+                FontSize = 11,
+                Opacity = 0.6,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+
+            container.Children.Add(grid);
+            container.Children.Add(hintText);
+
+            return new HoldHotkeyRowControls(binding.Id, container, textBox, progressBar, hintText, recordButton);
+        }
+
+        private void RefreshHoldHotkeyRegistration()
+        {
+            var holdBindings = App.Instance?.SettingsService.GetHoldHotkeyBindings();
+            var ignoreModifiers = App.Instance?.SettingsService.Settings.IgnoreHoldModifiers ?? true;
+            App.Instance?.KeyboardHookService.UpdateHoldHotkeys(holdBindings, ignoreModifiers);
+        }
+
+        private static string GetDisplayText(int keyCode, ModifierKeys modifiers)
+        {
+            return keyCode > 0 || modifiers != ModifierKeys.None
+                ? VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers)
+                : string.Empty;
+        }
+
+        private void UpdateActionDescription(string action)
+        {
+            ActionDescriptionText.Text = action switch
+            {
+                "Toggle" => AppResources.GetString("HoldToMute.ActionDescription.Toggle"),
+                "HoldToMute" => AppResources.GetString("HoldToMute.ActionDescription.HoldToMute"),
+                "HoldToUnmute" => AppResources.GetString("HoldToMute.ActionDescription.HoldToUnmute"),
+                _ => AppResources.GetString("HoldToMute.ActionDescription.Toggle")
+            };
+        }
+
+        #region Event Handlers
+
+        private void AddHoldHotkeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            App.Instance?.SettingsService.AddHoldHotkeyBinding();
+            ReloadHoldHotkeyRows();
+            RefreshHoldHotkeyRegistration();
+        }
+
+        private void RecordHoldHotkeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not string bindingId)
+            {
+                return;
+            }
+
+            if (_recordingBindingId == bindingId)
+            {
+                StopRecordingHoldHotkey();
+            }
+            else
+            {
+                StartRecordingHoldHotkey(bindingId);
+            }
+        }
+
+        private void ClearHoldHotkeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not string bindingId)
+            {
+                return;
+            }
+
+            if (_recordingBindingId == bindingId)
+            {
+                StopRecordingHoldHotkey();
+            }
+
+            App.Instance?.SettingsService.UpdateHoldHotkeyBinding(bindingId, 0, ModifierKeys.None);
+            ReloadHoldHotkeyRows();
+            RefreshHoldHotkeyRegistration();
+        }
+
+        private void RemoveHoldHotkeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not string bindingId)
+            {
+                return;
+            }
+
+            if (_recordingBindingId == bindingId)
+            {
+                StopRecordingHoldHotkey();
+            }
+
+            App.Instance?.SettingsService.RemoveHoldHotkeyBinding(bindingId);
+            ReloadHoldHotkeyRows();
+            RefreshHoldHotkeyRegistration();
+        }
+
+        private void IgnoreHoldModifiersCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            var ignore = IgnoreHoldModifiersCheckBox.IsChecked ?? true;
+            App.Instance?.SettingsService.UpdateIgnoreHoldModifiers(ignore);
+            RefreshHoldHotkeyRegistration();
+        }
+
+        private void HoldPlaySoundsCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+
+            var playSounds = HoldPlaySoundsCheckBox.IsChecked ?? true;
+            App.Instance?.SettingsService.UpdateHoldPlaySounds(playSounds);
+        }
+
+        private void HoldShowOverlayCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+
+            var showOverlay = HoldShowOverlayCheckBox.IsChecked ?? true;
+            App.Instance?.SettingsService.UpdateHoldShowOverlay(showOverlay);
+        }
+
+        private void HoldActionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isInitializing) return;
+
+            if (HoldActionComboBox.SelectedItem is ComboBoxItem item)
+            {
+                var action = item.Tag?.ToString() ?? "Toggle";
+                App.Instance?.SettingsService.UpdateHoldAction(action);
+                UpdateActionDescription(action);
+            }
+        }
+
+        private void HoldVolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+        {
+            if (HoldVolumePercentText == null) return;
+
+            if (HoldVolumeSlider.Value < 0)
+            {
+                HoldVolumePercentText.Text = AppResources.GetString("Common.Default");
+            }
+            else
+            {
+                HoldVolumePercentText.Text = $"{(int)HoldVolumeSlider.Value}%";
+            }
+
+            if (_isInitializing) return;
+
+            if (HoldVolumeSlider.Value < 0)
+            {
+                App.Instance?.SettingsService.UpdateHoldSoundVolume(-1);
+            }
+            else
+            {
+                App.Instance?.SettingsService.UpdateHoldSoundVolume((float)(HoldVolumeSlider.Value / 100.0));
+            }
+        }
+
+        private void ResetHoldVolumeButton_Click(object sender, RoutedEventArgs e)
+        {
+            _isInitializing = true;
+            HoldVolumeSlider.Value = -1;
+            HoldVolumePercentText.Text = AppResources.GetString("Common.Default");
+            _isInitializing = false;
+            App.Instance?.SettingsService.UpdateHoldSoundVolume(-1);
+        }
+
+        #endregion
+
+        #region Sounds
 
         private void PopulateSoundComboBoxes()
         {
@@ -206,117 +473,6 @@ namespace silence_.Pages
             }
 
             comboBox.SelectedIndex = 0;
-        }
-
-        private void UpdateActionDescription(string action)
-        {
-            ActionDescriptionText.Text = action switch
-            {
-                "Toggle" => AppResources.GetString("HoldToMute.ActionDescription.Toggle"),
-                "HoldToMute" => AppResources.GetString("HoldToMute.ActionDescription.HoldToMute"),
-                "HoldToUnmute" => AppResources.GetString("HoldToMute.ActionDescription.HoldToUnmute"),
-                _ => AppResources.GetString("HoldToMute.ActionDescription.Toggle")
-            };
-        }
-
-        #region Event Handlers
-
-        private void RecordHoldHotkeyButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_isRecordingHoldHotkey)
-            {
-                StopRecordingHoldHotkey();
-            }
-            else
-            {
-                StartRecordingHoldHotkey();
-            }
-        }
-
-        private void ClearHoldHotkeyButton_Click(object sender, RoutedEventArgs e)
-        {
-            HoldHotkeyTextBox.Text = "";
-            App.Instance?.SettingsService.UpdateHoldHotkey(0, ModifierKeys.None);
-            App.Instance?.KeyboardHookService.UpdateHoldHotkey(0, ModifierKeys.None, IgnoreHoldModifiersCheckBox.IsChecked ?? true);
-        }
-
-        private void IgnoreHoldModifiersCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            var ignore = IgnoreHoldModifiersCheckBox.IsChecked ?? true;
-            App.Instance?.SettingsService.UpdateIgnoreHoldModifiers(ignore);
-
-            var settings = App.Instance?.SettingsService.Settings;
-            if (settings != null)
-            {
-                App.Instance?.KeyboardHookService.UpdateHoldHotkey(
-                    settings.HoldHotkeyCode,
-                    settings.HoldHotkeyModifiers,
-                    ignore);
-            }
-        }
-
-        private void HoldPlaySoundsCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_isInitializing) return;
-
-            var playSounds = HoldPlaySoundsCheckBox.IsChecked ?? true;
-            App.Instance?.SettingsService.UpdateHoldPlaySounds(playSounds);
-        }
-
-        private void HoldShowOverlayCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_isInitializing) return;
-
-            var showOverlay = HoldShowOverlayCheckBox.IsChecked ?? true;
-            App.Instance?.SettingsService.UpdateHoldShowOverlay(showOverlay);
-        }
-
-        private void HoldActionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_isInitializing) return;
-
-            if (HoldActionComboBox.SelectedItem is ComboBoxItem item)
-            {
-                var action = item.Tag?.ToString() ?? "Toggle";
-                App.Instance?.SettingsService.UpdateHoldAction(action);
-                UpdateActionDescription(action);
-            }
-        }
-
-        private void HoldVolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
-        {
-            if (HoldVolumePercentText == null) return;
-
-            if (HoldVolumeSlider.Value < 0)
-            {
-                HoldVolumePercentText.Text = AppResources.GetString("Common.Default");
-            }
-            else
-            {
-                var volumePercent = (int)HoldVolumeSlider.Value;
-                HoldVolumePercentText.Text = $"{volumePercent}%";
-            }
-
-            if (_isInitializing) return;
-
-            if (HoldVolumeSlider.Value < 0)
-            {
-                App.Instance?.SettingsService.UpdateHoldSoundVolume(-1);
-            }
-            else
-            {
-                var volume = (float)(HoldVolumeSlider.Value / 100.0);
-                App.Instance?.SettingsService.UpdateHoldSoundVolume(volume);
-            }
-        }
-
-        private void ResetHoldVolumeButton_Click(object sender, RoutedEventArgs e)
-        {
-            _isInitializing = true;
-            HoldVolumeSlider.Value = -1;
-            HoldVolumePercentText.Text = AppResources.GetString("Common.Default");
-            _isInitializing = false;
-            App.Instance?.SettingsService.UpdateHoldSoundVolume(-1);
         }
 
         private async void HoldMuteSoundComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -472,16 +628,19 @@ namespace silence_.Pages
 
         #region Recording
 
-        private void StartRecordingHoldHotkey()
+        private void StartRecordingHoldHotkey(string bindingId)
         {
-            _isRecordingHoldHotkey = true;
-            _recordedKeyCode = 0;
-            _recordedModifiers = ModifierKeys.None;
-            RecordHoldHotkeyButton.Content = AppResources.GetString("HoldToMute.Hotkey.RecordCancel");
-            HoldHotkeyTextBox.Text = AppResources.GetString("Hotkeys.RecordPrompt");
-            HoldHotkeyHintText.Visibility = Visibility.Visible;
+            if (_recordingBindingId != null)
+            {
+                StopRecordingHoldHotkey();
+            }
 
-            HoldHotkeyTextBox.Focus(FocusState.Programmatic);
+            _recordingBindingId = bindingId;
+            var controls = GetHoldHotkeyRow(bindingId);
+            controls.RecordButton.Content = AppResources.GetString("HoldToMute.Hotkey.RecordCancel");
+            controls.TextBox.Text = AppResources.GetString("Hotkeys.RecordPrompt");
+            controls.HintText.Visibility = Visibility.Visible;
+            controls.TextBox.Focus(FocusState.Programmatic);
 
             if (App.Instance?.KeyboardHookService != null)
             {
@@ -492,10 +651,14 @@ namespace silence_.Pages
 
         private void StopRecordingHoldHotkey()
         {
-            _isRecordingHoldHotkey = false;
-            RecordHoldHotkeyButton.Content = AppResources.GetString("HoldToMute.Hotkey.Record");
-            HoldHotkeyHintText.Visibility = Visibility.Collapsed;
-            HoldHotkeyProgressBar.Visibility = Visibility.Collapsed;
+            if (_recordingBindingId != null && _holdHotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+            {
+                controls.RecordButton.Content = AppResources.GetString("HoldToMute.Hotkey.Record");
+                controls.HintText.Visibility = Visibility.Collapsed;
+                controls.ProgressBar.Visibility = Visibility.Collapsed;
+            }
+
+            _recordingBindingId = null;
 
             if (App.Instance?.KeyboardHookService != null)
             {
@@ -506,50 +669,54 @@ namespace silence_.Pages
 
         private void OnModifiersChanged(ModifierKeys modifiers)
         {
-            if (!_isRecordingHoldHotkey) return;
+            if (_recordingBindingId == null) return;
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                _recordedModifiers = modifiers;
+                if (!_holdHotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                {
+                    return;
+                }
+
                 var display = VirtualKeys.GetHotkeyDisplayString(0, modifiers);
-                var text = string.IsNullOrEmpty(display)
+                controls.TextBox.Text = string.IsNullOrEmpty(display)
                     ? AppResources.GetString("Hotkeys.RecordPrompt")
                     : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
-
-                HoldHotkeyTextBox.Text = text;
             });
         }
 
         private void OnModifierHoldProgress(double progress)
         {
-            if (!_isRecordingHoldHotkey) return;
+            if (_recordingBindingId == null) return;
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                HoldHotkeyProgressBar.Value = progress;
-                HoldHotkeyProgressBar.Visibility = progress > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (!_holdHotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                {
+                    return;
+                }
+
+                controls.ProgressBar.Value = progress;
+                controls.ProgressBar.Visibility = progress > 0 ? Visibility.Visible : Visibility.Collapsed;
             });
         }
 
         private void OnKeyPressed(int keyCode, ModifierKeys modifiers)
         {
-            if (!_isRecordingHoldHotkey) return;
+            if (_recordingBindingId == null) return;
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                _recordedKeyCode = keyCode;
-                _recordedModifiers = modifiers;
+                var bindingId = _recordingBindingId;
+                if (bindingId == null)
+                {
+                    return;
+                }
 
-                var displayText = VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers);
-
-                HoldHotkeyTextBox.Text = displayText;
                 StopRecordingHoldHotkey();
-
-                App.Instance?.SettingsService.UpdateHoldHotkey(keyCode, modifiers);
-                App.Instance?.KeyboardHookService.UpdateHoldHotkey(
-                    keyCode,
-                    modifiers,
-                    IgnoreHoldModifiersCheckBox.IsChecked ?? true);
+                App.Instance?.SettingsService.UpdateHoldHotkeyBinding(bindingId, keyCode, modifiers);
+                ReloadHoldHotkeyRows();
+                RefreshHoldHotkeyRegistration();
             });
         }
 
@@ -558,6 +725,7 @@ namespace silence_.Pages
         protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+            StopRecordingHoldHotkey();
 
             if (App.Instance?.KeyboardHookService != null)
             {
@@ -565,6 +733,42 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.ModifiersChanged -= OnModifiersChanged;
                 App.Instance.KeyboardHookService.ModifierHoldProgress -= OnModifierHoldProgress;
             }
+        }
+
+        private HoldHotkeyRowControls GetHoldHotkeyRow(string bindingId)
+        {
+            if (_holdHotkeyRows.TryGetValue(bindingId, out var row))
+            {
+                return row;
+            }
+
+            throw new InvalidOperationException($"Hold hotkey row '{bindingId}' was not found.");
+        }
+
+        private sealed class HoldHotkeyRowControls
+        {
+            public HoldHotkeyRowControls(
+                string bindingId,
+                StackPanel container,
+                TextBox textBox,
+                ProgressBar progressBar,
+                TextBlock hintText,
+                Button recordButton)
+            {
+                BindingId = bindingId;
+                Container = container;
+                TextBox = textBox;
+                ProgressBar = progressBar;
+                HintText = hintText;
+                RecordButton = recordButton;
+            }
+
+            public string BindingId { get; }
+            public StackPanel Container { get; }
+            public TextBox TextBox { get; }
+            public ProgressBar ProgressBar { get; }
+            public TextBlock HintText { get; }
+            public Button RecordButton { get; }
         }
     }
 }

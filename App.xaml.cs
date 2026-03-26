@@ -70,8 +70,7 @@ namespace silence_
             _keyboardHookService.HoldHotkeyReleased += OnHoldHotkeyReleased;
             _keyboardHookService.StartHook(
                 _settingsService.GetHotkeyBindings(),
-                _settingsService.Settings.HoldHotkeyCode,
-                _settingsService.Settings.HoldHotkeyModifiers,
+                _settingsService.GetHoldHotkeyBindings(),
                 _settingsService.Settings.IgnoreHoldModifiers);
         }
 

@@ -15,41 +15,18 @@
             </StackPanel>
 
             <StackPanel Spacing="8">
-                <TextBlock x:Name="HotkeyLabelText" x:Uid="HoldToMutePage.HotkeyLabel" Text="Hotkey" FontWeight="SemiBold" FontSize="14"/>
-
-                <Grid ColumnSpacing="8">
+                <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Grid Grid.Column="0">
-                        <TextBox x:Name="HoldHotkeyTextBox" x:Uid="HoldToMutePage.HoldHotkeyTextBox" IsReadOnly="True" PlaceholderText="Not set" Text=""/>
-                        <ProgressBar x:Name="HoldHotkeyProgressBar" Height="3" VerticalAlignment="Bottom" Margin="1,0,1,1" Minimum="0" Maximum="1" Value="0" Visibility="Collapsed" ShowError="False" ShowPaused="False"/>
-                    </Grid>
-                    <Button x:Name="ClearHoldHotkeyButton"
-                            x:Uid="HoldToMutePage.ClearHoldHotkeyButton"
+                    <TextBlock x:Name="HotkeyLabelText" x:Uid="HoldToMutePage.HotkeyLabel" Text="Hotkey" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+                    <Button x:Name="AddHoldHotkeyButton"
                             Grid.Column="1"
-                            Content="&#xE711;"
-                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                            Width="32"
-                            Height="32"
-                            Padding="0"
-                            ToolTipService.ToolTip="Clear hotkey"
-                            Click="ClearHoldHotkeyButton_Click"/>
-                    <Button x:Name="RecordHoldHotkeyButton"
-                            x:Uid="HoldToMutePage.RecordHoldHotkeyButton"
-                            Grid.Column="2"
-                            Content="Record"
-                            Click="RecordHoldHotkeyButton_Click"/>
+                            Content="Add hotkey"
+                            Click="AddHoldHotkeyButton_Click"/>
                 </Grid>
-                <TextBlock x:Name="HoldHotkeyHintText"
-                           x:Uid="HoldToMutePage.HoldHotkeyHintText"
-                           Text="To bind LMB, RMB or modifier keys - hold them for 1 second"
-                           FontSize="11"
-                           Opacity="0.6"
-                           Visibility="Collapsed"
-                           Margin="0,4,0,0"/>
+                <StackPanel x:Name="HoldHotkeysPanel" Spacing="12"/>
                 <CheckBox x:Name="IgnoreHoldModifiersCheckBox"
                           x:Uid="HoldToMutePage.IgnoreHoldModifiersCheckBox"
                           Content="Ignore modifiers (Shift, Ctrl, Alt, Win)"
