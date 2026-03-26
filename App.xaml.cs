@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Dispatching;
 using silence_.Services;
 using System;
 using System.Linq;
@@ -19,8 +20,8 @@ namespace silence_
         private SoundService? _soundService;
         private bool _startMinimized;
         private bool _isOverlayPositioning = false;
-        private System.Timers.Timer? _previewTimer;
-        private System.Timers.Timer? _positioningTimer;
+        private DispatcherQueueTimer? _previewTimer;
+        private DispatcherQueueTimer? _positioningTimer;
 
         public static App? Instance { get; private set; }
         public MicrophoneService MicrophoneService => _microphoneService!;
@@ -34,13 +35,13 @@ namespace silence_
 
         // Event for mute state changes
         public event Action<bool>? MuteStateChanged;
-        
+
         // Event for update available notification
         public event Action<UpdateCheckResult>? UpdateAvailable;
-        
+
         // Event for overlay positioning stopped
         public event Action? OverlayPositioningStopped;
-        
+
         // Cached update check result for AboutPage
         public UpdateCheckResult? LastUpdateCheckResult { get; private set; }
 
@@ -78,57 +79,60 @@ namespace silence_
         {
             _localizationService ??= new LocalizationService(_settingsService!.Settings.LanguageOverride);
             _window = new MainWindow();
-            
+
             // Initialize overlay window
             InitializeOverlay();
-            
+
             var shouldStartMinimized = _startMinimized || _settingsService!.Settings.StartMinimized;
-            
+
             // Only activate window if NOT starting minimized
             // Tray icon is set up in MainWindow constructor, so it works without activation
             if (!shouldStartMinimized)
             {
                 _window.Activate();
             }
-            
+
             // Check for updates on startup if enabled
             if (_settingsService!.Settings.CheckForUpdatesOnStartup)
             {
                 _ = CheckForUpdatesOnStartupAsync();
             }
         }
-        
+
         private void InitializeOverlay()
         {
             _overlayWindow = new LayeredOverlay();
-            
+
             // Set initial position and apply settings
             var settings = _settingsService?.Settings;
             if (settings != null)
             {
                 _overlayWindow.ApplySettings();
                 _overlayWindow.MoveToPosition(
-                    settings.OverlayPositionX, 
-                    settings.OverlayPositionY, 
+                    settings.OverlayPositionX,
+                    settings.OverlayPositionY,
                     settings.OverlayScreenId);
             }
-            
+
             UpdateOverlayInputTimer();
-            
+
             // Update overlay visibility based on current state
             UpdateOverlayVisibility();
         }
 
         public void RefreshOverlay()
         {
+            RunOnUiThread(RefreshOverlayCore);
+        }
+
+        private void RefreshOverlayCore()
+        {
             var wasPositioning = _isOverlayPositioning;
 
             _previewTimer?.Stop();
-            _previewTimer?.Dispose();
             _previewTimer = null;
 
             _positioningTimer?.Stop();
-            _positioningTimer?.Dispose();
             _positioningTimer = null;
 
             _overlayWindow?.Dispose();
@@ -142,20 +146,25 @@ namespace silence_
                 UpdateOverlayInputTimer();
             }
         }
-        
+
         public void UpdateOverlayVisibility()
         {
+            RunOnUiThread(UpdateOverlayVisibilityCore);
+        }
+
+        private void UpdateOverlayVisibilityCore()
+        {
             if (_overlayWindow == null || _settingsService == null) return;
-            
+
             var settings = _settingsService.Settings;
             UpdateOverlayInputTimer();
-            
+
             if (!settings.OverlayEnabled)
             {
                 _overlayWindow.HideOverlay();
                 return;
             }
-            
+
             var isMuted = _microphoneService?.IsMuted() ?? false;
             bool shouldShow = settings.OverlayVisibilityMode switch
             {
@@ -165,7 +174,7 @@ namespace silence_
                 "AfterToggle" => false, // Handled separately in OnHotkeyPressed
                 _ => isMuted
             };
-            
+
             if (shouldShow || _isOverlayPositioning)
             {
                 // Only update mute state when showing - prevents animation to wrong state
@@ -177,111 +186,148 @@ namespace silence_
                 _overlayWindow.HideOverlay();
             }
         }
-        
+
         private void ShowOverlayTemporarily()
         {
             if (_overlayWindow == null || _settingsService == null) return;
-            
+
             var settings = _settingsService.Settings;
             var isMuted = _microphoneService?.IsMuted() ?? false;
-            
+
             _overlayWindow.UpdateMuteState(isMuted);
             _overlayWindow.ShowOverlay();
-            
+
             // Cancel any existing timer
             _previewTimer?.Stop();
-            _previewTimer?.Dispose();
-            
+
             // Set up timer to hide overlay after duration
             var durationMs = (int)(settings.OverlayShowDuration * 1000);
-            _previewTimer = new System.Timers.Timer(durationMs);
-            _previewTimer.Elapsed += (s, e) =>
+            var dispatcher = GetUiDispatcherQueue();
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            _previewTimer = dispatcher.CreateTimer();
+            _previewTimer.Interval = TimeSpan.FromMilliseconds(durationMs);
+            _previewTimer.IsRepeating = false;
+            _previewTimer.Tick += (_, _) =>
             {
                 _previewTimer?.Stop();
-                _window?.DispatcherQueue.TryEnqueue(() =>
+
+                // Only hide if still in AfterToggle mode and not positioning
+                if (_settingsService?.Settings.OverlayVisibilityMode == "AfterToggle" && !_isOverlayPositioning)
                 {
-                    // Only hide if still in AfterToggle mode and not positioning
-                    if (_settingsService?.Settings.OverlayVisibilityMode == "AfterToggle" && !_isOverlayPositioning)
-                    {
-                        _overlayWindow?.HideOverlay();
-                    }
-                });
+                    _overlayWindow?.HideOverlay();
+                }
             };
-            _previewTimer.AutoReset = false;
             _previewTimer.Start();
         }
-        
+
         public void UpdateOverlayPosition()
         {
+            RunOnUiThread(UpdateOverlayPositionCore);
+        }
+
+        private void UpdateOverlayPositionCore()
+        {
             if (_overlayWindow == null || _settingsService == null) return;
-            
+
             var settings = _settingsService.Settings;
             _overlayWindow.MoveToPosition(
                 settings.OverlayPositionX,
                 settings.OverlayPositionY,
                 settings.OverlayScreenId);
         }
-        
+
         public void OnDisplayChanged()
+        {
+            RunOnUiThread(OnDisplayChangedCore);
+        }
+
+        private void OnDisplayChangedCore()
         {
             // Called when display resolution or DPI changes
             _overlayWindow?.OnDisplayChanged();
         }
-        
+
         public void ApplyOverlaySettings()
         {
+            RunOnUiThread(ApplyOverlaySettingsCore);
+        }
+
+        private void ApplyOverlaySettingsCore()
+        {
             if (_overlayWindow == null || _settingsService == null) return;
-            
+
             _overlayWindow.ApplySettings();
             _overlayWindow.SetButtonMode(_settingsService.Settings.OverlayButtonMode);
             UpdateOverlayPosition();
             UpdateOverlayInputTimer();
         }
-        
+
         public void StartOverlayPositioning()
         {
-            if (_overlayWindow == null) return;
-            
-            _isOverlayPositioning = true;
-            _overlayWindow.StartPositioning();
-            
-            UpdateOverlayInputTimer();
+            RunOnUiThread(StartOverlayPositioningCore);
         }
-        
-        public void StopOverlayPositioning()
+
+        private void StartOverlayPositioningCore()
         {
             if (_overlayWindow == null) return;
-            
+
+            _isOverlayPositioning = true;
+            _overlayWindow.StartPositioning();
+
+            UpdateOverlayInputTimer();
+        }
+
+        public void StopOverlayPositioning()
+        {
+            RunOnUiThread(StopOverlayPositioningCore);
+        }
+
+        private void StopOverlayPositioningCore()
+        {
+            if (_overlayWindow == null) return;
+
             _isOverlayPositioning = false;
             _overlayWindow.StopPositioning();
             UpdateOverlayInputTimer();
             UpdateOverlayVisibility();
-            
+
             // Notify UI to reset button state
             OverlayPositioningStopped?.Invoke();
         }
-        
+
         public void PreviewOverlay()
         {
+            RunOnUiThread(PreviewOverlayCore);
+        }
+
+        private void PreviewOverlayCore()
+        {
             if (_overlayWindow == null) return;
-            
+
             // Show overlay for 3 seconds
             _overlayWindow.UpdateMuteState(_microphoneService?.IsMuted() ?? false);
             _overlayWindow.ShowOverlay();
-            
+
             // Use timer to hide after preview
             _previewTimer?.Stop();
-            _previewTimer?.Dispose();
-            _previewTimer = new System.Timers.Timer(3000);
-            _previewTimer.Elapsed += (s, e) =>
+            var dispatcher = GetUiDispatcherQueue();
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            _previewTimer = dispatcher.CreateTimer();
+            _previewTimer.Interval = TimeSpan.FromMilliseconds(3000);
+            _previewTimer.IsRepeating = false;
+            _previewTimer.Tick += (_, _) =>
             {
                 _previewTimer?.Stop();
-                _window?.DispatcherQueue.TryEnqueue(() =>
-                {
-                    UpdateOverlayVisibility();
-                });
+                UpdateOverlayVisibilityCore();
             };
-            _previewTimer.AutoReset = false;
             _previewTimer.Start();
         }
 
@@ -295,7 +341,6 @@ namespace silence_
             if (!shouldProcessInput)
             {
                 _positioningTimer?.Stop();
-                _positioningTimer?.Dispose();
                 _positioningTimer = null;
                 return;
             }
@@ -305,35 +350,42 @@ namespace silence_
                 return;
             }
 
-            _positioningTimer = new System.Timers.Timer(16); // ~60fps
-            _positioningTimer.Elapsed += (s, e) => _overlayWindow?.ProcessDrag();
-            _positioningTimer.AutoReset = true;
+            var dispatcher = GetUiDispatcherQueue();
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            _positioningTimer = dispatcher.CreateTimer();
+            _positioningTimer.Interval = TimeSpan.FromMilliseconds(16); // ~60fps
+            _positioningTimer.IsRepeating = true;
+            _positioningTimer.Tick += (_, _) => _overlayWindow?.ProcessDrag();
             _positioningTimer.Start();
         }
-        
+
         private async Task CheckForUpdatesOnStartupAsync()
         {
             try
             {
                 // Small delay to let the app fully initialize
                 await Task.Delay(2000);
-                
+
                 System.Diagnostics.Debug.WriteLine("CheckForUpdatesOnStartupAsync: Starting update check");
-                
+
                 var result = await UpdateService.CheckForUpdatesAsync();
-                
+
                 System.Diagnostics.Debug.WriteLine($"CheckForUpdatesOnStartupAsync: Update available = {result.IsUpdateAvailable}");
-                
+
                 if (result.Success && result.IsUpdateAvailable)
                 {
                     LastUpdateCheckResult = result;
                     UpdateAvailable?.Invoke(result);
-                    
+
                     System.Diagnostics.Debug.WriteLine("CheckForUpdatesOnStartupAsync: Calling SendUpdateNotification");
                     // Send toast notification
                     NotificationService.SendUpdateNotification(result);
                 }
-                
+
                 _settingsService?.UpdateLastUpdateCheck();
             }
             catch (Exception ex)
@@ -365,6 +417,11 @@ namespace silence_
 
         private void UpdateOverlayAfterStateChange(bool isMuted)
         {
+            RunOnUiThread(() => UpdateOverlayAfterStateChangeCore(isMuted));
+        }
+
+        private void UpdateOverlayAfterStateChangeCore(bool isMuted)
+        {
             var settings = _settingsService?.Settings;
             if (settings?.OverlayEnabled == true && settings.OverlayVisibilityMode == "AfterToggle")
             {
@@ -385,7 +442,7 @@ namespace silence_
                 _overlayWindow?.UpdateMuteState(isMuted);
             }
 
-            UpdateOverlayVisibility();
+            UpdateOverlayVisibilityCore();
         }
 
         private void PlayDefaultSoundFeedback(bool isMuted)
@@ -480,13 +537,13 @@ namespace silence_
                     MuteStateChanged?.Invoke(isMuted);
                     break;
             }
-            
+
             // Update overlay if enabled for hold hotkey
             if (settings?.HoldShowOverlay == true)
             {
                 UpdateOverlayAfterStateChange(isMuted);
             }
-            
+
             // Play sound feedback if enabled for hold hotkey
             if (settings?.HoldPlaySounds == true && settings != null)
             {
@@ -536,13 +593,13 @@ namespace silence_
                     MuteStateChanged?.Invoke(isMuted);
                     break;
             }
-            
+
             // Update overlay if enabled for hold hotkey
             if (settings?.HoldShowOverlay == true)
             {
                 UpdateOverlayAfterStateChange(isMuted);
             }
-            
+
             // Play sound feedback if enabled for hold hotkey
             if (settings?.HoldPlaySounds == true && settings != null)
             {
@@ -582,14 +639,32 @@ namespace silence_
             _notificationService?.Dispose();
             _soundService?.Dispose();
             _previewTimer?.Stop();
-            _previewTimer?.Dispose();
             _positioningTimer?.Stop();
-            _positioningTimer?.Dispose();
             _overlayWindow?.Dispose();
             _overlayWindow = null;
             _window?.DisposeTrayIcon();
             _window?.Close();
             Environment.Exit(0);
+        }
+
+        private DispatcherQueue? GetUiDispatcherQueue()
+        {
+            return _window?.DispatcherQueue ?? DispatcherQueue.GetForCurrentThread();
+        }
+
+        private void RunOnUiThread(Action action)
+        {
+            var dispatcher = GetUiDispatcherQueue();
+            if (dispatcher == null || dispatcher.HasThreadAccess)
+            {
+                action();
+                return;
+            }
+
+            if (!dispatcher.TryEnqueue(action))
+            {
+                System.Diagnostics.Debug.WriteLine("App: failed to marshal overlay action to UI thread.");
+            }
         }
     }
 }

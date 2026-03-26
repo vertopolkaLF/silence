@@ -1,3 +1,25 @@
+# silence! v1.8 - Multi-Hotkey Actions
+
+> **One hotkey was never enough. Obviously.**
+
+## What's New in v1.8
+
+### Multiple Hotkeys Per Action
+
+- **Add More Than One Shortcut** - Each microphone action can now have multiple hotkeys assigned at the same time.
+
+### Dedicated Mute and Unmute Actions
+
+- **Separate Mute Hotkeys** - Assign hotkeys that always mute, without relying on toggle behavior.
+
+- **Separate Unmute Hotkeys** - Assign hotkeys that always unmute, so there is no guesswork or accidental flip.
+
+### Overlay Reliability Fixes
+
+- **Fixed Overlay Losing Always-On-Top** - Reworked overlay window updates to stay on the UI thread, explicitly re-assert topmost state after show/move/display changes, and stop the overlay from randomly dropping behind other windows until you hit refresh like some ritual.
+
+---
+
 # silence! v1.7 - Interactive Overlay + Tray Icon Control
 
 > **Click it. Drag it. Mute it.**
