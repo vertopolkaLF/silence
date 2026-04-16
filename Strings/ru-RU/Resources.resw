@@ -62,11 +62,11 @@
   <data name="GeneralPage.MuteHotkeyLabel.Text" xml:space="preserve"><value>Выключить микрофон</value></data>
   <data name="GeneralPage.UnmuteHotkeyLabel.Text" xml:space="preserve"><value>Включить микрофон</value></data>
   <data name="GeneralPage.AddHotkeyButton.Content" xml:space="preserve"><value>Добавить сочетание</value></data>
-  <data name="GeneralPage.HotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Нажмите клавишу...</value></data>
+  <data name="GeneralPage.HotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Нажмите клавишу или удерживайте кнопку геймпада...</value></data>
   <data name="GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Очистить сочетание</value></data>
   <data name="GeneralPage.RemoveHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Удалить сочетание</value></data>
   <data name="GeneralPage.RecordHotkeyButton.Content" xml:space="preserve"><value>Записать</value></data>
-  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>Чтобы назначить ЛКМ, ПКМ или 2 модификатора, удерживайте их 1 секунду</value></data>
+  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>Нажмите клавишу или удерживайте любую кнопку геймпада 1 секунду. Чтобы назначить ЛКМ, ПКМ или сочетание только из модификаторов, удерживайте их 1 секунду</value></data>
   <data name="GeneralPage.IgnoreModifiersCheckBox.Content" xml:space="preserve"><value>Игнорировать модификаторы (Shift, Ctrl, Alt, Win)</value></data>
   <data name="GeneralPage.StartupLabel.Text" xml:space="preserve"><value>Запуск</value></data>
   <data name="GeneralPage.AutoStartCheckBox.Content" xml:space="preserve"><value>Запускать вместе с Windows</value></data>
@@ -75,11 +75,11 @@
   <data name="HoldToMutePage.TitleText.Text" xml:space="preserve"><value>Удержание</value></data>
   <data name="HoldToMutePage.DescriptionText.Text" xml:space="preserve"><value>Выключайте или включайте микрофон, пока удерживаете горячую клавишу</value></data>
   <data name="HoldToMutePage.HotkeyLabel.Text" xml:space="preserve"><value>Горячие клавиши</value></data>
-  <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Не задано</value></data>
+  <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Нажмите клавишу или удерживайте кнопку геймпада...</value></data>
   <data name="HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Очистить сочетание</value></data>
   <data name="HoldToMutePage.RecordHoldHotkeyButton.Content" xml:space="preserve"><value>Записать</value></data>
-  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>Чтобы назначить ЛКМ, ПКМ или модификаторы, удерживайте их 1 секунду</value></data>
-  <data name="HoldToMutePage.IgnoreHoldModifiersCheckBox.Content" xml:space="preserve"><value>Игнорировать модификаторы (Shift, Ctrl, Alt, Win)</value></data>
+  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>Нажмите клавишу или удерживайте любую кнопку геймпада 1 секунду. Чтобы назначить ЛКМ, ПКМ или сочетание только из модификаторов, удерживайте их 1 секунду</value></data>
+  <data name="HoldToMutePage.IgnoreHoldModifiersCheckBox.Content" xml:space="preserve"><value>Игнорировать модификаторы клавиатуры (Shift, Ctrl, Alt, Win)</value></data>
   <data name="HoldToMutePage.ActionLabel.Text" xml:space="preserve"><value>Действие</value></data>
   <data name="HoldToMutePage.ActionToggleItem.Content" xml:space="preserve"><value>Переключать текущее состояние</value></data>
   <data name="HoldToMutePage.ActionHoldToMuteItem.Content" xml:space="preserve"><value>Выключать при удержании</value></data>
@@ -182,7 +182,7 @@
   <data name="Sounds.Preloaded.Punchy" xml:space="preserve"><value>Punchy</value></data>
   <data name="Sounds.Preloaded.SciFi" xml:space="preserve"><value>Sci-Fi</value></data>
   <data name="Sounds.Preloaded.Vibrant" xml:space="preserve"><value>Vibrant</value></data>
-  <data name="Hotkeys.RecordPrompt" xml:space="preserve"><value>Нажмите клавиши...</value></data>
+  <data name="Hotkeys.RecordPrompt" xml:space="preserve"><value>Нажмите клавишу или удерживайте кнопку геймпада...</value></data>
   <data name="Hotkeys.RecordPromptWithModifiers" xml:space="preserve"><value>{0} + ...</value></data>
   <data name="Hotkeys.Modifier.Ctrl" xml:space="preserve"><value>Ctrl</value></data>
   <data name="Hotkeys.Modifier.Alt" xml:space="preserve"><value>Alt</value></data>
@@ -208,6 +208,22 @@
   <data name="Hotkeys.Key.NumpadDivide" xml:space="preserve"><value>Numpad /</value></data>
   <data name="Hotkeys.Key.NumpadNumber" xml:space="preserve"><value>Numpad {0}</value></data>
   <data name="Hotkeys.Key.Generic" xml:space="preserve"><value>Клавиша {0}</value></data>
+  <data name="Hotkeys.Key.GamepadA" xml:space="preserve"><value>Геймпад A</value></data>
+  <data name="Hotkeys.Key.GamepadB" xml:space="preserve"><value>Геймпад B</value></data>
+  <data name="Hotkeys.Key.GamepadX" xml:space="preserve"><value>Геймпад X</value></data>
+  <data name="Hotkeys.Key.GamepadY" xml:space="preserve"><value>Геймпад Y</value></data>
+  <data name="Hotkeys.Key.GamepadLeftShoulder" xml:space="preserve"><value>Геймпад LB</value></data>
+  <data name="Hotkeys.Key.GamepadRightShoulder" xml:space="preserve"><value>Геймпад RB</value></data>
+  <data name="Hotkeys.Key.GamepadLeftTrigger" xml:space="preserve"><value>Геймпад LT</value></data>
+  <data name="Hotkeys.Key.GamepadRightTrigger" xml:space="preserve"><value>Геймпад RT</value></data>
+  <data name="Hotkeys.Key.GamepadView" xml:space="preserve"><value>Геймпад View</value></data>
+  <data name="Hotkeys.Key.GamepadMenu" xml:space="preserve"><value>Геймпад Menu</value></data>
+  <data name="Hotkeys.Key.GamepadDPadUp" xml:space="preserve"><value>Геймпад крестовина вверх</value></data>
+  <data name="Hotkeys.Key.GamepadDPadDown" xml:space="preserve"><value>Геймпад крестовина вниз</value></data>
+  <data name="Hotkeys.Key.GamepadDPadLeft" xml:space="preserve"><value>Геймпад крестовина влево</value></data>
+  <data name="Hotkeys.Key.GamepadDPadRight" xml:space="preserve"><value>Геймпад крестовина вправо</value></data>
+  <data name="Hotkeys.Key.GamepadLeftThumbstick" xml:space="preserve"><value>Геймпад левый стик</value></data>
+  <data name="Hotkeys.Key.GamepadRightThumbstick" xml:space="preserve"><value>Геймпад правый стик</value></data>
   <data name="General.Microphone.Default" xml:space="preserve"><value>Микрофон по умолчанию</value></data>
   <data name="General.Microphone.All" xml:space="preserve"><value>Все микрофоны</value></data>
   <data name="General.Microphone.NamedDefault" xml:space="preserve"><value>{0} (по умолчанию)</value></data>

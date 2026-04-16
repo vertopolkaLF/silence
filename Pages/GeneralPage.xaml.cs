@@ -35,6 +35,12 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.ModifierHoldProgress += OnModifierHoldProgress;
             }
 
+            if (App.Instance?.GamepadInputService != null)
+            {
+                App.Instance.GamepadInputService.ButtonPressed += OnGamepadButtonPressed;
+                App.Instance.GamepadInputService.ButtonHoldProgress += OnGamepadHoldProgress;
+            }
+
             if (App.Instance != null)
             {
                 App.Instance.MuteStateChanged += OnMuteStateChanged;
@@ -401,6 +407,12 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.ResetRecordingState();
                 App.Instance.KeyboardHookService.IsRecording = true;
             }
+
+            if (App.Instance?.GamepadInputService != null)
+            {
+                App.Instance.GamepadInputService.ResetRecordingState();
+                App.Instance.GamepadInputService.IsRecording = true;
+            }
         }
 
         private void StopRecordingHotkey()
@@ -418,6 +430,12 @@ namespace silence_.Pages
             {
                 App.Instance.KeyboardHookService.IsRecording = false;
                 App.Instance.KeyboardHookService.ResetRecordingState();
+            }
+
+            if (App.Instance?.GamepadInputService != null)
+            {
+                App.Instance.GamepadInputService.IsRecording = false;
+                App.Instance.GamepadInputService.ResetRecordingState();
             }
         }
 
@@ -461,6 +479,25 @@ namespace silence_.Pages
             });
         }
 
+        private void OnGamepadHoldProgress(double progress)
+        {
+            if (_recordingBindingId == null)
+            {
+                return;
+            }
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_hotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                {
+                    return;
+                }
+
+                controls.ProgressBar.Value = progress;
+                controls.ProgressBar.Visibility = progress > 0 ? Visibility.Visible : Visibility.Collapsed;
+            });
+        }
+
         private void OnKeyPressed(int keyCode, ModifierKeys modifiers)
         {
             if (_recordingBindingId == null)
@@ -480,8 +517,40 @@ namespace silence_.Pages
 
                 StopRecordingHotkey();
 
-                App.Instance?.SettingsService.UpdateHotkeyBinding(bindingId, keyCode, modifiers);
+                App.Instance?.SettingsService.UpdateHotkeyBinding(
+                    bindingId,
+                    keyCode,
+                    modifiers,
+                    InputDeviceKind.KeyboardMouse,
+                    GamepadButtonId.None);
                 App.Instance?.SettingsService.UpdateHotkeyBindingIgnoreModifiers(bindingId, ignoreModifiers);
+                ReloadHotkeyRows();
+                RefreshHotkeyRegistration();
+            });
+        }
+
+        private void OnGamepadButtonPressed(GamepadButtonId button)
+        {
+            if (_recordingBindingId == null)
+            {
+                return;
+            }
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var bindingId = _recordingBindingId;
+                if (bindingId == null)
+                {
+                    return;
+                }
+
+                StopRecordingHotkey();
+                App.Instance?.SettingsService.UpdateHotkeyBinding(
+                    bindingId,
+                    0,
+                    ModifierKeys.None,
+                    InputDeviceKind.Gamepad,
+                    button);
                 ReloadHotkeyRows();
                 RefreshHotkeyRegistration();
             });
@@ -523,6 +592,12 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.KeyPressed -= OnKeyPressed;
                 App.Instance.KeyboardHookService.ModifiersChanged -= OnModifiersChanged;
                 App.Instance.KeyboardHookService.ModifierHoldProgress -= OnModifierHoldProgress;
+            }
+
+            if (App.Instance?.GamepadInputService != null)
+            {
+                App.Instance.GamepadInputService.ButtonPressed -= OnGamepadButtonPressed;
+                App.Instance.GamepadInputService.ButtonHoldProgress -= OnGamepadHoldProgress;
             }
 
             if (App.Instance != null)
@@ -606,7 +681,7 @@ namespace silence_.Pages
             {
                 IsReadOnly = true,
                 PlaceholderText = AppResources.GetString("GeneralPage.HotkeyTextBox.PlaceholderText"),
-                Text = GetDisplayText(binding.KeyCode, binding.Modifiers)
+                Text = GetDisplayText(binding)
             };
             var progressBar = new ProgressBar
             {
@@ -675,7 +750,8 @@ namespace silence_.Pages
             {
                 Tag = binding.Id,
                 Content = AppResources.GetString("GeneralPage.IgnoreModifiersCheckBox.Content"),
-                IsChecked = binding.IgnoreModifiers
+                IsChecked = binding.IgnoreModifiers,
+                Visibility = binding.DeviceKind == InputDeviceKind.Gamepad ? Visibility.Collapsed : Visibility.Visible
             };
             ignoreCheckBox.Checked += IgnoreModifiersCheckBox_Changed;
             ignoreCheckBox.Unchecked += IgnoreModifiersCheckBox_Changed;
@@ -696,6 +772,7 @@ namespace silence_.Pages
             }
 
             App.Instance?.KeyboardHookService.UpdateHotkeys(bindings);
+            App.Instance?.GamepadInputService.UpdateHotkeys(bindings);
         }
 
         private HotkeyRowControls GetHotkeyRow(string bindingId)
@@ -724,11 +801,9 @@ namespace silence_.Pages
             return AppResources.GetString(isMuted ? "General.MuteStatus.Muted" : "General.MuteStatus.Unmuted");
         }
 
-        private static string GetDisplayText(int keyCode, ModifierKeys modifiers)
+        private static string GetDisplayText(HotkeyBindingSettings binding)
         {
-            return keyCode > 0 || modifiers != ModifierKeys.None
-                ? VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers)
-                : string.Empty;
+            return InputBindingDisplay.GetDisplayText(binding);
         }
 
         private sealed class HotkeyRowControls

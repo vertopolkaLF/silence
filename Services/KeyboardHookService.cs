@@ -158,7 +158,7 @@ public class KeyboardHookService : IDisposable
 
         foreach (var hotkey in hotkeys)
         {
-            if (hotkey == null)
+            if (hotkey == null || hotkey.DeviceKind != InputDeviceKind.KeyboardMouse)
             {
                 continue;
             }
@@ -195,7 +195,7 @@ public class KeyboardHookService : IDisposable
         {
             foreach (var hotkey in holdHotkeys)
             {
-                if (hotkey == null)
+                if (hotkey == null || hotkey.DeviceKind != InputDeviceKind.KeyboardMouse)
                 {
                     continue;
                 }

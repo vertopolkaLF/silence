@@ -63,11 +63,11 @@
   <data name="GeneralPage.MuteHotkeyLabel.Text" xml:space="preserve"><value>Mute microphone</value></data>
   <data name="GeneralPage.UnmuteHotkeyLabel.Text" xml:space="preserve"><value>Unmute microphone</value></data>
   <data name="GeneralPage.AddHotkeyButton.Content" xml:space="preserve"><value>Add hotkey</value></data>
-  <data name="GeneralPage.HotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Press a key...</value></data>
+  <data name="GeneralPage.HotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Press a key or hold a gamepad button...</value></data>
   <data name="GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Clear hotkey</value></data>
   <data name="GeneralPage.RemoveHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Remove hotkey</value></data>
   <data name="GeneralPage.RecordHotkeyButton.Content" xml:space="preserve"><value>Record</value></data>
-  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>To bind LMB, RMB or 2 modifier keys - hold them for 1 second</value></data>
+  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>Press a key, or hold any gamepad button for 1 second. To bind LMB, RMB, or modifier-only shortcuts, hold them for 1 second</value></data>
   <data name="GeneralPage.IgnoreModifiersCheckBox.Content" xml:space="preserve"><value>Ignore modifiers (Shift, Ctrl, Alt, Win)</value></data>
   <data name="GeneralPage.StartupLabel.Text" xml:space="preserve"><value>Startup</value></data>
   <data name="GeneralPage.AutoStartCheckBox.Content" xml:space="preserve"><value>Start with Windows</value></data>
@@ -76,11 +76,11 @@
   <data name="HoldToMutePage.TitleText.Text" xml:space="preserve"><value>Hold to Mute</value></data>
   <data name="HoldToMutePage.DescriptionText.Text" xml:space="preserve"><value>Mute/unmute your microphone while holding a hotkey</value></data>
   <data name="HoldToMutePage.HotkeyLabel.Text" xml:space="preserve"><value>Hotkeys</value></data>
-  <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Not set</value></data>
+  <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Press a key or hold a gamepad button...</value></data>
   <data name="HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Clear hotkey</value></data>
   <data name="HoldToMutePage.RecordHoldHotkeyButton.Content" xml:space="preserve"><value>Record</value></data>
-  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>To bind LMB, RMB or modifier keys - hold them for 1 second</value></data>
-  <data name="HoldToMutePage.IgnoreHoldModifiersCheckBox.Content" xml:space="preserve"><value>Ignore modifiers (Shift, Ctrl, Alt, Win)</value></data>
+  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>Press a key, or hold any gamepad button for 1 second. To bind LMB, RMB, or modifier-only shortcuts, hold them for 1 second</value></data>
+  <data name="HoldToMutePage.IgnoreHoldModifiersCheckBox.Content" xml:space="preserve"><value>Ignore keyboard modifiers (Shift, Ctrl, Alt, Win)</value></data>
   <data name="HoldToMutePage.ActionLabel.Text" xml:space="preserve"><value>Action</value></data>
   <data name="HoldToMutePage.ActionToggleItem.Content" xml:space="preserve"><value>Toggle current state</value></data>
   <data name="HoldToMutePage.ActionHoldToMuteItem.Content" xml:space="preserve"><value>Hold to mute</value></data>
@@ -198,7 +198,7 @@
   <data name="Sounds.Preloaded.Punchy" xml:space="preserve"><value>Punchy</value></data>
   <data name="Sounds.Preloaded.SciFi" xml:space="preserve"><value>Sci-Fi</value></data>
   <data name="Sounds.Preloaded.Vibrant" xml:space="preserve"><value>Vibrant</value></data>
-  <data name="Hotkeys.RecordPrompt" xml:space="preserve"><value>Press keys...</value></data>
+  <data name="Hotkeys.RecordPrompt" xml:space="preserve"><value>Press a key or hold a gamepad button...</value></data>
   <data name="Hotkeys.RecordPromptWithModifiers" xml:space="preserve"><value>{0} + ...</value></data>
   <data name="Hotkeys.Modifier.Ctrl" xml:space="preserve"><value>Ctrl</value></data>
   <data name="Hotkeys.Modifier.Alt" xml:space="preserve"><value>Alt</value></data>
@@ -224,6 +224,22 @@
   <data name="Hotkeys.Key.NumpadDivide" xml:space="preserve"><value>Numpad /</value></data>
   <data name="Hotkeys.Key.NumpadNumber" xml:space="preserve"><value>Numpad {0}</value></data>
   <data name="Hotkeys.Key.Generic" xml:space="preserve"><value>Key {0}</value></data>
+  <data name="Hotkeys.Key.GamepadA" xml:space="preserve"><value>Gamepad A</value></data>
+  <data name="Hotkeys.Key.GamepadB" xml:space="preserve"><value>Gamepad B</value></data>
+  <data name="Hotkeys.Key.GamepadX" xml:space="preserve"><value>Gamepad X</value></data>
+  <data name="Hotkeys.Key.GamepadY" xml:space="preserve"><value>Gamepad Y</value></data>
+  <data name="Hotkeys.Key.GamepadLeftShoulder" xml:space="preserve"><value>Gamepad LB</value></data>
+  <data name="Hotkeys.Key.GamepadRightShoulder" xml:space="preserve"><value>Gamepad RB</value></data>
+  <data name="Hotkeys.Key.GamepadLeftTrigger" xml:space="preserve"><value>Gamepad LT</value></data>
+  <data name="Hotkeys.Key.GamepadRightTrigger" xml:space="preserve"><value>Gamepad RT</value></data>
+  <data name="Hotkeys.Key.GamepadView" xml:space="preserve"><value>Gamepad View</value></data>
+  <data name="Hotkeys.Key.GamepadMenu" xml:space="preserve"><value>Gamepad Menu</value></data>
+  <data name="Hotkeys.Key.GamepadDPadUp" xml:space="preserve"><value>Gamepad D-pad Up</value></data>
+  <data name="Hotkeys.Key.GamepadDPadDown" xml:space="preserve"><value>Gamepad D-pad Down</value></data>
+  <data name="Hotkeys.Key.GamepadDPadLeft" xml:space="preserve"><value>Gamepad D-pad Left</value></data>
+  <data name="Hotkeys.Key.GamepadDPadRight" xml:space="preserve"><value>Gamepad D-pad Right</value></data>
+  <data name="Hotkeys.Key.GamepadLeftThumbstick" xml:space="preserve"><value>Gamepad Left Stick</value></data>
+  <data name="Hotkeys.Key.GamepadRightThumbstick" xml:space="preserve"><value>Gamepad Right Stick</value></data>
   <data name="General.Microphone.Default" xml:space="preserve"><value>Default Microphone</value></data>
   <data name="General.Microphone.All" xml:space="preserve"><value>All Microphones</value></data>
   <data name="General.Microphone.NamedDefault" xml:space="preserve"><value>{0} (Default)</value></data>
