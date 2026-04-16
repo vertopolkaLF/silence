@@ -1,8 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>silence</id>
-    <version>1.8.0.0</version>
+    <version>1.9.0.0</version>
     <packageSourceUrl>https://github.com/vertopolkaLF/silence</packageSourceUrl>
     <owners>vertopolkaLF</owners>
     <title>silence!</title>
@@ -35,13 +35,19 @@ A simple, lightweight microphone mute toggle for Windows with global hotkey supp
 - **Modern UI** - Mica/Acrylic backdrop, smooth animations, native Windows 10/11 look
 - **Portable** - No MSIX installer required, just extract and run
 
-## What's New in v1.8
+## What's New in v1.9
 
-### Multi-Hotkey Actions
-- **Multiple Hotkeys Per Action** - Assign more than one shortcut to toggle, mute, or unmute
-- **Dedicated Mute and Unmute Actions** - Add direct actions instead of routing everything through toggle
-- **Multiple Hold Hotkeys** - Hold-to-mute now supports multiple bindings too
-- **Cleaner Defaults** - Toggle starts empty and mute/unmute only appear when you add hotkeys
+### Gamepad Support
+- **Gamepad Hotkeys** - Bind toggle, mute, and unmute actions to supported gamepad buttons
+- **Gamepad Hold-to-Mute** - Use controller input for hold-to-mute / push-to-talk style control
+- **Button Combo Support** - Assign multi-button controller combinations to avoid accidental triggers
+- **Direct Capture in Settings** - Record gamepad bindings straight from the app's hotkey fields
+
+### Auto-Mute Settings
+- **Mute on Startup** - Start the app with your microphone already muted, including on Windows auto-launch
+- **Mute After Inactivity** - Automatically mute after a configurable idle period with no keyboard or mouse activity
+- **Optional Auto-Mute Sounds** - Play separate sounds for auto-mute events while keeping overlay behavior tied to overlay settings
+- **Unmute on Activity** - Optionally unmute on mouse activity only when the mic was muted by inactivity auto-mute
 
 ## What's New in v1.4
 
@@ -68,7 +74,7 @@ A simple, lightweight microphone mute toggle for Windows with global hotkey supp
 - Windows 11 supported
 - .NET 8.0 Runtime (included in installer)
 ]]></description>
-    <releaseNotes>https://github.com/vertopolkaLF/silence/releases/tag/v1.8</releaseNotes>
+    <releaseNotes>https://github.com/vertopolkaLF/silence/releases/tag/v1.9</releaseNotes>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />

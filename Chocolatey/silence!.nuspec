@@ -1,8 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>silence</id>
-    <version>1.8</version>
+    <version>1.9</version>
     <packageSourceUrl>https://github.com/vertopolkaLF/silence</packageSourceUrl>
     <owners>vertopolkaLF</owners>
     <title>silence!</title>
@@ -40,7 +40,7 @@ A simple, lightweight microphone mute toggle for Windows with global hotkey supp
 - Windows 11 supported
 - .NET 8.0 Runtime (included in installer)
 ]]></description>
-    <releaseNotes>https://github.com/vertopolkaLF/silence/releases/tag/v1.8</releaseNotes>
+    <releaseNotes>https://github.com/vertopolkaLF/silence/releases/tag/v1.9</releaseNotes>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />
