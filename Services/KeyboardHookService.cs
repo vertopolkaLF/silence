@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace silence_.Services;
@@ -86,9 +87,11 @@ public class KeyboardHookService : IDisposable
     private bool _ignoreHoldModifiers;
     private bool _isHoldKeyPressed;
     private HoldHotkeyBindingSettings? _activeHoldHotkey;
+    private readonly HashSet<int> _pressedChordKeys = new();
 
     // Current modifier state for recording
     private ModifierKeys _currentModifiers;
+    private readonly HashSet<int> _recordingChordKeys = new();
     private DateTime _modifierHoldStartTime;
     private bool _isWaitingForModifierHold;
     private System.Timers.Timer? _modifierHoldTimer;
@@ -100,7 +103,7 @@ public class KeyboardHookService : IDisposable
     public event Action<string>? HotkeyPressed;
     public event Action? HoldHotkeyPressed;
     public event Action? HoldHotkeyReleased;
-    public event Action<int, ModifierKeys>? KeyPressed; // For hotkey recording (key + modifiers)
+    public event Action<int, ModifierKeys, IReadOnlyList<int>>? KeyPressed; // For hotkey recording (key + modifiers + chord keys)
     public event Action<ModifierKeys>? ModifiersChanged; // For live modifier display
     public event Action<double>? ModifierHoldProgress; // Progress of modifier hold (0.0 to 1.0)
 
@@ -144,6 +147,7 @@ public class KeyboardHookService : IDisposable
             UnhookWindowsHookEx(_mouseHookId);
             _mouseHookId = IntPtr.Zero;
         }
+        _pressedChordKeys.Clear();
         _isHooked = false;
     }
 
@@ -158,7 +162,7 @@ public class KeyboardHookService : IDisposable
 
         foreach (var hotkey in hotkeys)
         {
-            if (hotkey == null)
+            if (hotkey == null || hotkey.DeviceKind != InputDeviceKind.KeyboardMouse)
             {
                 continue;
             }
@@ -168,7 +172,8 @@ public class KeyboardHookService : IDisposable
                 Action = hotkey.Action,
                 KeyCode = hotkey.KeyCode,
                 Modifiers = hotkey.Modifiers,
-                IgnoreModifiers = hotkey.IgnoreModifiers
+                IgnoreModifiers = hotkey.IgnoreModifiers,
+                ChordKeyCodes = hotkey.ChordKeyCodes?.ToList() ?? new List<int>()
             });
         }
     }
@@ -195,18 +200,19 @@ public class KeyboardHookService : IDisposable
         {
             foreach (var hotkey in holdHotkeys)
             {
-                if (hotkey == null)
+                if (hotkey == null || hotkey.DeviceKind != InputDeviceKind.KeyboardMouse)
                 {
                     continue;
                 }
 
-                _holdHotkeys.Add(new HoldHotkeyBindingSettings
-                {
-                    Id = hotkey.Id,
-                    KeyCode = hotkey.KeyCode,
-                    Modifiers = hotkey.Modifiers
-                });
-            }
+            _holdHotkeys.Add(new HoldHotkeyBindingSettings
+            {
+                Id = hotkey.Id,
+                KeyCode = hotkey.KeyCode,
+                Modifiers = hotkey.Modifiers,
+                ChordKeyCodes = hotkey.ChordKeyCodes?.ToList() ?? new List<int>()
+            });
+        }
         }
 
         _ignoreHoldModifiers = ignoreModifiers;
@@ -267,6 +273,17 @@ public class KeyboardHookService : IDisposable
                     }
                     ModifiersChanged?.Invoke(_currentModifiers);
                 }
+                else if (VirtualKeys.IsChordableGenericKey(vkCode))
+                {
+                    if (isKeyDown)
+                    {
+                        HandleRecordingChordKeyDown(vkCode);
+                    }
+                    else if (isKeyUp)
+                    {
+                        HandleRecordingChordKeyUp(vkCode);
+                    }
+                }
                 else if (isKeyDown)
                 {
                     RecordNonModifierKey(vkCode);
@@ -277,9 +294,17 @@ public class KeyboardHookService : IDisposable
                 if (isKeyDown)
                 {
                     HandleKeyDown(vkCode);
+                    if (VirtualKeys.IsChordableGenericKey(vkCode))
+                    {
+                        _pressedChordKeys.Add(vkCode);
+                    }
                 }
                 else if (isKeyUp)
                 {
+                    if (VirtualKeys.IsChordableGenericKey(vkCode))
+                    {
+                        _pressedChordKeys.Remove(vkCode);
+                    }
                     HandleKeyUp(vkCode);
                 }
             }
@@ -360,19 +385,26 @@ public class KeyboardHookService : IDisposable
         StopModifierHoldTimer();
         _isWaitingForModifierHold = false;
         var finalModifiers = _currentModifiers | GetCurrentModifiers();
-        KeyPressed?.Invoke(vkCode, finalModifiers);
+        var finalChordKeys = _recordingChordKeys
+            .Where(code => code != vkCode)
+            .OrderBy(code => code)
+            .ToList();
+        KeyPressed?.Invoke(vkCode, finalModifiers, finalChordKeys);
         _currentModifiers = ModifierKeys.None;
+        _recordingChordKeys.Clear();
+        ModifiersChanged?.Invoke(_currentModifiers);
     }
 
     private void HandleKeyDown(int vkCode)
     {
         var currentMods = GetCurrentModifiers();
+        var currentChordKeys = _pressedChordKeys.ToList();
         if (IsModifierKey(vkCode))
         {
             currentMods |= VkCodeToModifier(vkCode);
         }
         
-        if (TryHandleHoldHotkeyDown(vkCode, currentMods))
+        if (TryHandleHoldHotkeyDown(vkCode, currentMods, currentChordKeys))
         {
             return;
         }
@@ -395,12 +427,13 @@ public class KeyboardHookService : IDisposable
                 continue;
             }
 
-            if (IsConflictingWithHoldHotkey(vkCode, currentMods))
+            if (IsConflictingWithHoldHotkey(vkCode, currentMods, currentChordKeys))
             {
                 return;
             }
 
-            if (ModifiersMatch(currentMods, hotkey.Modifiers, hotkey.IgnoreModifiers))
+            if (ModifiersMatch(currentMods, hotkey.Modifiers, hotkey.IgnoreModifiers) &&
+                ChordKeysMatch(currentChordKeys, hotkey.ChordKeyCodes))
             {
                 HotkeyPressed?.Invoke(hotkey.Action);
                 return;
@@ -427,6 +460,12 @@ public class KeyboardHookService : IDisposable
                     HoldHotkeyReleased?.Invoke();
                 }
             }
+        }
+        else if (_activeHoldHotkey.ChordKeyCodes.Contains(vkCode))
+        {
+            _isHoldKeyPressed = false;
+            _activeHoldHotkey = null;
+            HoldHotkeyReleased?.Invoke();
         }
         else if (vkCode == _activeHoldHotkey.KeyCode && _activeHoldHotkey.KeyCode > 0)
         {
@@ -497,7 +536,7 @@ public class KeyboardHookService : IDisposable
             : currentMods == requiredMods;
     }
 
-    private bool TryHandleHoldHotkeyDown(int vkCode, ModifierKeys currentMods)
+    private bool TryHandleHoldHotkeyDown(int vkCode, ModifierKeys currentMods, IReadOnlyList<int> currentChordKeys)
     {
         if (_isHoldKeyPressed)
         {
@@ -520,7 +559,8 @@ public class KeyboardHookService : IDisposable
             }
 
             if (holdHotkey.KeyCode > 0 && vkCode == holdHotkey.KeyCode &&
-                ModifiersMatch(currentMods, holdHotkey.Modifiers, _ignoreHoldModifiers))
+                ModifiersMatch(currentMods, holdHotkey.Modifiers, _ignoreHoldModifiers) &&
+                ChordKeysMatch(currentChordKeys, holdHotkey.ChordKeyCodes))
             {
                 _isHoldKeyPressed = true;
                 _activeHoldHotkey = holdHotkey;
@@ -532,7 +572,7 @@ public class KeyboardHookService : IDisposable
         return false;
     }
 
-    private bool IsConflictingWithHoldHotkey(int vkCode, ModifierKeys currentMods)
+    private bool IsConflictingWithHoldHotkey(int vkCode, ModifierKeys currentMods, IReadOnlyList<int> currentChordKeys)
     {
         foreach (var holdHotkey in _holdHotkeys)
         {
@@ -547,7 +587,8 @@ public class KeyboardHookService : IDisposable
             }
 
             if (holdHotkey.KeyCode > 0 && vkCode == holdHotkey.KeyCode &&
-                ModifiersMatch(currentMods, holdHotkey.Modifiers, _ignoreHoldModifiers))
+                ModifiersMatch(currentMods, holdHotkey.Modifiers, _ignoreHoldModifiers) &&
+                ChordKeysMatch(currentChordKeys, holdHotkey.ChordKeyCodes))
             {
                 return true;
             }
@@ -581,7 +622,7 @@ public class KeyboardHookService : IDisposable
                 StopModifierHoldTimer();
                 _isWaitingForModifierHold = false;
                 _currentModifiers = ModifierKeys.None;
-                KeyPressed?.Invoke(0, capturedModifiers); // 0 = modifier-only binding
+                KeyPressed?.Invoke(0, capturedModifiers, Array.Empty<int>()); // 0 = modifier-only binding
             }
         };
         _modifierHoldTimer.AutoReset = true;
@@ -644,11 +685,14 @@ public class KeyboardHookService : IDisposable
     public void ResetRecordingState()
     {
         _currentModifiers = ModifierKeys.None;
+        _recordingChordKeys.Clear();
+        _pressedChordKeys.Clear();
         _isWaitingForModifierHold = false;
         StopModifierHoldTimer();
         _isWaitingForMouseHold = false;
         _pendingMouseHoldKey = 0;
         StopMouseHoldTimer();
+        ModifiersChanged?.Invoke(_currentModifiers);
     }
 
     public bool IsHooked => _isHooked;
@@ -657,6 +701,38 @@ public class KeyboardHookService : IDisposable
     {
         StopHook();
         StopModifierHoldTimer();
+    }
+
+    public IReadOnlyList<int> RecordingChordKeys => _recordingChordKeys.OrderBy(code => code).ToList();
+    public IReadOnlyList<int> PressedChordKeys => _pressedChordKeys.OrderBy(code => code).ToList();
+
+    private static bool ChordKeysMatch(IReadOnlyList<int> currentChordKeys, IReadOnlyList<int>? requiredChordKeys)
+    {
+        if (requiredChordKeys == null || requiredChordKeys.Count == 0)
+        {
+            return true;
+        }
+
+        return requiredChordKeys.All(currentChordKeys.Contains);
+    }
+
+    private void HandleRecordingChordKeyDown(int vkCode)
+    {
+        StopModifierHoldTimer();
+        _isWaitingForModifierHold = false;
+
+        if (_recordingChordKeys.Add(vkCode))
+        {
+            ModifiersChanged?.Invoke(_currentModifiers);
+        }
+    }
+
+    private void HandleRecordingChordKeyUp(int vkCode)
+    {
+        if (_recordingChordKeys.Remove(vkCode))
+        {
+            ModifiersChanged?.Invoke(_currentModifiers);
+        }
     }
 }
 
@@ -753,6 +829,33 @@ public static class VirtualKeys
             0xBF => "/",
             _ => AppResources.Format("Hotkeys.Key.Generic", vkCode)
         };
+    }
+
+    public static bool IsChordableGenericKey(int vkCode)
+    {
+        return !IsKnownKeyCode(vkCode) && !IsModifierLikeKey(vkCode);
+    }
+
+    private static bool IsKnownKeyCode(int vkCode)
+    {
+        return vkCode switch
+        {
+            0x01 or 0x02 or 0x04 or 0x05 or 0x06 => true,
+            >= 0x70 and <= 0x87 => true,
+            >= 0x30 and <= 0x39 => true,
+            >= 0x41 and <= 0x5A => true,
+            0x1B or 0x20 or 0x2D or 0x2E or 0x13 or 0x91 or 0x2C or 0x90 => true,
+            0x6A or 0x6B or 0x6D or 0x6E or 0x6F => true,
+            >= 0x60 and <= 0x69 => true,
+            0xC0 or 0xBD or 0xBB or 0xDB or 0xDD or 0xDC or 0xBA or 0xDE or 0xBC or 0xBE or 0xBF => true,
+            _ => false
+        };
+    }
+
+    private static bool IsModifierLikeKey(int vkCode)
+    {
+        return vkCode is 0x10 or 0x11 or 0x12 or 0x5B or 0x5C
+            or 0xA0 or 0xA1 or 0xA2 or 0xA3 or 0xA4 or 0xA5;
     }
 
     public static string GetHotkeyDisplayString(int keyCode, ModifierKeys modifiers)

@@ -1,8 +1,18 @@
-# silence! v1.9 - Auto-Mute
+# silence! v1.9 - Auto-Mute + Gamepad Support
 
-> **Now the app can mute itself when you forget to. Wild concept.**
+> **Now the app can mute itself when you forget to, or let your gamepad do the job. Wild concept.**
 
 ## What's New in v1.9
+
+### Gamepad Support
+
+- **Gamepad Hotkeys** - Bind toggle, mute, and unmute actions to supported gamepad buttons directly from the app.
+
+- **Gamepad Hold-to-Mute** - Use controller input for hold-to-mute or push-to-talk style control without reaching for the keyboard.
+
+- **Button Combo Support** - Assign multi-button controller combinations to reduce accidental triggers and fit your layout better.
+
+- **Direct Capture in Settings** - Hotkey fields can now listen for gamepad input and record controller bindings straight from the settings UI.
 
 ### Auto-Mute Settings
 

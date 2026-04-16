@@ -14,6 +14,7 @@ namespace silence_
         private LayeredOverlay? _overlayWindow;
         private MicrophoneService? _microphoneService;
         private KeyboardHookService? _keyboardHookService;
+        private GamepadInputService? _gamepadInputService;
         private SettingsService? _settingsService;
         private LocalizationService? _localizationService;
         private UpdateService? _updateService;
@@ -33,6 +34,7 @@ namespace silence_
         public static App? Instance { get; private set; }
         public MicrophoneService MicrophoneService => _microphoneService!;
         public KeyboardHookService KeyboardHookService => _keyboardHookService!;
+        public GamepadInputService GamepadInputService => _gamepadInputService!;
         public SettingsService SettingsService => _settingsService!;
         public LocalizationService LocalizationService => _localizationService!;
         public UpdateService UpdateService => _updateService ??= new UpdateService();
@@ -65,6 +67,9 @@ namespace silence_
             _settingsService.EnsureLanguageInitialized();
             _microphoneService = new MicrophoneService();
             _keyboardHookService = new KeyboardHookService();
+            _gamepadInputService = new GamepadInputService(
+                () => _keyboardHookService?.RecordingChordKeys ?? Array.Empty<int>(),
+                () => _keyboardHookService?.PressedChordKeys ?? Array.Empty<int>());
 
             // Apply saved microphone selection
             if (!string.IsNullOrEmpty(_settingsService.Settings.SelectedMicrophoneId))
@@ -80,6 +85,13 @@ namespace silence_
                 _settingsService.GetHotkeyBindings(),
                 _settingsService.GetHoldHotkeyBindings(),
                 _settingsService.Settings.IgnoreHoldModifiers);
+
+            _gamepadInputService.HotkeyPressed += OnHotkeyPressed;
+            _gamepadInputService.HoldHotkeyPressed += OnHoldHotkeyPressed;
+            _gamepadInputService.HoldHotkeyReleased += OnHoldHotkeyReleased;
+            _gamepadInputService.StartMonitoring(
+                _settingsService.GetHotkeyBindings(),
+                _settingsService.GetHoldHotkeyBindings());
         }
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -853,6 +865,7 @@ namespace silence_
         public void ExitApplication()
         {
             _keyboardHookService?.Dispose();
+            _gamepadInputService?.Dispose();
             _microphoneService?.Dispose();
             _updateService?.Dispose();
             _notificationService?.Dispose();

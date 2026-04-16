@@ -14,7 +14,7 @@ namespace silence_.Pages
         private bool _isMuted;
         private bool _isHovering;
         private bool _isFirstMuteUpdate = true;
-        private readonly Dictionary<string, HotkeyRowControls> _hotkeyRows = new();
+        private readonly Dictionary<string, HotkeyRowControls> _hotkeyRows = [];
 
         private static readonly Windows.UI.Color MutedColor = Windows.UI.Color.FromArgb(255, 205, 60, 70);
         private static readonly Windows.UI.Color MutedHoverColor = Windows.UI.Color.FromArgb(255, 160, 40, 50);
@@ -33,6 +33,13 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.KeyPressed += OnKeyPressed;
                 App.Instance.KeyboardHookService.ModifiersChanged += OnModifiersChanged;
                 App.Instance.KeyboardHookService.ModifierHoldProgress += OnModifierHoldProgress;
+            }
+
+            if (App.Instance?.GamepadInputService != null)
+            {
+                App.Instance.GamepadInputService.ButtonsCaptured += OnGamepadButtonsCaptured;
+                App.Instance.GamepadInputService.RecordingButtonsChanged += OnGamepadButtonsChanged;
+                App.Instance.GamepadInputService.ButtonHoldProgress += OnGamepadHoldProgress;
             }
 
             if (App.Instance != null)
@@ -401,6 +408,12 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.ResetRecordingState();
                 App.Instance.KeyboardHookService.IsRecording = true;
             }
+
+            if (App.Instance?.GamepadInputService != null)
+            {
+                App.Instance.GamepadInputService.ResetRecordingState();
+                App.Instance.GamepadInputService.IsRecording = true;
+            }
         }
 
         private void StopRecordingHotkey()
@@ -419,6 +432,12 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.IsRecording = false;
                 App.Instance.KeyboardHookService.ResetRecordingState();
             }
+
+            if (App.Instance?.GamepadInputService != null)
+            {
+                App.Instance.GamepadInputService.IsRecording = false;
+                App.Instance.GamepadInputService.ResetRecordingState();
+            }
         }
 
         private void OnModifiersChanged(ModifierKeys modifiers)
@@ -430,12 +449,16 @@ namespace silence_.Pages
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (!_hotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_hotkeyRows.TryGetValue(bindingId, out var controls))
                 {
                     return;
                 }
 
-                var display = VirtualKeys.GetHotkeyDisplayString(0, modifiers);
+                var display = InputBindingDisplay.GetKeyboardHotkeyDisplayString(
+                    0,
+                    modifiers,
+                    App.Instance?.KeyboardHookService.RecordingChordKeys);
                 controls.TextBox.Text = string.IsNullOrEmpty(display)
                     ? AppResources.GetString("Hotkeys.RecordPrompt")
                     : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
@@ -451,7 +474,8 @@ namespace silence_.Pages
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (!_hotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_hotkeyRows.TryGetValue(bindingId, out var controls))
                 {
                     return;
                 }
@@ -461,7 +485,49 @@ namespace silence_.Pages
             });
         }
 
-        private void OnKeyPressed(int keyCode, ModifierKeys modifiers)
+        private void OnGamepadHoldProgress(double progress)
+        {
+            if (_recordingBindingId == null)
+            {
+                return;
+            }
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_hotkeyRows.TryGetValue(bindingId, out var controls))
+                {
+                    return;
+                }
+
+                controls.ProgressBar.Value = progress;
+                controls.ProgressBar.Visibility = progress > 0 ? Visibility.Visible : Visibility.Collapsed;
+            });
+        }
+
+        private void OnGamepadButtonsChanged(ulong buttonsMask, IReadOnlyList<int> chordKeyCodes)
+        {
+            if (_recordingBindingId == null)
+            {
+                return;
+            }
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_hotkeyRows.TryGetValue(bindingId, out var controls))
+                {
+                    return;
+                }
+
+                var display = InputBindingDisplay.GetGamepadButtonsDisplayString(buttonsMask, chordKeyCodes);
+                controls.TextBox.Text = string.IsNullOrEmpty(display)
+                    ? AppResources.GetString("Hotkeys.RecordPrompt")
+                    : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
+            });
+        }
+
+        private void OnKeyPressed(int keyCode, ModifierKeys modifiers, IReadOnlyList<int> chordKeyCodes)
         {
             if (_recordingBindingId == null)
             {
@@ -480,8 +546,33 @@ namespace silence_.Pages
 
                 StopRecordingHotkey();
 
-                App.Instance?.SettingsService.UpdateHotkeyBinding(bindingId, keyCode, modifiers);
+                App.Instance?.SettingsService.UpdateKeyboardHotkeyBinding(bindingId, keyCode, modifiers, chordKeyCodes);
                 App.Instance?.SettingsService.UpdateHotkeyBindingIgnoreModifiers(bindingId, ignoreModifiers);
+                ReloadHotkeyRows();
+                RefreshHotkeyRegistration();
+            });
+        }
+
+        private void OnGamepadButtonsCaptured(ulong buttonsMask, IReadOnlyList<int> chordKeyCodes)
+        {
+            if (_recordingBindingId == null)
+            {
+                return;
+            }
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var bindingId = _recordingBindingId;
+                if (bindingId == null)
+                {
+                    return;
+                }
+
+                StopRecordingHotkey();
+                App.Instance?.SettingsService.UpdateGamepadHotkeyBinding(
+                    bindingId,
+                    InputBindingDisplay.GetButtonsFromMask(buttonsMask),
+                    chordKeyCodes);
                 ReloadHotkeyRows();
                 RefreshHotkeyRegistration();
             });
@@ -523,6 +614,13 @@ namespace silence_.Pages
                 App.Instance.KeyboardHookService.KeyPressed -= OnKeyPressed;
                 App.Instance.KeyboardHookService.ModifiersChanged -= OnModifiersChanged;
                 App.Instance.KeyboardHookService.ModifierHoldProgress -= OnModifierHoldProgress;
+            }
+
+            if (App.Instance?.GamepadInputService != null)
+            {
+                App.Instance.GamepadInputService.ButtonsCaptured -= OnGamepadButtonsCaptured;
+                App.Instance.GamepadInputService.RecordingButtonsChanged -= OnGamepadButtonsChanged;
+                App.Instance.GamepadInputService.ButtonHoldProgress -= OnGamepadHoldProgress;
             }
 
             if (App.Instance != null)
@@ -606,7 +704,7 @@ namespace silence_.Pages
             {
                 IsReadOnly = true,
                 PlaceholderText = AppResources.GetString("GeneralPage.HotkeyTextBox.PlaceholderText"),
-                Text = GetDisplayText(binding.KeyCode, binding.Modifiers)
+                Text = GetDisplayText(binding)
             };
             var progressBar = new ProgressBar
             {
@@ -675,7 +773,8 @@ namespace silence_.Pages
             {
                 Tag = binding.Id,
                 Content = AppResources.GetString("GeneralPage.IgnoreModifiersCheckBox.Content"),
-                IsChecked = binding.IgnoreModifiers
+                IsChecked = binding.IgnoreModifiers,
+                Visibility = binding.DeviceKind == InputDeviceKind.Gamepad ? Visibility.Collapsed : Visibility.Visible
             };
             ignoreCheckBox.Checked += IgnoreModifiersCheckBox_Changed;
             ignoreCheckBox.Unchecked += IgnoreModifiersCheckBox_Changed;
@@ -687,7 +786,7 @@ namespace silence_.Pages
             return new HotkeyRowControls(binding.Id, binding.Action, container, textBox, progressBar, hintText, recordButton, clearButton, removeButton, ignoreCheckBox);
         }
 
-        private void RefreshHotkeyRegistration()
+        private static void RefreshHotkeyRegistration()
         {
             var bindings = App.Instance?.SettingsService.GetHotkeyBindings();
             if (bindings == null)
@@ -696,6 +795,7 @@ namespace silence_.Pages
             }
 
             App.Instance?.KeyboardHookService.UpdateHotkeys(bindings);
+            App.Instance?.GamepadInputService.UpdateHotkeys(bindings);
         }
 
         private HotkeyRowControls GetHotkeyRow(string bindingId)
@@ -724,49 +824,33 @@ namespace silence_.Pages
             return AppResources.GetString(isMuted ? "General.MuteStatus.Muted" : "General.MuteStatus.Unmuted");
         }
 
-        private static string GetDisplayText(int keyCode, ModifierKeys modifiers)
+        private static string GetDisplayText(HotkeyBindingSettings binding)
         {
-            return keyCode > 0 || modifiers != ModifierKeys.None
-                ? VirtualKeys.GetHotkeyDisplayString(keyCode, modifiers)
-                : string.Empty;
+            return InputBindingDisplay.GetDisplayText(binding);
         }
 
-        private sealed class HotkeyRowControls
+        private sealed class HotkeyRowControls(
+            string bindingId,
+            string action,
+            StackPanel container,
+            TextBox textBox,
+            ProgressBar progressBar,
+            TextBlock hintText,
+            Button recordButton,
+            Button clearButton,
+            Button removeButton,
+            CheckBox ignoreCheckBox)
         {
-            public HotkeyRowControls(
-                string bindingId,
-                string action,
-                StackPanel container,
-                TextBox textBox,
-                ProgressBar progressBar,
-                TextBlock hintText,
-                Button recordButton,
-                Button clearButton,
-                Button removeButton,
-                CheckBox ignoreCheckBox)
-            {
-                BindingId = bindingId;
-                Action = action;
-                Container = container;
-                TextBox = textBox;
-                ProgressBar = progressBar;
-                HintText = hintText;
-                RecordButton = recordButton;
-                ClearButton = clearButton;
-                RemoveButton = removeButton;
-                IgnoreCheckBox = ignoreCheckBox;
-            }
-
-            public string BindingId { get; }
-            public string Action { get; }
-            public StackPanel Container { get; }
-            public TextBox TextBox { get; }
-            public ProgressBar ProgressBar { get; }
-            public TextBlock HintText { get; }
-            public Button RecordButton { get; }
-            public Button ClearButton { get; }
-            public Button RemoveButton { get; }
-            public CheckBox IgnoreCheckBox { get; }
+            public string BindingId { get; } = bindingId;
+            public string Action { get; } = action;
+            public StackPanel Container { get; } = container;
+            public TextBox TextBox { get; } = textBox;
+            public ProgressBar ProgressBar { get; } = progressBar;
+            public TextBlock HintText { get; } = hintText;
+            public Button RecordButton { get; } = recordButton;
+            public Button ClearButton { get; } = clearButton;
+            public Button RemoveButton { get; } = removeButton;
+            public CheckBox IgnoreCheckBox { get; } = ignoreCheckBox;
         }
     }
 }

@@ -141,11 +141,61 @@ public class SettingsService
 
     public void UpdateHotkeyBinding(string bindingId, int keyCode, ModifierKeys modifiers)
     {
+        UpdateKeyboardHotkeyBinding(bindingId, keyCode, modifiers, Array.Empty<int>());
+    }
+
+    public void UpdateKeyboardHotkeyBinding(string bindingId, int keyCode, ModifierKeys modifiers, IEnumerable<int> chordKeyCodes)
+    {
+        UpdateHotkeyBinding(bindingId, keyCode, modifiers, InputDeviceKind.KeyboardMouse, GamepadButtonId.None, 0, chordKeyCodes);
+    }
+
+    public void UpdateGamepadHotkeyBinding(string bindingId, IEnumerable<GamepadButtonId> buttons, IEnumerable<int>? chordKeyCodes = null)
+    {
+        EnsureHotkeyBindingsInitialized();
+
+        var mask = InputBindingDisplay.ToMask(buttons);
+        var primaryButton = InputBindingDisplay.GetButtonsFromMask(mask).FirstOrDefault();
+        UpdateHotkeyBinding(bindingId, 0, ModifierKeys.None, InputDeviceKind.Gamepad, primaryButton, mask, chordKeyCodes ?? Array.Empty<int>());
+    }
+
+    public void UpdateHotkeyBinding(
+        string bindingId,
+        int keyCode,
+        ModifierKeys modifiers,
+        InputDeviceKind deviceKind,
+        GamepadButtonId gamepadButton)
+    {
+        var gamepadButtonsMask = deviceKind == InputDeviceKind.Gamepad
+            ? InputBindingDisplay.ToMask(gamepadButton)
+            : 0;
+
+        UpdateHotkeyBinding(bindingId, keyCode, modifiers, deviceKind, gamepadButton, gamepadButtonsMask, Array.Empty<int>());
+    }
+
+    private void UpdateHotkeyBinding(
+        string bindingId,
+        int keyCode,
+        ModifierKeys modifiers,
+        InputDeviceKind deviceKind,
+        GamepadButtonId gamepadButton,
+        ulong gamepadButtonsMask,
+        IEnumerable<int> chordKeyCodes)
+    {
         EnsureHotkeyBindingsInitialized();
 
         var binding = GetHotkeyBindingById(bindingId);
-        binding.KeyCode = keyCode;
-        binding.Modifiers = modifiers;
+        binding.DeviceKind = deviceKind;
+        binding.KeyCode = deviceKind == InputDeviceKind.KeyboardMouse ? keyCode : 0;
+        binding.Modifiers = deviceKind == InputDeviceKind.KeyboardMouse ? modifiers : ModifierKeys.None;
+        binding.GamepadButton = deviceKind == InputDeviceKind.Gamepad ? gamepadButton : GamepadButtonId.None;
+        binding.GamepadButtonsMask = deviceKind == InputDeviceKind.Gamepad ? gamepadButtonsMask : 0;
+        binding.ChordKeyCodes = NormalizeChordKeyCodes(chordKeyCodes, keyCode);
+
+        if (deviceKind == InputDeviceKind.Gamepad)
+        {
+            binding.IgnoreModifiers = false;
+        }
+
         SyncLegacyHotkeyFields();
         SaveSettings();
     }
@@ -209,11 +259,55 @@ public class SettingsService
 
     public void UpdateHoldHotkeyBinding(string bindingId, int keyCode, ModifierKeys modifiers)
     {
+        UpdateKeyboardHoldHotkeyBinding(bindingId, keyCode, modifiers, Array.Empty<int>());
+    }
+
+    public void UpdateKeyboardHoldHotkeyBinding(string bindingId, int keyCode, ModifierKeys modifiers, IEnumerable<int> chordKeyCodes)
+    {
+        UpdateHoldHotkeyBinding(bindingId, keyCode, modifiers, InputDeviceKind.KeyboardMouse, GamepadButtonId.None, 0, chordKeyCodes);
+    }
+
+    public void UpdateGamepadHoldHotkeyBinding(string bindingId, IEnumerable<GamepadButtonId> buttons, IEnumerable<int>? chordKeyCodes = null)
+    {
+        EnsureHoldHotkeyBindingsInitialized();
+
+        var mask = InputBindingDisplay.ToMask(buttons);
+        var primaryButton = InputBindingDisplay.GetButtonsFromMask(mask).FirstOrDefault();
+        UpdateHoldHotkeyBinding(bindingId, 0, ModifierKeys.None, InputDeviceKind.Gamepad, primaryButton, mask, chordKeyCodes ?? Array.Empty<int>());
+    }
+
+    public void UpdateHoldHotkeyBinding(
+        string bindingId,
+        int keyCode,
+        ModifierKeys modifiers,
+        InputDeviceKind deviceKind,
+        GamepadButtonId gamepadButton)
+    {
+        var gamepadButtonsMask = deviceKind == InputDeviceKind.Gamepad
+            ? InputBindingDisplay.ToMask(gamepadButton)
+            : 0;
+
+        UpdateHoldHotkeyBinding(bindingId, keyCode, modifiers, deviceKind, gamepadButton, gamepadButtonsMask, Array.Empty<int>());
+    }
+
+    private void UpdateHoldHotkeyBinding(
+        string bindingId,
+        int keyCode,
+        ModifierKeys modifiers,
+        InputDeviceKind deviceKind,
+        GamepadButtonId gamepadButton,
+        ulong gamepadButtonsMask,
+        IEnumerable<int> chordKeyCodes)
+    {
         EnsureHoldHotkeyBindingsInitialized();
 
         var binding = GetHoldHotkeyBindingById(bindingId);
-        binding.KeyCode = keyCode;
-        binding.Modifiers = modifiers;
+        binding.DeviceKind = deviceKind;
+        binding.KeyCode = deviceKind == InputDeviceKind.KeyboardMouse ? keyCode : 0;
+        binding.Modifiers = deviceKind == InputDeviceKind.KeyboardMouse ? modifiers : ModifierKeys.None;
+        binding.GamepadButton = deviceKind == InputDeviceKind.Gamepad ? gamepadButton : GamepadButtonId.None;
+        binding.GamepadButtonsMask = deviceKind == InputDeviceKind.Gamepad ? gamepadButtonsMask : 0;
+        binding.ChordKeyCodes = NormalizeChordKeyCodes(chordKeyCodes, keyCode);
         SyncLegacyHoldHotkeyFields();
         SaveSettings();
     }
@@ -519,6 +613,67 @@ public class SettingsService
                 didChange = true;
             }
 
+            if (!Enum.IsDefined<InputDeviceKind>(binding.DeviceKind))
+            {
+                binding.DeviceKind = InputDeviceKind.KeyboardMouse;
+                didChange = true;
+            }
+
+            if (!Enum.IsDefined<GamepadButtonId>(binding.GamepadButton))
+            {
+                binding.GamepadButton = GamepadButtonId.None;
+                didChange = true;
+            }
+
+            binding.ChordKeyCodes ??= new List<int>();
+            var normalizedChordKeys = NormalizeChordKeyCodes(binding.ChordKeyCodes, binding.KeyCode);
+            if (!binding.ChordKeyCodes.SequenceEqual(normalizedChordKeys))
+            {
+                binding.ChordKeyCodes = normalizedChordKeys;
+                didChange = true;
+            }
+
+            if (binding.DeviceKind == InputDeviceKind.Gamepad &&
+                binding.GamepadButtonsMask == 0 &&
+                binding.GamepadButton != GamepadButtonId.None)
+            {
+                binding.GamepadButtonsMask = InputBindingDisplay.ToMask(binding.GamepadButton);
+                didChange = true;
+            }
+
+            if (binding.DeviceKind == InputDeviceKind.Gamepad)
+            {
+                if (binding.KeyCode != 0)
+                {
+                    binding.KeyCode = 0;
+                    didChange = true;
+                }
+
+                if (binding.Modifiers != ModifierKeys.None)
+                {
+                    binding.Modifiers = ModifierKeys.None;
+                    didChange = true;
+                }
+
+                if (binding.IgnoreModifiers)
+                {
+                    binding.IgnoreModifiers = false;
+                    didChange = true;
+                }
+
+                if (binding.GamepadButtonsMask == 0)
+                {
+                    binding.GamepadButton = GamepadButtonId.None;
+                    didChange = true;
+                }
+            }
+            else if (binding.GamepadButton != GamepadButtonId.None || binding.GamepadButtonsMask != 0)
+            {
+                binding.GamepadButton = GamepadButtonId.None;
+                binding.GamepadButtonsMask = 0;
+                didChange = true;
+            }
+
             var normalizedAction = HotkeyActions.StandardActions.First(action =>
                 string.Equals(action, binding.Action, StringComparison.OrdinalIgnoreCase));
 
@@ -573,6 +728,61 @@ public class SettingsService
                 didChange = true;
             }
 
+            if (!Enum.IsDefined<InputDeviceKind>(binding.DeviceKind))
+            {
+                binding.DeviceKind = InputDeviceKind.KeyboardMouse;
+                didChange = true;
+            }
+
+            if (!Enum.IsDefined<GamepadButtonId>(binding.GamepadButton))
+            {
+                binding.GamepadButton = GamepadButtonId.None;
+                didChange = true;
+            }
+
+            binding.ChordKeyCodes ??= new List<int>();
+            var normalizedChordKeys = NormalizeChordKeyCodes(binding.ChordKeyCodes, binding.KeyCode);
+            if (!binding.ChordKeyCodes.SequenceEqual(normalizedChordKeys))
+            {
+                binding.ChordKeyCodes = normalizedChordKeys;
+                didChange = true;
+            }
+
+            if (binding.DeviceKind == InputDeviceKind.Gamepad &&
+                binding.GamepadButtonsMask == 0 &&
+                binding.GamepadButton != GamepadButtonId.None)
+            {
+                binding.GamepadButtonsMask = InputBindingDisplay.ToMask(binding.GamepadButton);
+                didChange = true;
+            }
+
+            if (binding.DeviceKind == InputDeviceKind.Gamepad)
+            {
+                if (binding.KeyCode != 0)
+                {
+                    binding.KeyCode = 0;
+                    didChange = true;
+                }
+
+                if (binding.Modifiers != ModifierKeys.None)
+                {
+                    binding.Modifiers = ModifierKeys.None;
+                    didChange = true;
+                }
+
+                if (binding.GamepadButtonsMask == 0)
+                {
+                    binding.GamepadButton = GamepadButtonId.None;
+                    didChange = true;
+                }
+            }
+            else if (binding.GamepadButton != GamepadButtonId.None || binding.GamepadButtonsMask != 0)
+            {
+                binding.GamepadButton = GamepadButtonId.None;
+                binding.GamepadButtonsMask = 0;
+                didChange = true;
+            }
+
             normalizedBindings.Add(binding);
         }
 
@@ -602,6 +812,7 @@ public class SettingsService
         EnsureHotkeyBindingsInitialized();
 
         var binding = _settings.HotkeyBindings!.FirstOrDefault(existing =>
+            existing.DeviceKind == InputDeviceKind.KeyboardMouse &&
             string.Equals(existing.Action, action, StringComparison.OrdinalIgnoreCase));
 
         if (binding != null)
@@ -619,7 +830,8 @@ public class SettingsService
     {
         EnsureHoldHotkeyBindingsInitialized();
 
-        var binding = _settings.HoldHotkeyBindings!.FirstOrDefault();
+        var binding = _settings.HoldHotkeyBindings!.FirstOrDefault(existing =>
+            existing.DeviceKind == InputDeviceKind.KeyboardMouse);
         if (binding != null)
         {
             return binding;
@@ -666,33 +878,41 @@ public class SettingsService
             {
                 Id = CreateBindingId(),
                 Action = HotkeyActions.Toggle,
+                DeviceKind = InputDeviceKind.KeyboardMouse,
                 KeyCode = _settings.HotkeyCode,
                 Modifiers = _settings.HotkeyModifiers,
-                IgnoreModifiers = _settings.IgnoreModifiers
+                IgnoreModifiers = _settings.IgnoreModifiers,
+                GamepadButton = GamepadButtonId.None
             },
             HotkeyActions.Mute => new HotkeyBindingSettings
             {
                 Id = CreateBindingId(),
                 Action = HotkeyActions.Mute,
+                DeviceKind = InputDeviceKind.KeyboardMouse,
                 KeyCode = 0,
                 Modifiers = ModifierKeys.None,
-                IgnoreModifiers = false
+                IgnoreModifiers = false,
+                GamepadButton = GamepadButtonId.None
             },
             HotkeyActions.Unmute => new HotkeyBindingSettings
             {
                 Id = CreateBindingId(),
                 Action = HotkeyActions.Unmute,
+                DeviceKind = InputDeviceKind.KeyboardMouse,
                 KeyCode = 0,
                 Modifiers = ModifierKeys.None,
-                IgnoreModifiers = false
+                IgnoreModifiers = false,
+                GamepadButton = GamepadButtonId.None
             },
             _ => new HotkeyBindingSettings
             {
                 Id = CreateBindingId(),
                 Action = action,
+                DeviceKind = InputDeviceKind.KeyboardMouse,
                 KeyCode = 0,
                 Modifiers = ModifierKeys.None,
-                IgnoreModifiers = false
+                IgnoreModifiers = false,
+                GamepadButton = GamepadButtonId.None
             }
         };
     }
@@ -703,9 +923,11 @@ public class SettingsService
         {
             Id = CreateBindingId(),
             Action = action,
+            DeviceKind = InputDeviceKind.KeyboardMouse,
             KeyCode = 0,
             Modifiers = ModifierKeys.None,
-            IgnoreModifiers = false
+            IgnoreModifiers = false,
+            GamepadButton = GamepadButtonId.None
         };
     }
 
@@ -714,14 +936,17 @@ public class SettingsService
         return new HoldHotkeyBindingSettings
         {
             Id = CreateBindingId(),
+            DeviceKind = InputDeviceKind.KeyboardMouse,
             KeyCode = 0,
-            Modifiers = ModifierKeys.None
+            Modifiers = ModifierKeys.None,
+            GamepadButton = GamepadButtonId.None
         };
     }
 
     private void SyncLegacyHotkeyFields()
     {
         var toggleBinding = _settings.HotkeyBindings?
+            .Where(binding => binding.DeviceKind == InputDeviceKind.KeyboardMouse)
             .Where(binding => string.Equals(binding.Action, HotkeyActions.Toggle, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(binding => binding.KeyCode > 0 || binding.Modifiers != ModifierKeys.None)
             .FirstOrDefault();
@@ -733,7 +958,8 @@ public class SettingsService
 
     private void SyncLegacyHoldHotkeyFields()
     {
-        var holdBinding = _settings.HoldHotkeyBindings?.FirstOrDefault();
+        var holdBinding = _settings.HoldHotkeyBindings?
+            .FirstOrDefault(binding => binding.DeviceKind == InputDeviceKind.KeyboardMouse);
         _settings.HoldHotkeyCode = holdBinding?.KeyCode ?? 0;
         _settings.HoldHotkeyModifiers = holdBinding?.Modifiers ?? ModifierKeys.None;
     }
@@ -741,6 +967,20 @@ public class SettingsService
     private static string CreateBindingId()
     {
         return Guid.NewGuid().ToString("N");
+    }
+
+    private static List<int> NormalizeChordKeyCodes(IEnumerable<int>? chordKeyCodes, int keyCode)
+    {
+        if (chordKeyCodes == null)
+        {
+            return new List<int>();
+        }
+
+        return chordKeyCodes
+            .Where(code => code > 0 && code != keyCode && VirtualKeys.IsChordableGenericKey(code))
+            .Distinct()
+            .OrderBy(code => code)
+            .ToList();
     }
 }
 
@@ -821,9 +1061,13 @@ public class HotkeyBindingSettings
 {
     public string Id { get; set; } = "";
     public string Action { get; set; } = HotkeyActions.Toggle;
+    public InputDeviceKind DeviceKind { get; set; } = InputDeviceKind.KeyboardMouse;
     public int KeyCode { get; set; }
     public ModifierKeys Modifiers { get; set; } = ModifierKeys.None;
     public bool IgnoreModifiers { get; set; }
+    public List<int> ChordKeyCodes { get; set; } = new();
+    public GamepadButtonId GamepadButton { get; set; } = GamepadButtonId.None;
+    public ulong GamepadButtonsMask { get; set; }
 
     public HotkeyBindingSettings Clone()
     {
@@ -831,9 +1075,13 @@ public class HotkeyBindingSettings
         {
             Id = Id,
             Action = Action,
+            DeviceKind = DeviceKind,
             KeyCode = KeyCode,
             Modifiers = Modifiers,
-            IgnoreModifiers = IgnoreModifiers
+            IgnoreModifiers = IgnoreModifiers,
+            ChordKeyCodes = ChordKeyCodes.ToList(),
+            GamepadButton = GamepadButton,
+            GamepadButtonsMask = GamepadButtonsMask
         };
     }
 }
@@ -841,16 +1089,24 @@ public class HotkeyBindingSettings
 public class HoldHotkeyBindingSettings
 {
     public string Id { get; set; } = "";
+    public InputDeviceKind DeviceKind { get; set; } = InputDeviceKind.KeyboardMouse;
     public int KeyCode { get; set; }
     public ModifierKeys Modifiers { get; set; } = ModifierKeys.None;
+    public List<int> ChordKeyCodes { get; set; } = new();
+    public GamepadButtonId GamepadButton { get; set; } = GamepadButtonId.None;
+    public ulong GamepadButtonsMask { get; set; }
 
     public HoldHotkeyBindingSettings Clone()
     {
         return new HoldHotkeyBindingSettings
         {
             Id = Id,
+            DeviceKind = DeviceKind,
             KeyCode = KeyCode,
-            Modifiers = Modifiers
+            Modifiers = Modifiers,
+            ChordKeyCodes = ChordKeyCodes.ToList(),
+            GamepadButton = GamepadButton,
+            GamepadButtonsMask = GamepadButtonsMask
         };
     }
 }
