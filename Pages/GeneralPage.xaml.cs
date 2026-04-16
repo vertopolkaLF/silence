@@ -14,7 +14,7 @@ namespace silence_.Pages
         private bool _isMuted;
         private bool _isHovering;
         private bool _isFirstMuteUpdate = true;
-        private readonly Dictionary<string, HotkeyRowControls> _hotkeyRows = new();
+        private readonly Dictionary<string, HotkeyRowControls> _hotkeyRows = [];
 
         private static readonly Windows.UI.Color MutedColor = Windows.UI.Color.FromArgb(255, 205, 60, 70);
         private static readonly Windows.UI.Color MutedHoverColor = Windows.UI.Color.FromArgb(255, 160, 40, 50);
@@ -786,7 +786,7 @@ namespace silence_.Pages
             return new HotkeyRowControls(binding.Id, binding.Action, container, textBox, progressBar, hintText, recordButton, clearButton, removeButton, ignoreCheckBox);
         }
 
-        private void RefreshHotkeyRegistration()
+        private static void RefreshHotkeyRegistration()
         {
             var bindings = App.Instance?.SettingsService.GetHotkeyBindings();
             if (bindings == null)
@@ -829,42 +829,28 @@ namespace silence_.Pages
             return InputBindingDisplay.GetDisplayText(binding);
         }
 
-        private sealed class HotkeyRowControls
+        private sealed class HotkeyRowControls(
+            string bindingId,
+            string action,
+            StackPanel container,
+            TextBox textBox,
+            ProgressBar progressBar,
+            TextBlock hintText,
+            Button recordButton,
+            Button clearButton,
+            Button removeButton,
+            CheckBox ignoreCheckBox)
         {
-            public HotkeyRowControls(
-                string bindingId,
-                string action,
-                StackPanel container,
-                TextBox textBox,
-                ProgressBar progressBar,
-                TextBlock hintText,
-                Button recordButton,
-                Button clearButton,
-                Button removeButton,
-                CheckBox ignoreCheckBox)
-            {
-                BindingId = bindingId;
-                Action = action;
-                Container = container;
-                TextBox = textBox;
-                ProgressBar = progressBar;
-                HintText = hintText;
-                RecordButton = recordButton;
-                ClearButton = clearButton;
-                RemoveButton = removeButton;
-                IgnoreCheckBox = ignoreCheckBox;
-            }
-
-            public string BindingId { get; }
-            public string Action { get; }
-            public StackPanel Container { get; }
-            public TextBox TextBox { get; }
-            public ProgressBar ProgressBar { get; }
-            public TextBlock HintText { get; }
-            public Button RecordButton { get; }
-            public Button ClearButton { get; }
-            public Button RemoveButton { get; }
-            public CheckBox IgnoreCheckBox { get; }
+            public string BindingId { get; } = bindingId;
+            public string Action { get; } = action;
+            public StackPanel Container { get; } = container;
+            public TextBox TextBox { get; } = textBox;
+            public ProgressBar ProgressBar { get; } = progressBar;
+            public TextBlock HintText { get; } = hintText;
+            public Button RecordButton { get; } = recordButton;
+            public Button ClearButton { get; } = clearButton;
+            public Button RemoveButton { get; } = removeButton;
+            public CheckBox IgnoreCheckBox { get; } = ignoreCheckBox;
         }
     }
 }
