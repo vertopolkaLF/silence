@@ -254,4 +254,19 @@
   <data name="Overlay.Position.Top" xml:space="preserve"><value>Сверху {0:F0}%</value></data>
   <data name="Overlay.Position.Bottom" xml:space="preserve"><value>Снизу {0:F0}%</value></data>
   <data name="Overlay.Position.Current" xml:space="preserve"><value>Текущее положение: {0}, {1}</value></data>
+  <data name="MainWindow.AutoMuteNavItem.Content" xml:space="preserve"><value>Авто-мьют</value></data>
+  <data name="AutoMutePage.TitleText.Text" xml:space="preserve"><value>Авто-мьют</value></data>
+  <data name="AutoMutePage.DescriptionText.Text" xml:space="preserve"><value>Автоматически выключает микрофон при запуске или после бездействия.</value></data>
+  <data name="AutoMutePage.StartupLabel.Text" xml:space="preserve"><value>Запуск</value></data>
+  <data name="AutoMutePage.MuteOnStartupCheckBox.Content" xml:space="preserve"><value>Выключать микрофон при запуске приложения</value></data>
+  <data name="AutoMutePage.StartupDescriptionText.Text" xml:space="preserve"><value>Это также работает, если приложение запускается вместе с Windows.</value></data>
+  <data name="AutoMutePage.InactivityLabel.Text" xml:space="preserve"><value>Бездействие</value></data>
+  <data name="AutoMutePage.MuteAfterInactivityCheckBox.Content" xml:space="preserve"><value>Выключать микрофон после бездействия</value></data>
+  <data name="AutoMutePage.InactivityMinutesLabel.Text" xml:space="preserve"><value>Минут без активности клавиатуры или мыши</value></data>
+  <data name="AutoMutePage.InactivityDescriptionText.Text" xml:space="preserve"><value>Если за это время не было активности клавиатуры или мыши, микрофон будет выключен.</value></data>
+  <data name="AutoMutePage.UnmuteOnActivityCheckBox.Content" xml:space="preserve"><value>Включать при активности</value></data>
+  <data name="AutoMutePage.UnmuteOnActivityDescriptionText.Text" xml:space="preserve"><value>Возвращает микрофон во включенное состояние при движении мыши, но только если его выключил авто-мьют по бездействию.</value></data>
+  <data name="AutoMutePage.OptionsLabel.Text" xml:space="preserve"><value>Параметры</value></data>
+  <data name="AutoMutePage.PlaySoundsOnAutoMuteCheckBox.Content" xml:space="preserve"><value>Воспроизводить звук при авто-мьюте</value></data>
+  <data name="AutoMutePage.PlaySoundsDescriptionText.Text" xml:space="preserve"><value>Если отключено, авто-мьют будет срабатывать без звука. Оверлей при этом продолжит следовать своим настройкам.</value></data>
 </root>

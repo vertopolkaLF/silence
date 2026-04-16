@@ -3,6 +3,7 @@ using Microsoft.UI.Dispatching;
 using silence_.Services;
 using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace silence_
@@ -22,6 +23,12 @@ namespace silence_
         private bool _isOverlayPositioning = false;
         private DispatcherQueueTimer? _previewTimer;
         private DispatcherQueueTimer? _positioningTimer;
+        private DispatcherQueueTimer? _autoMuteTimer;
+        private uint _lastAutoMuteInputTick;
+        private bool _isMutedByInactivity;
+        private POINT _autoMuteCursorPosition;
+        private const int AutoMutePollingIntervalMs = 1000;
+        private const int AutoUnmutePollingIntervalMs = 150;
 
         public static App? Instance { get; private set; }
         public MicrophoneService MicrophoneService => _microphoneService!;
@@ -82,6 +89,8 @@ namespace silence_
 
             // Initialize overlay window
             InitializeOverlay();
+            RefreshAutoMuteMonitoring();
+            ApplyStartupAutoMute();
 
             var shouldStartMinimized = _startMinimized || _settingsService!.Settings.StartMinimized;
 
@@ -363,6 +372,210 @@ namespace silence_
             _positioningTimer.Start();
         }
 
+        public void RefreshAutoMuteMonitoring()
+        {
+            RunOnUiThread(RefreshAutoMuteMonitoringCore);
+        }
+
+        private void RefreshAutoMuteMonitoringCore()
+        {
+            var settings = _settingsService?.Settings;
+            if (settings == null)
+            {
+                return;
+            }
+
+            var shouldMonitor = settings.AutoMuteAfterInactivityEnabled &&
+                settings.AutoMuteAfterInactivityMinutes > 0;
+
+            if (!shouldMonitor)
+            {
+                _autoMuteTimer?.Stop();
+                _autoMuteTimer = null;
+                _lastAutoMuteInputTick = 0;
+                ClearInactivityAutoMuteFlag();
+                return;
+            }
+
+            if (_autoMuteTimer != null)
+            {
+                UpdateAutoMuteTimerInterval();
+                EvaluateAutoMuteInactivity();
+                return;
+            }
+
+            var dispatcher = GetUiDispatcherQueue();
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            _autoMuteTimer = dispatcher.CreateTimer();
+            UpdateAutoMuteTimerInterval();
+            _autoMuteTimer.IsRepeating = true;
+            _autoMuteTimer.Tick += (_, _) => EvaluateAutoMuteInactivity();
+            _autoMuteTimer.Start();
+
+            EvaluateAutoMuteInactivity();
+        }
+
+        private void ApplyStartupAutoMute()
+        {
+            var settings = _settingsService?.Settings;
+            if (settings?.AutoMuteOnStartup != true)
+            {
+                return;
+            }
+
+            ApplyAutoMute(playSound: settings.AutoMutePlaySounds, fromInactivity: false);
+        }
+
+        private void EvaluateAutoMuteInactivity()
+        {
+            var settings = _settingsService?.Settings;
+            if (settings == null ||
+                !settings.AutoMuteAfterInactivityEnabled ||
+                settings.AutoMuteAfterInactivityMinutes <= 0)
+            {
+                return;
+            }
+
+            if (_isMutedByInactivity && (_microphoneService?.IsMuted() ?? false) == false)
+            {
+                ClearInactivityAutoMuteFlag();
+            }
+
+            if (_isMutedByInactivity && settings.AutoUnmuteOnActivity && TryAutoUnmuteFromMouseMovement())
+            {
+                return;
+            }
+
+            var lastInputTick = GetLastInputTick();
+            if (lastInputTick == 0)
+            {
+                return;
+            }
+
+            var idleTime = GetIdleTime(lastInputTick);
+            var threshold = TimeSpan.FromMinutes(settings.AutoMuteAfterInactivityMinutes);
+            if (idleTime < threshold)
+            {
+                return;
+            }
+
+            if (_lastAutoMuteInputTick == lastInputTick)
+            {
+                return;
+            }
+
+            _lastAutoMuteInputTick = lastInputTick;
+            ApplyAutoMute(playSound: settings.AutoMutePlaySounds, fromInactivity: true);
+        }
+
+        private void ApplyAutoMute(bool playSound, bool fromInactivity)
+        {
+            var settings = _settingsService?.Settings;
+            if (settings == null)
+            {
+                return;
+            }
+
+            var isMuted = _microphoneService?.IsMuted() ?? false;
+            if (isMuted)
+            {
+                return;
+            }
+
+            var newState = _microphoneService?.SetMute(true);
+            if (newState != true)
+            {
+                return;
+            }
+
+            if (fromInactivity)
+            {
+                _isMutedByInactivity = true;
+                _autoMuteCursorPosition = GetCursorPositionOrDefault();
+                UpdateAutoMuteTimerInterval();
+            }
+            else
+            {
+                ClearInactivityAutoMuteFlag();
+            }
+
+            MuteStateChanged?.Invoke(true);
+            UpdateOverlayAfterStateChange(true);
+
+            if (playSound)
+            {
+                PlayDefaultSoundFeedback(true);
+            }
+        }
+
+        private bool TryAutoUnmuteFromMouseMovement()
+        {
+            var currentPosition = GetCursorPositionOrDefault();
+            if (currentPosition.X == _autoMuteCursorPosition.X &&
+                currentPosition.Y == _autoMuteCursorPosition.Y)
+            {
+                return false;
+            }
+
+            var newState = _microphoneService?.SetMute(false);
+            if (newState != false)
+            {
+                return false;
+            }
+
+            ClearInactivityAutoMuteFlag();
+            MuteStateChanged?.Invoke(false);
+            UpdateOverlayAfterStateChange(false);
+            return true;
+        }
+
+        private void ClearInactivityAutoMuteFlag()
+        {
+            _isMutedByInactivity = false;
+            UpdateAutoMuteTimerInterval();
+        }
+
+        private void UpdateAutoMuteTimerInterval()
+        {
+            if (_autoMuteTimer == null)
+            {
+                return;
+            }
+
+            var settings = _settingsService?.Settings;
+            var intervalMs = _isMutedByInactivity && settings?.AutoUnmuteOnActivity == true
+                ? AutoUnmutePollingIntervalMs
+                : AutoMutePollingIntervalMs;
+
+            _autoMuteTimer.Interval = TimeSpan.FromMilliseconds(intervalMs);
+        }
+
+        private static POINT GetCursorPositionOrDefault()
+        {
+            return GetCursorPos(out var point) ? point : default;
+        }
+
+        private static TimeSpan GetIdleTime(uint lastInputTick)
+        {
+            var currentTick = unchecked((uint)Environment.TickCount);
+            var elapsedMilliseconds = currentTick - lastInputTick;
+            return TimeSpan.FromMilliseconds(elapsedMilliseconds);
+        }
+
+        private static uint GetLastInputTick()
+        {
+            var info = new LASTINPUTINFO
+            {
+                cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>()
+            };
+
+            return GetLastInputInfo(ref info) ? info.dwTime : 0;
+        }
+
         private async Task CheckForUpdatesOnStartupAsync()
         {
             try
@@ -397,6 +610,8 @@ namespace silence_
 
         private bool ExecuteDirectHotkeyAction(string action, out bool stateChanged)
         {
+            ClearInactivityAutoMuteFlag();
+
             var wasMuted = _microphoneService?.IsMuted() ?? false;
             var isMuted = action switch
             {
@@ -497,6 +712,8 @@ namespace silence_
 
         private void OnHoldHotkeyPressed()
         {
+            ClearInactivityAutoMuteFlag();
+
             var settings = _settingsService?.Settings;
             var action = settings?.HoldAction ?? "Toggle";
             var wasMuted = _microphoneService?.IsMuted() ?? false;
@@ -553,6 +770,8 @@ namespace silence_
 
         private void OnHoldHotkeyReleased()
         {
+            ClearInactivityAutoMuteFlag();
+
             var settings = _settingsService?.Settings;
             var action = settings?.HoldAction ?? "Toggle";
             var wasMuted = _microphoneService?.IsMuted() ?? false;
@@ -640,6 +859,7 @@ namespace silence_
             _soundService?.Dispose();
             _previewTimer?.Stop();
             _positioningTimer?.Stop();
+            _autoMuteTimer?.Stop();
             _overlayWindow?.Dispose();
             _overlayWindow = null;
             _window?.DisposeTrayIcon();
@@ -666,5 +886,25 @@ namespace silence_
                 System.Diagnostics.Debug.WriteLine("App: failed to marshal overlay action to UI thread.");
             }
         }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO
+        {
+            public uint cbSize;
+            public uint dwTime;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT lpPoint);
     }
 }

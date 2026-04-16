@@ -16,6 +16,7 @@
   <data name="App.Title" xml:space="preserve"><value>silence!</value></data>
   <data name="MainWindow.PaneToggleButton.ToolTipService.ToolTip" xml:space="preserve"><value>Toggle menu</value></data>
   <data name="MainWindow.GeneralNavItem.Content" xml:space="preserve"><value>General</value></data>
+  <data name="MainWindow.AutoMuteNavItem.Content" xml:space="preserve"><value>Auto-Mute</value></data>
   <data name="MainWindow.HoldToMuteNavItem.Content" xml:space="preserve"><value>Hold to Mute</value></data>
   <data name="MainWindow.SoundsNavItem.Content" xml:space="preserve"><value>Sounds</value></data>
   <data name="MainWindow.OverlayNavItem.Content" xml:space="preserve"><value>Overlay</value></data>
@@ -99,6 +100,21 @@
   <data name="HoldToMutePage.HoldUnmuteSoundComboBox.PlaceholderText" xml:space="preserve"><value>Default</value></data>
   <data name="HoldToMutePage.PlayHoldUnmuteSoundButton.ToolTipService.ToolTip" xml:space="preserve"><value>Play sound</value></data>
   <data name="HoldToMutePage.ResetHoldUnmuteSoundButton.Content" xml:space="preserve"><value>Reset</value></data>
+
+  <data name="AutoMutePage.TitleText.Text" xml:space="preserve"><value>Auto-Mute</value></data>
+  <data name="AutoMutePage.DescriptionText.Text" xml:space="preserve"><value>Automatically mute the microphone on startup or after inactivity.</value></data>
+  <data name="AutoMutePage.StartupLabel.Text" xml:space="preserve"><value>Startup</value></data>
+  <data name="AutoMutePage.MuteOnStartupCheckBox.Content" xml:space="preserve"><value>Mute microphone on app startup</value></data>
+  <data name="AutoMutePage.StartupDescriptionText.Text" xml:space="preserve"><value>Also applies when the app starts automatically with Windows.</value></data>
+  <data name="AutoMutePage.InactivityLabel.Text" xml:space="preserve"><value>Inactivity</value></data>
+  <data name="AutoMutePage.MuteAfterInactivityCheckBox.Content" xml:space="preserve"><value>Mute microphone after inactivity</value></data>
+  <data name="AutoMutePage.InactivityMinutesLabel.Text" xml:space="preserve"><value>Minutes without keyboard or mouse activity</value></data>
+  <data name="AutoMutePage.InactivityDescriptionText.Text" xml:space="preserve"><value>If no keyboard or mouse activity is detected for this long, the microphone will be muted.</value></data>
+  <data name="AutoMutePage.UnmuteOnActivityCheckBox.Content" xml:space="preserve"><value>Unmute on activity</value></data>
+  <data name="AutoMutePage.UnmuteOnActivityDescriptionText.Text" xml:space="preserve"><value>Moves the microphone back to unmuted when the mouse moves, but only if inactivity mute was the reason it was muted.</value></data>
+  <data name="AutoMutePage.OptionsLabel.Text" xml:space="preserve"><value>Options</value></data>
+  <data name="AutoMutePage.PlaySoundsOnAutoMuteCheckBox.Content" xml:space="preserve"><value>Play sounds on auto-mute</value></data>
+  <data name="AutoMutePage.PlaySoundsDescriptionText.Text" xml:space="preserve"><value>If disabled, auto-mute will stay silent. Overlay behavior still follows your overlay settings.</value></data>
 
   <data name="SoundsPage.TitleText.Text" xml:space="preserve"><value>Sounds</value></data>
   <data name="SoundsPage.SoundsEnabledToggle.Header" xml:space="preserve"><value>Enable sounds</value></data>

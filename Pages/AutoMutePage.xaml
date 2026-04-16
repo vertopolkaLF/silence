@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page x:Class="silence_.Pages.AutoMutePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      mc:Ignorable="d"
+      Background="Transparent">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="ContentPanel" Spacing="20" Margin="24,24,24,24">
+            <StackPanel Spacing="8">
+                <TextBlock x:Name="TitleTextBlock"
+                           Text="Auto-Mute"
+                           FontWeight="SemiBold"
+                           FontSize="20"/>
+                <TextBlock x:Name="DescriptionTextBlock"
+                           Text="Automatically mute the microphone on startup or after inactivity."
+                           FontSize="14"
+                           Opacity="0.7"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock x:Name="StartupLabelText"
+                           Text="Startup"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
+                <CheckBox x:Name="MuteOnStartupCheckBox"
+                          Content="Mute microphone on app startup"
+                          Checked="MuteOnStartupCheckBox_Changed"
+                          Unchecked="MuteOnStartupCheckBox_Changed"/>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock x:Name="InactivityLabelText"
+                           Text="Inactivity"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
+                <CheckBox x:Name="MuteAfterInactivityCheckBox"
+                          Content="Mute microphone after inactivity"
+                          Checked="MuteAfterInactivityCheckBox_Changed"
+                          Unchecked="MuteAfterInactivityCheckBox_Changed"/>
+
+                <StackPanel x:Name="InactivitySettingsPanel"
+                            Spacing="8"
+                            Margin="28,0,0,0">
+                    <TextBlock x:Name="InactivityMinutesLabelText"
+                               Text="Minutes without keyboard or mouse activity"
+                               FontSize="13"/>
+                    <NumberBox x:Name="InactivityMinutesNumberBox"
+                               Minimum="1"
+                               Maximum="1440"
+                               SmallChange="1"
+                               SpinButtonPlacementMode="Compact"
+                               ValueChanged="InactivityMinutesNumberBox_ValueChanged"/>
+                    <TextBlock x:Name="InactivityDescriptionTextBlock"
+                               Text="If no keyboard or mouse activity is detected for this long, the microphone will be muted."
+                               FontSize="12"
+                               Opacity="0.6"
+                               TextWrapping="Wrap"/>
+                    <CheckBox x:Name="UnmuteOnActivityCheckBox"
+                              Content="Unmute on activity"
+                              Checked="UnmuteOnActivityCheckBox_Changed"
+                              Unchecked="UnmuteOnActivityCheckBox_Changed"/>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock x:Name="OptionsLabelText"
+                           Text="Options"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
+                <CheckBox x:Name="PlaySoundsOnAutoMuteCheckBox"
+                          Content="Play sounds on auto-mute"
+                          IsChecked="True"
+                          Checked="PlaySoundsOnAutoMuteCheckBox_Changed"
+                          Unchecked="PlaySoundsOnAutoMuteCheckBox_Changed"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -1,3 +1,21 @@
+# silence! v1.9 - Auto-Mute
+
+> **Now the app can mute itself when you forget to. Wild concept.**
+
+## What's New in v1.9
+
+### Auto-Mute Settings
+
+- **Mute on Startup** - Option to start the app with your microphone already muted, including when the app launches automatically with Windows.
+
+- **Mute After Inactivity** - Automatically mutes the microphone after a configurable number of idle minutes with no keyboard or mouse activity.
+
+- **Optional Auto-Mute Sounds** - Added a separate checkbox for playing sounds when auto-mute triggers, while keeping overlay behavior tied to the existing overlay settings.
+
+- **Unmute on Activity** - Optionally unmutes the microphone when the mouse moves after an inactivity mute. Auto-unmute only happens if the microphone was muted specifically by inactivity mute, so it will not undo manual mute actions or other mute flows.
+
+---
+
 # silence! v1.8 - Multi-Hotkey Actions
 
 > **One hotkey was never enough. Obviously.**

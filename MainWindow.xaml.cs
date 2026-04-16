@@ -529,7 +529,7 @@ namespace silence_
                 if (tag == null || tag == _currentPage) return;
 
                 // Determine slide direction
-                var pageOrder = new[] { "General", "HoldToMute", "Sounds", "Overlay", "Appearance", "About" };
+                var pageOrder = new[] { "General", "HoldToMute", "Sounds", "Overlay", "Appearance", "AutoMute", "About" };
                 var currentIndex = Array.IndexOf(pageOrder, _currentPage);
                 var newIndex = Array.IndexOf(pageOrder, tag);
                 var effect = newIndex > currentIndex 
@@ -662,6 +662,7 @@ namespace silence_
             ToolTipService.SetToolTip(UpdateNotificationCompact, AppResources.GetString("MainWindow.UpdateNotificationCompact.ToolTipService.ToolTip"));
 
             GeneralNavItem.Content = AppResources.GetString("MainWindow.GeneralNavItem.Content");
+            AutoMuteNavItem.Content = AppResources.GetString("MainWindow.AutoMuteNavItem.Content");
             HoldToMuteNavItem.Content = AppResources.GetString("MainWindow.HoldToMuteNavItem.Content");
             SoundsNavItem.Content = AppResources.GetString("MainWindow.SoundsNavItem.Content");
             OverlayNavItem.Content = AppResources.GetString("MainWindow.OverlayNavItem.Content");
@@ -701,6 +702,7 @@ namespace silence_
             Type? pageType = tag switch
             {
                 "General" => typeof(GeneralPage),
+                "AutoMute" => typeof(AutoMutePage),
                 "HoldToMute" => typeof(HoldToMutePage),
                 "Sounds" => typeof(SoundsPage),
                 "Appearance" => typeof(AppearancePage),

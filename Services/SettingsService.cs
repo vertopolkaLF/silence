@@ -303,6 +303,36 @@ public class SettingsService
         SaveSettings();
     }
 
+    public void UpdateAutoMuteOnStartup(bool enabled)
+    {
+        _settings.AutoMuteOnStartup = enabled;
+        SaveSettings();
+    }
+
+    public void UpdateAutoMuteAfterInactivityEnabled(bool enabled)
+    {
+        _settings.AutoMuteAfterInactivityEnabled = enabled;
+        SaveSettings();
+    }
+
+    public void UpdateAutoMuteAfterInactivityMinutes(int minutes)
+    {
+        _settings.AutoMuteAfterInactivityMinutes = Math.Clamp(minutes, 1, 1440);
+        SaveSettings();
+    }
+
+    public void UpdateAutoUnmuteOnActivity(bool enabled)
+    {
+        _settings.AutoUnmuteOnActivity = enabled;
+        SaveSettings();
+    }
+
+    public void UpdateAutoMutePlaySounds(bool enabled)
+    {
+        _settings.AutoMutePlaySounds = enabled;
+        SaveSettings();
+    }
+
     public void UpdateTrayIconStyle(string style)
     {
         _settings.TrayIconStyle = style;
@@ -741,6 +771,11 @@ public class AppSettings
     public string? SelectedMicrophoneId { get; set; }
     public bool AutoStartEnabled { get; set; } = false;
     public bool StartMinimized { get; set; } = false; // Show settings window on first launch
+    public bool AutoMuteOnStartup { get; set; } = false;
+    public bool AutoMuteAfterInactivityEnabled { get; set; } = false;
+    public int AutoMuteAfterInactivityMinutes { get; set; } = 5;
+    public bool AutoUnmuteOnActivity { get; set; } = false;
+    public bool AutoMutePlaySounds { get; set; } = true;
     public bool CheckForUpdatesOnStartup { get; set; } = true; // Check for updates when app starts
     public DateTime? LastUpdateCheck { get; set; } // Last time we checked for updates
     public string TrayIconStyle { get; set; } = "Standard"; // Standard, FilledCircle, Dot
