@@ -30,7 +30,8 @@ namespace silence_.Pages
 
             if (App.Instance?.GamepadInputService != null)
             {
-                App.Instance.GamepadInputService.ButtonPressed += OnGamepadButtonPressed;
+                App.Instance.GamepadInputService.ButtonsCaptured += OnGamepadButtonsCaptured;
+                App.Instance.GamepadInputService.RecordingButtonsChanged += OnGamepadButtonsChanged;
                 App.Instance.GamepadInputService.ButtonHoldProgress += OnGamepadHoldProgress;
             }
         }
@@ -690,12 +691,16 @@ namespace silence_.Pages
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (!_holdHotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_holdHotkeyRows.TryGetValue(bindingId, out var controls))
                 {
                     return;
                 }
 
-                var display = VirtualKeys.GetHotkeyDisplayString(0, modifiers);
+                var display = InputBindingDisplay.GetKeyboardHotkeyDisplayString(
+                    0,
+                    modifiers,
+                    App.Instance?.KeyboardHookService.RecordingChordKeys);
                 controls.TextBox.Text = string.IsNullOrEmpty(display)
                     ? AppResources.GetString("Hotkeys.RecordPrompt")
                     : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
@@ -708,7 +713,8 @@ namespace silence_.Pages
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (!_holdHotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_holdHotkeyRows.TryGetValue(bindingId, out var controls))
                 {
                     return;
                 }
@@ -724,7 +730,8 @@ namespace silence_.Pages
 
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (!_holdHotkeyRows.TryGetValue(_recordingBindingId, out var controls))
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_holdHotkeyRows.TryGetValue(bindingId, out var controls))
                 {
                     return;
                 }
@@ -734,7 +741,26 @@ namespace silence_.Pages
             });
         }
 
-        private void OnKeyPressed(int keyCode, ModifierKeys modifiers)
+        private void OnGamepadButtonsChanged(ulong buttonsMask, IReadOnlyList<int> chordKeyCodes)
+        {
+            if (_recordingBindingId == null) return;
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var bindingId = _recordingBindingId;
+                if (bindingId == null || !_holdHotkeyRows.TryGetValue(bindingId, out var controls))
+                {
+                    return;
+                }
+
+                var display = InputBindingDisplay.GetGamepadButtonsDisplayString(buttonsMask, chordKeyCodes);
+                controls.TextBox.Text = string.IsNullOrEmpty(display)
+                    ? AppResources.GetString("Hotkeys.RecordPrompt")
+                    : AppResources.Format("Hotkeys.RecordPromptWithModifiers", display);
+            });
+        }
+
+        private void OnKeyPressed(int keyCode, ModifierKeys modifiers, IReadOnlyList<int> chordKeyCodes)
         {
             if (_recordingBindingId == null) return;
 
@@ -747,18 +773,13 @@ namespace silence_.Pages
                 }
 
                 StopRecordingHoldHotkey();
-                App.Instance?.SettingsService.UpdateHoldHotkeyBinding(
-                    bindingId,
-                    keyCode,
-                    modifiers,
-                    InputDeviceKind.KeyboardMouse,
-                    GamepadButtonId.None);
+                App.Instance?.SettingsService.UpdateKeyboardHoldHotkeyBinding(bindingId, keyCode, modifiers, chordKeyCodes);
                 ReloadHoldHotkeyRows();
                 RefreshHoldHotkeyRegistration();
             });
         }
 
-        private void OnGamepadButtonPressed(GamepadButtonId button)
+        private void OnGamepadButtonsCaptured(ulong buttonsMask, IReadOnlyList<int> chordKeyCodes)
         {
             if (_recordingBindingId == null) return;
 
@@ -771,12 +792,10 @@ namespace silence_.Pages
                 }
 
                 StopRecordingHoldHotkey();
-                App.Instance?.SettingsService.UpdateHoldHotkeyBinding(
+                App.Instance?.SettingsService.UpdateGamepadHoldHotkeyBinding(
                     bindingId,
-                    0,
-                    ModifierKeys.None,
-                    InputDeviceKind.Gamepad,
-                    button);
+                    InputBindingDisplay.GetButtonsFromMask(buttonsMask),
+                    chordKeyCodes);
                 ReloadHoldHotkeyRows();
                 RefreshHoldHotkeyRegistration();
             });
@@ -798,7 +817,8 @@ namespace silence_.Pages
 
             if (App.Instance?.GamepadInputService != null)
             {
-                App.Instance.GamepadInputService.ButtonPressed -= OnGamepadButtonPressed;
+                App.Instance.GamepadInputService.ButtonsCaptured -= OnGamepadButtonsCaptured;
+                App.Instance.GamepadInputService.RecordingButtonsChanged -= OnGamepadButtonsChanged;
                 App.Instance.GamepadInputService.ButtonHoldProgress -= OnGamepadHoldProgress;
             }
         }

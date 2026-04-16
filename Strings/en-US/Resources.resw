@@ -67,7 +67,7 @@
   <data name="GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Clear hotkey</value></data>
   <data name="GeneralPage.RemoveHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Remove hotkey</value></data>
   <data name="GeneralPage.RecordHotkeyButton.Content" xml:space="preserve"><value>Record</value></data>
-  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>Press a key, or hold any gamepad button for 1 second. To bind LMB, RMB, or modifier-only shortcuts, hold them for 1 second</value></data>
+  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>Press a key, or hold any gamepad button combo for 1 second. To bind LMB, RMB, or modifier-only shortcuts, hold them for 1 second</value></data>
   <data name="GeneralPage.IgnoreModifiersCheckBox.Content" xml:space="preserve"><value>Ignore modifiers (Shift, Ctrl, Alt, Win)</value></data>
   <data name="GeneralPage.StartupLabel.Text" xml:space="preserve"><value>Startup</value></data>
   <data name="GeneralPage.AutoStartCheckBox.Content" xml:space="preserve"><value>Start with Windows</value></data>
@@ -79,7 +79,7 @@
   <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Press a key or hold a gamepad button...</value></data>
   <data name="HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Clear hotkey</value></data>
   <data name="HoldToMutePage.RecordHoldHotkeyButton.Content" xml:space="preserve"><value>Record</value></data>
-  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>Press a key, or hold any gamepad button for 1 second. To bind LMB, RMB, or modifier-only shortcuts, hold them for 1 second</value></data>
+  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>Press a key, or hold any gamepad button combo for 1 second. To bind LMB, RMB, or modifier-only shortcuts, hold them for 1 second</value></data>
   <data name="HoldToMutePage.IgnoreHoldModifiersCheckBox.Content" xml:space="preserve"><value>Ignore keyboard modifiers (Shift, Ctrl, Alt, Win)</value></data>
   <data name="HoldToMutePage.ActionLabel.Text" xml:space="preserve"><value>Action</value></data>
   <data name="HoldToMutePage.ActionToggleItem.Content" xml:space="preserve"><value>Toggle current state</value></data>

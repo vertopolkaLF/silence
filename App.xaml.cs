@@ -67,7 +67,9 @@ namespace silence_
             _settingsService.EnsureLanguageInitialized();
             _microphoneService = new MicrophoneService();
             _keyboardHookService = new KeyboardHookService();
-            _gamepadInputService = new GamepadInputService();
+            _gamepadInputService = new GamepadInputService(
+                () => _keyboardHookService?.RecordingChordKeys ?? Array.Empty<int>(),
+                () => _keyboardHookService?.PressedChordKeys ?? Array.Empty<int>());
 
             // Apply saved microphone selection
             if (!string.IsNullOrEmpty(_settingsService.Settings.SelectedMicrophoneId))

@@ -66,7 +66,7 @@
   <data name="GeneralPage.ClearHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Очистить сочетание</value></data>
   <data name="GeneralPage.RemoveHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Удалить сочетание</value></data>
   <data name="GeneralPage.RecordHotkeyButton.Content" xml:space="preserve"><value>Записать</value></data>
-  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>Нажмите клавишу или удерживайте любую кнопку геймпада 1 секунду. Чтобы назначить ЛКМ, ПКМ или сочетание только из модификаторов, удерживайте их 1 секунду</value></data>
+  <data name="GeneralPage.HotkeyHintText.Text" xml:space="preserve"><value>Нажмите клавишу или удерживайте сочетание кнопок геймпада 1 секунду. Чтобы назначить ЛКМ, ПКМ или сочетание только из модификаторов, удерживайте их 1 секунду</value></data>
   <data name="GeneralPage.IgnoreModifiersCheckBox.Content" xml:space="preserve"><value>Игнорировать модификаторы (Shift, Ctrl, Alt, Win)</value></data>
   <data name="GeneralPage.StartupLabel.Text" xml:space="preserve"><value>Запуск</value></data>
   <data name="GeneralPage.AutoStartCheckBox.Content" xml:space="preserve"><value>Запускать вместе с Windows</value></data>
@@ -78,7 +78,7 @@
   <data name="HoldToMutePage.HoldHotkeyTextBox.PlaceholderText" xml:space="preserve"><value>Нажмите клавишу или удерживайте кнопку геймпада...</value></data>
   <data name="HoldToMutePage.ClearHoldHotkeyButton.ToolTipService.ToolTip" xml:space="preserve"><value>Очистить сочетание</value></data>
   <data name="HoldToMutePage.RecordHoldHotkeyButton.Content" xml:space="preserve"><value>Записать</value></data>
-  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>Нажмите клавишу или удерживайте любую кнопку геймпада 1 секунду. Чтобы назначить ЛКМ, ПКМ или сочетание только из модификаторов, удерживайте их 1 секунду</value></data>
+  <data name="HoldToMutePage.HoldHotkeyHintText.Text" xml:space="preserve"><value>Нажмите клавишу или удерживайте сочетание кнопок геймпада 1 секунду. Чтобы назначить ЛКМ, ПКМ или сочетание только из модификаторов, удерживайте их 1 секунду</value></data>
   <data name="HoldToMutePage.IgnoreHoldModifiersCheckBox.Content" xml:space="preserve"><value>Игнорировать модификаторы клавиатуры (Shift, Ctrl, Alt, Win)</value></data>
   <data name="HoldToMutePage.ActionLabel.Text" xml:space="preserve"><value>Действие</value></data>
   <data name="HoldToMutePage.ActionToggleItem.Content" xml:space="preserve"><value>Переключать текущее состояние</value></data>
