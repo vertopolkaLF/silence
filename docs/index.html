@@ -1410,6 +1410,10 @@
             let stars = [];
             const STAR_COUNT = 100;
 
+            let currentFtl = 1;
+            let targetFtl = 1;
+            let ftlTimeout;
+
             function resize() {
                 width = canvas.offsetWidth;
                 height = canvas.offsetHeight;
@@ -1428,8 +1432,8 @@
 
                 reset(randomY = false) {
                     this.x = Math.random() * width;
-                    this.y = randomY ? Math.random() * height : height + 10;
-                    this.baseSize = Math.random() * 2 + 1; // 1px to 3px
+                    this.y = randomY ? Math.random() * height : height + 10 + (Math.random() * currentFtl * 5);
+                    this.baseSize = Math.random() * 3 + 1.5; // 1.5px to 4.5px
                     this.color = colors[Math.floor(Math.random() * colors.length)];
 
                     const duration = Math.random() * 15 + 5; // 5 to 20 seconds
@@ -1441,10 +1445,10 @@
                 }
 
                 update() {
-                    this.y -= this.speed;
-                    this.progress += this.progressSpeed;
+                    this.y -= this.speed * currentFtl;
+                    this.progress += this.progressSpeed * (1 + (currentFtl - 1) * 0.1);
 
-                    if (this.progress >= 1 || this.y < -50) {
+                    if (this.progress >= 1 || this.y < -200) {
                         this.reset();
                     }
                 }
@@ -1459,18 +1463,36 @@
                         opacity = (1 - this.progress) / 0.2 * 0.8;
                     }
 
-                    const scale = 0.5 + this.progress;
+                    // Keep them bright during FTL
+                    if (currentFtl > 2) {
+                        opacity = Math.min(1, opacity * 1.5);
+                    }
+
+                    // Smoothly scale up during FTL
+                    const ftlScale = 1 + Math.min(1.5, (currentFtl - 1) / 15);
+                    const scale = (0.5 + this.progress) * ftlScale;
                     const size = this.baseSize * scale;
 
                     ctx.save();
                     ctx.globalAlpha = opacity;
-                    ctx.fillStyle = this.color;
-                    ctx.shadowBlur = size * 2;
+
+                    // Smoothly fade out blur to maintain performance with long trails
+                    ctx.shadowBlur = Math.max(0, size * 2 * (1 - (currentFtl - 1) / 2));
                     ctx.shadowColor = this.color;
 
+                    // Smooth transition from circle to stretched line
                     ctx.beginPath();
-                    ctx.arc(this.x, this.y, size / 2, 0, Math.PI * 2);
-                    ctx.fill();
+                    ctx.moveTo(this.x, this.y);
+
+                    // Stretch is near 0 at normal speed, grows seamlessly with FTL
+                    const stretch = Math.max(0.1, (currentFtl - 1) * this.speed * 2);
+                    ctx.lineTo(this.x, this.y + stretch);
+
+                    ctx.lineWidth = size;
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = this.color;
+                    ctx.stroke();
+
                     ctx.restore();
                 }
             }
@@ -1481,6 +1503,9 @@
 
             let animationFrameId;
             function animate() {
+                // Smooth easing for FTL speed up and slow down
+                currentFtl += (targetFtl - currentFtl) * 0.05;
+
                 ctx.clearRect(0, 0, width, height);
                 for (let star of stars) {
                     star.update();
@@ -1504,6 +1529,17 @@
             });
 
             observer.observe(canvas);
+
+            // FTL Trigger on download
+            document.querySelectorAll('.btn-primary').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    targetFtl = 40;
+                    if (ftlTimeout) clearTimeout(ftlTimeout);
+                    ftlTimeout = setTimeout(() => {
+                        targetFtl = 1;
+                    }, 3000);
+                });
+            });
         })();
     </script>
 </body>
