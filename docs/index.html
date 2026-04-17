@@ -1023,6 +1023,33 @@
         .cta-main .btn {
             margin-bottom: 24px;
         }
+
+        .cta-animate {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .cta-animate.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .cta-delay-1 {
+            transition-delay: 0.1s;
+        }
+
+        .cta-delay-2 {
+            transition-delay: 0.2s;
+        }
+
+        .cta-delay-3 {
+            transition-delay: 0.3s;
+        }
+
+        .cta-delay-4 {
+            transition-delay: 0.4s;
+        }
     </style>
 </head>
 
@@ -1341,15 +1368,19 @@
             </div>
             <div class="cta-content-wrapper">
                 <div class="cta-main">
-                    <h2>Drop the janky scripts.</h2>
-                    <p>One clean utility. Zero bloat. Total control.</p>
-                    <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
-                        Download silence!
-                    </a>
+                    <h2 class="cta-animate cta-delay-1">Drop the janky scripts.</h2>
+                    <p class="cta-animate cta-delay-2">One clean utility. Zero bloat. Total control.</p>
+                    <div class="cta-animate cta-delay-3">
+                        <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
+                            Download silence!
+                        </a>
+                    </div>
                 </div>
-                <p class="footer-info">
-                    <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkalf" target="_blank">vertopolkalf</a>.
-                </p>
+                <div class="footer-info">
+                    <div class="cta-animate cta-delay-4" style="margin: 0;">
+                        <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkalf" target="_blank">vertopolkalf</a>.
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -1529,6 +1560,24 @@
             });
 
             observer.observe(canvas);
+
+            // Scroll animation for CTA text
+            const ctaObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        document.querySelectorAll('.cta-animate').forEach(el => {
+                            el.classList.add('is-visible');
+                        });
+                        // Optional: unobserve after animating once
+                        ctaObserver.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.5 });
+
+            const ctaBox = document.querySelector('.cta-box');
+            if (ctaBox) {
+                ctaObserver.observe(ctaBox);
+            }
 
             // FTL Trigger on download
             document.querySelectorAll('.btn-primary').forEach(btn => {
