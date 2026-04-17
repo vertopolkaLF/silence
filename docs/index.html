@@ -104,6 +104,53 @@
             }
         }
 
+        @keyframes hero-fade-up {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hero-anim {
+            opacity: 0;
+            animation: hero-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .hero-delay-1 {
+            animation-delay: 0.05s;
+        }
+
+        .hero-delay-2 {
+            animation-delay: 0.1s;
+        }
+
+        .hero-delay-3 {
+            animation-delay: 0.15s;
+        }
+
+        .hero-delay-4 {
+            animation-delay: 0.2s;
+        }
+
+        .hero-delay-5 {
+            animation-delay: 0.25s;
+        }
+
+        .hero-delay-6 {
+            animation-delay: 0.3s;
+        }
+
+        .bento-anim {
+            opacity: 0;
+            animation: hero-fade-up 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation-delay: 0.5s;
+        }
+
         /* Hero Wrapper (Nav + Hero Content) */
         .hero-wrapper {
             min-height: 80vh;
@@ -1069,18 +1116,22 @@
         </nav>
 
         <section class="hero">
-            <div class="hero-pill">
+            <div class="hero-pill hero-anim hero-delay-1">
                 <iconify-icon icon="fluent:sparkle-32-filled"></iconify-icon>
                 Open Source & Free Forever
             </div>
-            <h1>Never ask <br><span class="highlight">"Am I muted?"</span><br> again.</h1>
-            <p>
+            <h1>
+                <span class="hero-anim hero-delay-2" style="display: inline-block;">Never ask</span> <br>
+                <span class="hero-anim hero-delay-3" style="display: inline-block;"><span class="highlight">"Am I muted?"</span></span><br>
+                <span class="hero-anim hero-delay-4" style="display: inline-block;">again.</span>
+            </h1>
+            <p class="hero-anim hero-delay-5">
                 A ridiculously good Windows app to <b>mute your mic</b> on OS level.
                 <br />
                 Multi-action hotkeys, hold−to−talk, controller support, sounds, visual overlay and a <i>looooot of features</i>
             </p>
 
-            <div class="hero-actions">
+            <div class="hero-actions hero-anim hero-delay-6">
                 <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
                     <iconify-icon icon="fluent:arrow-download-24-filled"></iconify-icon>
                     Get for Windows
@@ -1093,7 +1144,7 @@
         </section>
     </div>
 
-    <section class="bento-section">
+    <section class="bento-section bento-anim">
         <div class="bento-grid-wrapper">
             <div class="bento-grid">
 
