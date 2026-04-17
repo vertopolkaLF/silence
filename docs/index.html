@@ -28,6 +28,9 @@
 
             --radius-box: 32px;
             --radius-btn: 100px;
+            --scroll-track: rgba(255, 255, 255, 0.06);
+            --scroll-thumb: linear-gradient(180deg, var(--pop-orange), var(--pop-pink));
+            --scroll-thumb-hover: linear-gradient(180deg, var(--pop-yellow), var(--pop-orange));
         }
 
         * {
@@ -44,6 +47,30 @@
             overflow-x: hidden;
             background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
             background-size: 24px 24px;
+        }
+
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: var(--pop-orange) var(--bg);
+        }
+
+        *::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: var(--scroll-track);
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: var(--scroll-thumb);
+            border-radius: 999px;
+            border: 2px solid var(--bg);
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--scroll-thumb-hover);
         }
 
         h1,
@@ -208,17 +235,14 @@
 
         /* Bento Grid */
         .bento-section {
-            padding: 60px 0 20px;
-            width: 100vw;
+            width: calc(100vw - 40px);
+            margin: auto;
             position: relative;
-            left: 50%;
-            transform: translateX(-50%);
             overflow: hidden;
             box-sizing: border-box;
         }
 
         .bento-grid-wrapper {
-            padding: 0 2rem;
             width: 100%;
             margin: 0 auto;
             box-sizing: border-box;
@@ -377,8 +401,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
             pointer-events: none;
             z-index: 1;
+        }
+
+        .overlay-morph-anchor {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: overlay-position 18s ease-in-out infinite;
         }
 
         .overlay-morph {
@@ -415,6 +447,35 @@
             font-weight: 700;
             letter-spacing: 0.01em;
             animation: overlay-text 18s ease-in-out infinite;
+        }
+
+        @keyframes overlay-position {
+
+            0%,
+            16%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            24%,
+            38% {
+                transform: translate(40px, -10px);
+            }
+
+            46%,
+            60% {
+                transform: translate(-76px, 44px);
+            }
+
+            68%,
+            80% {
+                transform: translate(26px, 10px);
+            }
+
+            88%,
+            92% {
+                transform: translate(112px, -64px);
+            }
         }
 
         @keyframes overlay-shell {
@@ -746,9 +807,10 @@
 
         /* CTA */
         .bottom-cta {
-            width: 100vw;
+            width: calc(100vw - 40px);
             height: 100dvh;
-            padding: 24px;
+            padding: 20px 0;
+            margin: auto;
             box-sizing: border-box;
             display: flex;
         }
@@ -895,331 +957,312 @@
 </head>
 
 <body>
-    <div class="container">
-        <div class="hero-wrapper">
-            <nav>
-                <a href="#" class="brand">
-                    silence<span>!</span>
+    <div class="hero-wrapper container">
+        <nav>
+            <a href="#" class="brand">
+                silence<span>!</span>
+            </a>
+            <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
+                Download
+            </a>
+        </nav>
+
+        <section class="hero">
+            <div class="hero-pill">
+                <iconify-icon icon="fluent:sparkle-32-filled"></iconify-icon>
+                Open Source & Free Forever
+            </div>
+            <h1>Never ask <br><span class="highlight">"Am I muted?"</span><br> again.</h1>
+            <p>
+                A ridiculously good Windows app to <b>mute your mic</b> on OS level.
+                <br />
+                Multi-action hotkeys, hold−to−talk, controller support, sounds, visual overlay and a <i>looooot of features</i>
+            </p>
+
+            <div class="hero-actions">
+                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
+                    <iconify-icon icon="fluent:arrow-download-24-filled"></iconify-icon>
+                    Get for Windows
                 </a>
-                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
-                    Download
+                <a href="https://github.com/vertopolkalf/silence" target="_blank" class="btn btn-secondary">
+                    <iconify-icon icon="mdi:github"></iconify-icon>
+                    GitHub
                 </a>
-            </nav>
+            </div>
+        </section>
+    </div>
 
-            <section class="hero">
-                <div class="hero-pill">
-                    <iconify-icon icon="fluent:sparkle-32-filled"></iconify-icon>
-                    Open Source & Free Forever
+    <section class="bento-section">
+        <div class="bento-grid-wrapper">
+            <div class="bento-grid">
+
+                <div class="bento-card span-2x2 bg-gradient-dark">
+                    <div class="card-corner-decor hotkey-cloud" aria-hidden="true">
+                        <div class="hotkey-row hotkey-row-left">
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">M</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">F23</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">~</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Caps</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Space</span></span>
+                            </div>
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">M</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">F23</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">~</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Caps</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Space</span></span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row hotkey-row-right">
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">Shift</span><span class="hotkey-key">V</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F13</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">/</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">]</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">.</span></span>
+                            </div>
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">Shift</span><span class="hotkey-key">V</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F13</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">/</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">]</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">.</span></span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row hotkey-row-left">
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">K</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">F19</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">\</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Tab</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">;</span></span>
+                            </div>
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">K</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">F19</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">\</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Tab</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">;</span></span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row hotkey-row-right">
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">F24</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">/</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">M</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">=</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F15</span></span>
+                            </div>
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">F24</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">/</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">M</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">=</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F15</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bento-icon" style="color: var(--pop-purple);">
+                        <iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Global<br>Hotkeys.</h3>
+                        <p>Pick any shortcut, use it everywhere, and let it still fire even when extra modifiers are pressed in games.</p>
+                    </div>
                 </div>
-                <h1>Never ask <br><span class="highlight">"Am I muted?"</span><br> again.</h1>
-                <p>
-                    A ridiculously good Windows app to <b>mute your mic</b> on OS level.
-                    <br />
-                    Multi-action hotkeys, hold−to−talk, controller support, sounds, visual overlay and a <i>looooot of features</i>
-                </p>
 
-                <div class="hero-actions">
-                    <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
-                        <iconify-icon icon="fluent:arrow-download-24-filled"></iconify-icon>
-                        Get for Windows
-                    </a>
-                    <a href="https://github.com/vertopolkalf/silence" target="_blank" class="btn btn-secondary">
-                        <iconify-icon icon="mdi:github"></iconify-icon>
-                        GitHub
-                    </a>
+                <div class="bento-card span-1x1 bg-green">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:command-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Multi-Action Shortcuts</h3>
+                        <p>Give toggle, mute, and unmute their own dedicated shortcuts.</p>
+                    </div>
                 </div>
-            </section>
-        </div>
 
-        <section class="bento-section">
-            <div class="bento-grid-wrapper">
-                <div class="bento-grid">
-
-                    <div class="bento-card span-2x2 bg-gradient-dark">
-                        <div class="card-corner-decor hotkey-cloud" aria-hidden="true">
-                            <div class="hotkey-row hotkey-row-left">
-                                <div class="hotkey-row-inner">
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">M</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">F23</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">~</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Caps</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Space</span></span>
-                                </div>
-                                <div class="hotkey-row-inner">
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">M</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">F23</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">~</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Caps</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Space</span></span>
-                                </div>
-                            </div>
-                            <div class="hotkey-row hotkey-row-right">
-                                <div class="hotkey-row-inner">
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">Shift</span><span class="hotkey-key">V</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F13</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">/</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">]</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">.</span></span>
-                                </div>
-                                <div class="hotkey-row-inner">
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">Shift</span><span class="hotkey-key">V</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F13</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">/</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">]</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">.</span></span>
-                                </div>
-                            </div>
-                            <div class="hotkey-row hotkey-row-left">
-                                <div class="hotkey-row-inner">
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">K</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">F19</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">\</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Tab</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">;</span></span>
-                                </div>
-                                <div class="hotkey-row-inner">
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">K</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">F19</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">\</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Tab</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">;</span></span>
-                                </div>
-                            </div>
-                            <div class="hotkey-row hotkey-row-right">
-                                <div class="hotkey-row-inner">
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">F24</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">/</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">M</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">=</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F15</span></span>
-                                </div>
-                                <div class="hotkey-row-inner">
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">F24</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">/</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">M</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">=</span></span>
-                                    <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F15</span></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bento-icon" style="color: var(--pop-purple);">
-                            <iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Global<br>Hotkeys.</h3>
-                            <p>Pick any shortcut, use it everywhere, and let it still fire even when extra modifiers are pressed in games.</p>
-                        </div>
+                <div class="bento-card span-1x1 bg-green">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:stopwatch-bold-duotone"></iconify-icon>
                     </div>
-
-                    <div class="bento-card span-1x1 bg-green">
-                        <span class="feature-badge">New</span>
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:command-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Multi-Action Shortcuts</h3>
-                            <p>Give toggle, mute, and unmute their own dedicated shortcuts.</p>
-                        </div>
+                    <div class="card-copy">
+                        <h3>Auto-Mute Timer</h3>
+                        <p>Set a timeout so silence! mutes the mic for you if you forget.</p>
                     </div>
+                </div>
 
-                    <div class="bento-card span-1x1 bg-green">
-                        <span class="feature-badge">New</span>
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:stopwatch-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Auto-Mute Timer</h3>
-                            <p>Set a timeout so silence! mutes the mic for you if you forget.</p>
-                        </div>
+                <div class="bento-card span-1x1 bg-orange">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:gamepad-bold-duotone"></iconify-icon>
                     </div>
-
-                    <div class="bento-card span-1x1 bg-orange">
-                        <span class="feature-badge">New</span>
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:gamepad-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Gamepad Support</h3>
-                            <p>Bind mute actions straight to controller buttons and combos.</p>
-                        </div>
+                    <div class="card-copy">
+                        <h3>Gamepad Support</h3>
+                        <p>Bind mute actions straight to controller buttons and combos.</p>
                     </div>
+                </div>
 
-                    <div class="bento-card span-1x1 bg-yellow">
-                        <span class="feature-badge">New</span>
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:microphone-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Hold-to-Talk</h3>
-                            <p>Hold to mute, hold to unmute, or mix hold rules with toggle.</p>
-                        </div>
+                <div class="bento-card span-1x1 bg-yellow">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:microphone-bold-duotone"></iconify-icon>
                     </div>
-
-                    <div class="bento-card span-1x1 bg-surface">
-                        <div class="bento-icon" style="color: var(--pop-green);">
-                            <iconify-icon icon="solar:target-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Mic Selection</h3>
-                            <p>Choose exactly which microphone to mute. Or mute them all!</p>
-                        </div>
+                    <div class="card-copy">
+                        <h3>Hold-to-Talk</h3>
+                        <p>Hold to mute, hold to unmute, or mix hold rules with toggle.</p>
                     </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-surface">
+                    <div class="bento-icon" style="color: var(--pop-green);">
+                        <iconify-icon icon="solar:target-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Mic Selection</h3>
+                        <p>Choose exactly which microphone to mute. Or mute them all!</p>
+                    </div>
+                </div>
 
 
-                    <div class="bento-card span-2x2 bg-pink overlay-showcase-card">
-                        <div class="overlay-preview-stage" aria-hidden="true">
+                <div class="bento-card span-2x2 bg-pink overlay-showcase-card">
+                    <div class="overlay-preview-stage" aria-hidden="true">
+                        <div class="overlay-morph-anchor">
                             <div class="overlay-morph">
                                 <iconify-icon class="overlay-morph-icon" icon="fluent:mic-off-24-filled"></iconify-icon>
                                 <span class="overlay-morph-text">Microphone is muted</span>
                             </div>
                         </div>
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:mouse-circle-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Visual Overlay</h3>
-                            <p>Keep your mute state visible above any app with an indicator that can show an icon, text, or both.</p>
-                        </div>
                     </div>
-
-
-                    <div class="bento-card span-2x1 bg-purple">
-                        <span class="feature-badge">New</span>
-                        <div class="bento-icon">
-                            <iconify-icon icon="fluent:cursor-click-24-filled"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>On-Screen Mic Button</h3>
-                            <p>Turn the overlay into a big on-screen button so you can control your mic with a click.</p>
-                        </div>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:layers-bold-duotone"></iconify-icon>
                     </div>
-
-                    <div class="bento-card span-1x1 bg-surface">
-                        <div class="bento-icon" style="color: var(--pop-purple);">
-                            <iconify-icon icon="solar:cursor-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Click-Through</h3>
-                            <p>Run it as a true passive overlay that never steals your mouse.</p>
-                        </div>
+                    <div class="card-copy">
+                        <h3>Visual Overlay</h3>
+                        <p>Keep your mute state visible above any app with an indicator that can show an icon, text, or both.</p>
                     </div>
-
-                    <div class="bento-card span-1x1 bg-orange">
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:map-point-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Flexible Positioning</h3>
-                            <p>Drag it anywhere and snap it neatly to center when you want it tidy.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-3x1 bg-yellow">
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:palette-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Overlay Customization</h3>
-                            <p>Pick colored or monochrome icons, dark or light backgrounds, custom opacity, text labels, and anything from sharp corners to pill shapes.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-1x1 bg-pink">
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:eye-closed-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Show After Toggle</h3>
-                            <p>Show the overlay briefly when state changes, then let it disappear again.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-2x2 bg-blue">
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:music-note-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Sound Themes &<br>Custom Audio</h3>
-                            <p>Pick from 8 built-in themes or bring MP3, WAV, FLAC, OGG, M4A, and WMA files so your mute state is obvious by ear.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-2x1 bg-gradient-dark">
-                        <span class="feature-badge">New</span>
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:volume-loud-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Per-Action Sound Control</h3>
-                            <p>Tune mute, unmute, and hold-action sounds separately instead of sharing one flat volume.</p>
-                        </div>
-                    </div>
-
-
-                    <div class="bento-card span-1x1 bg-blue">
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:bell-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>System Tray Controls</h3>
-                            <p>Live quietly in the tray, left-click to toggle instantly, and choose standard, filled-circle, or dot icon styles.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-1x1 bg-surface">
-                        <div class="bento-icon" style="color: var(--pop-blue);">
-                            <iconify-icon icon="solar:palette-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Native Windows UI</h3>
-                            <p>Built with WinUI 3, with Mica on Windows 11 and Acrylic on Windows 10.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-1x1 bg-surface">
-                        <div class="bento-icon" style="color: var(--pop-yellow);">
-                            <iconify-icon icon="solar:moon-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Theme Sync</h3>
-                            <p>Automatically matches your system theme and accent color.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-2x1 bg-green">
-                        <div class="bento-icon">
-                            <iconify-icon icon="solar:magic-stick-3-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Smooth 60fps Animations</h3>
-                            <p>Buttery transitions and 60fps overlay movement instead of janky desktop utility vibes.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-1x1 bg-surface">
-                        <div class="bento-icon" style="color: var(--pop-pink);">
-                            <iconify-icon icon="solar:rocket-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Startup Rules</h3>
-                            <p>Start with Windows, launch straight to tray, or come up already muted.</p>
-                        </div>
-                    </div>
-
-                    <div class="bento-card span-1x1 bg-surface">
-                        <div class="bento-icon" style="color: var(--pop-blue);">
-                            <iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon>
-                        </div>
-                        <div class="card-copy">
-                            <h3>Auto-Updates</h3>
-                            <p>Get new features and improvements without the usual update hassle.</p>
-                        </div>
-                    </div>
-
                 </div>
+
+
+                <div class="bento-card span-2x1 bg-purple">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="fluent:cursor-click-24-filled"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>On-Screen Mic Button</h3>
+                        <p>Turn the overlay into a big on-screen button so you can control your mic with a click.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-orange">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:map-point-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Flexible Positioning</h3>
+                        <p>Drag it anywhere and snap it neatly to center when you want it tidy.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-pink">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:eye-closed-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Show After Toggle</h3>
+                        <p>Show the overlay briefly when state changes, then let it disappear again.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-2x2 bg-blue">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:music-note-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Sound Themes &<br>Custom Audio</h3>
+                        <p>Pick from 8 built-in themes or bring MP3, WAV, FLAC, OGG, M4A, and WMA files so your mute state is obvious by ear.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-2x1 bg-gradient-dark">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:volume-loud-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Per-Action Sound Control</h3>
+                        <p>Tune mute, unmute, and hold-action sounds separately instead of sharing one flat volume.</p>
+                    </div>
+                </div>
+
+
+                <div class="bento-card span-1x1 bg-blue">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:bell-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>System Tray Controls</h3>
+                        <p>Live quietly in the tray, left-click to toggle instantly, and choose standard, filled-circle, or dot icon styles.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-surface">
+                    <div class="bento-icon" style="color: var(--pop-blue);">
+                        <iconify-icon icon="solar:palette-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Native Windows UI</h3>
+                        <p>Built with WinUI 3, with Mica on Windows 11 and Acrylic on Windows 10.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-surface">
+                    <div class="bento-icon" style="color: var(--pop-yellow);">
+                        <iconify-icon icon="solar:moon-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Theme Sync</h3>
+                        <p>Automatically matches your system theme and accent color.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-surface">
+                    <div class="bento-icon" style="color: var(--pop-pink);">
+                        <iconify-icon icon="solar:rocket-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Startup Rules</h3>
+                        <p>Start with Windows, launch straight to tray, or come up already muted.</p>
+                    </div>
+                </div>
+
+
+                <div class="bento-card span-2x1 bg-green">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:magic-stick-3-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Actually Lightweight</h3>
+                        <p>Sits at basically 0% CPU and around 70MB of RAM, so it stays out of your way while you do your thing.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-surface">
+                    <div class="bento-icon" style="color: var(--pop-blue);">
+                        <iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Auto-Updates</h3>
+                        <p>Get new features and improvements without the usual update hassle.</p>
+                    </div>
+                </div>
+
             </div>
-        </section>
-    </div>
+        </div>
+    </section>
 
     <section class="bottom-cta">
         <div class="cta-box">
