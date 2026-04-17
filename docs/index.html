@@ -4,36 +4,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>silence! — The Modern Mic Mute Utility for Windows</title>
-    <meta name="description" content="A lightweight, modern microphone mute utility for Windows with customizable sounds, visual overlay, and global hotkeys.">
-    <link rel="icon" type="image/svg+xml" href="silence-icon.svg">
+    <title>silence! - Never Ask "Am I Muted?" Again</title>
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Iconify for Fluent UI icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
 
     <style>
         :root {
-            --bg-primary: #0c0a0f;
-            --bg-secondary: #1d1624;
-            --bg-card: #1d161f;
-            --bg-card-hover: #2d253a;
-            --text-primary: #f0f0f5;
-            --text-secondary: #9090a0;
-            --accent-primary: #a855f7;
-            --accent-secondary: #fa9a45;
-            --accent-muted: #ef4444;
-            --accent-unmuted: #22c55e;
-            --border-color: rgba(255, 255, 255, 0.08);
-            --border-hover: rgba(255, 255, 255, 0.15);
-            --gradient-1: linear-gradient(135deg, #a855f7 0%, #fa9a45 100%);
-            --gradient-2: linear-gradient(135deg, #c084fc 0%, #fa9a45 100%);
-            --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            --shadow-glow: 0 0 60px rgba(168, 85, 247, 0.2);
+            --bg: #0c0a09;
+            --surface: #1c1917;
+            --surface-hover: #292524;
+            --text: #fafaf9;
+            --text-dim: #a8a29e;
+
+            --pop-purple: #c084fc;
+            --pop-green: #4ade80;
+            --pop-orange: #fb923c;
+            --pop-pink: #f472b6;
+            --pop-blue: #60a5fa;
+            --pop-yellow: #fde047;
+
+            --radius-box: 32px;
+            --radius-btn: 100px;
         }
 
         * {
@@ -42,949 +36,776 @@
             box-sizing: border-box;
         }
 
-        html {
-            scroll-behavior: smooth;
-        }
-
         body {
-            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
             overflow-x: hidden;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 24px 24px;
         }
 
-        /* Background Effects */
-        .bg-gradient {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .bg-gradient::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background:
-                radial-gradient(ellipse at 20% 20%, rgba(168, 85, 247, 0.1) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 50% 50%, rgba(192, 132, 252, 0.05) 0%, transparent 70%);
-            animation: bgFloat 20s ease-in-out infinite;
-        }
-
-        @keyframes bgFloat {
-
-            0%,
-            100% {
-                transform: translate(0, 0) rotate(0deg);
-            }
-
-            33% {
-                transform: translate(2%, 2%) rotate(1deg);
-            }
-
-            66% {
-                transform: translate(-1%, 1%) rotate(-1deg);
-            }
-        }
-
-        /* Noise texture overlay */
-        .noise {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1000;
-            opacity: 0.015;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        h1,
+        h2,
+        h3,
+        h4,
+        .brand {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
         }
 
         /* Container */
         .container {
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 0 auto;
             padding: 0 24px;
         }
 
-        /* Navigation */
+        @keyframes slow-rotate {
+            0% {
+                transform: rotate(-2deg);
+            }
+
+            50% {
+                transform: rotate(2deg);
+            }
+
+            100% {
+                transform: rotate(-2deg);
+            }
+        }
+
+        /* Hero Wrapper (Nav + Hero Content) */
+        .hero-wrapper {
+            min-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Navbar */
         nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            padding: 16px 0;
-            background: rgba(10, 10, 15, 0.8);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        nav .container {
+            padding: 24px 0;
             display: flex;
-            align-items: center;
             justify-content: space-between;
+            align-items: center;
+            width: 100%;
         }
 
-        .logo {
+        .brand {
+            font-size: 2.5rem;
+            text-decoration: none;
+            color: var(--text);
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 4px;
+
+            span {
+                color: var(--pop-orange);
+            }
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            border-radius: var(--radius-btn);
             font-weight: 600;
-            font-size: 1.25rem;
-            text-decoration: none;
-            color: var(--text-primary);
-        }
-
-        .logo-icon {
-            width: 42px;
-            height: 42px;
-            background: var(--gradient-1);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             font-size: 1.1rem;
-        }
-
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 32px;
-        }
-
-        .nav-links a {
-            color: var(--text-secondary);
             text-decoration: none;
-            font-weight: 500;
-            font-size: 0.95rem;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: var(--text-primary);
-        }
-
-        .nav-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 18px;
-            padding-left: 16px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            color: var(--text-primary);
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .nav-btn:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
-        }
-
-        /* Hero Section */
-        .hero {
-            padding: 160px 0 100px;
-            text-align: center;
-            position: relative;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: rgba(250, 154, 69, 0.1);
-            border: 1px solid rgba(250, 154, 69, 0.2);
-            border-radius: 100px;
-            font-size: 0.875rem;
-            color: var(--accent-secondary);
-            margin-bottom: 24px;
-        }
-
-        .hero-badge iconify-icon {
-            font-size: 1.25rem;
-        }
-
-        .hero h1 {
-            font-size: clamp(3rem, 8vw, 5rem);
-            font-weight: 700;
-            line-height: 1.2;
-            margin-bottom: 24px;
-            padding: 0.1em 0;
-        }
-
-        .hero h1 span {
-            background: var(--gradient-1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero p {
-            font-size: 1.25rem;
-            color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto 40px;
-            line-height: 1.7;
-        }
-
-        .hero-buttons {
-            display: flex;
-            gap: 16px;
-            justify-content: center;
-            flex-wrap: wrap;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            cursor: pointer;
+            border: none;
         }
 
         .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 14px 32px;
-            background: var(--accent-secondary);
-            border-radius: 12px;
-            color: #1a1a1a;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 1rem;
-            transition: all 0.3s;
-            box-shadow: 0 4px 20px rgba(250, 154, 69, 0.3);
-        }
+            background: var(--text);
+            color: var(--bg);
 
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(250, 154, 69, 0.4);
-            filter: brightness(1.1);
+            &:hover {
+                transform: scale(1.05) translateY(-2px);
+                box-shadow: 0 10px 25px rgba(250, 250, 249, 0.2);
+            }
         }
 
         .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 14px 32px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            color: var(--text-primary);
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 1rem;
-            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            backdrop-filter: blur(10px);
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.15);
+                transform: scale(1.05);
+            }
         }
 
-        .btn-secondary:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
-            transform: translateY(-2px);
-        }
-
-        /* Hero Screenshot */
-        .hero-screenshot {
-            margin-top: 60px;
-            position: relative;
-        }
-
-        .hero-screenshot img {
-            max-width: 100%;
-            border-radius: 16px;
-            box-shadow: var(--shadow-lg), var(--shadow-glow);
-            border: 1px solid var(--border-color);
-        }
-
-        .hero-screenshot::before {
-            content: '';
-            position: absolute;
-            inset: -1px;
-            background: var(--gradient-1);
-            border-radius: 17px;
-            z-index: -1;
-            opacity: 0.3;
-            filter: blur(30px);
-        }
-
-        /* Section Styles */
-        section {
-            padding: 100px 0;
-        }
-
-        .section-header {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-
-        .section-tag {
-            display: inline-block;
-            padding: 6px 14px;
-            background: rgba(250, 154, 69, 0.1);
-            border-radius: 100px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--accent-secondary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 16px;
-        }
-
-        .section-header h2 {
-            font-size: clamp(2rem, 5vw, 3rem);
-            font-weight: 700;
-            margin-bottom: 16px;
-        }
-
-        .section-header p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        /* Feature Grid */
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 24px;
-        }
-
-        .feature-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 32px;
-            transition: all 0.3s;
-        }
-
-        .feature-card:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
-            transform: translateY(-4px);
-        }
-
-        .feature-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-        }
-
-        .feature-icon.sound {
-            background: linear-gradient(135deg, #f472b6 0%, #fb7185 100%);
-        }
-
-        .feature-icon.overlay {
-            background: linear-gradient(135deg, #60a5fa 0%, #818cf8 100%);
-        }
-
-        .feature-icon.hotkey {
-            background: linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
-        }
-
-        .feature-icon.gaming {
-            background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%);
-        }
-
-        .feature-card h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-
-        .feature-card p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-
-        .feature-card ul {
-            margin-top: 16px;
-            padding-left: 20px;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        .feature-card li {
-            margin-bottom: 8px;
-        }
-
-        /* Showcase Section */
-        .showcase {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 60px;
-            align-items: center;
-        }
-
-        .showcase.reverse {
-            direction: rtl;
-        }
-
-        .showcase.reverse>* {
-            direction: ltr;
-        }
-
-        .showcase-content h3 {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-        }
-
-        .showcase-content p {
-            color: var(--text-secondary);
-            font-size: 1.05rem;
-            line-height: 1.7;
-            margin-bottom: 24px;
-        }
-
-        .showcase-features {
+        /* Hero */
+        .hero {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 16px;
-        }
-
-        .showcase-feature {
-            display: flex;
             align-items: center;
-            gap: 14px;
+            justify-content: flex-start;
+            text-align: center;
+            /* Slight offset to visually center above the bento grid */
+
+            h1 {
+                font-size: clamp(3rem, 8vw, 6.5rem);
+                line-height: 0.9;
+                margin-bottom: 32px;
+                max-width: 1000px;
+
+                .highlight {
+                    display: inline-block;
+                    background: linear-gradient(135deg, var(--pop-orange), var(--pop-pink));
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    transform: rotate(-2deg);
+                    animation: slow-rotate 12s ease-in-out infinite;
+                }
+            }
+
+            p {
+                font-size: clamp(1.1rem, 2vw, 1.5rem);
+                color: var(--text-dim);
+                max-width: 800px;
+                margin-bottom: 48px;
+
+                b {
+                    color: var(--pop-orange);
+                    font-weight: 800;
+                }
+
+                i {
+                    color: var(--pop-purple);
+                    font-style: normal;
+                    font-weight: 800;
+                }
+            }
         }
 
-        .showcase-feature-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 8px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
+        .hero-pill {
+            background: #fb923c22;
+            color: var(--pop-orange);
+            padding: 8px 20px;
+            border-radius: var(--radius-btn);
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 32px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Bento Grid */
+        .bento-section {
+            padding: 60px 0 20px;
+            width: 100vw;
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .bento-grid-wrapper {
+            padding: 0 2rem;
+            width: 100%;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+            grid-auto-rows: 280px;
+            gap: 16px;
+            grid-auto-flow: dense;
+        }
+
+        .bento-card {
+            background: var(--surface);
+            border-radius: var(--radius-box);
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+
+            &:hover {
+                transform: translateY(-2px);
+                border-color: rgba(255, 255, 255, 0.1);
+
+                .card-img-container {
+                    transform: rotate(0deg) scale(1.05);
+                }
+            }
+
+            h3 {
+                font-size: 2.2rem;
+                line-height: 1.1;
+                margin-bottom: 16px;
+                position: relative;
+                z-index: 2;
+            }
+
+            p {
+                color: var(--text-dim);
+                font-size: 1.1rem;
+                position: relative;
+                z-index: 2;
+                max-width: 90%;
+            }
+        }
+
+        .bento-icon {
+            font-size: 3rem;
+            margin-bottom: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            width: 80px;
+            height: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
-            font-size: 1.5rem;
+            border-radius: 24px;
         }
 
-        .showcase-feature-text h4 {
-            font-size: 1rem;
-            font-weight: 600;
-            line-height: 1.2;
+        /* Specific Cards */
+        .span-3x2 {
+            grid-column: span 3;
+            grid-row: span 2;
+
+            h3 {
+                font-size: 4rem;
+            }
         }
 
-        .showcase-feature-text p {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            margin: 0;
+        .span-3x1 {
+            grid-column: span 3;
+            grid-row: span 1;
         }
 
-        .showcase-image {
-            position: relative;
+        .span-2x2 {
+            grid-column: span 2;
+            grid-row: span 2;
+
+            h3 {
+                font-size: 3rem;
+            }
         }
 
-        .showcase-image img {
-            width: 100%;
-            border-radius: 16px;
-            box-shadow: var(--shadow-lg);
-            border: 1px solid var(--border-color);
+        .span-2x1 {
+            grid-column: span 2;
+            grid-row: span 1;
         }
 
-        /* Small Features (Not So Cool Section) */
-        .small-features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
+        .span-1x2 {
+            grid-column: span 1;
+            grid-row: span 2;
         }
 
-        .small-feature {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 24px;
-            display: flex;
-            align-items: flex-start;
-            gap: 16px;
-            transition: all 0.3s;
+        .span-1x1 {
+            grid-column: span 1;
+            grid-row: span 1;
+
+            h3 {
+                font-size: 1.5rem;
+            }
+
+            .bento-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 1.8rem;
+                margin-bottom: 16px;
+                border-radius: 16px;
+            }
+
+            p {
+                font-size: 0.95rem;
+            }
         }
 
-        .small-feature:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
-        }
-
-        .small-feature-icon {
-            font-size: 2rem;
-            flex-shrink: 0;
-        }
-
-        .small-feature h4 {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 6px;
-        }
-
-        .small-feature p {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-
-        /* CTA Section */
-        .cta {
+        .span-fullx2 {
+            grid-column: 1 / -1;
+            grid-row: span 2;
             text-align: center;
-            padding: 100px 0;
+        }
+
+        /* Decorative Elements in Cards */
+        .bg-surface {
+            background: var(--surface);
+            color: var(--text);
+        }
+
+        .bg-purple {
+            background: var(--pop-purple);
+            color: var(--bg);
+        }
+
+        .bg-green {
+            background: var(--pop-green);
+            color: var(--bg);
+        }
+
+        .bg-orange {
+            background: var(--pop-orange);
+            color: var(--bg);
+        }
+
+        .bg-pink {
+            background: var(--pop-pink);
+            color: var(--bg);
+        }
+
+        .bg-blue {
+            background: var(--pop-blue);
+            color: var(--bg);
+        }
+
+        .bg-yellow {
+            background: var(--pop-yellow);
+            color: var(--bg);
+        }
+
+        .bg-gradient-dark {
+            background: linear-gradient(145deg, var(--surface), #2e1065);
+        }
+
+        :is(.bg-purple, .bg-green, .bg-orange, .bg-pink, .bg-blue, .bg-yellow) {
+            p {
+                color: rgba(0, 0, 0, 0.7);
+            }
+
+            .bento-icon {
+                background: rgba(0, 0, 0, 0.1);
+                color: var(--bg);
+            }
+        }
+
+        .card-img-container {
+            position: absolute;
+            right: -20px;
+            bottom: -20px;
+            width: 60%;
+            height: 60%;
+            opacity: 0.8;
+            border-radius: 16px;
+            overflow: hidden;
+            transform: rotate(-5deg);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            transition: transform 0.4s;
+
+            img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+        }
+
+        /* CTA */
+        .bottom-cta {
+            width: 100vw;
+            height: 100dvh;
+            padding: 24px;
+            box-sizing: border-box;
+            display: flex;
         }
 
         .cta-box {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 24px;
-            padding: 60px 40px;
+            background: var(--surface);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-box);
+            padding: 80px 40px;
             position: relative;
             overflow: hidden;
-        }
-
-        .cta-box::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100vw;
-            height: 100%;
-            background: radial-gradient(circle, rgba(168, 85, 247, 0.1) 0%, #0000 70%);
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .cta h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 16px;
-        }
-
-        .cta p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-            margin-bottom: 32px;
-        }
-
-        .cta p .highlight {
-            color: var(--accent-secondary);
-            font-weight: 600;
-        }
-
-        /* Footer */
-        footer {
-            padding: 40px 0;
-            border-top: 1px solid var(--border-color);
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             text-align: center;
-        }
 
-        footer p {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        footer a {
-            color: var(--accent-secondary);
-            text-decoration: none;
-        }
-
-        footer a:hover {
-            text-decoration: underline;
-        }
-
-        /* Responsive */
-        @media (max-width: 900px) {
-            .showcase {
-                grid-template-columns: 1fr;
-                gap: 40px;
+            h2 {
+                font-size: clamp(3rem, 8vw, 5rem);
+                margin-bottom: 24px;
+                color: var(--text);
+                line-height: 1.1;
             }
 
-            .showcase.reverse {
-                direction: ltr;
+            p {
+                font-size: clamp(1.2rem, 3vw, 2rem);
+                color: var(--text-dim);
+                margin-bottom: 48px;
+                font-weight: 500;
             }
 
-            .nav-links {
-                display: none;
-            }
-        }
-
-        @media (max-width: 600px) {
-            .hero-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-
-            .btn-primary,
-            .btn-secondary {
+            .footer-info {
+                position: absolute;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%);
+                font-size: 0.9rem;
+                color: var(--text-dim);
+                margin: 0;
                 width: 100%;
-                max-width: 300px;
-                justify-content: center;
+                text-align: center;
+                padding: 0 24px;
+
+                a {
+                    color: var(--text);
+                    font-weight: 600;
+                    text-decoration: underline;
+                }
             }
         }
 
-        /* Animations */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
+        /* 3-column cards should collapse once the grid naturally drops below 3 columns. */
+        @media (max-width: 975px) {
 
-            to {
-                opacity: 1;
-                transform: translateY(0);
+            .span-3x2,
+            .span-3x1 {
+                grid-column: span 2;
             }
         }
 
-        .animate {
-            animation: fadeInUp 0.6s ease-out forwards;
+        /* Once the grid reaches a single column, remove wide spans entirely. */
+        @media (max-width: 665px) {
+
+            .span-3x2,
+            .span-3x1,
+            .span-2x2,
+            .span-2x1,
+            .span-1x2 {
+                grid-column: span 1;
+                grid-row: span 1;
+            }
         }
 
-        .delay-1 {
-            animation-delay: 0.1s;
+        @media (max-width: 800px) {
+            .hero {
+                h1 {
+                    font-size: 3.5rem;
+                }
+            }
+
+            .hero-actions {
+                flex-direction: column;
+                width: 100%;
+
+                .btn {
+                    width: 100%;
+                    justify-content: center;
+                }
+            }
+
+            .bento-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .span-3x2,
+            .span-3x1,
+            .span-2x2,
+            .span-2x1 {
+                grid-column: span 2;
+            }
         }
 
-        .delay-2 {
-            animation-delay: 0.2s;
-        }
+        @media (max-width: 500px) {
+            .bento-grid {
+                grid-template-columns: 1fr;
+                grid-auto-rows: minmax(200px, auto);
+            }
 
-        .delay-3 {
-            animation-delay: 0.3s;
-        }
+            .span-3x2,
+            .span-3x1,
+            .span-2x2,
+            .span-2x1,
+            .span-1x2 {
+                grid-column: span 1;
+                grid-row: span 1;
+            }
 
-        .delay-4 {
-            animation-delay: 0.4s;
+            .span-3x2 h3,
+            .span-2x2 h3 {
+                font-size: 2.2rem;
+            }
+
+            .cta-box h2 {
+                font-size: 2.5rem;
+            }
+
+            .bento-grid-wrapper {
+                padding: 0 1rem;
+            }
+
         }
     </style>
 </head>
 
 <body>
-    <div class="bg-gradient"></div>
-
-    <!-- Navigation -->
-    <nav>
-        <div class="container">
-            <a href="#" class="logo">
-                <img class="logo-icon" src="silence-icon.svg" alt="silence! icon">
-                silence!
-            </a>
-            <div class="nav-links">
-                <a href="#features">Features</a>
-                <a href="#sounds">Sounds</a>
-                <a href="#overlay">Overlay</a>
-                <a href="#download">Download</a>
-            </div>
-            <a href="https://github.com/vertopolkalf/silence" class="nav-btn" target="_blank">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                </svg>
-                GitHub
-            </a>
-        </div>
-    </nav>
-
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="container">
-            <div class="hero-badge">
-                <iconify-icon icon="fluent:sparkle-32-filled"></iconify-icon> Open Source & Free Forever
-            </div>
-            <h1>Never ask <span>"Am I muted?"</span> again</h1>
-            <p>A lightweight, modern microphone mute utility for Windows with audio feedback, visual overlay, and global hotkeys that work everywhere.</p>
-            <div class="hero-buttons">
-                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn-primary">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="7 10 12 15 17 10" />
-                        <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                    Download Now
+    <div class="container">
+        <div class="hero-wrapper">
+            <nav>
+                <a href="#" class="brand">
+                    silence<span>!</span>
                 </a>
-                <a href="https://github.com/vertopolkalf/silence" class="btn-secondary" target="_blank">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                    </svg>
-                    View on GitHub
+                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
+                    Download
                 </a>
-            </div>
-        </div>
-    </section>
+            </nav>
 
-    <!-- General Section -->
-    <section id="features">
-        <div class="container">
-            <div class="showcase reverse">
-                <div class="showcase-content">
-                    <span class="section-tag">At a Glance</span>
-                    <h3>Simple Yet Powerful</h3>
-                    <p>Configure your hotkey, pick your microphone, and you're ready. Everything you need is right there — no digging through menus.</p>
-                    <div class="showcase-features">
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:keyboard-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Global Hotkey</h4>
-                                <p>Any key combo, works everywhere — even in games</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:mic-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Mic Selection</h4>
-                                <p>Choose which microphone to control</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:checkmark-circle-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Ignore Extra Modifiers</h4>
-                                <p>Perfect for gaming — hotkey fires even with extra keys pressed</p>
-                            </div>
-                        </div>
-                    </div>
+            <section class="hero">
+                <div class="hero-pill">
+                    <iconify-icon icon="fluent:sparkle-32-filled"></iconify-icon>
+                    Open Source & Free Forever
                 </div>
-                <div class="showcase-image">
-                    <img src="screenshots/general.png" alt="General settings">
-                </div>
-            </div>
-        </div>
-    </section>
+                <h1>Never ask <br><span class="highlight">"Am I muted?"</span><br> again.</h1>
+                <p>
+                    A ridiculously good Windows app to <b>mute your mic</b> on OS level.
+                    <br />
+                    Multi-action hotkeys, hold−to−talk, controller support, sounds, visual overlay and a <i>lot of features</i>
+                </p>
 
-    <!-- Sound Feedback Section -->
-    <section id="sounds" style="background: var(--bg-secondary);">
-        <div class="container">
-            <div class="showcase">
-                <div class="showcase-content">
-                    <span class="section-tag">Sound Feedback</span>
-                    <h3>Hear Your Mute State</h3>
-                    <p>Choose from 8 built-in sound themes or add your own. Set different sounds for mute and unmute actions so you know your state by ear.</p>
-                    <div class="showcase-features">
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:music-note-2-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>8 Sound Themes</h4>
-                                <p>8-Bit, Blob, Digital, Discord, Pop, Punchy, Sci-Fi, Vibrant</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:folder-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Custom Sounds</h4>
-                                <p>Supports MP3, WAV, FLAC, OGG, M4A, and WMA</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:speaker-1-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Volume Control</h4>
-                                <p>Separate volume slider for feedback sounds</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="showcase-image">
-                    <img src="screenshots/sounds.png" alt="Sound settings">
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Overlay Section -->
-    <section id="overlay">
-        <div class="container">
-            <div class="showcase reverse">
-                <div class="showcase-content">
-                    <span class="section-tag">Visual Overlay</span>
-                    <h3>See Your Status Instantly</h3>
-                    <p>A floating indicator that stays visible over all windows. Drag it anywhere, customize everything, and never lose track of your mic status.</p>
-                    <div class="showcase-features">
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:cursor-click-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>True Click-Through</h4>
-                                <p>Completely invisible to your cursor — never steals focus</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:location-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Flexible Positioning</h4>
-                                <p>Drag anywhere with magnetic snap to center</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:timer-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>"Show After Toggle" Mode</h4>
-                                <p>Appears briefly on toggle, then auto-hides</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="showcase-image">
-                    <img src="screenshots/overlay_settings.png" alt="Overlay settings">
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Overlay Customization -->
-    <section style="background: var(--bg-secondary);">
-        <div class="container">
-            <div class="showcase">
-                <div class="showcase-content">
-                    <span class="section-tag">Customization</span>
-                    <h3>Make It Yours</h3>
-                    <p>Fully customize the overlay appearance to match your aesthetic. Every detail is adjustable.</p>
-                    <div class="showcase-features">
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:color-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Icon Styles</h4>
-                                <p>Colored or monochrome icons</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:square-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Background Styles</h4>
-                                <p>Dark, light, or custom opacity</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:circle-24-regular"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Border Radius</h4>
-                                <p>From sharp corners to pill-shaped</p>
-                            </div>
-                        </div>
-                        <div class="showcase-feature">
-                            <div class="showcase-feature-icon"><iconify-icon icon="fluent:text-t-24-filled"></iconify-icon></div>
-                            <div class="showcase-feature-text">
-                                <h4>Text Option</h4>
-                                <p>Icon-only or with status text</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="showcase-image">
-                    <img src="screenshots/overlay_customization.png" alt="Overlay customization">
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Not So Cool Features -->
-    <section>
-        <div class="container">
-            <div class="section-header">
-                <span class="section-tag">Also Included</span>
-                <h2>The "Boring" Stuff</h2>
-                <p>Features that every modern Windows app should have (but not everyone builds them).</p>
-            </div>
-            <div class="small-features">
-                <div class="small-feature">
-                    <span class="small-feature-icon"><iconify-icon icon="fluent-emoji:artist-palette"></iconify-icon></span>
-                    <div>
-                        <h4>Native Windows Design</h4>
-                        <p>Built with WinUI 3 and Fluent Design. Mica backdrop on Win11, Acrylic on Win10.</p>
-                    </div>
-                </div>
-                <div class="small-feature">
-                    <span class="small-feature-icon"><iconify-icon icon="fluent-emoji:first-quarter-moon"></iconify-icon></span>
-                    <div>
-                        <h4>Light & Dark Mode</h4>
-                        <p>Automatically matches your system theme and accent color.</p>
-                    </div>
-                </div>
-                <div class="small-feature">
-                    <span class="small-feature-icon"><iconify-icon icon="fluent-emoji:sparkles"></iconify-icon></span>
-                    <div>
-                        <h4>Smooth Animations</h4>
-                        <p>Buttery smooth transitions and state changes. 60fps overlay animations.</p>
-                    </div>
-                </div>
-                <div class="small-feature">
-                    <span class="small-feature-icon"><iconify-icon icon="fluent-emoji:pushpin"></iconify-icon></span>
-                    <div>
-                        <h4>System Tray</h4>
-                        <p>Lives quietly in your tray. Green = live, red = muted. One click to toggle.</p>
-                    </div>
-                </div>
-                <div class="small-feature">
-                    <span class="small-feature-icon"><iconify-icon icon="fluent-emoji:counterclockwise-arrows-button"></iconify-icon></span>
-                    <div>
-                        <h4>Auto-Updates</h4>
-                        <p>Automatic update checks with one-click installation.</p>
-                    </div>
-                </div>
-                <div class="small-feature">
-                    <span class="small-feature-icon"><iconify-icon icon="fluent-emoji:rocket"></iconify-icon></span>
-                    <div>
-                        <h4>Start Minimized</h4>
-                        <p>Launch straight to system tray. No window popping up in your face on startup.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="cta" id="download">
-        <div class="container">
-            <div class="cta-box">
-                <h2>Ready to Never Guess Again?</h2>
-                <p>Download <span class="highlight">silence!</span> and take control of your microphone. Free, open source, and actually useful.</p>
-                <div class="hero-buttons">
-                    <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn-primary">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="7 10 12 15 17 10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                        Download for Windows
+                <div class="hero-actions">
+                    <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
+                        <iconify-icon icon="fluent:arrow-download-24-filled"></iconify-icon>
+                        Get for Windows
                     </a>
-                    <a href="https://github.com/vertopolkalf/silence" class="btn-secondary" target="_blank">
-                        View Source Code
+                    <a href="https://github.com/vertopolkalf/silence" target="_blank" class="btn btn-secondary">
+                        <iconify-icon icon="mdi:github"></iconify-icon>
+                        GitHub
                     </a>
                 </div>
-            </div>
+            </section>
         </div>
-    </section>
 
-    <!-- Footer -->
-    <footer>
-        <div class="container">
-            <p>
-                <strong>silence!</strong> is open source and free forever.
-                <br>
-                Made with ❤️ by <a href="https://github.com/vertopolkalf" target="_blank">vertopolkalf</a>
+        <section class="bento-section">
+            <div class="bento-grid-wrapper">
+                <div class="bento-grid">
+
+                    <div class="bento-card span-2x2 bg-gradient-dark">
+                        <div class="bento-icon" style="color: var(--pop-purple);">
+                            <iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Smarter<br>Hotkeys.</h3>
+                        <p>Assign multiple shortcuts for toggle, mute, and unmute. Bind modifier-only shortcuts. It just works.</p>
+                    </div>
+
+                    <div class="bento-card span-2x2 bg-pink">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:mouse-circle-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Interactive Overlay</h3>
+                        <p>A floating indicator that stays out of the way, or a giant 400% clickable mute button. You decide.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-green">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:stopwatch-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Auto-Mute</h3>
+                        <p>Forgetful? Set a timeout and we'll mute you automatically.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-orange">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:gamepad-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Gamepad</h3>
+                        <p>Bind actions straight to your controller buttons.</p>
+                    </div>
+
+                    <div class="bento-card span-1x2 bg-blue">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:music-note-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>8 Built-in Themes</h3>
+                        <p>Hear your state with themes like 8-Bit, Pop, Sci-Fi, or bring your own MP3s.</p>
+                    </div>
+
+                    <div class="bento-card span-2x1 bg-yellow">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:microphone-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Hold-to-Talk</h3>
+                        <p>Push-to-talk and hold-based mute control have their own rules. Toggle while held, hold to mute, or hold to unmute.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-surface">
+                        <div class="bento-icon" style="color: var(--pop-blue);">
+                            <iconify-icon icon="solar:palette-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Native UI</h3>
+                        <p>Built with WinUI 3. Mica backdrop on Win11, Acrylic on Win10.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-surface">
+                        <div class="bento-icon" style="color: var(--pop-green);">
+                            <iconify-icon icon="solar:target-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Mic Target</h3>
+                        <p>Control a specific microphone or mute everything at once.</p>
+                    </div>
+
+                    <div class="bento-card span-1x2 bg-purple">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:maximize-square-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Scale up to 400%</h3>
+                        <p>Make the visual overlay as big as you need to never guess your mute state again.</p>
+                    </div>
+
+                    <div class="bento-card span-2x1 bg-surface">
+                        <div class="bento-icon" style="color: var(--pop-orange);">
+                            <iconify-icon icon="solar:devices-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>More Input Devices</h3>
+                        <p>Bind mouse buttons with modifiers. Use supported gamepad combos. Record it directly.</p>
+                    </div>
+
+                    <div class="bento-card span-2x1 bg-gradient-dark">
+                        <div class="bento-icon" style="color: var(--pop-pink);">
+                            <iconify-icon icon="solar:volume-loud-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Custom Sound Control</h3>
+                        <p>Bring your own WAV/MP3 files. Tune mute, unmute, and hold-action volumes independently.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-surface">
+                        <div class="bento-icon" style="color: var(--pop-purple);">
+                            <iconify-icon icon="solar:cursor-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Click-Through</h3>
+                        <p>Run as a true passive overlay that ignores mouse clicks.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-orange">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:map-point-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Flexible Pos</h3>
+                        <p>Drag anywhere with magnetic snap to center.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-surface">
+                        <div class="bento-icon" style="color: var(--pop-blue);">
+                            <iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Auto-Updates</h3>
+                        <p>Smart architecture-aware installers so you're always on the latest version.</p>
+                    </div>
+
+                    <div class="bento-card span-2x1 bg-green">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:magic-stick-3-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Smooth 60fps Animations</h3>
+                        <p>Buttery transitions and 60fps overlay movement instead of janky desktop utility vibes.</p>
+                    </div>
+
+                    <div class="bento-card span-2x2 bg-blue">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:bell-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Tray & Feedback Upgrades</h3>
+                        <p>Pick from standard, filled-circle, or dot tray icons with live preview. Left-click toggles instantly.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-surface">
+                        <div class="bento-icon" style="color: var(--pop-yellow);">
+                            <iconify-icon icon="solar:moon-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Theme Sync</h3>
+                        <p>Automatically matches system theme and accent color.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-surface">
+                        <div class="bento-icon" style="color: var(--pop-pink);">
+                            <iconify-icon icon="solar:rocket-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Startup Rules</h3>
+                        <p>Launch to tray, start with Windows, or boot muted.</p>
+                    </div>
+
+                    <div class="bento-card span-1x1 bg-pink">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:eye-closed-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Auto-Hide</h3>
+                        <p>Show overlay briefly on toggle, then disappear.</p>
+                    </div>
+
+                    <div class="bento-card span-3x1 bg-yellow">
+                        <div class="bento-icon">
+                            <iconify-icon icon="solar:color-swatch-bold-duotone"></iconify-icon>
+                        </div>
+                        <h3>Total Visual Customization</h3>
+                        <p>Colored or monochrome icons, dark/light backgrounds, adjustable opacity, sharp corners or pill shapes. Make it yours.</p>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <section class="bottom-cta">
+        <div class="cta-box">
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <h2>Drop the janky scripts.</h2>
+                <p>One clean utility. Zero bloat. Total control.</p>
+                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="margin-bottom: 24px;">
+                    Download silence!
+                </a>
+            </div>
+            <p class="footer-info">
+                <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkalf" target="_blank">vertopolkalf</a>.
             </p>
         </div>
-    </footer>
+    </section>
 
     <script>
-        // Simple scroll animations
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('animate');
-                }
-            });
-        }, { threshold: 0.1 });
+        // Fetch the latest release from GitHub API and update download links
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const response = await fetch("https://api.github.com/repos/vertopolkalf/silence/releases/latest");
+                if (!response.ok) return;
 
-        document.querySelectorAll('.feature-card, .showcase, .small-feature, .cta-box').forEach(el => {
-            el.style.opacity = '0';
-            observer.observe(el);
+                const data = await response.json();
+
+                // Determine architecture
+                let arch = "x64"; // Default
+                const ua = navigator.userAgent.toLowerCase();
+
+                if (ua.includes("arm") || ua.includes("aarch64")) {
+                    arch = "arm64";
+                } else if (ua.includes("wow64") === false && (ua.includes("win32") || ua.includes("i686") || ua.includes("x86_32"))) {
+                    // It's a true 32-bit OS, not a 32-bit browser on 64-bit OS
+                    arch = "x86";
+                }
+
+                // Find the appropriate setup executable asset
+                const asset = data.assets.find(a => a.name.includes(`${arch}-setup.exe`)) || data.assets.find(a => a.name.includes("x64-setup.exe"));
+
+                if (asset) {
+                    // Update all download buttons pointing to the latest release page
+                    const downloadBtns = document.querySelectorAll('a[href*="/releases/latest"]');
+                    downloadBtns.forEach(btn => {
+                        btn.href = asset.browser_download_url;
+                    });
+                }
+            } catch (error) {
+                console.error("Failed to fetch latest release:", error);
+            }
         });
     </script>
 </body>
