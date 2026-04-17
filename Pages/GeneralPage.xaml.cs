@@ -98,24 +98,22 @@ namespace silence_.Pages
             {
                 selectedIndex = 1;
             }
-            else
-            {
-                for (int i = 0; i < microphones.Count; i++)
-                {
-                    var mic = microphones[i];
-                    var item = new ComboBoxItem
-                    {
-                        Content = mic.IsDefault
-                            ? AppResources.Format("General.Microphone.NamedDefault", mic.Name)
-                            : mic.Name,
-                        Tag = mic.Id
-                    };
-                    MicrophoneComboBox.Items.Add(item);
 
-                    if (mic.Id == selectedId)
-                    {
-                        selectedIndex = i + 2;
-                    }
+            for (int i = 0; i < microphones.Count; i++)
+            {
+                var mic = microphones[i];
+                var item = new ComboBoxItem
+                {
+                    Content = mic.IsDefault
+                        ? AppResources.Format("General.Microphone.NamedDefault", mic.Name)
+                        : mic.Name,
+                    Tag = mic.Id
+                };
+                MicrophoneComboBox.Items.Add(item);
+
+                if (mic.Id == selectedId)
+                {
+                    selectedIndex = i + 2;
                 }
             }
 

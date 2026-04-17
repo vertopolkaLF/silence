@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
-using Windows.Gaming.Input;
 
 namespace silence_.Services;
 
@@ -11,42 +11,38 @@ public partial class GamepadInputService(
     Func<IReadOnlyList<int>>? pressedChordKeysProvider = null) : IDisposable
 {
     private const int PollingIntervalMs = 33;
-    private const double TriggerPressThreshold = 0.75;
     private const double RecordingHoldDurationSeconds = 1.0;
-
-    private static readonly GamepadInputDescriptor[] SupportedInputs =
-    [
-        new(GamepadButtonId.A, reading => (reading.Buttons & GamepadButtons.A) != 0),
-        new(GamepadButtonId.B, reading => (reading.Buttons & GamepadButtons.B) != 0),
-        new(GamepadButtonId.X, reading => (reading.Buttons & GamepadButtons.X) != 0),
-        new(GamepadButtonId.Y, reading => (reading.Buttons & GamepadButtons.Y) != 0),
-        new(GamepadButtonId.LeftShoulder, reading => (reading.Buttons & GamepadButtons.LeftShoulder) != 0),
-        new(GamepadButtonId.RightShoulder, reading => (reading.Buttons & GamepadButtons.RightShoulder) != 0),
-        new(GamepadButtonId.LeftTrigger, reading => reading.LeftTrigger >= TriggerPressThreshold),
-        new(GamepadButtonId.RightTrigger, reading => reading.RightTrigger >= TriggerPressThreshold),
-        new(GamepadButtonId.View, reading => (reading.Buttons & GamepadButtons.View) != 0),
-        new(GamepadButtonId.Menu, reading => (reading.Buttons & GamepadButtons.Menu) != 0),
-        new(GamepadButtonId.DPadUp, reading => (reading.Buttons & GamepadButtons.DPadUp) != 0),
-        new(GamepadButtonId.DPadDown, reading => (reading.Buttons & GamepadButtons.DPadDown) != 0),
-        new(GamepadButtonId.DPadLeft, reading => (reading.Buttons & GamepadButtons.DPadLeft) != 0),
-        new(GamepadButtonId.DPadRight, reading => (reading.Buttons & GamepadButtons.DPadRight) != 0),
-        new(GamepadButtonId.LeftThumbstick, reading => (reading.Buttons & GamepadButtons.LeftThumbstick) != 0),
-        new(GamepadButtonId.RightThumbstick, reading => (reading.Buttons & GamepadButtons.RightThumbstick) != 0)
-    ];
+    private const int MaxXInputUsers = 4;
+    private const int XInputSuccess = 0;
+    private const byte TriggerPressThresholdByte = 191;
+    private const ushort XInputGamepadDPadUp = 0x0001;
+    private const ushort XInputGamepadDPadDown = 0x0002;
+    private const ushort XInputGamepadDPadLeft = 0x0004;
+    private const ushort XInputGamepadDPadRight = 0x0008;
+    private const ushort XInputGamepadStart = 0x0010;
+    private const ushort XInputGamepadBack = 0x0020;
+    private const ushort XInputGamepadLeftThumb = 0x0040;
+    private const ushort XInputGamepadRightThumb = 0x0080;
+    private const ushort XInputGamepadLeftShoulder = 0x0100;
+    private const ushort XInputGamepadRightShoulder = 0x0200;
+    private const ushort XInputGamepadA = 0x1000;
+    private const ushort XInputGamepadB = 0x2000;
+    private const ushort XInputGamepadX = 0x4000;
+    private const ushort XInputGamepadY = 0x8000;
 
     private readonly object _syncLock = new();
     private readonly List<HotkeyBindingSettings> _hotkeys = [];
     private readonly List<HoldHotkeyBindingSettings> _holdHotkeys = [];
-    private readonly Dictionary<Gamepad, ulong> _previousPressedMasks = [];
+    private readonly Dictionary<int, ulong> _previousPressedMasks = [];
     private readonly Func<IReadOnlyList<int>> _recordingChordKeysProvider = recordingChordKeysProvider ?? (() => []);
     private readonly Func<IReadOnlyList<int>> _pressedChordKeysProvider = pressedChordKeysProvider ?? (() => []);
 
     private Timer? _pollTimer;
     private ulong _activeHoldButtonsMask;
-    private Gamepad? _activeHoldSourceGamepad;
+    private int? _activeHoldSourceUserIndex;
     private List<int> _activeHoldChordKeys = [];
     private List<int> _previousPressedChordKeys = [];
-    private Gamepad? _recordingSourceGamepad;
+    private int? _recordingSourceUserIndex;
     private ulong _recordingButtonsMask;
     private List<int> _recordingChordKeys = [];
     private DateTime _recordingButtonsStartTime;
@@ -218,18 +214,22 @@ public partial class GamepadInputService(
     private List<Action> PollGamepadsLocked()
     {
         List<Action> pendingActions = [];
-        var connectedGamepads = Gamepad.Gamepads.ToArray();
-        Dictionary<Gamepad, ulong> currentMasks = new(connectedGamepads.Length);
-        Dictionary<Gamepad, ulong> previousMasks = new(connectedGamepads.Length);
+        Dictionary<int, ulong> currentMasks = new(MaxXInputUsers);
+        Dictionary<int, ulong> previousMasks = new(MaxXInputUsers);
         List<int> currentChordKeys = NormalizeChordKeys(_pressedChordKeysProvider());
         List<int> previousChordKeys = [.. _previousPressedChordKeys];
         List<int> recordingChordKeys = NormalizeChordKeys(_recordingChordKeysProvider());
 
-        foreach (var gamepad in connectedGamepads)
+        foreach (var userIndex in EnumerateConnectedControllers())
         {
-            currentMasks[gamepad] = GetPressedMask(gamepad.GetCurrentReading());
-            _previousPressedMasks.TryGetValue(gamepad, out var previousMask);
-            previousMasks[gamepad] = previousMask;
+            if (!TryGetControllerState(userIndex, out var state))
+            {
+                continue;
+            }
+
+            currentMasks[userIndex] = GetPressedMask(state.Gamepad);
+            _previousPressedMasks.TryGetValue(userIndex, out var previousMask);
+            previousMasks[userIndex] = previousMask;
         }
 
         RemoveDisconnectedGamepadsLocked(currentMasks.Keys, pendingActions);
@@ -269,14 +269,14 @@ public partial class GamepadInputService(
     }
 
     private void HandleHoldStateLocked(
-        Gamepad gamepad,
+        int userIndex,
         ulong previousMask,
         ulong currentMask,
         IReadOnlyList<int> previousChordKeys,
         IReadOnlyList<int> currentChordKeys,
         List<Action> pendingActions)
     {
-        if (_activeHoldSourceGamepad == gamepad && (_activeHoldButtonsMask != 0 || _activeHoldChordKeys.Count > 0))
+        if (_activeHoldSourceUserIndex == userIndex && (_activeHoldButtonsMask != 0 || _activeHoldChordKeys.Count > 0))
         {
             if (currentMask != _activeHoldButtonsMask ||
                 !ChordKeysEqual(currentChordKeys, _activeHoldChordKeys))
@@ -288,7 +288,7 @@ public partial class GamepadInputService(
             return;
         }
 
-        if (_activeHoldSourceGamepad != null)
+        if (_activeHoldSourceUserIndex != null)
         {
             return;
         }
@@ -308,7 +308,7 @@ public partial class GamepadInputService(
             return;
         }
 
-        _activeHoldSourceGamepad = gamepad;
+        _activeHoldSourceUserIndex = userIndex;
         _activeHoldButtonsMask = activatedHold.Mask;
         _activeHoldChordKeys = [.. activatedHold.Hotkey.ChordKeyCodes];
         pendingActions.Add(() => HoldHotkeyPressed?.Invoke());
@@ -319,7 +319,7 @@ public partial class GamepadInputService(
         IReadOnlyList<int> currentChordKeys,
         List<Action> pendingActions)
     {
-        if (_activeHoldSourceGamepad == null && _activeHoldButtonsMask == 0 && _activeHoldChordKeys.Count > 0)
+        if (_activeHoldSourceUserIndex == null && _activeHoldButtonsMask == 0 && _activeHoldChordKeys.Count > 0)
         {
             if (!ChordKeysEqual(currentChordKeys, _activeHoldChordKeys))
             {
@@ -330,7 +330,7 @@ public partial class GamepadInputService(
             return;
         }
 
-        if (_activeHoldSourceGamepad != null)
+        if (_activeHoldSourceUserIndex != null)
         {
             return;
         }
@@ -348,15 +348,15 @@ public partial class GamepadInputService(
             return;
         }
 
-        _activeHoldSourceGamepad = null;
+        _activeHoldSourceUserIndex = null;
         _activeHoldButtonsMask = 0;
         _activeHoldChordKeys = [.. activatedHold.ChordKeyCodes];
         pendingActions.Add(() => HoldHotkeyPressed?.Invoke());
     }
 
     private void TriggerHotkeysLocked(
-        Dictionary<Gamepad, ulong> currentMasks,
-        Dictionary<Gamepad, ulong> previousMasks,
+        Dictionary<int, ulong> currentMasks,
+        Dictionary<int, ulong> previousMasks,
         IReadOnlyList<int> previousChordKeys,
         IReadOnlyList<int> currentChordKeys,
         List<Action> pendingActions)
@@ -368,7 +368,7 @@ public partial class GamepadInputService(
                 : 0;
             var currentMask = pair.Value;
 
-            if (_activeHoldSourceGamepad == pair.Key && currentMask == _activeHoldButtonsMask)
+            if (_activeHoldSourceUserIndex == pair.Key && currentMask == _activeHoldButtonsMask)
             {
                 continue;
             }
@@ -417,7 +417,7 @@ public partial class GamepadInputService(
     }
 
     private void UpdateRecordingStateLocked(
-        Dictionary<Gamepad, ulong> currentMasks,
+        Dictionary<int, ulong> currentMasks,
         List<int> recordingChordKeys,
         List<Action> pendingActions)
     {
@@ -466,7 +466,7 @@ public partial class GamepadInputService(
             return;
         }
 
-        _recordingSourceGamepad = null;
+        _recordingSourceUserIndex = currentMasks.Keys.FirstOrDefault(-1);
         _recordingButtonsMask = currentCombinedMask;
         _recordingChordKeys = [.. recordingChordKeys];
         _recordingButtonsStartTime = DateTime.UtcNow;
@@ -491,24 +491,24 @@ public partial class GamepadInputService(
         pendingActions.Add(() => ButtonHoldProgress?.Invoke(progress));
     }
 
-    private void RemoveDisconnectedGamepadsLocked(IEnumerable<Gamepad> connectedGamepads, List<Action> pendingActions)
+    private void RemoveDisconnectedGamepadsLocked(IEnumerable<int> connectedGamepads, List<Action> pendingActions)
     {
         var connectedSet = connectedGamepads.ToHashSet();
         var disconnectedGamepads = _previousPressedMasks.Keys
             .Where(existing => !connectedSet.Contains(existing))
             .ToArray();
 
-        foreach (var gamepad in disconnectedGamepads)
+        foreach (var userIndex in disconnectedGamepads)
         {
-            _previousPressedMasks.Remove(gamepad);
+            _previousPressedMasks.Remove(userIndex);
 
-            if (_recordingSourceGamepad == gamepad)
+            if (_recordingSourceUserIndex == userIndex)
             {
                 ResetRecordingStateLocked();
                 QueueRecordingUiUpdate(pendingActions, 0, [], 0);
             }
 
-            if (_activeHoldSourceGamepad == gamepad)
+            if (_activeHoldSourceUserIndex == userIndex)
             {
                 ResetActiveHoldLocked();
                 pendingActions.Add(() => HoldHotkeyReleased?.Invoke());
@@ -521,22 +521,25 @@ public partial class GamepadInputService(
         _previousPressedMasks.Clear();
         _previousPressedChordKeys = [];
 
-        foreach (var gamepad in Gamepad.Gamepads)
+        foreach (var userIndex in EnumerateConnectedControllers())
         {
-            _previousPressedMasks[gamepad] = GetPressedMask(gamepad.GetCurrentReading());
+            if (TryGetControllerState(userIndex, out var state))
+            {
+                _previousPressedMasks[userIndex] = GetPressedMask(state.Gamepad);
+            }
         }
     }
 
     private void ResetActiveHoldLocked()
     {
         _activeHoldButtonsMask = 0;
-        _activeHoldSourceGamepad = null;
+        _activeHoldSourceUserIndex = null;
         _activeHoldChordKeys = [];
     }
 
     private void ResetRecordingStateLocked()
     {
-        _recordingSourceGamepad = null;
+        _recordingSourceUserIndex = null;
         _recordingButtonsMask = 0;
         _recordingChordKeys = [];
         _recordingButtonsStartTime = default;
@@ -544,20 +547,42 @@ public partial class GamepadInputService(
         _lastPreviewChordSignature = string.Empty;
     }
 
-    private static ulong GetPressedMask(GamepadReading reading)
+    private static IEnumerable<int> EnumerateConnectedControllers()
+    {
+        for (int userIndex = 0; userIndex < MaxXInputUsers; userIndex++)
+        {
+            if (TryGetControllerState(userIndex, out _))
+            {
+                yield return userIndex;
+            }
+        }
+    }
+
+    private static bool TryGetControllerState(int userIndex, out XInputState state)
+    {
+        return XInputGetState((uint)userIndex, out state) == XInputSuccess;
+    }
+
+    private static ulong GetPressedMask(XInputGamepad gamepad)
     {
         ulong mask = 0;
 
-        foreach (var input in SupportedInputs)
-        {
-            if (!input.IsPressed(reading))
-            {
-                continue;
-            }
-
-            mask |= InputBindingDisplay.ToMask(input.ButtonId);
-        }
-
+        if ((gamepad.wButtons & XInputGamepadA) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.A);
+        if ((gamepad.wButtons & XInputGamepadB) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.B);
+        if ((gamepad.wButtons & XInputGamepadX) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.X);
+        if ((gamepad.wButtons & XInputGamepadY) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.Y);
+        if ((gamepad.wButtons & XInputGamepadLeftShoulder) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.LeftShoulder);
+        if ((gamepad.wButtons & XInputGamepadRightShoulder) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.RightShoulder);
+        if (gamepad.bLeftTrigger >= TriggerPressThresholdByte) mask |= InputBindingDisplay.ToMask(GamepadButtonId.LeftTrigger);
+        if (gamepad.bRightTrigger >= TriggerPressThresholdByte) mask |= InputBindingDisplay.ToMask(GamepadButtonId.RightTrigger);
+        if ((gamepad.wButtons & XInputGamepadBack) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.View);
+        if ((gamepad.wButtons & XInputGamepadStart) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.Menu);
+        if ((gamepad.wButtons & XInputGamepadDPadUp) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.DPadUp);
+        if ((gamepad.wButtons & XInputGamepadDPadDown) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.DPadDown);
+        if ((gamepad.wButtons & XInputGamepadDPadLeft) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.DPadLeft);
+        if ((gamepad.wButtons & XInputGamepadDPadRight) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.DPadRight);
+        if ((gamepad.wButtons & XInputGamepadLeftThumb) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.LeftThumbstick);
+        if ((gamepad.wButtons & XInputGamepadRightThumb) != 0) mask |= InputBindingDisplay.ToMask(GamepadButtonId.RightThumbstick);
         return mask;
     }
 
@@ -639,10 +664,26 @@ public partial class GamepadInputService(
         GC.SuppressFinalize(this);
     }
 
-    private sealed class GamepadInputDescriptor(GamepadButtonId buttonId, Func<GamepadReading, bool> isPressed)
+    [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState", CallingConvention = CallingConvention.StdCall)]
+    private static extern int XInputGetState(uint dwUserIndex, out XInputState pState);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XInputState
     {
-        public GamepadButtonId ButtonId { get; } = buttonId;
-        public Func<GamepadReading, bool> IsPressed { get; } = isPressed;
+        public uint dwPacketNumber;
+        public XInputGamepad Gamepad;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XInputGamepad
+    {
+        public ushort wButtons;
+        public byte bLeftTrigger;
+        public byte bRightTrigger;
+        public short sThumbLX;
+        public short sThumbLY;
+        public short sThumbRX;
+        public short sThumbRY;
     }
 }
 

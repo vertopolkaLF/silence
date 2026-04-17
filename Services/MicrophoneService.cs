@@ -1,4 +1,5 @@
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,19 +13,23 @@ public class MicrophoneService : IDisposable
 {
     private MMDeviceEnumerator? _deviceEnumerator;
     private MMDevice? _selectedDevice;
+    private readonly List<MMDevice> _observedDevices = [];
+    private readonly EndpointNotificationClient _endpointNotificationClient;
     private string? _selectedDeviceId;
     private bool _muteAllMicrophones;
-    
+    private bool? _lastKnownMuteState;
+
     public event Action<bool>? MuteStateChanged;
-    #pragma warning disable CS0067 // Event is never used - reserved for future use
     public event Action? DevicesChanged;
-#pragma warning restore CS0067
 
     public const string ALL_MICROPHONES_ID = "__ALL_MICROPHONES__";
 
     public MicrophoneService()
     {
         _deviceEnumerator = new MMDeviceEnumerator();
+        _endpointNotificationClient = new EndpointNotificationClient(this);
+        _deviceEnumerator.RegisterEndpointNotificationCallback(_endpointNotificationClient);
+        RefreshObservedDevices(raiseStateChanged: false);
     }
 
     /// <summary>
@@ -33,7 +38,7 @@ public class MicrophoneService : IDisposable
     public List<MicrophoneInfo> GetMicrophones()
     {
         var microphones = new List<MicrophoneInfo>();
-        
+
         if (_deviceEnumerator == null) return microphones;
 
         try
@@ -81,6 +86,7 @@ public class MicrophoneService : IDisposable
         _selectedDeviceId = deviceId;
         _muteAllMicrophones = deviceId == ALL_MICROPHONES_ID;
         UpdateSelectedDevice();
+        RefreshObservedDevices(raiseStateChanged: true);
     }
 
     private void UpdateSelectedDevice()
@@ -89,7 +95,7 @@ public class MicrophoneService : IDisposable
         _selectedDevice = null;
 
         if (string.IsNullOrEmpty(_selectedDeviceId) || _deviceEnumerator == null) return;
-        
+
         // Skip device selection if "All microphones" is selected
         if (_muteAllMicrophones) return;
 
@@ -120,6 +126,115 @@ public class MicrophoneService : IDisposable
         }
     }
 
+    private void RefreshObservedDevices(bool raiseStateChanged)
+    {
+        UnsubscribeObservedDevices();
+
+        if (_deviceEnumerator == null)
+        {
+            return;
+        }
+
+        foreach (var deviceId in GetObservedDeviceIds())
+        {
+            try
+            {
+                var device = _deviceEnumerator.GetDevice(deviceId);
+                device.AudioEndpointVolume.OnVolumeNotification += OnEndpointVolumeNotification;
+                _observedDevices.Add(device);
+            }
+            catch
+            {
+                // Device may disappear while rebuilding subscriptions
+            }
+        }
+
+        PublishMuteState(IsMuted(), raiseStateChanged);
+    }
+
+    private IEnumerable<string> GetObservedDeviceIds()
+    {
+        if (_deviceEnumerator == null)
+        {
+            yield break;
+        }
+
+        if (_muteAllMicrophones)
+        {
+            MMDeviceCollection devices;
+            try
+            {
+                devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            }
+            catch
+            {
+                yield break;
+            }
+
+            foreach (var device in devices)
+            {
+                yield return device.ID;
+                device.Dispose();
+            }
+
+            yield break;
+        }
+
+        var activeDeviceId = _selectedDevice?.ID;
+        if (string.IsNullOrEmpty(activeDeviceId))
+        {
+            activeDeviceId = GetDefaultMicrophoneId();
+        }
+
+        if (!string.IsNullOrEmpty(activeDeviceId))
+        {
+            yield return activeDeviceId;
+        }
+    }
+
+    private void UnsubscribeObservedDevices()
+    {
+        foreach (var device in _observedDevices)
+        {
+            try
+            {
+                device.AudioEndpointVolume.OnVolumeNotification -= OnEndpointVolumeNotification;
+            }
+            catch
+            {
+                // Ignore cleanup failures
+            }
+
+            device.Dispose();
+        }
+
+        _observedDevices.Clear();
+    }
+
+    private void OnEndpointVolumeNotification(AudioVolumeNotificationData data)
+    {
+        var currentMuteState = _muteAllMicrophones ? GetMuteStateAllMicrophones() : data.Muted;
+        PublishMuteState(currentMuteState, raiseStateChanged: true);
+    }
+
+    private void OnCaptureDevicesChanged()
+    {
+        UpdateSelectedDevice();
+        RefreshObservedDevices(raiseStateChanged: true);
+        DevicesChanged?.Invoke();
+    }
+
+    private void PublishMuteState(bool muted, bool raiseStateChanged)
+    {
+        var stateChanged = _lastKnownMuteState != muted;
+        _lastKnownMuteState = muted;
+
+        if (raiseStateChanged && stateChanged)
+        {
+            MuteStateChanged?.Invoke(muted);
+        }
+    }
+
     /// <summary>
     /// Toggles mute state of the selected microphone
     /// </summary>
@@ -137,12 +252,19 @@ public class MicrophoneService : IDisposable
         {
             var newMuteState = !device.AudioEndpointVolume.Mute;
             device.AudioEndpointVolume.Mute = newMuteState;
-            MuteStateChanged?.Invoke(newMuteState);
+            PublishMuteState(newMuteState, raiseStateChanged: true);
             return newMuteState;
         }
         catch
         {
             return false;
+        }
+        finally
+        {
+            if (!ReferenceEquals(device, _selectedDevice))
+            {
+                device.Dispose();
+            }
         }
     }
 
@@ -158,11 +280,9 @@ public class MicrophoneService : IDisposable
             var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             if (devices.Count == 0) return false;
 
-            // Get the current state from the first device
-            var currentState = devices[0].AudioEndpointVolume.Mute;
+            var currentState = devices.All(device => device.AudioEndpointVolume.Mute);
             var newMuteState = !currentState;
 
-            // Apply to all devices
             foreach (var device in devices)
             {
                 try
@@ -175,7 +295,7 @@ public class MicrophoneService : IDisposable
                 }
             }
 
-            MuteStateChanged?.Invoke(newMuteState);
+            PublishMuteState(newMuteState, raiseStateChanged: true);
             return newMuteState;
         }
         catch
@@ -205,12 +325,19 @@ public class MicrophoneService : IDisposable
             }
 
             device.AudioEndpointVolume.Mute = muted;
-            MuteStateChanged?.Invoke(muted);
+            PublishMuteState(muted, raiseStateChanged: true);
             return muted;
         }
         catch
         {
             return null;
+        }
+        finally
+        {
+            if (!ReferenceEquals(device, _selectedDevice))
+            {
+                device.Dispose();
+            }
         }
     }
 
@@ -226,7 +353,7 @@ public class MicrophoneService : IDisposable
             var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             if (devices.Count == 0) return null;
 
-            var currentState = devices[0].AudioEndpointVolume.Mute;
+            var currentState = devices.All(device => device.AudioEndpointVolume.Mute);
             if (currentState == muted)
             {
                 return muted;
@@ -244,7 +371,7 @@ public class MicrophoneService : IDisposable
                 }
             }
 
-            MuteStateChanged?.Invoke(muted);
+            PublishMuteState(muted, raiseStateChanged: true);
             return muted;
         }
         catch
@@ -274,10 +401,17 @@ public class MicrophoneService : IDisposable
         {
             return false;
         }
+        finally
+        {
+            if (!ReferenceEquals(device, _selectedDevice))
+            {
+                device.Dispose();
+            }
+        }
     }
 
     /// <summary>
-    /// Gets mute state for all microphones (returns true if any mic is muted)
+    /// Gets mute state for all microphones (true only if all active microphones are muted)
     /// </summary>
     private bool GetMuteStateAllMicrophones()
     {
@@ -288,8 +422,7 @@ public class MicrophoneService : IDisposable
             var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             if (devices.Count == 0) return false;
 
-            // Return the state of the first device
-            return devices[0].AudioEndpointVolume.Mute;
+            return devices.All(device => device.AudioEndpointVolume.Mute);
         }
         catch
         {
@@ -301,10 +434,53 @@ public class MicrophoneService : IDisposable
 
     public void Dispose()
     {
+        if (_deviceEnumerator != null)
+        {
+            try
+            {
+                _deviceEnumerator.UnregisterEndpointNotificationCallback(_endpointNotificationClient);
+            }
+            catch
+            {
+                // Ignore callback cleanup failures during shutdown
+            }
+        }
+
+        UnsubscribeObservedDevices();
         _selectedDevice?.Dispose();
         _deviceEnumerator?.Dispose();
         _selectedDevice = null;
         _deviceEnumerator = null;
+    }
+
+    private sealed class EndpointNotificationClient(MicrophoneService owner) : IMMNotificationClient
+    {
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState)
+        {
+            owner.OnCaptureDevicesChanged();
+        }
+
+        public void OnDeviceAdded(string pwstrDeviceId)
+        {
+            owner.OnCaptureDevicesChanged();
+        }
+
+        public void OnDeviceRemoved(string deviceId)
+        {
+            owner.OnCaptureDevicesChanged();
+        }
+
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
+        {
+            if (flow == DataFlow.Capture)
+            {
+                owner.OnCaptureDevicesChanged();
+            }
+        }
+
+        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
+        {
+        }
     }
 }
 
@@ -314,4 +490,3 @@ public class MicrophoneInfo
     public required string Name { get; set; }
     public bool IsDefault { get; set; }
 }
-

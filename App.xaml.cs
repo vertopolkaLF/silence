@@ -66,6 +66,7 @@ namespace silence_
             _settingsService = new SettingsService();
             _settingsService.EnsureLanguageInitialized();
             _microphoneService = new MicrophoneService();
+            _microphoneService.MuteStateChanged += OnMicrophoneServiceMuteStateChanged;
             _keyboardHookService = new KeyboardHookService();
             _gamepadInputService = new GamepadInputService(
                 () => _keyboardHookService?.RecordingChordKeys ?? Array.Empty<int>(),
@@ -92,6 +93,37 @@ namespace silence_
             _gamepadInputService.StartMonitoring(
                 _settingsService.GetHotkeyBindings(),
                 _settingsService.GetHoldHotkeyBindings());
+        }
+
+        private void OnMicrophoneServiceMuteStateChanged(bool isMuted)
+        {
+            RunOnUiThread(() => OnMicrophoneServiceMuteStateChangedCore(isMuted));
+        }
+
+        private void OnMicrophoneServiceMuteStateChangedCore(bool isMuted)
+        {
+            if (!isMuted && _isMutedByInactivity)
+            {
+                ClearInactivityAutoMuteFlag();
+            }
+
+            var settings = _settingsService?.Settings;
+            if (settings?.OverlayEnabled == true)
+            {
+                if (settings.OverlayVisibilityMode == "AfterToggle")
+                {
+                    if (_isOverlayPositioning)
+                    {
+                        _overlayWindow?.UpdateMuteState(isMuted);
+                    }
+                }
+                else
+                {
+                    UpdateOverlayAfterStateChangeCore(isMuted);
+                }
+            }
+
+            MuteStateChanged?.Invoke(isMuted);
         }
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -515,7 +547,6 @@ namespace silence_
                 ClearInactivityAutoMuteFlag();
             }
 
-            MuteStateChanged?.Invoke(true);
             UpdateOverlayAfterStateChange(true);
 
             if (playSound)
@@ -540,7 +571,6 @@ namespace silence_
             }
 
             ClearInactivityAutoMuteFlag();
-            MuteStateChanged?.Invoke(false);
             UpdateOverlayAfterStateChange(false);
             return true;
         }
@@ -633,11 +663,6 @@ namespace silence_
             };
 
             stateChanged = wasMuted != isMuted;
-
-            if (stateChanged)
-            {
-                MuteStateChanged?.Invoke(isMuted);
-            }
 
             return isMuted;
         }
@@ -738,7 +763,6 @@ namespace silence_
                     if (!wasMuted)
                     {
                         isMuted = _microphoneService?.SetMute(true) ?? wasMuted;
-                        MuteStateChanged?.Invoke(isMuted);
                     }
                     else
                     {
@@ -751,7 +775,6 @@ namespace silence_
                     if (wasMuted)
                     {
                         isMuted = _microphoneService?.SetMute(false) ?? wasMuted;
-                        MuteStateChanged?.Invoke(isMuted);
                     }
                     else
                     {
@@ -763,7 +786,6 @@ namespace silence_
                 default:
                     // Toggle current state
                     isMuted = _microphoneService?.ToggleMute() ?? false;
-                    MuteStateChanged?.Invoke(isMuted);
                     break;
             }
 
@@ -796,7 +818,6 @@ namespace silence_
                     if (wasMuted)
                     {
                         isMuted = _microphoneService?.SetMute(false) ?? wasMuted;
-                        MuteStateChanged?.Invoke(isMuted);
                     }
                     else
                     {
@@ -809,7 +830,6 @@ namespace silence_
                     if (!wasMuted)
                     {
                         isMuted = _microphoneService?.SetMute(true) ?? wasMuted;
-                        MuteStateChanged?.Invoke(isMuted);
                     }
                     else
                     {
@@ -821,7 +841,6 @@ namespace silence_
                 default:
                     // Toggle back to original state
                     isMuted = _microphoneService?.ToggleMute() ?? false;
-                    MuteStateChanged?.Invoke(isMuted);
                     break;
             }
 

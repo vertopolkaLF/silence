@@ -1,3 +1,17 @@
+# silence! v1.9.1 - Patch Fixes
+
+> **Small patch. Less weirdness.**
+
+## What's New in v1.9.1
+
+- **Fixed gamepad binds outside app focus** - Gamepad hotkeys now keep working when `silence!` is not the active window.
+
+- **Fixed mute state sync** - UI and overlay now react to microphone state changes more reliably, including external device state updates.
+
+- **Fixed all-microphones state handling** - "All microphones" mute logic now reports and applies state more consistently across active capture devices.
+
+---
+
 # silence! v1.9 - Auto-Mute + Gamepad Support
 
 > **Now the app can mute itself when you forget to, or let your gamepad do the job. Wild concept.**
