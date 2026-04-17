@@ -364,6 +364,217 @@
             }
         }
 
+        .overlay-showcase-card {
+            min-height: 560px;
+        }
+
+        .overlay-preview-stage {
+            position: absolute;
+            top: 36px;
+            left: 140px;
+            right: 30px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .overlay-morph {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 236px;
+            height: 82px;
+            padding: 0 18px;
+            overflow: hidden;
+            border-radius: 24px;
+            background: rgba(22, 17, 18, 0.58);
+            border: 1px solid rgba(250, 250, 249, 0.1);
+            color: var(--text);
+            transform-origin: center;
+            animation: overlay-shell 18s ease-in-out infinite;
+        }
+
+        .overlay-morph iconify-icon {
+            flex-shrink: 0;
+        }
+
+        .overlay-morph-icon {
+            font-size: 2rem;
+            color: #ff6b63;
+            animation: overlay-icon 18s ease-in-out infinite;
+        }
+
+        .overlay-morph-text {
+            white-space: nowrap;
+            overflow: hidden;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            animation: overlay-text 18s ease-in-out infinite;
+        }
+
+        @keyframes overlay-shell {
+
+            0%,
+            16%,
+            100% {
+                width: 236px;
+                height: 82px;
+                padding: 0 18px;
+                gap: 12px;
+                border-radius: 24px;
+                background: rgba(22, 17, 18, 0.58);
+                border-color: rgba(250, 250, 249, 0.08);
+                color: var(--text);
+            }
+
+            24%,
+            38% {
+                width: 72px;
+                height: 72px;
+                padding: 0;
+                gap: 0;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.06);
+                border-color: rgba(250, 250, 249, 0.2);
+                color: var(--text);
+            }
+
+            46%,
+            60% {
+                width: 258px;
+                height: 64px;
+                padding: 0 16px;
+                gap: 10px;
+                border-radius: 999px;
+                background: rgba(255, 247, 244, 0.98);
+                border-color: rgba(28, 20, 20, 0.08);
+                color: #1c1614;
+            }
+
+            68%,
+            80% {
+                width: 180px;
+                height: 180px;
+                padding: 0;
+                gap: 0;
+                border-radius: 0px;
+                background: rgba(255, 247, 244, 0.96);
+                border-color: rgba(28, 20, 20, 0.08);
+                color: #1c1614;
+            }
+
+            88%,
+            92% {
+                width: 18px;
+                height: 18px;
+                padding: 0;
+                gap: 0;
+                border-radius: 999px;
+                background: var(--pop-green);
+                border-color: rgba(74, 222, 128, 0);
+                color: transparent;
+            }
+
+            100% {
+                width: 236px;
+                height: 82px;
+                padding: 0 18px;
+                gap: 12px;
+                border-radius: 24px;
+                background: rgba(22, 17, 18, 0.58);
+                border-color: rgba(250, 250, 249, 0.08);
+                color: var(--text);
+            }
+        }
+
+        @keyframes overlay-icon {
+
+            0%,
+            16%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                font-size: 2rem;
+                color: #ff6b63;
+            }
+
+            24%,
+            38% {
+                opacity: 1;
+                transform: scale(1);
+                font-size: 1.8rem;
+                color: currentColor;
+            }
+
+            46%,
+            60% {
+                opacity: 1;
+                transform: scale(0.92);
+                font-size: 1.45rem;
+                color: currentColor;
+            }
+
+            68%,
+            80% {
+                opacity: 1;
+                transform: scale(1.08);
+                font-size: 9rem;
+                color: #ff6b63;
+            }
+
+            88%,
+            92% {
+                opacity: 0;
+                transform: scale(0.4);
+                font-size: 1rem;
+                color: transparent;
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                font-size: 2rem;
+                color: #ff6b63;
+            }
+        }
+
+        @keyframes overlay-text {
+
+            0%,
+            16%,
+            100% {
+                opacity: 1;
+                max-width: 170px;
+                transform: translateX(0);
+            }
+
+            24%,
+            38% {
+                opacity: 0;
+                max-width: 0;
+                transform: translateX(10px);
+            }
+
+            46%,
+            60% {
+                opacity: 1;
+                max-width: 170px;
+                transform: translateX(0);
+            }
+
+            68%,
+            92% {
+                opacity: 0;
+                max-width: 0;
+                transform: translateX(6px);
+            }
+        }
+
         .feature-badge {
             position: absolute;
             top: 24px;
@@ -668,6 +879,17 @@
                 padding: 0 1rem;
             }
 
+            .overlay-showcase-card {
+                min-height: 420px;
+            }
+
+            .overlay-preview-stage {
+                top: 96px;
+                left: 24px;
+                right: 24px;
+                height: 144px;
+            }
+
         }
     </style>
 </head>
@@ -844,7 +1066,13 @@
                     </div>
 
 
-                    <div class="bento-card span-2x2 bg-pink">
+                    <div class="bento-card span-2x2 bg-pink overlay-showcase-card">
+                        <div class="overlay-preview-stage" aria-hidden="true">
+                            <div class="overlay-morph">
+                                <iconify-icon class="overlay-morph-icon" icon="fluent:mic-off-24-filled"></iconify-icon>
+                                <span class="overlay-morph-text">Microphone is muted</span>
+                            </div>
+                        </div>
                         <div class="bento-icon">
                             <iconify-icon icon="solar:mouse-circle-bold-duotone"></iconify-icon>
                         </div>
