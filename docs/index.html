@@ -4,7 +4,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>silence! - Never Ask "Am I Muted?" Again</title>
+    <title>silence! - the best Windows app to mute your mic</title>
+    <meta name="description" content="silence! is a free, open-source Windows microphone mute app with global hotkeys, hold-to-talk, a visual overlay, custom sounds, and tray controls.">
+    <meta name="keywords" content="mic mute, mute mic app, app to mute mic, microphone mute app, microphone mute utility, mute microphone Windows, Windows mic mute, Windows microphone mute, global hotkey mic mute, push to talk Windows, hold to talk Windows, mute microphone shortcut, tray mic mute app, open source mic mute, silence app, silence!">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="vertopolkalf">
+    <meta name="application-name" content="silence!">
+    <meta name="theme-color" content="#0c0a09">
+    <link rel="canonical" href="https://vertopolkalf.github.io/silence/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="silence!">
+    <meta property="og:title" content="silence! - the best Windows app to mute your mic">
+    <meta property="og:description" content="Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, overlay controls, custom sounds, and more.">
+    <meta property="og:url" content="https://vertopolkalf.github.io/silence/">
+    <meta property="og:image" content="https://vertopolkalf.github.io/silence/app.png">
+    <meta property="og:image:alt" content="silence! app icon">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="silence! - the best Windows app to mute your mic">
+    <meta name="twitter:description" content="Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, overlay controls, custom sounds, and more.">
+    <meta name="twitter:image" content="https://vertopolkalf.github.io/silence/app.png">
+    <meta name="twitter:image:alt" content="silence! app icon">
+
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "silence!",
+            "description": "Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, visual overlay, custom sounds, and tray controls.",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Windows 10, Windows 11",
+            "url": "https://vertopolkalf.github.io/silence/",
+            "downloadUrl": "https://github.com/vertopolkalf/silence/releases/latest",
+            "image": "https://vertopolkalf.github.io/silence/app.png",
+            "author": {
+                "@type": "Person",
+                "name": "vertopolkalf",
+                "url": "https://github.com/vertopolkalf"
+            },
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            }
+        }
+    </script>
+
+    <!-- Yandex.Metrika counter -->
+    <script type="text/javascript">
+        (function (m, e, t, r, i, k, a) {
+            m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
+            m[i].l = 1 * new Date();
+            for (var j = 0; j < document.scripts.length; j++) { if (document.scripts[j].src === r) { return; } }
+            k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
+        })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=108655656', 'ym');
+
+        ym(108655656, 'init', { ssr: true, webvisor: true, clickmap: true, ecommerce: "dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce: true, trackLinks: true });
+    </script>
+    <noscript>
+        <div><img src="https://mc.yandex.ru/watch/108655656" style="position:absolute; left:-9999px;" alt="" /></div>
+    </noscript>
+    <!-- /Yandex.Metrika counter -->
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -327,6 +395,7 @@
                 }
             }
 
+            h2,
             h3 {
                 font-size: 2.2rem;
                 line-height: 1.1;
@@ -741,6 +810,7 @@
             grid-column: span 2;
             grid-row: span 2;
 
+            h2,
             h3 {
                 font-size: 3rem;
             }
@@ -979,6 +1049,7 @@
             }
 
             .span-3x2 h3,
+            .span-2x2 h2,
             .span-2x2 h3 {
                 font-size: 2.2rem;
             }
@@ -1101,6 +1172,59 @@
         .cta-delay-4 {
             transition-delay: 0.4s;
         }
+
+        .replay-section {
+            display: none;
+            position: fixed;
+            bottom: 60px;
+            right: 60px;
+            width: 400px;
+            background: rgba(28, 25, 23, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-box);
+            padding: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            flex-direction: column;
+            align-items: flex-start;
+            z-index: 100;
+            box-sizing: border-box;
+        }
+
+        .replay-section.is-visible {
+            display: flex;
+        }
+
+        .replay-section.is-faded-in {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .replay-section h4 {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+            line-height: 1.2;
+            color: var(--text);
+        }
+
+        .replay-text {
+            font-size: 1.05rem;
+            color: var(--text-dim);
+            margin-bottom: 24px;
+            font-weight: 500;
+            line-height: 1.5;
+        }
+
+        .replay-btn {
+            padding: 14px 24px;
+            font-size: 1rem;
+            width: 100%;
+            justify-content: center;
+        }
     </style>
 </head>
 
@@ -1219,7 +1343,7 @@
                         <iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Global<br>Hotkeys.</h3>
+                        <h2>Global<br>Hotkeys.</h2>
                         <p>Pick any shortcut, use it everywhere, and let it still fire even when extra modifiers are pressed in games.</p>
                     </div>
                 </div>
@@ -1292,7 +1416,7 @@
                         <iconify-icon icon="solar:layers-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Visual Overlay</h3>
+                        <h2>Visual Overlay</h2>
                         <p>Keep your mute state visible above any app with an indicator that can show an icon, text, or both.</p>
                     </div>
                 </div>
@@ -1334,7 +1458,7 @@
                         <iconify-icon icon="solar:music-note-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Sound Themes &<br>Custom Audio</h3>
+                        <h2>Sound Themes &<br>Custom Audio</h2>
                         <p>Pick from 8 built-in themes or bring MP3, WAV, FLAC, OGG, M4A, and WMA files so your mute state is obvious by ear.</p>
                     </div>
                 </div>
@@ -1439,6 +1563,15 @@
             </div>
         </div>
     </section>
+
+    <div id="replay-section" class="replay-section">
+        <h4>Liked the animation?</h4>
+        <p class="replay-text">Here is the button to enjoy it again.</p>
+        <button id="replay-btn" class="btn btn-secondary replay-btn">
+            <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
+            Replay Animation
+        </button>
+    </div>
 
     <script>
         // Fetch the latest release from GitHub API and update download links
@@ -1635,15 +1768,38 @@
             }
 
             // FTL Trigger on download
+            const replaySection = document.getElementById('replay-section');
+            const replayBtn = document.getElementById('replay-btn');
+
+            function triggerFTL() {
+                targetFtl = 40;
+                if (ftlTimeout) clearTimeout(ftlTimeout);
+                ftlTimeout = setTimeout(() => {
+                    targetFtl = 1;
+
+                    // Show replay section after animation slows down
+                    setTimeout(() => {
+                        if (replaySection && !replaySection.classList.contains('is-visible')) {
+                            replaySection.classList.add('is-visible');
+                            setTimeout(() => {
+                                replaySection.classList.add('is-faded-in');
+                            }, 50);
+                        }
+                    }, 1000);
+                }, 3000);
+            }
+
             document.querySelectorAll('.btn-primary').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    targetFtl = 40;
-                    if (ftlTimeout) clearTimeout(ftlTimeout);
-                    ftlTimeout = setTimeout(() => {
-                        targetFtl = 1;
-                    }, 3000);
+                    triggerFTL();
                 });
             });
+
+            if (replayBtn) {
+                replayBtn.addEventListener('click', () => {
+                    triggerFTL();
+                });
+            }
         })();
     </script>
 </body>
