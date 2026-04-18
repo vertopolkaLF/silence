@@ -1817,6 +1817,10 @@
             <div style="display: flex; gap: 24px; align-items: center;">
                 <a href="#screenshots" class="nav-link" onclick="document.getElementById('screenshots-card')?.click(); return false;">Screenshots</a>
                 <a href="#faq" class="nav-link" onclick="document.getElementById('faq-open-button')?.click(); return false;">FAQ</a>
+                <a href="https://github.com/vertopolkalf/silence" target="_blank" class="nav-link" style="display: flex; align-items: center; gap: 6px;">
+                    <iconify-icon icon="mdi:github" style="font-size: 1.25rem;"></iconify-icon>
+                    <span id="github-stars">GitHub</span>
+                </a>
                 <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
                     Download
                 </a>
@@ -2361,6 +2365,19 @@
         // Fetch the latest release from GitHub API and update download links
         document.addEventListener("DOMContentLoaded", async () => {
             try {
+                // Fetch stargazers count
+                fetch("https://api.github.com/repos/vertopolkalf/silence")
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.stargazers_count !== undefined) {
+                            const starsEl = document.getElementById('github-stars');
+                            if (starsEl) {
+                                starsEl.innerHTML = data.stargazers_count + ' <iconify-icon icon="solar:star-bold" style="font-size: 0.9rem; color: var(--pop-yellow);"></iconify-icon>';
+                            }
+                        }
+                    })
+                    .catch(e => console.error("Failed to fetch stars:", e));
+
                 const response = await fetch("https://api.github.com/repos/vertopolkalf/silence/releases/latest");
                 if (!response.ok) return;
 
