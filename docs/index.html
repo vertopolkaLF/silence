@@ -19,14 +19,14 @@
     <meta property="og:title" content="silence! - the best Windows app to mute your mic">
     <meta property="og:description" content="Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, overlay controls, custom sounds, and more.">
     <meta property="og:url" content="https://vertopolkalf.github.io/silence/">
-    <meta property="og:image" content="https://vertopolkalf.github.io/silence/app.png">
-    <meta property="og:image:alt" content="silence! app icon">
+    <meta property="og:image" content="https://vertopolkalf.github.io/silence/ogimage.png">
+    <meta property="og:image:alt" content="silence! social preview image">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="silence! - the best Windows app to mute your mic">
     <meta name="twitter:description" content="Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, overlay controls, custom sounds, and more.">
-    <meta name="twitter:image" content="https://vertopolkalf.github.io/silence/app.png">
-    <meta name="twitter:image:alt" content="silence! app icon">
+    <meta name="twitter:image" content="https://vertopolkalf.github.io/silence/ogimage.png">
+    <meta name="twitter:image:alt" content="silence! social preview image">
 
     <link rel="icon" href="favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
@@ -55,6 +55,63 @@
                 "price": "0",
                 "priceCurrency": "USD"
             }
+        }
+    </script>
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": "Why use silence! if my mic already has a physical mute button?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of emergency with less hand movement. The overlay and sounds also help you notice when you're still muted."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How is this different from Windows 11's Win + Alt + K mute shortcut?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "silence! mutes the selected microphone device directly, so it still works when Windows says there are no supported apps using the mic. It is also available on Windows 10, which does not have that shortcut."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can I request a feature?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Yes. Many updates came directly from community feedback, including the clickable on-screen mute button, auto-mute, and Hold-to-Mute. You can suggest a feature or report a bug on the project's GitHub issues page."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can silence! mute only one app instead of muting me everywhere?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "No. silence! is designed as a system-level mic mute, so muting it in silence! mutes that microphone for every app using the device."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Does it warn me if I start talking while muted?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "No. silence! focuses on reliable microphone control first, not voice activity detection. It handles the mute state itself plus overlay and sound feedback."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can I 100% trust that my mic is muted?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Nothing deserves 100% blind trust, but silence! uses the Windows-level mute state for the microphone device. You can verify it in Windows microphone properties, and some microphones with hardware mute indicators will reflect that state too. Keep in mind that some apps can still try to force an unmute."
+                    }
+                }
+            ]
         }
     </script>
 
@@ -93,6 +150,12 @@
             --pop-pink: #f472b6;
             --pop-blue: #60a5fa;
             --pop-yellow: #fde047;
+            --faq-purple-dim: #34263b;
+            --faq-green-dim: #223429;
+            --faq-orange-dim: #3a281f;
+            --faq-pink-dim: #3a2430;
+            --faq-blue-dim: #202d3d;
+            --faq-yellow-dim: #39311f;
 
             --radius-box: 32px;
             --radius-btn: 100px;
@@ -890,6 +953,36 @@
             color: var(--bg);
         }
 
+        .bg-faq-purple {
+            background: var(--faq-purple-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-green {
+            background: var(--faq-green-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-orange {
+            background: var(--faq-orange-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-pink {
+            background: var(--faq-pink-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-blue {
+            background: var(--faq-blue-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-yellow {
+            background: var(--faq-yellow-dim);
+            color: var(--text);
+        }
+
         .bg-gradient-dark {
             background: linear-gradient(145deg, var(--surface), #2e1065);
         }
@@ -1236,14 +1329,8 @@
 
         .faq-container {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 16px;
-        }
-
-        @media (max-width: 1024px) {
-            .faq-container {
-                grid-template-columns: repeat(2, 1fr);
-            }
         }
 
         @media (max-width: 665px) {
@@ -1255,23 +1342,18 @@
         .faq-heading-card {
             background: var(--surface);
             border-radius: var(--radius-box);
-            padding: 40px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 80px 0 20px;
+            background-color: transparent;
+            /* border: 1px solid rgba(255, 255, 255, 0.05); */
             display: flex;
             flex-direction: column;
             justify-content: center;
-            grid-column: span 2;
-        }
-
-        @media (max-width: 1024px) {
-            .faq-heading-card {
-                grid-column: span 2;
-            }
+            grid-column: 1 / -1;
         }
 
         @media (max-width: 665px) {
             .faq-heading-card {
-                grid-column: span 1;
+                grid-column: auto;
             }
         }
 
@@ -1280,11 +1362,13 @@
             line-height: 1.1;
             color: var(--text);
             margin-bottom: 8px;
+            text-align: center;
         }
 
         .faq-heading-card p {
             font-size: 1.2rem;
             color: var(--text-dim);
+            text-align: center;
         }
 
         .faq-card {
@@ -1293,8 +1377,20 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
             gap: 16px;
+            color: var(--text);
             transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .faq-card:last-child:nth-child(even) {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 665px) {
+            .faq-card:last-child:nth-child(even) {
+                grid-column: auto;
+            }
         }
 
         .faq-card:hover {
@@ -1303,17 +1399,18 @@
         }
 
         .faq-card h3 {
-            font-size: 1.8rem;
+            font-size: 2rem;
             line-height: 1.2;
         }
 
         .faq-card p {
             font-size: 1.1rem;
             line-height: 1.6;
+            color: inherit;
         }
 
-        .faq-card.bg-surface p {
-            color: var(--text-dim);
+        .faq-card a {
+            color: inherit;
         }
     </style>
 </head>
@@ -1637,29 +1734,34 @@
                 <p>Because every website has to have one</p>
             </div>
 
-            <div class="faq-card bg-purple">
-                <h3>What is silence!?</h3>
-                <p>silence! is a ridiculously good Windows utility that lets you mute your microphone at the OS level using global hotkeys, hold-to-talk, and custom gamepad buttons.</p>
+            <div class="faq-card bg-faq-purple">
+                <h3>Why use silence! if my mic already has a physical mute button?</h3>
+                <p>It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of "emergency" less hands movement needed.<br /><br />And overlay and sounds helps you notice when you're still muted to avoid "hell, I've been muted for how long???" moments.</p>
             </div>
 
-            <div class="faq-card bg-green">
-                <h3>How does it differ from my app's mute?</h3>
-                <p>Unlike Discord or Zoom mute which only mutes you in that specific app, silence! mutes your actual microphone device in Windows. This means you are muted everywhere simultaneously.</p>
+            <div class="faq-card bg-faq-green">
+                <h3>How is this different from Windows 11's Win + Alt + K mute shortcut?</h3>
+                <p>silence! mutes the selected microphone device directly, so it keeps working even when Windows says "No supported apps in use for mic mute."<br /><br />silence! is much more reliable way to mute the mic. It also works on Windows 10 that doesn't have this shortcut.</p>
             </div>
 
-            <div class="faq-card bg-orange">
-                <h3>Does it support my controller/gamepad?</h3>
-                <p>Yes! You can bind mute actions straight to your controller buttons and combos, so you don't even need to touch your keyboard while gaming.</p>
+            <div class="faq-card bg-faq-orange">
+                <h3>Can I request a feature?</h3>
+                <p>Please do! A lot of features in the updates came from the community, like clickable mute button on screen, auto-mute and even Hold-to-Mute. You can suggest a feature or report a bug on <a href="https://github.com/vertopolkaLF/Silence-/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
             </div>
 
-            <div class="faq-card bg-blue">
-                <h3>Will the hotkeys work while I'm in a game?</h3>
-                <p>Absolutely. The global hotkeys operate at a low level, meaning they will fire reliably even if you're in a fullscreen game with other modifiers pressed.</p>
+            <div class="faq-card bg-faq-blue">
+                <h3>Can silence! mute only one app instead of muting me everywhere?</h3>
+                <p>No, it's designed as a system-level mic mute. If you mute with silence!, your microphone is muted for every app using that device.</p>
             </div>
 
-            <div class="faq-card bg-pink">
-                <h3>Is it really free?</h3>
-                <p>Yes, silence! is completely free and open-source forever. No ads, no premium tiers, just a clean utility built for the community.</p>
+            <div class="faq-card bg-faq-pink">
+                <h3>Does it warn me if I start talking while muted?</h3>
+                <p>No, and probably never will. My goal with this app is to make it reliable, everything else comes after. <br /><br />And muting the mic in the way that silence! would have access to mic and other apps not could lead to mic being not muted. Also when mic is muted, silence! also doesn't have access to the microphone.</p>
+            </div>
+
+            <div class="faq-card bg-faq-yellow">
+                <h3>Can I 100% trust that my mic is muted?</h3>
+                <p>You never should trust anything for 100% :) But I'm pretty confident in my app. It uses low-level hotkey detection and mutes mic in a <i>Windows way&trade;</i>. <br /><br />When you mute your mic with silence!, you can check in microphone properties that its output is muted. Also some mics with physical indicators on them will show that it's muted. But keep in mind that some apps can forcefully unmute mic. Teams loves to do so when you join the meeting.</p>
             </div>
         </div>
     </section>
