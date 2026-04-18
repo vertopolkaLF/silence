@@ -150,6 +150,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.css">
     <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
 
     <style>
@@ -178,12 +179,16 @@
             --scroll-track: rgba(255, 255, 255, 0.06);
             --scroll-thumb: linear-gradient(180deg, var(--pop-orange), var(--pop-pink));
             --scroll-thumb-hover: linear-gradient(180deg, var(--pop-yellow), var(--pop-orange));
+            --faq-panel-gap: 20px;
+            --faq-panel-width: max(50vw, 650px);
+            --faq-panel-backdrop: rgba(12, 10, 9, 0.45);
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            scroll-behavior: smooth;
         }
 
         body {
@@ -196,9 +201,14 @@
             background-size: 24px 24px;
         }
 
+        body.faq-panel-open {
+            overflow: hidden;
+        }
+
         html {
             scrollbar-width: thin;
             scrollbar-color: var(--pop-orange) var(--bg);
+            scrollbar-gutter: stable;
         }
 
         *::-webkit-scrollbar {
@@ -857,10 +867,14 @@
             color: var(--text);
         }
 
+        .bg-gradient-dark .bento-icon {
+            color: var(--pop-purple);
+        }
+
         .bento-icon {
             font-size: 3rem;
             margin-bottom: 24px;
-            background: rgba(255, 255, 255, 0.1);
+            background: #0004;
             width: 80px;
             height: 80px;
             display: flex;
@@ -970,37 +984,44 @@
         }
 
         .bg-faq-purple {
-            background: var(--faq-purple-dim);
+            background-color: var(--faq-purple-dim);
             color: var(--text);
         }
 
         .bg-faq-green {
-            background: var(--faq-green-dim);
+            background-color: var(--faq-green-dim);
             color: var(--text);
         }
 
         .bg-faq-orange {
-            background: var(--faq-orange-dim);
+            background-color: var(--faq-orange-dim);
             color: var(--text);
         }
 
         .bg-faq-pink {
-            background: var(--faq-pink-dim);
+            background-color: var(--faq-pink-dim);
             color: var(--text);
         }
 
         .bg-faq-blue {
-            background: var(--faq-blue-dim);
+            background-color: var(--faq-blue-dim);
             color: var(--text);
         }
 
         .bg-faq-yellow {
-            background: var(--faq-yellow-dim);
+            background-color: var(--faq-yellow-dim);
             color: var(--text);
         }
 
+        @property --faq-gradient-color {
+            syntax: '<color>';
+            inherits: false;
+            initial-value: #2e1065;
+        }
+
         .bg-gradient-dark {
-            background: linear-gradient(145deg, var(--surface), #2e1065);
+            --faq-gradient-color: #2e1065;
+            background: linear-gradient(145deg, var(--surface), var(--faq-gradient-color));
         }
 
         :is(.bg-purple, .bg-green, .bg-orange, .bg-pink, .bg-blue, .bg-yellow) {
@@ -1009,7 +1030,7 @@
             }
 
             .bento-icon {
-                background: rgba(0, 0, 0, 0.1);
+                background: #0000001a;
                 color: var(--bg);
             }
         }
@@ -1344,89 +1365,404 @@
         }
 
         .faq-container {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
             gap: 16px;
         }
 
-        @media (max-width: 665px) {
+        @media (max-width: 860px) {
             .faq-container {
-                grid-template-columns: 1fr;
+                flex-direction: column;
+            }
+
+            .faq-action-card {
+                flex: none !important;
+                width: 100%;
             }
         }
 
-        .faq-heading-card {
-            background: var(--surface);
+        .faq-action-card {
+            flex: 1;
+            position: relative;
             border-radius: var(--radius-box);
-            padding: 80px 0 20px;
-            background-color: transparent;
-            /* border: 1px solid rgba(255, 255, 255, 0.05); */
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            grid-column: 1 / -1;
-        }
-
-        @media (max-width: 665px) {
-            .faq-heading-card {
-                grid-column: auto;
-            }
-        }
-
-        .faq-title {
-            font-size: 3rem;
-            line-height: 1.1;
-            color: var(--text);
-            margin-bottom: 8px;
-            text-align: center;
-        }
-
-        .faq-heading-card p {
-            font-size: 1.2rem;
-            color: var(--text-dim);
-            text-align: center;
-        }
-
-        .faq-card {
-            border-radius: var(--radius-box);
-            padding: 40px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 32px;
+            min-height: 300px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            gap: 16px;
+            gap: 28px;
+            width: 100%;
+            color: inherit;
+            text-align: left;
+            cursor: pointer;
+            appearance: none;
+            background-clip: padding-box;
+            transition: flex 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, background-color 0.25s ease, --faq-gradient-color 0.25s ease;
+            overflow: hidden;
+        }
+
+        .faq-action-card:hover {
+            flex: 1.2;
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+
+        .faq-action-card.bg-faq-green:hover {
+            background-color: #2c4436;
+        }
+
+        .faq-action-card.bg-gradient-dark:hover {
+            --faq-gradient-color: #4a1c99;
+        }
+
+        .faq-action-card:focus-visible {
+            outline: 2px solid var(--pop-orange);
+            outline-offset: 4px;
+        }
+
+        .faq-action-card.bg-gradient-dark {
             color: var(--text);
-            transition: transform 0.3s ease, border-color 0.3s ease;
         }
 
-        .faq-card:last-child:nth-child(even) {
-            grid-column: 1 / -1;
+        .faq-action-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            width: 100%;
         }
 
-        @media (max-width: 665px) {
-            .faq-card:last-child:nth-child(even) {
-                grid-column: auto;
-            }
+        .faq-action-icon,
+        .faq-item-indicator {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: currentColor;
         }
 
-        .faq-card:hover {
-            transform: translateY(-2px);
-            border-color: rgba(255, 255, 255, 0.1);
+        .faq-action-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 22px;
+            font-size: 2.5rem;
+            background: #0005;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .faq-card h3 {
-            font-size: 2rem;
-            line-height: 1.2;
+
+        .faq-action-arrow {
+            font-size: 4.05rem;
+            background: transparent;
+            border: none;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: currentColor;
+            transition: transform 0.22s ease, color 0.22s ease;
+            flex-shrink: 0;
+            line-height: 1;
         }
 
-        .faq-card p {
-            font-size: 1.1rem;
+        .faq-action-card:hover .faq-action-arrow,
+        .faq-action-card:focus-visible .faq-action-arrow {
+            transform: translate(4px, -4px);
+        }
+
+        .faq-action-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 32rem;
+        }
+
+        .faq-title,
+        .faq-action-copy h3 {
+            font-size: clamp(2.2rem, 3.2vw, 3rem);
+            line-height: 1.05;
+            color: inherit;
+        }
+
+        .faq-action-copy p {
+            font-size: 1.2rem;
             line-height: 1.6;
             color: inherit;
+            opacity: 0.9;
         }
 
-        .faq-card a {
+        .faq-gallery {
+            display: none;
+        }
+
+        .faq-panel-shell {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        .faq-panel-shell.is-open {
+            pointer-events: auto;
+        }
+
+        .faq-panel-backdrop {
+            position: absolute;
+            inset: 0;
+            border: 0;
+            background: var(--faq-panel-backdrop);
+            opacity: 0;
+            transition: opacity 0.28s ease;
+            cursor: pointer;
+        }
+
+        .faq-panel {
+            position: absolute;
+            top: var(--faq-panel-gap);
+            right: var(--faq-panel-gap);
+            bottom: var(--faq-panel-gap);
+            width: min(var(--faq-panel-width), calc(100vw - (var(--faq-panel-gap) * 2)));
+            border-radius: 36px;
+            background: #1c1917;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateX(42px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+        }
+
+        .faq-panel-shell.is-open .faq-panel-backdrop {
+            opacity: 1;
+        }
+
+        .faq-panel-shell.is-open .faq-panel {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .faq-panel-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 32px 32px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .faq-panel-title-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .faq-panel-title {
+            font-size: clamp(1.8rem, 3vw, 2.4rem);
+            line-height: 1.05;
+        }
+
+        .faq-panel-title-group p {
+            color: var(--text-dim);
+            max-width: 30rem;
+        }
+
+        .faq-panel-close {
+            width: 48px;
+            height: 48px;
+            border-radius: 18px;
+            flex-shrink: 0;
+            font-size: 1.3rem;
+            cursor: pointer;
+            appearance: none;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: currentColor;
+        }
+
+        .faq-panel-close:hover,
+        .faq-panel-close:focus-visible {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+
+        .faq-panel-body {
+            padding: 24px 32px 32px;
+            overflow-y: auto;
+        }
+
+        .faq-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .faq-item {
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .faq-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .faq-item.is-open {
+            background: rgba(74, 222, 128, 0.06);
+            border-color: rgba(74, 222, 128, 0.25);
+        }
+
+        .faq-item.is-open:hover {
+            background: rgba(74, 222, 128, 0.08);
+            border-color: rgba(74, 222, 128, 0.35);
+        }
+
+        .faq-item-toggle {
+            width: 100%;
+            border: 0;
+            padding: 24px 28px;
+            background: transparent;
             color: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            text-align: left;
+            cursor: pointer;
+            appearance: none;
+            font: inherit;
+        }
+
+        .faq-item-toggle h3 {
+            font-size: clamp(1.2rem, 1.8vw, 1.4rem);
+            line-height: 1.3;
+            font-weight: 700;
+        }
+
+        .faq-item-indicator {
+            width: 40px;
+            height: 40px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 1.5rem;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease, color 0.3s ease;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .faq-item.is-open .faq-item-indicator {
+            transform: rotate(45deg);
+            background: rgba(74, 222, 128, 0.15);
+            color: var(--pop-green);
+        }
+
+        .faq-item-answer {
+            display: grid;
+            grid-template-rows: 0fr;
+            opacity: 0;
+            transition: grid-template-rows 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+        }
+
+        .faq-item.is-open .faq-item-answer {
+            grid-template-rows: 1fr;
+            opacity: 1;
+        }
+
+        .faq-item-answer-inner {
+            overflow: hidden;
+        }
+
+        .faq-item-answer-content {
+            padding: 0 28px 24px;
+            color: rgba(250, 250, 249, 0.84);
+            font-size: 1.05rem;
+            line-height: 1.7;
+        }
+
+        .faq-item-answer-content a {
+            color: inherit;
+        }
+
+        .faq-item-answer-content p+p {
+            margin-top: 16px;
+        }
+
+        .fancybox__backdrop {
+            background: rgba(12, 10, 9, 0.94);
+        }
+
+        .fancybox__toolbar {
+            --f-button-bg: rgba(255, 255, 255, 0.08);
+            --f-button-hover-bg: rgba(255, 255, 255, 0.14);
+            --f-button-color: var(--text);
+        }
+
+        @media (max-width: 700px) {
+            :root {
+                --faq-panel-gap: 14px;
+            }
+
+            .faq-action-card {
+                min-height: 240px;
+                padding: 24px;
+            }
+
+            .faq-action-icon {
+                width: 60px;
+                height: 60px;
+                border-radius: 18px;
+                font-size: 1.8rem;
+            }
+
+            .faq-action-arrow {
+                width: 46px;
+                height: 46px;
+                border-radius: 16px;
+            }
+
+            .faq-action-copy p {
+                font-size: 1.05rem;
+            }
+
+            .faq-panel {
+                width: calc(100vw - (var(--faq-panel-gap) * 2));
+                border-radius: 28px;
+            }
+
+            .faq-panel-header,
+            .faq-panel-body,
+            .faq-item-toggle,
+            .faq-item-answer-content {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
+
+            .faq-panel-header {
+                padding-top: 22px;
+                padding-bottom: 18px;
+            }
+
+            .faq-item-toggle {
+                padding-top: 22px;
+                padding-bottom: 22px;
+            }
+
+            .faq-item-answer-content {
+                padding-bottom: 22px;
+            }
         }
     </style>
 </head>
@@ -1595,7 +1931,7 @@
                     </div>
                 </div>
 
-                <div class="bento-card span-1x1 bg-surface">
+                <div class="bento-card span-1x1 bg-faq-green">
                     <div class="bento-icon" style="color: var(--pop-green);">
                         <iconify-icon icon="solar:target-bold-duotone"></iconify-icon>
                     </div>
@@ -1688,7 +2024,7 @@
                     </div>
                 </div>
 
-                <div class="bento-card span-1x1 bg-surface">
+                <div class="bento-card span-1x1 bg-faq-blue">
                     <div class="bento-icon" style="color: var(--pop-blue);">
                         <iconify-icon icon="solar:palette-bold-duotone"></iconify-icon>
                     </div>
@@ -1698,7 +2034,7 @@
                     </div>
                 </div>
 
-                <div class="bento-card span-1x1 bg-surface">
+                <div class="bento-card span-1x1 bg-faq-yellow">
                     <div class="bento-icon" style="color: var(--pop-yellow);">
                         <iconify-icon icon="solar:moon-bold-duotone"></iconify-icon>
                     </div>
@@ -1708,7 +2044,7 @@
                     </div>
                 </div>
 
-                <div class="bento-card span-1x1 bg-surface">
+                <div class="bento-card span-1x1 bg-faq-pink">
                     <div class="bento-icon" style="color: var(--pop-pink);">
                         <iconify-icon icon="solar:rocket-bold-duotone"></iconify-icon>
                     </div>
@@ -1729,8 +2065,8 @@
                     </div>
                 </div>
 
-                <div class="bento-card span-1x1 bg-surface">
-                    <div class="bento-icon" style="color: var(--pop-blue);">
+                <div class="bento-card span-1x1 bg-faq-green">
+                    <div class="bento-icon" style="color: var(--pop-green);">
                         <iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
@@ -1745,52 +2081,201 @@
 
     <section class="faq-section">
         <div class="faq-container">
-            <div class="faq-heading-card bg-gradient-dark">
-                <h2 class="faq-title">Frequently Asked Questions</h2>
-                <p>Because every website has to have one</p>
-            </div>
+            <button type="button" class="faq-action-card bg-faq-green" id="screenshots-card" aria-label="Open screenshots gallery">
+                <div class="faq-action-top">
+                    <div class="faq-action-icon" aria-hidden="true">
+                        <iconify-icon icon="solar:gallery-wide-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="faq-action-arrow" aria-hidden="true">
+                        <iconify-icon icon="fluent:arrow-up-right-20-filled"></iconify-icon>
+                    </div>
+                </div>
+                <div class="faq-action-copy">
+                    <h2 class="faq-title">Screenshots</h2>
+                    <p>Can I have a look at the app?</p>
+                </div>
+            </button>
 
-            <div class="faq-card bg-faq-purple">
-                <h3>Why use silence! if my mic already has a physical mute button?</h3>
-                <p>It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of "emergency" less hands movement needed.<br /><br />And overlay and sounds helps you notice when you're still muted to avoid "hell, I've been muted for how long???" moments.</p>
-            </div>
+            <button type="button" class="faq-action-card bg-gradient-dark" id="faq-open-button" aria-haspopup="dialog" aria-controls="faq-panel" aria-expanded="false">
+                <div class="faq-action-top">
+                    <div class="faq-action-icon" aria-hidden="true">
+                        <iconify-icon icon="solar:question-circle-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="faq-action-arrow" aria-hidden="true">
+                        <iconify-icon icon="fluent:arrow-up-right-20-filled"></iconify-icon>
+                    </div>
+                </div>
+                <div class="faq-action-copy">
+                    <h2 class="faq-title">Frequently Asked Questions</h2>
+                    <p>Because every website has to have one</p>
+                </div>
+            </button>
+        </div>
 
-            <div class="faq-card bg-faq-green">
-                <h3>How is this different from Windows 11's Win + Alt + K mute shortcut?</h3>
-                <p>silence! mutes the selected microphone device directly, so it keeps working even when Windows says "No supported apps in use for mic mute."<br /><br />silence! is much more reliable way to mute the mic. It also works on Windows 10 that doesn't have this shortcut.</p>
-            </div>
-
-            <div class="faq-card bg-faq-orange">
-                <h3>Why this app was made in the first place?</h3>
-                <p>Great question! I'm a bit addicted to control and efficiency while I'm on my PC. I have a lot of custom shortcuts and I wanted a shortcut to mute my mic. I also have Stream Deck but it was uncomfortable to reach it during gaming.<br /><br />I tried A LOT of options, some was made on AHK base and some games blocked it, some was just straight up bad. I was so tired so I decided to make my own app for such simple thing as muting mic.</p>
-            </div>
-
-            <div class="faq-card bg-faq-blue">
-                <h3>Why C#, .NET and WinUI?</h3>
-                <p>It just feels like the best option for Windows, idk. I wanted app to be as invisible as possible, and feel native. And also I was a bit tired of making custom GUIs and reinventing design choices.</p>
-            </div>
-
-            <div class="faq-card bg-faq-pink">
-                <h3>Can I request a feature?</h3>
-                <p>Please do! A lot of features in the updates came from the community, like clickable mute button on screen, auto-mute and even Hold-to-Mute. You can suggest a feature or report a bug on <a href="https://github.com/vertopolkaLF/Silence-/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
-            </div>
-
-            <div class="faq-card bg-faq-yellow">
-                <h3>Can silence! mute only one app instead of muting me everywhere?</h3>
-                <p>No, it's designed as a system-level mic mute. If you mute with silence!, your microphone is muted for every app using that device.</p>
-            </div>
-
-            <div class="faq-card bg-faq-purple">
-                <h3>Does it warn me if I start talking while muted?</h3>
-                <p>No, and probably never will. My goal with this app is to make it reliable, everything else comes after. <br /><br />And muting the mic in the way that silence! would have access to mic and other apps not could lead to mic being not muted. Also when mic is muted, silence! also doesn't have access to the microphone.</p>
-            </div>
-
-            <div class="faq-card bg-faq-green">
-                <h3>Can I 100% trust that my mic is muted?</h3>
-                <p>You never should trust anything for 100% :) But I'm pretty confident in my app. It uses low-level hotkey detection and mutes mic in a <i>Windows way&trade;</i>. <br /><br />When you mute your mic with silence!, you can check in microphone properties that its output is muted. Also some mics with physical indicators on them will show that it's muted. But keep in mind that some apps can forcefully unmute mic. Teams loves to do so when you join the meeting.</p>
-            </div>
+        <div class="faq-gallery" aria-hidden="true">
+            <a href="screenshots/1.png" data-fancybox="screenshots" data-thumb="screenshots/1.png" data-caption="silence! screenshot 1"></a>
+            <a href="screenshots/2.png" data-fancybox="screenshots" data-thumb="screenshots/2.png" data-caption="silence! screenshot 2"></a>
+            <a href="screenshots/3.png" data-fancybox="screenshots" data-thumb="screenshots/3.png" data-caption="silence! screenshot 3"></a>
+            <a href="screenshots/4.png" data-fancybox="screenshots" data-thumb="screenshots/4.png" data-caption="silence! screenshot 4"></a>
+            <a href="screenshots/5.png" data-fancybox="screenshots" data-thumb="screenshots/5.png" data-caption="silence! screenshot 5"></a>
+            <a href="screenshots/6.png" data-fancybox="screenshots" data-thumb="screenshots/6.png" data-caption="silence! screenshot 6"></a>
+            <a href="screenshots/7.png" data-fancybox="screenshots" data-thumb="screenshots/7.png" data-caption="silence! screenshot 7"></a>
+            <a href="screenshots/8.png" data-fancybox="screenshots" data-thumb="screenshots/8.png" data-caption="silence! screenshot 8"></a>
         </div>
     </section>
+
+    <div class="faq-panel-shell" id="faq-panel-shell" aria-hidden="true">
+        <button type="button" class="faq-panel-backdrop" id="faq-panel-backdrop" aria-label="Close frequently asked questions"></button>
+        <aside class="faq-panel" id="faq-panel" role="dialog" aria-modal="true" aria-labelledby="faq-panel-title" tabindex="-1">
+            <div class="faq-panel-header">
+                <div class="faq-panel-title-group">
+                    <h2 class="faq-panel-title" id="faq-panel-title">Frequently Asked Questions</h2>
+                </div>
+                <button type="button" class="faq-panel-close" id="faq-panel-close" aria-label="Close FAQ panel">
+                    <iconify-icon icon="fluent:dismiss-20-filled"></iconify-icon>
+                </button>
+            </div>
+
+            <div class="faq-panel-body">
+                <div class="faq-list" role="list">
+                    <article class="faq-item is-open">
+                        <button type="button" class="faq-item-toggle" aria-expanded="true">
+                            <h3>Why use silence! if my mic already has a physical mute button?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of &quot;emergency&quot; with less hand movement.</p>
+                                    <p>The overlay and sounds also help you notice when you're still muted, so you avoid those &quot;how long was I muted?&quot; moments.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>How is this different from Windows 11's Win + Alt + K mute shortcut?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>silence! mutes the selected microphone device directly, so it keeps working even when Windows says there are no supported apps using the mic.</p>
+                                    <p>It is also a more reliable way to mute the mic, and it works on Windows 10 too.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Why this app was made in the first place?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>I'm a bit addicted to control and efficiency while using my PC, and I wanted a shortcut to mute my mic. Reaching for a Stream Deck during gaming was awkward.</p>
+                                    <p>I tried a lot of alternatives. Some relied on AHK and got blocked in games, and some were just bad. I got tired of that and decided to build my own app for something as simple as muting the mic.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Why C#, .NET and WinUI?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>It felt like the best fit for Windows. I wanted the app to be as invisible as possible and still feel native.</p>
+                                    <p>I was also tired of building custom GUIs and reinventing design choices for desktop apps.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Can I request a feature?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>Please do. A lot of features in the updates came from the community, including the clickable on-screen mute button, auto-mute, and Hold-to-Mute.</p>
+                                    <p>You can suggest a feature or report a bug on <a href="https://github.com/vertopolkalf/silence/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Can silence! mute only one app instead of muting me everywhere?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>No. silence! is designed as a system-level mic mute, so if you mute with silence!, your microphone is muted for every app using that device.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Does it warn me if I start talking while muted?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>No, and probably never will. The goal with silence! is to make mic control reliable first, and everything else comes after that.</p>
+                                    <p>If the app had to keep access to the microphone while other apps did not, that could make mute behavior less trustworthy. When the mic is muted, silence! also does not have microphone access.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Can I 100% trust that my mic is muted?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>You should never trust anything 100%, but I'm pretty confident in it. silence! uses low-level hotkey detection and mutes the mic in a <i>Windows way&trade;</i>.</p>
+                                    <p>When you mute your mic with silence!, you can confirm it in Windows microphone properties, and some microphones with physical indicators will reflect that state too. Keep in mind that some apps can still force an unmute.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </aside>
+    </div>
 
     <section class="bottom-cta">
         <div class="cta-box">
@@ -1859,6 +2344,108 @@
                 console.error("Failed to fetch latest release:", error);
             }
         });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.js"></script>
+
+    <script>
+        (function () {
+            const screenshotsCard = document.getElementById('screenshots-card');
+            const screenshotLinks = Array.from(document.querySelectorAll('[data-fancybox="screenshots"]'));
+            const faqOpenButton = document.getElementById('faq-open-button');
+            const panelShell = document.getElementById('faq-panel-shell');
+            const panel = document.getElementById('faq-panel');
+            const panelBackdrop = document.getElementById('faq-panel-backdrop');
+            const panelClose = document.getElementById('faq-panel-close');
+            const faqItems = Array.from(document.querySelectorAll('.faq-item'));
+            let lastPanelTrigger = null;
+
+            if (window.Fancybox) {
+                Fancybox.bind('[data-fancybox="screenshots"]', {
+                    animated: true,
+                    showClass: 'f-fadeIn',
+                    hideClass: 'f-fadeOut'
+                });
+            }
+
+            screenshotsCard?.addEventListener('click', () => {
+                if (window.Fancybox) {
+                    Fancybox.fromSelector('[data-fancybox="screenshots"]');
+                    return;
+                }
+
+                screenshotLinks[0]?.click();
+            });
+
+            const setOpenItem = (nextItem) => {
+                faqItems.forEach((item) => {
+                    const isOpen = item === nextItem;
+                    item.classList.toggle('is-open', isOpen);
+
+                    const toggle = item.querySelector('.faq-item-toggle');
+                    if (toggle) {
+                        toggle.setAttribute('aria-expanded', String(isOpen));
+                    }
+                });
+            };
+
+            faqItems.forEach((item, index) => {
+                const toggle = item.querySelector('.faq-item-toggle');
+                toggle?.addEventListener('click', () => {
+                    const isOpening = !item.classList.contains('is-open');
+                    setOpenItem(item);
+
+                    if (isOpening) {
+                        setTimeout(() => {
+                            const panelBody = document.querySelector('.faq-panel-body');
+                            const itemRect = item.getBoundingClientRect();
+                            const bodyRect = panelBody.getBoundingClientRect();
+
+                            // Check if item is out of view (especially the bottom of the expanded answer)
+                            if (itemRect.bottom > bodyRect.bottom || itemRect.top < bodyRect.top) {
+                                // Calculate the precise scroll position
+                                const scrollOffset = item.offsetTop - panelBody.offsetTop;
+                                panelBody.scrollTo({
+                                    top: scrollOffset,
+                                    behavior: 'smooth'
+                                });
+                            }
+                        }, 280); // Wait for CSS transition
+                    }
+                });
+
+                if (index === 0) {
+                    setOpenItem(item);
+                }
+            });
+
+            const openPanel = () => {
+                lastPanelTrigger = document.activeElement;
+                panelShell?.classList.add('is-open');
+                panelShell?.setAttribute('aria-hidden', 'false');
+                faqOpenButton?.setAttribute('aria-expanded', 'true');
+                document.body.classList.add('faq-panel-open');
+                panel?.focus();
+            };
+
+            const closePanel = () => {
+                panelShell?.classList.remove('is-open');
+                panelShell?.setAttribute('aria-hidden', 'true');
+                faqOpenButton?.setAttribute('aria-expanded', 'false');
+                document.body.classList.remove('faq-panel-open');
+                lastPanelTrigger?.focus?.();
+            };
+
+            faqOpenButton?.addEventListener('click', openPanel);
+            panelClose?.addEventListener('click', closePanel);
+            panelBackdrop?.addEventListener('click', closePanel);
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && panelShell?.classList.contains('is-open')) {
+                    closePanel();
+                }
+            });
+        })();
     </script>
 
     <script>
