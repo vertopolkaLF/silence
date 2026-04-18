@@ -1,0 +1,2775 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>silence! - the best Windows app to mute your mic</title>
+    <meta name="description" content="silence! is a free, open-source Windows microphone mute app with global hotkeys, hold-to-talk, a visual overlay, custom sounds, and tray controls.">
+    <meta name="keywords" content="mic mute, mute mic app, app to mute mic, microphone mute app, microphone mute utility, mute microphone Windows, Windows mic mute, Windows microphone mute, global hotkey mic mute, push to talk Windows, hold to talk Windows, mute microphone shortcut, tray mic mute app, open source mic mute, silence app, silence!">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="vertopolkalf">
+    <meta name="application-name" content="silence!">
+    <meta name="theme-color" content="#fb923c">
+    <link rel="canonical" href="https://silencemute.fun/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="silence!">
+    <meta property="og:title" content="silence! - the best Windows app to mute your mic">
+    <meta property="og:description" content="Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, overlay controls, custom sounds, and more.">
+    <meta property="og:url" content="https://silencemute.fun/">
+    <meta property="og:image" content="https://silencemute.fun/ogimage.png">
+    <meta property="og:image:alt" content="silence! social preview image">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="silence! - the best Windows app to mute your mic">
+    <meta name="twitter:description" content="Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, overlay controls, custom sounds, and more.">
+    <meta name="twitter:image" content="https://silencemute.fun/ogimage.png">
+    <meta name="twitter:image:alt" content="silence! social preview image">
+
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "silence!",
+            "description": "Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, visual overlay, custom sounds, and tray controls.",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Windows 10, Windows 11",
+            "url": "https://silencemute.fun/",
+            "downloadUrl": "https://github.com/vertopolkalf/silence/releases/latest",
+            "image": "https://silencemute.fun/app.png",
+            "author": {
+                "@type": "Person",
+                "name": "vertopolkalf",
+                "url": "https://github.com/vertopolkalf"
+            },
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            }
+        }
+    </script>
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": "Why use silence! if my mic already has a physical mute button?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of emergency with less hand movement. The overlay and sounds also help you notice when you're still muted."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How is this different from Windows 11's Win + Alt + K mute shortcut?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "silence! mutes the selected microphone device directly, so it still works when Windows says there are no supported apps using the mic. It is also available on Windows 10, which does not have that shortcut."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Why this app was made in the first place?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "I care a lot about control and efficiency while using my PC, and I wanted a shortcut to mute my microphone. Reaching for a Stream Deck during gaming was awkward, and many other options were unreliable, blocked in games, or just not good. I got tired of that and decided to build my own app for something as simple as muting the mic."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Why C#, .NET and WinUI?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "It felt like the best fit for Windows. I wanted the app to be as invisible and native-feeling as possible, and I was tired of building custom GUIs and reinventing design choices."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can I request a feature?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Yes. Many updates came directly from community feedback, including the clickable on-screen mute button, auto-mute, and Hold-to-Mute. You can suggest a feature or report a bug on the project's GitHub issues page."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can silence! mute only one app instead of muting me everywhere?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "No. silence! is designed as a system-level mic mute, so muting it in silence! mutes that microphone for every app using the device."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Does it warn me if I start talking while muted?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "No. silence! focuses on reliable microphone control first, not voice activity detection. It handles the mute state itself plus overlay and sound feedback."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Can I 100% trust that my mic is muted?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Nothing deserves 100% blind trust, but silence! uses the Windows-level mute state for the microphone device. You can verify it in Windows microphone properties, and some microphones with hardware mute indicators will reflect that state too. Keep in mind that some apps can still try to force an unmute."
+                    }
+                }
+            ]
+        }
+    </script>
+
+    <!-- Yandex.Metrika counter -->
+    <script type="text/javascript">
+        (function (m, e, t, r, i, k, a) {
+            m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
+            m[i].l = 1 * new Date();
+            for (var j = 0; j < document.scripts.length; j++) { if (document.scripts[j].src === r) { return; } }
+            k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
+        })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=108655656', 'ym');
+
+        ym(108655656, 'init', { ssr: true, webvisor: true, clickmap: true, ecommerce: "dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce: true, trackLinks: true });
+    </script>
+    <noscript>
+        <div><img src="https://mc.yandex.ru/watch/108655656" style="position:absolute; left:-9999px;" alt="" /></div>
+    </noscript>
+    <!-- /Yandex.Metrika counter -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.css">
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #0c0a09;
+            --surface: #1c1917;
+            --surface-hover: #292524;
+            --text: #fafaf9;
+            --text-dim: #a8a29e;
+
+            --pop-purple: #c084fc;
+            --pop-green: #4ade80;
+            --pop-orange: #fb923c;
+            --pop-pink: #f472b6;
+            --pop-blue: #60a5fa;
+            --pop-yellow: #fde047;
+            --faq-purple-dim: #34263b;
+            --faq-green-dim: #223429;
+            --faq-orange-dim: #3a281f;
+            --faq-pink-dim: #3a2430;
+            --faq-blue-dim: #202d3d;
+            --faq-yellow-dim: #39311f;
+
+            --radius-box: 32px;
+            --radius-btn: 100px;
+            --scroll-track: rgba(255, 255, 255, 0.06);
+            --scroll-thumb: linear-gradient(180deg, var(--pop-orange), var(--pop-pink));
+            --scroll-thumb-hover: linear-gradient(180deg, var(--pop-yellow), var(--pop-orange));
+            --faq-panel-gap: 20px;
+            --faq-panel-width: max(50vw, 650px);
+            --faq-panel-backdrop: rgba(12, 10, 9, 0.45);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            overflow-x: hidden;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        body.faq-panel-open {
+            overflow: hidden;
+        }
+
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: var(--pop-orange) var(--bg);
+            scrollbar-gutter: stable;
+        }
+
+        *::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: var(--scroll-track);
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: var(--scroll-thumb);
+            border-radius: 999px;
+            border: 2px solid var(--bg);
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--scroll-thumb-hover);
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        .brand {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        @keyframes slow-rotate {
+            0% {
+                transform: rotate(-2deg);
+            }
+
+            50% {
+                transform: rotate(2deg);
+            }
+
+            100% {
+                transform: rotate(-2deg);
+            }
+        }
+
+        @keyframes hero-fade-up {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hero-anim {
+            opacity: 0;
+            animation: hero-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .hero-delay-1 {
+            animation-delay: 0.05s;
+        }
+
+        .hero-delay-2 {
+            animation-delay: 0.1s;
+        }
+
+        .hero-delay-3 {
+            animation-delay: 0.15s;
+        }
+
+        .hero-delay-4 {
+            animation-delay: 0.2s;
+        }
+
+        .hero-delay-5 {
+            animation-delay: 0.25s;
+        }
+
+        .hero-delay-6 {
+            animation-delay: 0.3s;
+        }
+
+        .bento-anim {
+            opacity: 0;
+            animation: hero-fade-up 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation-delay: 0.5s;
+        }
+
+        /* Hero Wrapper (Nav + Hero Content) */
+        .hero-wrapper {
+            min-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Navbar */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .nav-link {
+            color: rgba(250, 250, 249, 0.84);
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .nav-link:hover,
+        .nav-link:focus-visible {
+            color: var(--text);
+        }
+
+        .brand {
+            font-size: 2.5rem;
+            text-decoration: none;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+
+            span {
+                color: var(--pop-orange);
+            }
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            border-radius: var(--radius-btn);
+            font-weight: 600;
+            font-size: 1.1rem;
+            text-decoration: none;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+            border: none;
+            will-change: transform, box-shadow;
+        }
+
+        .btn-primary {
+            background: var(--text);
+            color: var(--bg);
+            box-shadow: 0 4px 12px rgba(250, 250, 249, 0);
+
+            &:hover {
+                transform: translateY(-2px) scale(1.02);
+                box-shadow: 0 10px 25px rgba(250, 250, 249, 0.2);
+            }
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0);
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.15);
+                transform: translateY(-2px) scale(1.02);
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            }
+        }
+
+        /* Hero */
+        .hero {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: center;
+            /* Slight offset to visually center above the bento grid */
+
+            h1 {
+                font-size: clamp(3rem, 8vw, 6.5rem);
+                line-height: 0.9;
+                margin-bottom: 32px;
+                max-width: 1000px;
+
+                .highlight {
+                    display: inline-block;
+                    background: linear-gradient(135deg, var(--pop-orange), var(--pop-pink));
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    transform: rotate(-2deg);
+                    animation: slow-rotate 12s ease-in-out infinite;
+                }
+            }
+
+            p {
+                font-size: clamp(1.1rem, 2vw, 1.5rem);
+                color: var(--text-dim);
+                max-width: 800px;
+                margin-bottom: 48px;
+
+                b {
+                    color: var(--pop-orange);
+                    font-weight: 800;
+                }
+
+                i {
+                    color: var(--pop-purple);
+                    font-style: normal;
+                    font-weight: 800;
+                }
+            }
+        }
+
+        .hero-pill {
+            background: #fb923c22;
+            color: var(--pop-orange);
+            padding: 8px 20px;
+            border-radius: var(--radius-btn);
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 32px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Bento Grid */
+        .bento-section {
+            width: calc(100vw - 40px);
+            margin: auto;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .bento-grid-wrapper {
+            width: 100%;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+            grid-auto-rows: 280px;
+            gap: 16px;
+            grid-auto-flow: dense;
+        }
+
+        .bento-card {
+            background: var(--surface);
+            border-radius: var(--radius-box);
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+
+            &:hover {
+                transform: translateY(-2px);
+                border-color: rgba(255, 255, 255, 0.1);
+
+                .card-img-container {
+                    transform: rotate(0deg) scale(1.05);
+                }
+            }
+
+            h3,
+            h4 {
+                font-size: 2.2rem;
+                line-height: 1.1;
+                margin-bottom: 16px;
+                position: relative;
+                z-index: 2;
+            }
+
+            p {
+                color: var(--text-dim);
+                font-size: 1.1rem;
+                position: relative;
+                z-index: 2;
+                max-width: 90%;
+            }
+        }
+
+        .card-copy {
+            position: relative;
+            z-index: 2;
+        }
+
+        .card-corner-decor {
+            position: absolute;
+            top: 80px;
+            right: -42px;
+            width: 80%;
+            pointer-events: none;
+            z-index: 1;
+            transform: rotate(8deg);
+            opacity: 0.9;
+            will-change: rotate, scale;
+            scale: 1.2;
+            -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 50%, black 84%, transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0%, black 50%, black 84%, transparent 100%);
+        }
+
+        .hotkey-cloud {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .hotkey-row {
+            display: flex;
+            width: max-content;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .hotkey-row-inner {
+            display: flex;
+            gap: 8px;
+            width: max-content;
+            flex-shrink: 0;
+        }
+
+        .hotkey-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 9px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(250, 250, 249, 0.82);
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .hotkey-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 25px;
+            min-height: 24px;
+            padding: 4px 7px;
+            border-radius: 7px;
+            background: rgba(0, 0, 0, 0.22);
+        }
+
+        .hotkey-row-left {
+            animation: hotkey-slide-left 22s linear infinite;
+        }
+
+        .hotkey-row-right {
+            animation: hotkey-slide-right 24s linear infinite;
+        }
+
+        @keyframes hotkey-slide-left {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(calc(-50% - 5px));
+            }
+        }
+
+        @keyframes hotkey-slide-right {
+            from {
+                transform: translateX(calc(-50% - 5px));
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        .overlay-showcase-card {
+            min-height: 560px;
+        }
+
+        .overlay-preview-stage {
+            position: absolute;
+            top: 36px;
+            left: 140px;
+            right: 30px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .overlay-morph-anchor {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: overlay-position 18s ease-in-out infinite;
+        }
+
+        .overlay-morph {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 236px;
+            height: 82px;
+            padding: 0 18px;
+            overflow: hidden;
+            border-radius: 24px;
+            background: rgba(22, 17, 18, 0.58);
+            border: 1px solid rgba(250, 250, 249, 0.1);
+            color: var(--text);
+            transform-origin: center;
+            animation: overlay-shell 18s ease-in-out infinite;
+        }
+
+        .overlay-morph iconify-icon {
+            flex-shrink: 0;
+        }
+
+        .overlay-morph-icon {
+            font-size: 2rem;
+            color: #ff6b63;
+            animation: overlay-icon 18s ease-in-out infinite;
+        }
+
+        .overlay-morph-text {
+            white-space: nowrap;
+            overflow: hidden;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            animation: overlay-text 18s ease-in-out infinite;
+        }
+
+        @keyframes overlay-position {
+
+            0%,
+            16%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            24%,
+            38% {
+                transform: translate(40px, -10px);
+            }
+
+            46%,
+            60% {
+                transform: translate(-76px, 44px);
+            }
+
+            68%,
+            80% {
+                transform: translate(26px, 10px);
+            }
+
+            88%,
+            92% {
+                transform: translate(112px, -64px);
+            }
+        }
+
+        @keyframes overlay-shell {
+
+            0%,
+            16%,
+            100% {
+                width: 236px;
+                height: 82px;
+                padding: 0 18px;
+                gap: 12px;
+                border-radius: 24px;
+                background: rgba(22, 17, 18, 0.58);
+                border-color: rgba(250, 250, 249, 0.08);
+                color: var(--text);
+            }
+
+            24%,
+            38% {
+                width: 72px;
+                height: 72px;
+                padding: 0;
+                gap: 0;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.06);
+                border-color: rgba(250, 250, 249, 0.2);
+                color: var(--text);
+            }
+
+            46%,
+            60% {
+                width: 258px;
+                height: 64px;
+                padding: 0 16px;
+                gap: 10px;
+                border-radius: 999px;
+                background: rgba(255, 247, 244, 0.98);
+                border-color: rgba(28, 20, 20, 0.08);
+                color: #1c1614;
+            }
+
+            68%,
+            80% {
+                width: 180px;
+                height: 180px;
+                padding: 0;
+                gap: 0;
+                border-radius: 0px;
+                background: rgba(255, 247, 244, 0.96);
+                border-color: rgba(28, 20, 20, 0.08);
+                color: #1c1614;
+            }
+
+            88%,
+            92% {
+                width: 18px;
+                height: 18px;
+                padding: 0;
+                gap: 0;
+                border-radius: 999px;
+                background: var(--pop-green);
+                border-color: rgba(74, 222, 128, 0);
+                color: transparent;
+            }
+
+            100% {
+                width: 236px;
+                height: 82px;
+                padding: 0 18px;
+                gap: 12px;
+                border-radius: 24px;
+                background: rgba(22, 17, 18, 0.58);
+                border-color: rgba(250, 250, 249, 0.08);
+                color: var(--text);
+            }
+        }
+
+        @keyframes overlay-icon {
+
+            0%,
+            16%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                font-size: 2rem;
+                color: #ff6b63;
+            }
+
+            24%,
+            38% {
+                opacity: 1;
+                transform: scale(1);
+                font-size: 1.8rem;
+                color: currentColor;
+            }
+
+            46%,
+            60% {
+                opacity: 1;
+                transform: scale(0.92);
+                font-size: 1.45rem;
+                color: currentColor;
+            }
+
+            68%,
+            80% {
+                opacity: 1;
+                transform: scale(1.08);
+                font-size: 9rem;
+                color: #ff6b63;
+            }
+
+            88%,
+            92% {
+                opacity: 0;
+                transform: scale(0.4);
+                font-size: 1rem;
+                color: transparent;
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                font-size: 2rem;
+                color: #ff6b63;
+            }
+        }
+
+        @keyframes overlay-text {
+
+            0%,
+            16%,
+            100% {
+                opacity: 1;
+                max-width: 170px;
+                transform: translateX(0);
+            }
+
+            24%,
+            38% {
+                opacity: 0;
+                max-width: 0;
+                transform: translateX(10px);
+            }
+
+            46%,
+            60% {
+                opacity: 1;
+                max-width: 170px;
+                transform: translateX(0);
+            }
+
+            68%,
+            92% {
+                opacity: 0;
+                max-width: 0;
+                transform: translateX(6px);
+            }
+        }
+
+        .feature-badge {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(12, 10, 9, 0.1);
+            border: 1px solid rgba(12, 10, 9, 0.15);
+            color: var(--bg);
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            z-index: 3;
+        }
+
+        .bg-surface .feature-badge,
+        .bg-gradient-dark .feature-badge {
+            background: rgba(250, 250, 249, 0.12);
+            border-color: rgba(250, 250, 249, 0.16);
+            color: var(--text);
+        }
+
+        .bg-gradient-dark .bento-icon {
+            color: var(--pop-purple);
+        }
+
+        .bento-icon {
+            font-size: 3rem;
+            margin-bottom: 24px;
+            background: #0004;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: center;
+            border-radius: 24px;
+        }
+
+        /* Specific Cards */
+        .span-3x2 {
+            grid-column: span 3;
+            grid-row: span 2;
+
+            h3 {
+                font-size: 4rem;
+            }
+        }
+
+        .span-3x1 {
+            grid-column: span 3;
+            grid-row: span 1;
+        }
+
+        .span-2x2 {
+            grid-column: span 2;
+            grid-row: span 2;
+
+            h3,
+            h4 {
+                font-size: 3rem;
+            }
+        }
+
+        .span-2x1 {
+            grid-column: span 2;
+            grid-row: span 1;
+        }
+
+        .span-1x2 {
+            grid-column: span 1;
+            grid-row: span 2;
+        }
+
+        .span-1x1 {
+            grid-column: span 1;
+            grid-row: span 1;
+            padding: 30px;
+
+            h4 {
+                font-size: 1.5rem;
+            }
+
+            .bento-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 1.8rem;
+                margin-bottom: 16px;
+                border-radius: 16px;
+            }
+
+            p {
+                font-size: 0.95rem;
+            }
+        }
+
+        .span-fullx2 {
+            grid-column: 1 / -1;
+            grid-row: span 2;
+            text-align: center;
+        }
+
+        /* Decorative Elements in Cards */
+        .bg-surface {
+            background: var(--surface);
+            color: var(--text);
+        }
+
+        .bg-purple {
+            background: var(--pop-purple);
+            color: var(--bg);
+        }
+
+        .bg-green {
+            background: var(--pop-green);
+            color: var(--bg);
+        }
+
+        .bg-orange {
+            background: var(--pop-orange);
+            color: var(--bg);
+        }
+
+        .bg-pink {
+            background: var(--pop-pink);
+            color: var(--bg);
+        }
+
+        .bg-blue {
+            background: var(--pop-blue);
+            color: var(--bg);
+        }
+
+        .bg-yellow {
+            background: var(--pop-yellow);
+            color: var(--bg);
+        }
+
+        .bg-faq-purple {
+            background-color: var(--faq-purple-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-green {
+            background-color: var(--faq-green-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-orange {
+            background-color: var(--faq-orange-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-pink {
+            background-color: var(--faq-pink-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-blue {
+            background-color: var(--faq-blue-dim);
+            color: var(--text);
+        }
+
+        .bg-faq-yellow {
+            background-color: var(--faq-yellow-dim);
+            color: var(--text);
+        }
+
+        @property --faq-gradient-color {
+            syntax: '<color>';
+            inherits: false;
+            initial-value: #2e1065;
+        }
+
+        .bg-gradient-dark {
+            --faq-gradient-color: #2e1065;
+            background: linear-gradient(145deg, var(--surface), var(--faq-gradient-color));
+        }
+
+        :is(.bg-purple, .bg-green, .bg-orange, .bg-pink, .bg-blue, .bg-yellow) {
+            p {
+                color: rgba(0, 0, 0, 0.7);
+            }
+
+            .bento-icon {
+                background: #0000001a;
+                color: var(--bg);
+            }
+        }
+
+        .card-img-container {
+            position: absolute;
+            right: -20px;
+            bottom: -20px;
+            width: 60%;
+            height: 60%;
+            opacity: 0.8;
+            border-radius: 16px;
+            overflow: hidden;
+            transform: rotate(-5deg);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            transition: transform 0.4s;
+
+            img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+        }
+
+        /* CTA */
+        .bottom-cta {
+            width: calc(100vw - 40px);
+            height: calc(100dvh - 36px);
+            padding: 0;
+            margin: 16px auto 20px auto;
+            box-sizing: border-box;
+            display: flex;
+        }
+
+        .cta-box {
+            background: var(--surface);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-box);
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+
+            .cta-main h2 {
+                font-size: clamp(3rem, 8vw, 5rem);
+                margin-bottom: 24px;
+                color: var(--text);
+                line-height: 1.1;
+            }
+
+            .cta-main p {
+                font-size: clamp(1.2rem, 3vw, 2rem);
+                color: var(--text-dim);
+                margin-bottom: 48px;
+                font-weight: 500;
+            }
+
+            .footer-info {
+                position: absolute;
+                bottom: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+                font-size: 0.9rem;
+                color: var(--text-dim);
+                margin: 0;
+                width: 100%;
+                text-align: center;
+                padding: 0 24px;
+
+                a {
+                    color: var(--text);
+                    font-weight: 600;
+                    text-decoration: underline;
+                }
+            }
+        }
+
+        /* 3-column cards should collapse once the grid naturally drops below 3 columns. */
+        @media (max-width: 975px) {
+
+            .span-3x2,
+            .span-3x1 {
+                grid-column: span 2;
+            }
+        }
+
+        /* Once the grid reaches a single column, remove wide spans entirely. */
+        @media (max-width: 665px) {
+
+            .span-3x2,
+            .span-3x1,
+            .span-2x2,
+            .span-2x1,
+            .span-1x2 {
+                grid-column: span 1;
+                grid-row: span 1;
+            }
+        }
+
+        @media (max-width: 800px) {
+            .hero {
+                h1 {
+                    font-size: 3.5rem;
+                }
+            }
+
+            .hero-actions {
+                flex-direction: column;
+                width: 100%;
+
+                .btn {
+                    width: 100%;
+                    justify-content: center;
+                }
+            }
+
+            .bento-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .span-3x2,
+            .span-3x1,
+            .span-2x2,
+            .span-2x1 {
+                grid-column: span 2;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .bento-grid {
+                grid-template-columns: 1fr;
+                grid-auto-rows: minmax(200px, auto);
+            }
+
+            .span-3x2,
+            .span-3x1,
+            .span-2x2,
+            .span-2x1,
+            .span-1x2 {
+                grid-column: span 1;
+                grid-row: span 1;
+            }
+
+            .span-3x2 h3,
+            .span-2x2 h2,
+            .span-2x2 h3 {
+                font-size: 2.2rem;
+            }
+
+            .cta-box h2 {
+                font-size: 2.5rem;
+            }
+
+            .bento-grid-wrapper {
+                padding: 0 1rem;
+            }
+
+            .overlay-showcase-card {
+                min-height: 420px;
+            }
+
+            .overlay-preview-stage {
+                top: 96px;
+                left: 24px;
+                right: 24px;
+                height: 144px;
+            }
+
+        }
+
+        /* CTA Combined Animated Background & Border */
+        .cta-box {
+            background: transparent !important;
+            border: none !important;
+        }
+
+        .cta-box::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            border-radius: inherit;
+            padding: 2px;
+            background: linear-gradient(45deg, var(--pop-blue), var(--pop-purple), var(--pop-pink), var(--pop-orange), var(--pop-yellow), var(--pop-green));
+            background-size: 400% 400%;
+            animation: gradient-border 8s linear infinite;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            -webkit-mask-composite: xor;
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        @keyframes gradient-border {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .cta-background {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            border-radius: inherit;
+            background: radial-gradient(circle at top center, #1f1225 0%, #000000 100%);
+        }
+
+
+
+        .cta-content-wrapper {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .cta-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cta-main .btn {
+            margin-bottom: 24px;
+        }
+
+        .cta-animate {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .cta-animate.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .cta-delay-1 {
+            transition-delay: 0.1s;
+        }
+
+        .cta-delay-2 {
+            transition-delay: 0.2s;
+        }
+
+        .cta-delay-3 {
+            transition-delay: 0.3s;
+        }
+
+        .cta-delay-4 {
+            transition-delay: 0.4s;
+        }
+
+        .replay-section {
+            display: none;
+            position: absolute;
+            bottom: 0px;
+            right: 0px;
+            width: 400px;
+            background: rgba(28, 25, 23, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-box);
+            padding: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            flex-direction: column;
+            align-items: flex-start;
+            z-index: 100;
+            box-sizing: border-box;
+        }
+
+        .replay-section.is-visible {
+            display: flex;
+        }
+
+        .replay-section.is-faded-in {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .replay-section h3 {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+            line-height: 1.2;
+            color: var(--text);
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .replay-text {
+            font-size: 1.05rem;
+            color: var(--text-dim);
+            margin-bottom: 24px;
+            font-weight: 500;
+            line-height: 1.5;
+        }
+
+        .replay-btn {
+            padding: 14px 24px;
+            font-size: 1rem;
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* FAQ Section */
+        .faq-section {
+            width: calc(100vw - 40px);
+            margin: 16px auto;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .faq-container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            gap: 16px;
+        }
+
+        @media (max-width: 860px) {
+            .faq-container {
+                flex-direction: column;
+            }
+
+            .faq-action-card {
+                flex: none !important;
+                width: 100%;
+            }
+        }
+
+        .faq-action-card {
+            flex: 1;
+            position: relative;
+            border-radius: var(--radius-box);
+            padding: 32px;
+            min-height: 300px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 28px;
+            width: 100%;
+            color: inherit;
+            text-align: left;
+            cursor: pointer;
+            appearance: none;
+            background-clip: padding-box;
+            transition: flex 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, background-color 0.25s ease, --faq-gradient-color 0.25s ease;
+            overflow: hidden;
+        }
+
+        .faq-action-card:hover {
+            flex: 1.2;
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+
+        .faq-action-card.bg-faq-green:hover {
+            background-color: #2c4436;
+        }
+
+        .faq-action-card.bg-gradient-dark:hover {
+            --faq-gradient-color: #4a1c99;
+        }
+
+        .faq-action-card:focus-visible {
+            outline: 2px solid var(--pop-orange);
+            outline-offset: 4px;
+        }
+
+        .faq-action-card.bg-gradient-dark {
+            color: var(--text);
+        }
+
+        .faq-action-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            width: 100%;
+        }
+
+        .faq-action-icon,
+        .faq-item-indicator {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: currentColor;
+        }
+
+        .faq-action-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 22px;
+            font-size: 2.5rem;
+            background: #0005;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+
+        .faq-action-arrow {
+            font-size: 4.05rem;
+            background: transparent;
+            border: none;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: currentColor;
+            transition: transform 0.22s ease, color 0.22s ease;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        .faq-action-card:hover .faq-action-arrow,
+        .faq-action-card:focus-visible .faq-action-arrow {
+            transform: translate(4px, -4px);
+        }
+
+        .faq-action-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 32rem;
+        }
+
+        .faq-title,
+        .faq-action-copy h3 {
+            font-size: clamp(2.2rem, 3.2vw, 3rem);
+            line-height: 1.05;
+            color: inherit;
+        }
+
+        .faq-action-copy p {
+            font-size: 1.2rem;
+            line-height: 1.6;
+            color: inherit;
+            opacity: 0.9;
+        }
+
+        .faq-gallery {
+            display: none;
+        }
+
+        .faq-panel-shell {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        .faq-panel-shell.is-open {
+            pointer-events: auto;
+        }
+
+        .faq-panel-backdrop {
+            position: absolute;
+            inset: 0;
+            border: 0;
+            background: var(--faq-panel-backdrop);
+            opacity: 0;
+            transition: opacity 0.28s ease;
+            cursor: pointer;
+        }
+
+        .faq-panel {
+            position: absolute;
+            top: var(--faq-panel-gap);
+            right: var(--faq-panel-gap);
+            bottom: var(--faq-panel-gap);
+            width: min(var(--faq-panel-width), calc(100vw - (var(--faq-panel-gap) * 2)));
+            border-radius: 36px;
+            background: #1c1917;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateX(42px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+        }
+
+        .faq-panel-shell.is-open .faq-panel-backdrop {
+            opacity: 1;
+        }
+
+        .faq-panel-shell.is-open .faq-panel {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .faq-panel-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 32px 32px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .faq-panel-title-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .faq-panel-title {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            font-size: clamp(1.8rem, 3vw, 2.4rem);
+            line-height: 1.05;
+            color: var(--text) !important;
+            margin: 0;
+            max-width: unset !important;
+        }
+
+        .faq-panel-title-group p {
+            color: var(--text-dim);
+            max-width: 30rem;
+        }
+
+        .faq-panel-close {
+            width: 48px;
+            height: 48px;
+            border-radius: 18px;
+            flex-shrink: 0;
+            font-size: 1.3rem;
+            cursor: pointer;
+            appearance: none;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: currentColor;
+        }
+
+        .faq-panel-close:hover,
+        .faq-panel-close:focus-visible {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+
+        .faq-panel-body {
+            padding: 24px 32px 32px;
+            overflow-y: auto;
+        }
+
+        .faq-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .faq-item {
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .faq-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .faq-item.is-open {
+            background: rgba(74, 222, 128, 0.06);
+            border-color: rgba(74, 222, 128, 0.25);
+        }
+
+        .faq-item.is-open:hover {
+            background: rgba(74, 222, 128, 0.08);
+            border-color: rgba(74, 222, 128, 0.35);
+        }
+
+        .faq-item-toggle {
+            width: 100%;
+            border: 0;
+            padding: 24px 28px;
+            background: transparent;
+            color: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            text-align: left;
+            cursor: pointer;
+            appearance: none;
+            font: inherit;
+        }
+
+        .faq-item-toggle h3 {
+            font-size: clamp(1.2rem, 1.8vw, 1.4rem);
+            line-height: 1.3;
+            font-weight: 700;
+        }
+
+        .faq-item-indicator {
+            width: 40px;
+            height: 40px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 1.5rem;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease, color 0.3s ease;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .faq-item.is-open .faq-item-indicator {
+            transform: rotate(45deg);
+            background: rgba(74, 222, 128, 0.15);
+            color: var(--pop-green);
+        }
+
+        .faq-item-answer {
+            display: grid;
+            grid-template-rows: 0fr;
+            opacity: 0;
+            transition: grid-template-rows 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+        }
+
+        .faq-item.is-open .faq-item-answer {
+            grid-template-rows: 1fr;
+            opacity: 1;
+        }
+
+        .faq-item-answer-inner {
+            overflow: hidden;
+        }
+
+        .faq-item-answer-content {
+            padding: 0 28px 24px;
+            color: rgba(250, 250, 249, 0.84);
+            font-size: 1.05rem;
+            line-height: 1.7;
+        }
+
+        .faq-item-answer-content a {
+            color: inherit;
+        }
+
+        .faq-item-answer-content p+p {
+            margin-top: 16px;
+        }
+
+        .fancybox__container {
+            --f-animation-duration: 0.3s;
+            --f-transition-duration: 0.3s;
+        }
+
+        .fancybox__backdrop {
+            background: rgba(12, 10, 9, 0.94);
+        }
+
+        .fancybox__toolbar {
+            --f-button-bg: rgba(255, 255, 255, 0.08);
+            --f-button-hover-bg: rgba(255, 255, 255, 0.14);
+            --f-button-color: var(--text);
+        }
+
+        .screenshots-fancybox .fancybox__viewport {
+            position: relative;
+        }
+
+        .screenshots-fancybox .fancybox__viewport>[index] {
+            position: absolute !important;
+            inset: 0;
+            transform: none !important;
+            opacity: 0 !important;
+            pointer-events: none;
+            transition: opacity 0.35s ease !important;
+        }
+
+        .screenshots-fancybox .fancybox__viewport>[index].is-selected {
+            opacity: 1 !important;
+            pointer-events: auto;
+        }
+
+        .screenshots-fancybox .fancybox__viewport>[index].is-mounting {
+            opacity: 0 !important;
+        }
+
+        @media (max-width: 700px) {
+            :root {
+                --faq-panel-gap: 14px;
+            }
+
+            .faq-action-card {
+                min-height: 240px;
+                padding: 24px;
+            }
+
+            .faq-action-icon {
+                width: 60px;
+                height: 60px;
+                border-radius: 18px;
+                font-size: 1.8rem;
+            }
+
+            .faq-action-arrow {
+                width: 46px;
+                height: 46px;
+                border-radius: 16px;
+            }
+
+            .faq-action-copy p {
+                font-size: 1.05rem;
+            }
+
+            .faq-panel {
+                width: calc(100vw - (var(--faq-panel-gap) * 2));
+                border-radius: 28px;
+            }
+
+            .faq-panel-header,
+            .faq-panel-body,
+            .faq-item-toggle,
+            .faq-item-answer-content {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
+
+            .faq-panel-header {
+                padding-top: 22px;
+                padding-bottom: 18px;
+            }
+
+            .faq-item-toggle {
+                padding-top: 22px;
+                padding-bottom: 22px;
+            }
+
+            .faq-item-answer-content {
+                padding-bottom: 22px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="hero-wrapper container">
+        <nav>
+            <a href="#" class="brand">
+                silence<span>!</span>
+            </a>
+            <div style="display: flex; gap: 24px; align-items: center;">
+                <a href="#screenshots" class="nav-link" onclick="document.getElementById('screenshots-card')?.click(); return false;">Screenshots</a>
+                <a href="#faq" class="nav-link" onclick="document.getElementById('faq-open-button')?.click(); return false;">FAQ</a>
+                <a href="https://github.com/vertopolkalf/silence" target="_blank" class="nav-link" style="display: flex; align-items: center; gap: 6px;">
+                    <iconify-icon icon="mdi:github" style="font-size: 1.25rem;"></iconify-icon>
+                    <span id="github-stars">GitHub</span>
+                </a>
+                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
+                    Download
+                </a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <div class="hero-pill hero-anim hero-delay-1">
+                <iconify-icon icon="fluent:sparkle-32-filled"></iconify-icon>
+                Open Source & Free Forever
+            </div>
+            <h1>
+                <span class="hero-anim hero-delay-2" style="display: inline-block;">Never ask</span> <br>
+                <span class="hero-anim hero-delay-3" style="display: inline-block;"><span class="highlight">"Am I muted?"</span></span><br>
+                <span class="hero-anim hero-delay-4" style="display: inline-block;">again.</span>
+            </h1>
+            <p class="hero-anim hero-delay-5">
+                A ridiculously good Windows app to <b>mute your mic</b> on OS level.
+                <br />
+                Multi-action hotkeys, hold−to−talk, controller support, sounds, visual overlay and a <i>looooot of features</i>
+            </p>
+
+            <div class="hero-actions hero-anim hero-delay-6">
+                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
+                    <iconify-icon icon="fluent:arrow-download-24-filled"></iconify-icon>
+                    Get for Windows
+                </a>
+                <a href="https://github.com/vertopolkalf/silence" target="_blank" class="btn btn-secondary">
+                    <iconify-icon icon="mdi:github"></iconify-icon>
+                    GitHub
+                </a>
+            </div>
+        </section>
+    </div>
+
+    <section class="bento-section bento-anim" aria-labelledby="features-title">
+        <div class="bento-grid-wrapper">
+            <h2 class="visually-hidden" id="features-title">silence! features</h2>
+            <div class="bento-grid">
+
+                <div class="bento-card span-2x2 bg-gradient-dark">
+                    <div class="card-corner-decor hotkey-cloud" aria-hidden="true">
+                        <div class="hotkey-row hotkey-row-left">
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">M</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">F23</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">~</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Caps</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Space</span></span>
+                            </div>
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">M</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">F23</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">~</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Caps</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Space</span></span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row hotkey-row-right">
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">Shift</span><span class="hotkey-key">V</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F13</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">/</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">]</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">.</span></span>
+                            </div>
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">Shift</span><span class="hotkey-key">V</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F13</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">/</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">]</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">.</span></span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row hotkey-row-left">
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">K</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">F19</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">\</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Tab</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">;</span></span>
+                            </div>
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">K</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">F19</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">\</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Tab</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">;</span></span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row hotkey-row-right">
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">F24</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">/</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">M</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">=</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F15</span></span>
+                            </div>
+                            <div class="hotkey-row-inner">
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">F24</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">/</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">M</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">=</span></span>
+                                <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F15</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bento-icon" style="color: var(--pop-purple);">
+                        <iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Global<br>Hotkeys.</h3>
+                        <p>Pick any shortcut, use it everywhere, and let it still fire even when extra modifiers are pressed in games.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-green">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:command-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Multi-Action Shortcuts</h4>
+                        <p>Give toggle, mute, and unmute their own dedicated shortcuts.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-blue">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:stopwatch-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Auto-Mute Timer</h4>
+                        <p>Set a timeout so silence! mutes the mic for you if you forget.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-orange">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:gamepad-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Gamepad Support</h4>
+                        <p>Bind mute actions straight to controller buttons and combos.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-yellow">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:microphone-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Hold-to-Talk</h4>
+                        <p>Hold to mute, hold to unmute, or mix hold rules with toggle.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-faq-green">
+                    <div class="bento-icon" style="color: var(--pop-green);">
+                        <iconify-icon icon="solar:target-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Mic Selection</h4>
+                        <p>Choose exactly which microphone to mute. Or mute them all!</p>
+                    </div>
+                </div>
+
+
+                <div class="bento-card span-2x2 bg-pink overlay-showcase-card">
+                    <div class="overlay-preview-stage" aria-hidden="true">
+                        <div class="overlay-morph-anchor">
+                            <div class="overlay-morph">
+                                <iconify-icon class="overlay-morph-icon" icon="fluent:mic-off-24-filled"></iconify-icon>
+                                <span class="overlay-morph-text">Microphone is muted</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:layers-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Visual Overlay</h3>
+                        <p>Keep your mute state visible above any app with an indicator that can show an icon, text, or both.</p>
+                    </div>
+                </div>
+
+
+                <div class="bento-card span-2x1 bg-purple">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="fluent:cursor-click-24-filled"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>On-Screen Mic Button</h4>
+                        <p>Turn the overlay into a big on-screen button so you can control your mic with a click.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-green">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:map-point-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Flexible Positioning</h4>
+                        <p>Drag it anywhere and snap it neatly to center when you want it tidy.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-orange">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:eye-closed-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Show After Toggle</h4>
+                        <p>Show the overlay briefly when state changes, then let it disappear again.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-2x2 bg-blue">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:music-note-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h3>Sounds &<br>Custom Audio</h3>
+                        <p>Pick from 8 built-in themes or bring MP3, WAV, FLAC, OGG, M4A, and WMA files so your mute state is obvious by ear.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-2x1 bg-gradient-dark">
+                    <span class="feature-badge">New</span>
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:volume-loud-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Per-Action Sound Control</h4>
+                        <p>Tune mute, unmute, and hold-action sounds separately instead of sharing one flat volume.</p>
+                    </div>
+                </div>
+
+
+                <div class="bento-card span-1x1 bg-blue">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:bell-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>System Tray Controls</h4>
+                        <p>Live quietly in the tray, left-click to toggle instantly, and choose standard, filled-circle, or dot icon styles.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-faq-blue">
+                    <div class="bento-icon" style="color: var(--pop-blue);">
+                        <iconify-icon icon="solar:palette-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Native Windows UI</h4>
+                        <p>Built with WinUI 3, with Mica on Windows 11 and Acrylic on Windows 10.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-faq-yellow">
+                    <div class="bento-icon" style="color: var(--pop-yellow);">
+                        <iconify-icon icon="solar:moon-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Theme Sync</h4>
+                        <p>Automatically matches your system theme and accent color.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-faq-pink">
+                    <div class="bento-icon" style="color: var(--pop-pink);">
+                        <iconify-icon icon="solar:rocket-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Startup Rules</h4>
+                        <p>Start with Windows, launch straight to tray, or come up already muted.</p>
+                    </div>
+                </div>
+
+
+                <div class="bento-card span-2x1 bg-green">
+                    <div class="bento-icon">
+                        <iconify-icon icon="solar:magic-stick-3-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Actually Lightweight</h4>
+                        <p>Sits at basically 0% CPU and around 70MB of RAM, so it stays out of your way while you do your thing.</p>
+                    </div>
+                </div>
+
+                <div class="bento-card span-1x1 bg-faq-green">
+                    <div class="bento-icon" style="color: var(--pop-green);">
+                        <iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="card-copy">
+                        <h4>Auto-Updates</h4>
+                        <p>Get new features and improvements without the usual update hassle.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section class="faq-section">
+        <div class="faq-container">
+            <button type="button" class="faq-action-card bg-faq-green" id="screenshots-card" aria-label="Open screenshots gallery">
+                <div class="faq-action-top">
+                    <div class="faq-action-icon" aria-hidden="true">
+                        <iconify-icon icon="solar:gallery-wide-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="faq-action-arrow" aria-hidden="true">
+                        <iconify-icon icon="fluent:arrow-up-right-20-filled"></iconify-icon>
+                    </div>
+                </div>
+                <div class="faq-action-copy">
+                    <h2 class="faq-title">Screenshots</h2>
+                    <p>Can I have a look at the app?</p>
+                </div>
+            </button>
+
+            <button type="button" class="faq-action-card bg-gradient-dark" id="faq-open-button" aria-haspopup="dialog" aria-controls="faq-panel" aria-expanded="false">
+                <div class="faq-action-top">
+                    <div class="faq-action-icon" aria-hidden="true">
+                        <iconify-icon icon="solar:question-circle-bold-duotone"></iconify-icon>
+                    </div>
+                    <div class="faq-action-arrow" aria-hidden="true">
+                        <iconify-icon icon="fluent:arrow-up-right-20-filled"></iconify-icon>
+                    </div>
+                </div>
+                <div class="faq-action-copy">
+                    <h2 class="faq-title">Frequently Asked Questions</h2>
+                    <p>Because every website has to have one</p>
+                </div>
+            </button>
+        </div>
+
+        <div class="faq-gallery" aria-hidden="true">
+            <a href="screenshots/1.png" data-fancybox="screenshots" data-thumb="screenshots/1.png" data-caption="silence! screenshot 1"></a>
+            <a href="screenshots/2.png" data-fancybox="screenshots" data-thumb="screenshots/2.png" data-caption="silence! screenshot 2"></a>
+            <a href="screenshots/3.png" data-fancybox="screenshots" data-thumb="screenshots/3.png" data-caption="silence! screenshot 3"></a>
+            <a href="screenshots/4.png" data-fancybox="screenshots" data-thumb="screenshots/4.png" data-caption="silence! screenshot 4"></a>
+            <a href="screenshots/5.png" data-fancybox="screenshots" data-thumb="screenshots/5.png" data-caption="silence! screenshot 5"></a>
+            <a href="screenshots/6.png" data-fancybox="screenshots" data-thumb="screenshots/6.png" data-caption="silence! screenshot 6"></a>
+            <a href="screenshots/7.png" data-fancybox="screenshots" data-thumb="screenshots/7.png" data-caption="silence! screenshot 7"></a>
+            <a href="screenshots/8.png" data-fancybox="screenshots" data-thumb="screenshots/8.png" data-caption="silence! screenshot 8"></a>
+        </div>
+    </section>
+
+    <div class="faq-panel-shell" id="faq-panel-shell" aria-hidden="true">
+        <button type="button" class="faq-panel-backdrop" id="faq-panel-backdrop" aria-label="Close frequently asked questions"></button>
+        <aside class="faq-panel" id="faq-panel" role="dialog" aria-modal="true" aria-labelledby="faq-panel-title" tabindex="-1">
+            <div class="faq-panel-header">
+                <div class="faq-panel-title-group">
+                    <p class="faq-panel-title" id="faq-panel-title">Frequently Asked Questions</p>
+                </div>
+                <button type="button" class="faq-panel-close" id="faq-panel-close" aria-label="Close FAQ panel">
+                    <iconify-icon icon="fluent:dismiss-20-filled"></iconify-icon>
+                </button>
+            </div>
+
+            <div class="faq-panel-body">
+                <div class="faq-list" role="list">
+                    <article class="faq-item is-open">
+                        <button type="button" class="faq-item-toggle" aria-expanded="true">
+                            <h3>Why use silence! if my mic already has a physical mute button?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of &quot;emergency&quot; with less hand movement.</p>
+                                    <p>The overlay and sounds also help you notice when you're still muted, so you avoid those &quot;how long was I muted?&quot; moments.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Can I request a feature?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>Please do! A lot of features in the updates came from the community, including the clickable on-screen mute button, auto-mute, and Hold-to-Mute.</p>
+                                    <p>You can suggest a feature or report a bug on <a href="https://github.com/vertopolkalf/silence/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>How is this different from Windows 11's Win + Alt + K mute shortcut?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>silence! mutes the selected microphone device directly, so it keeps working even when Windows says there are no supported apps using the mic.</p>
+                                    <p>It is also a more reliable way to mute the mic, and it works on Windows 10 too.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Can silence! mute only one app instead of muting me everywhere?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>No. silence! is designed as a system-level mic mute, so if you mute with silence!, your microphone is muted for every app using that device.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Does it warn me if I start talking while muted?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>No, and probably never will. The goal with silence! is to make mic control reliable first, and everything else comes after that.</p>
+                                    <p>If the app had to keep access to the microphone while other apps did not, that could make mute behavior less trustworthy. When the mic is muted, silence! also does not have microphone access.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Can I 100% trust that my mic is muted?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>You should never trust anything 100%, but I'm pretty confident in it. silence! uses low-level hotkey detection and mutes the mic in a <i>Windows way&trade;</i>.</p>
+                                    <p>When you mute your mic with silence!, you can confirm it in Windows microphone properties, and some microphones with physical indicators will reflect that state too. Keep in mind that some apps can still force an unmute.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Why this app was made in the first place?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>I'm a bit addicted to control and efficiency while using my PC, and I wanted a shortcut to mute my mic. Reaching for a Stream Deck during gaming was awkward.</p>
+                                    <p>I tried a lot of alternatives. Some relied on AHK and got blocked in games, and some were just bad. I got tired of that and decided to build my own app for something as simple as muting the mic.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Why C#, .NET and WinUI?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>It felt like the best fit for Windows. I wanted the app to be as invisible as possible and still feel native.</p>
+                                    <p>I was also tired of building custom GUIs and reinventing design choices for desktop apps.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <section class="bottom-cta">
+        <div class="cta-box">
+            <div class="cta-background">
+                <canvas id="stars-canvas" style="position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; border-radius: inherit;"></canvas>
+            </div>
+            <div class="cta-content-wrapper">
+                <div class="cta-main">
+                    <h2 class="cta-animate cta-delay-1">Drop the janky scripts.</h2>
+                    <p class="cta-animate cta-delay-2">One clean utility. Zero bloat. Total control.</p>
+                    <div class="cta-animate cta-delay-3">
+                        <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
+                            Download silence!
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-info">
+                    <div class="cta-animate cta-delay-4" style="margin: 0;">
+                        <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkalf" target="_blank">vertopolkalf</a>.
+                    </div>
+                </div>
+
+                <div id="replay-section" class="replay-section">
+                    <h3>Liked the animation?</h3>
+                    <p class="replay-text">Here is the button to enjoy it again.</p>
+                    <button id="replay-btn" class="btn btn-secondary replay-btn">
+                        <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
+                        Replay Animation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // Fetch the latest release from GitHub API and update download links
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                // Fetch stargazers count
+                fetch("https://api.github.com/repos/vertopolkalf/silence")
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.stargazers_count !== undefined) {
+                            const starsEl = document.getElementById('github-stars');
+                            if (starsEl) {
+                                starsEl.innerHTML = data.stargazers_count + ' <iconify-icon icon="solar:star-bold" style="font-size: 0.9rem; color: var(--pop-yellow);"></iconify-icon>';
+                            }
+                        }
+                    })
+                    .catch(e => console.error("Failed to fetch stars:", e));
+
+                const response = await fetch("https://api.github.com/repos/vertopolkalf/silence/releases/latest");
+                if (!response.ok) return;
+
+                const data = await response.json();
+
+                // Determine architecture
+                let arch = "x64"; // Default
+                const ua = navigator.userAgent.toLowerCase();
+
+                if (ua.includes("arm") || ua.includes("aarch64")) {
+                    arch = "arm64";
+                } else if (ua.includes("wow64") === false && (ua.includes("win32") || ua.includes("i686") || ua.includes("x86_32"))) {
+                    // It's a true 32-bit OS, not a 32-bit browser on 64-bit OS
+                    arch = "x86";
+                }
+
+                // Find the appropriate setup executable asset
+                const asset = data.assets.find(a => a.name.includes(`${arch}-setup.exe`)) || data.assets.find(a => a.name.includes("x64-setup.exe"));
+
+                if (asset) {
+                    // Update all download buttons pointing to the latest release page
+                    const downloadBtns = document.querySelectorAll('a[href*="/releases/latest"]');
+                    downloadBtns.forEach(btn => {
+                        btn.href = asset.browser_download_url;
+                    });
+                }
+            } catch (error) {
+                console.error("Failed to fetch latest release:", error);
+            }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.js"></script>
+
+    <script>
+        (function () {
+            const screenshotsCard = document.getElementById('screenshots-card');
+            const screenshotLinks = Array.from(document.querySelectorAll('[data-fancybox="screenshots"]'));
+            const faqOpenButton = document.getElementById('faq-open-button');
+            const panelShell = document.getElementById('faq-panel-shell');
+            const panel = document.getElementById('faq-panel');
+            const panelBackdrop = document.getElementById('faq-panel-backdrop');
+            const panelClose = document.getElementById('faq-panel-close');
+            const faqItems = Array.from(document.querySelectorAll('.faq-item'));
+            let lastPanelTrigger = null;
+            const setupScreenshotsFade = (fancyboxRef) => {
+                const viewport = fancyboxRef.getCarousel?.()?.getViewport?.();
+
+                if (!viewport || viewport.dataset.screenshotsFadeReady === 'true') {
+                    return;
+                }
+
+                viewport.dataset.screenshotsFadeReady = 'true';
+
+                const prepSlide = (node) => {
+                    if (!(node instanceof HTMLElement) || !node.hasAttribute('index')) {
+                        return;
+                    }
+
+                    node.classList.add('is-mounting');
+
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            node.classList.remove('is-mounting');
+                        });
+                    });
+                };
+
+                Array.from(viewport.children).forEach(prepSlide);
+
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        mutation.addedNodes.forEach(prepSlide);
+                    });
+                });
+
+                observer.observe(viewport, { childList: true });
+                fancyboxRef.__screenshotsFadeObserver = observer;
+            };
+            const teardownScreenshotsFade = (fancyboxRef) => {
+                fancyboxRef.__screenshotsFadeObserver?.disconnect();
+                delete fancyboxRef.__screenshotsFadeObserver;
+            };
+
+            if (window.Fancybox) {
+                Fancybox.bind('[data-fancybox="screenshots"]', {
+                    animated: true,
+                    mainClass: 'screenshots-fancybox',
+                    Carousel: {
+                        preload: 2,
+                    },
+                    on: {
+                        ready: setupScreenshotsFade,
+                        'Carousel.ready': setupScreenshotsFade,
+                        close: teardownScreenshotsFade,
+                        destroy: teardownScreenshotsFade,
+                    },
+                });
+            }
+
+            screenshotsCard?.addEventListener('click', () => {
+                if (window.Fancybox) {
+                    Fancybox.fromSelector('[data-fancybox="screenshots"]');
+                    return;
+                }
+
+                screenshotLinks[0]?.click();
+            });
+
+            const setOpenItem = (nextItem) => {
+                faqItems.forEach((item) => {
+                    const isOpen = item === nextItem;
+                    item.classList.toggle('is-open', isOpen);
+
+                    const toggle = item.querySelector('.faq-item-toggle');
+                    if (toggle) {
+                        toggle.setAttribute('aria-expanded', String(isOpen));
+                    }
+                });
+            };
+
+            faqItems.forEach((item, index) => {
+                const toggle = item.querySelector('.faq-item-toggle');
+                toggle?.addEventListener('click', () => {
+                    const isOpening = !item.classList.contains('is-open');
+                    setOpenItem(item);
+
+                    if (isOpening) {
+                        setTimeout(() => {
+                            const panelBody = document.querySelector('.faq-panel-body');
+                            const itemRect = item.getBoundingClientRect();
+                            const bodyRect = panelBody.getBoundingClientRect();
+
+                            // Check if item is out of view (especially the bottom of the expanded answer)
+                            if (itemRect.bottom > bodyRect.bottom || itemRect.top < bodyRect.top) {
+                                // Calculate the precise scroll position
+                                const scrollOffset = item.offsetTop - panelBody.offsetTop;
+                                panelBody.scrollTo({
+                                    top: scrollOffset,
+                                    behavior: 'smooth'
+                                });
+                            }
+                        }, 280); // Wait for CSS transition
+                    }
+                });
+
+                if (index === 0) {
+                    setOpenItem(item);
+                }
+            });
+
+            const openPanel = () => {
+                lastPanelTrigger = document.activeElement;
+                panelShell?.classList.add('is-open');
+                panelShell?.setAttribute('aria-hidden', 'false');
+                faqOpenButton?.setAttribute('aria-expanded', 'true');
+                document.body.classList.add('faq-panel-open');
+                panel?.focus();
+            };
+
+            const closePanel = () => {
+                panelShell?.classList.remove('is-open');
+                panelShell?.setAttribute('aria-hidden', 'true');
+                faqOpenButton?.setAttribute('aria-expanded', 'false');
+                document.body.classList.remove('faq-panel-open');
+                lastPanelTrigger?.focus?.();
+            };
+
+            faqOpenButton?.addEventListener('click', openPanel);
+            panelClose?.addEventListener('click', closePanel);
+            panelBackdrop?.addEventListener('click', closePanel);
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && panelShell?.classList.contains('is-open')) {
+                    closePanel();
+                }
+            });
+        })();
+    </script>
+
+    <script>
+        (function () {
+            const canvas = document.getElementById('stars-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            let width, height;
+            const colors = [
+                '#c084fc', // pop-purple
+                '#4ade80', // pop-green
+                '#fb923c', // pop-orange
+                '#f472b6', // pop-pink
+                '#60a5fa', // pop-blue
+                '#fde047', // pop-yellow
+                '#ffffff'  // white
+            ];
+
+            let stars = [];
+            const STAR_COUNT = 100;
+
+            let currentFtl = 1;
+            let targetFtl = 1;
+            let ftlTimeout;
+
+            function resize() {
+                width = canvas.offsetWidth;
+                height = canvas.offsetHeight;
+                canvas.width = width * window.devicePixelRatio;
+                canvas.height = height * window.devicePixelRatio;
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+
+            class Star {
+                constructor(randomY = true) {
+                    this.reset(randomY);
+                }
+
+                reset(randomY = false) {
+                    this.x = Math.random() * width;
+                    this.y = randomY ? Math.random() * height : height + 10 + (Math.random() * currentFtl * 5);
+                    this.baseSize = Math.random() * 3 + 1.5; // 1.5px to 4.5px
+                    this.color = colors[Math.floor(Math.random() * colors.length)];
+
+                    const duration = Math.random() * 15 + 5; // 5 to 20 seconds
+                    const distance = window.innerHeight * 1.2;
+                    this.speed = distance / (duration * 60);
+
+                    this.progress = randomY ? Math.random() : 0;
+                    this.progressSpeed = 1 / (duration * 60);
+                }
+
+                update() {
+                    this.y -= this.speed * currentFtl;
+                    this.progress += this.progressSpeed * (1 + (currentFtl - 1) * 0.1);
+
+                    if (this.progress >= 1 || this.y < -200) {
+                        this.reset();
+                    }
+                }
+
+                draw() {
+                    let opacity = 0;
+                    if (this.progress < 0.2) {
+                        opacity = this.progress / 0.2 * 0.8;
+                    } else if (this.progress < 0.8) {
+                        opacity = 0.8;
+                    } else {
+                        opacity = (1 - this.progress) / 0.2 * 0.8;
+                    }
+
+                    // Keep them bright during FTL
+                    if (currentFtl > 2) {
+                        opacity = Math.min(1, opacity * 1.5);
+                    }
+
+                    // Smoothly scale up during FTL
+                    const ftlScale = 1 + Math.min(1.5, (currentFtl - 1) / 15);
+                    const scale = (0.5 + this.progress) * ftlScale;
+                    const size = this.baseSize * scale;
+
+                    ctx.save();
+                    ctx.globalAlpha = opacity;
+
+                    // Smoothly fade out blur to maintain performance with long trails
+                    ctx.shadowBlur = Math.max(0, size * 2 * (1 - (currentFtl - 1) / 2));
+                    ctx.shadowColor = this.color;
+
+                    // Smooth transition from circle to stretched line
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+
+                    // Stretch is near 0 at normal speed, grows seamlessly with FTL
+                    const stretch = Math.max(0.1, (currentFtl - 1) * this.speed * 2);
+                    ctx.lineTo(this.x, this.y + stretch);
+
+                    ctx.lineWidth = size;
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = this.color;
+                    ctx.stroke();
+
+                    ctx.restore();
+                }
+            }
+
+            for (let i = 0; i < STAR_COUNT; i++) {
+                stars.push(new Star(true));
+            }
+
+            let animationFrameId;
+            function animate() {
+                // Smooth easing for FTL speed up and slow down
+                currentFtl += (targetFtl - currentFtl) * 0.05;
+
+                ctx.clearRect(0, 0, width, height);
+                for (let star of stars) {
+                    star.update();
+                    star.draw();
+                }
+                animationFrameId = requestAnimationFrame(animate);
+            }
+
+            // Start animation only when in viewport to save resources
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        if (!animationFrameId) animate();
+                    } else {
+                        if (animationFrameId) {
+                            cancelAnimationFrame(animationFrameId);
+                            animationFrameId = null;
+                        }
+                    }
+                });
+            });
+
+            observer.observe(canvas);
+
+            // Scroll animation for CTA text
+            const ctaObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        document.querySelectorAll('.cta-animate').forEach(el => {
+                            el.classList.add('is-visible');
+                        });
+                        // Optional: unobserve after animating once
+                        ctaObserver.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.5 });
+
+            const ctaBox = document.querySelector('.cta-box');
+            if (ctaBox) {
+                ctaObserver.observe(ctaBox);
+            }
+
+            // FTL Trigger on download
+            const replaySection = document.getElementById('replay-section');
+            const replayBtn = document.getElementById('replay-btn');
+
+            function triggerFTL() {
+                targetFtl = 40;
+                if (ftlTimeout) clearTimeout(ftlTimeout);
+                ftlTimeout = setTimeout(() => {
+                    targetFtl = 1;
+
+                    // Show replay section after animation slows down
+                    setTimeout(() => {
+                        if (replaySection && !replaySection.classList.contains('is-visible')) {
+                            replaySection.classList.add('is-visible');
+                            setTimeout(() => {
+                                replaySection.classList.add('is-faded-in');
+                            }, 50);
+                        }
+                    }, 1000);
+                }, 3000);
+            }
+
+            document.querySelectorAll('.btn-primary').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    triggerFTL();
+                });
+            });
+
+            if (replayBtn) {
+                replayBtn.addEventListener('click', () => {
+                    triggerFTL();
+                });
+            }
+        })();
+    </script>
+</body>
+
+</html>
