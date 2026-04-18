@@ -928,9 +928,9 @@
         /* CTA */
         .bottom-cta {
             width: calc(100vw - 40px);
-            height: 100dvh;
-            padding: 20px 0;
-            margin: auto;
+            height: calc(100dvh - 36px);
+            padding: 0;
+            margin: 16px auto 20px auto;
             box-sizing: border-box;
             display: flex;
         }
@@ -1224,6 +1224,96 @@
             font-size: 1rem;
             width: 100%;
             justify-content: center;
+        }
+
+        /* FAQ Section */
+        .faq-section {
+            width: calc(100vw - 40px);
+            margin: 16px auto;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .faq-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 1024px) {
+            .faq-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 665px) {
+            .faq-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .faq-heading-card {
+            background: var(--surface);
+            border-radius: var(--radius-box);
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            grid-column: span 2;
+        }
+
+        @media (max-width: 1024px) {
+            .faq-heading-card {
+                grid-column: span 2;
+            }
+        }
+
+        @media (max-width: 665px) {
+            .faq-heading-card {
+                grid-column: span 1;
+            }
+        }
+
+        .faq-title {
+            font-size: 3rem;
+            line-height: 1.1;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .faq-heading-card p {
+            font-size: 1.2rem;
+            color: var(--text-dim);
+        }
+
+        .faq-card {
+            border-radius: var(--radius-box);
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .faq-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .faq-card h3 {
+            font-size: 1.8rem;
+            line-height: 1.2;
+        }
+
+        .faq-card p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .faq-card.bg-surface p {
+            color: var(--text-dim);
         }
     </style>
 </head>
@@ -1536,6 +1626,40 @@
                     </div>
                 </div>
 
+            </div>
+        </div>
+    </section>
+
+    <section class="faq-section">
+        <div class="faq-container">
+            <div class="faq-heading-card bg-gradient-dark">
+                <h2 class="faq-title">Frequently Asked Questions</h2>
+                <p>Because every website has to have one</p>
+            </div>
+
+            <div class="faq-card bg-purple">
+                <h3>What is silence!?</h3>
+                <p>silence! is a ridiculously good Windows utility that lets you mute your microphone at the OS level using global hotkeys, hold-to-talk, and custom gamepad buttons.</p>
+            </div>
+
+            <div class="faq-card bg-green">
+                <h3>How does it differ from my app's mute?</h3>
+                <p>Unlike Discord or Zoom mute which only mutes you in that specific app, silence! mutes your actual microphone device in Windows. This means you are muted everywhere simultaneously.</p>
+            </div>
+
+            <div class="faq-card bg-orange">
+                <h3>Does it support my controller/gamepad?</h3>
+                <p>Yes! You can bind mute actions straight to your controller buttons and combos, so you don't even need to touch your keyboard while gaming.</p>
+            </div>
+
+            <div class="faq-card bg-blue">
+                <h3>Will the hotkeys work while I'm in a game?</h3>
+                <p>Absolutely. The global hotkeys operate at a low level, meaning they will fire reliably even if you're in a fullscreen game with other modifiers pressed.</p>
+            </div>
+
+            <div class="faq-card bg-pink">
+                <h3>Is it really free?</h3>
+                <p>Yes, silence! is completely free and open-source forever. No ads, no premium tiers, just a clean utility built for the community.</p>
             </div>
         </div>
     </section>
