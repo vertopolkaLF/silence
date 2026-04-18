@@ -498,8 +498,8 @@
                 }
             }
 
-            h2,
-            h3 {
+            h3,
+            h4 {
                 font-size: 2.2rem;
                 line-height: 1.1;
                 margin-bottom: 16px;
@@ -917,8 +917,8 @@
             grid-column: span 2;
             grid-row: span 2;
 
-            h2,
-            h3 {
+            h3,
+            h4 {
                 font-size: 3rem;
             }
         }
@@ -938,7 +938,7 @@
             grid-row: span 1;
             padding: 30px;
 
-            h3 {
+            h4 {
                 font-size: 1.5rem;
             }
 
@@ -1348,11 +1348,23 @@
             transform: translateY(0);
         }
 
-        .replay-section h4 {
+        .replay-section h3 {
             font-size: 1.5rem;
             margin-bottom: 8px;
             line-height: 1.2;
             color: var(--text);
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         .replay-text {
@@ -1574,8 +1586,14 @@
         }
 
         .faq-panel-title {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
             font-size: clamp(1.8rem, 3vw, 2.4rem);
             line-height: 1.05;
+            color: var(--text) !important;
+            margin: 0;
+            max-width: unset !important;
         }
 
         .faq-panel-title-group p {
@@ -1856,8 +1874,9 @@
         </section>
     </div>
 
-    <section class="bento-section bento-anim">
+    <section class="bento-section bento-anim" aria-labelledby="features-title">
         <div class="bento-grid-wrapper">
+            <h2 class="visually-hidden" id="features-title">silence! features</h2>
             <div class="bento-grid">
 
                 <div class="bento-card span-2x2 bg-gradient-dark">
@@ -1931,7 +1950,7 @@
                         <iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h2>Global<br>Hotkeys.</h2>
+                        <h3>Global<br>Hotkeys.</h3>
                         <p>Pick any shortcut, use it everywhere, and let it still fire even when extra modifiers are pressed in games.</p>
                     </div>
                 </div>
@@ -1942,7 +1961,7 @@
                         <iconify-icon icon="solar:command-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Multi-Action Shortcuts</h3>
+                        <h4>Multi-Action Shortcuts</h4>
                         <p>Give toggle, mute, and unmute their own dedicated shortcuts.</p>
                     </div>
                 </div>
@@ -1953,7 +1972,7 @@
                         <iconify-icon icon="solar:stopwatch-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Auto-Mute Timer</h3>
+                        <h4>Auto-Mute Timer</h4>
                         <p>Set a timeout so silence! mutes the mic for you if you forget.</p>
                     </div>
                 </div>
@@ -1964,7 +1983,7 @@
                         <iconify-icon icon="solar:gamepad-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Gamepad Support</h3>
+                        <h4>Gamepad Support</h4>
                         <p>Bind mute actions straight to controller buttons and combos.</p>
                     </div>
                 </div>
@@ -1975,7 +1994,7 @@
                         <iconify-icon icon="solar:microphone-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Hold-to-Talk</h3>
+                        <h4>Hold-to-Talk</h4>
                         <p>Hold to mute, hold to unmute, or mix hold rules with toggle.</p>
                     </div>
                 </div>
@@ -1985,7 +2004,7 @@
                         <iconify-icon icon="solar:target-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Mic Selection</h3>
+                        <h4>Mic Selection</h4>
                         <p>Choose exactly which microphone to mute. Or mute them all!</p>
                     </div>
                 </div>
@@ -2004,7 +2023,7 @@
                         <iconify-icon icon="solar:layers-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h2>Visual Overlay</h2>
+                        <h3>Visual Overlay</h3>
                         <p>Keep your mute state visible above any app with an indicator that can show an icon, text, or both.</p>
                     </div>
                 </div>
@@ -2016,7 +2035,7 @@
                         <iconify-icon icon="fluent:cursor-click-24-filled"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>On-Screen Mic Button</h3>
+                        <h4>On-Screen Mic Button</h4>
                         <p>Turn the overlay into a big on-screen button so you can control your mic with a click.</p>
                     </div>
                 </div>
@@ -2026,7 +2045,7 @@
                         <iconify-icon icon="solar:map-point-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Flexible Positioning</h3>
+                        <h4>Flexible Positioning</h4>
                         <p>Drag it anywhere and snap it neatly to center when you want it tidy.</p>
                     </div>
                 </div>
@@ -2036,7 +2055,7 @@
                         <iconify-icon icon="solar:eye-closed-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Show After Toggle</h3>
+                        <h4>Show After Toggle</h4>
                         <p>Show the overlay briefly when state changes, then let it disappear again.</p>
                     </div>
                 </div>
@@ -2046,7 +2065,7 @@
                         <iconify-icon icon="solar:music-note-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h2>Sounds &<br>Custom Audio</h2>
+                        <h3>Sounds &<br>Custom Audio</h3>
                         <p>Pick from 8 built-in themes or bring MP3, WAV, FLAC, OGG, M4A, and WMA files so your mute state is obvious by ear.</p>
                     </div>
                 </div>
@@ -2057,7 +2076,7 @@
                         <iconify-icon icon="solar:volume-loud-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Per-Action Sound Control</h3>
+                        <h4>Per-Action Sound Control</h4>
                         <p>Tune mute, unmute, and hold-action sounds separately instead of sharing one flat volume.</p>
                     </div>
                 </div>
@@ -2068,7 +2087,7 @@
                         <iconify-icon icon="solar:bell-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>System Tray Controls</h3>
+                        <h4>System Tray Controls</h4>
                         <p>Live quietly in the tray, left-click to toggle instantly, and choose standard, filled-circle, or dot icon styles.</p>
                     </div>
                 </div>
@@ -2078,7 +2097,7 @@
                         <iconify-icon icon="solar:palette-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Native Windows UI</h3>
+                        <h4>Native Windows UI</h4>
                         <p>Built with WinUI 3, with Mica on Windows 11 and Acrylic on Windows 10.</p>
                     </div>
                 </div>
@@ -2088,7 +2107,7 @@
                         <iconify-icon icon="solar:moon-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Theme Sync</h3>
+                        <h4>Theme Sync</h4>
                         <p>Automatically matches your system theme and accent color.</p>
                     </div>
                 </div>
@@ -2098,7 +2117,7 @@
                         <iconify-icon icon="solar:rocket-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Startup Rules</h3>
+                        <h4>Startup Rules</h4>
                         <p>Start with Windows, launch straight to tray, or come up already muted.</p>
                     </div>
                 </div>
@@ -2109,7 +2128,7 @@
                         <iconify-icon icon="solar:magic-stick-3-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Actually Lightweight</h3>
+                        <h4>Actually Lightweight</h4>
                         <p>Sits at basically 0% CPU and around 70MB of RAM, so it stays out of your way while you do your thing.</p>
                     </div>
                 </div>
@@ -2119,7 +2138,7 @@
                         <iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Auto-Updates</h3>
+                        <h4>Auto-Updates</h4>
                         <p>Get new features and improvements without the usual update hassle.</p>
                     </div>
                 </div>
@@ -2178,7 +2197,7 @@
         <aside class="faq-panel" id="faq-panel" role="dialog" aria-modal="true" aria-labelledby="faq-panel-title" tabindex="-1">
             <div class="faq-panel-header">
                 <div class="faq-panel-title-group">
-                    <h2 class="faq-panel-title" id="faq-panel-title">Frequently Asked Questions</h2>
+                    <p class="faq-panel-title" id="faq-panel-title">Frequently Asked Questions</p>
                 </div>
                 <button type="button" class="faq-panel-close" id="faq-panel-close" aria-label="Close FAQ panel">
                     <iconify-icon icon="fluent:dismiss-20-filled"></iconify-icon>
@@ -2350,7 +2369,7 @@
                 </div>
 
                 <div id="replay-section" class="replay-section">
-                    <h4>Liked the animation?</h4>
+                    <h3>Liked the animation?</h3>
                     <p class="replay-text">Here is the button to enjoy it again.</p>
                     <button id="replay-btn" class="btn btn-secondary replay-btn">
                         <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
