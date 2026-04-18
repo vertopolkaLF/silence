@@ -10,7 +10,7 @@
     <meta name="robots" content="index, follow">
     <meta name="author" content="vertopolkalf">
     <meta name="application-name" content="silence!">
-    <meta name="theme-color" content="#0c0a09">
+    <meta name="theme-color" content="#fb923c">
     <link rel="canonical" href="https://vertopolkalf.github.io/silence/">
 
     <meta property="og:type" content="website">
@@ -948,14 +948,14 @@
             justify-content: center;
             text-align: center;
 
-            h2 {
+            .cta-main h2 {
                 font-size: clamp(3rem, 8vw, 5rem);
                 margin-bottom: 24px;
                 color: var(--text);
                 line-height: 1.1;
             }
 
-            p {
+            .cta-main p {
                 font-size: clamp(1.2rem, 3vw, 2rem);
                 color: var(--text-dim);
                 margin-bottom: 48px;
@@ -1175,9 +1175,9 @@
 
         .replay-section {
             display: none;
-            position: fixed;
-            bottom: 60px;
-            right: 60px;
+            position: absolute;
+            bottom: 0px;
+            right: 0px;
             width: 400px;
             background: rgba(28, 25, 23, 0.65);
             backdrop-filter: blur(20px);
@@ -1560,18 +1560,18 @@
                         <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkalf" target="_blank">vertopolkalf</a>.
                     </div>
                 </div>
+
+                <div id="replay-section" class="replay-section">
+                    <h4>Liked the animation?</h4>
+                    <p class="replay-text">Here is the button to enjoy it again.</p>
+                    <button id="replay-btn" class="btn btn-secondary replay-btn">
+                        <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
+                        Replay Animation
+                    </button>
+                </div>
             </div>
         </div>
     </section>
-
-    <div id="replay-section" class="replay-section">
-        <h4>Liked the animation?</h4>
-        <p class="replay-text">Here is the button to enjoy it again.</p>
-        <button id="replay-btn" class="btn btn-secondary replay-btn">
-            <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
-            Replay Animation
-        </button>
-    </div>
 
     <script>
         // Fetch the latest release from GitHub API and update download links
