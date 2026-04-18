@@ -324,6 +324,20 @@
             width: 100%;
         }
 
+        .nav-link {
+            color: rgba(250, 250, 249, 0.84);
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .nav-link:hover,
+        .nav-link:focus-visible {
+            color: var(--text);
+        }
+
         .brand {
             font-size: 2.5rem;
             text-decoration: none;
@@ -1700,6 +1714,11 @@
             margin-top: 16px;
         }
 
+        .fancybox__container {
+            --f-animation-duration: 0.3s;
+            --f-transition-duration: 0.3s;
+        }
+
         .fancybox__backdrop {
             background: rgba(12, 10, 9, 0.94);
         }
@@ -1708,6 +1727,28 @@
             --f-button-bg: rgba(255, 255, 255, 0.08);
             --f-button-hover-bg: rgba(255, 255, 255, 0.14);
             --f-button-color: var(--text);
+        }
+
+        .screenshots-fancybox .fancybox__viewport {
+            position: relative;
+        }
+
+        .screenshots-fancybox .fancybox__viewport>[index] {
+            position: absolute !important;
+            inset: 0;
+            transform: none !important;
+            opacity: 0 !important;
+            pointer-events: none;
+            transition: opacity 0.35s ease !important;
+        }
+
+        .screenshots-fancybox .fancybox__viewport>[index].is-selected {
+            opacity: 1 !important;
+            pointer-events: auto;
+        }
+
+        .screenshots-fancybox .fancybox__viewport>[index].is-mounting {
+            opacity: 0 !important;
         }
 
         @media (max-width: 700px) {
@@ -1773,9 +1814,13 @@
             <a href="#" class="brand">
                 silence<span>!</span>
             </a>
-            <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
-                Download
-            </a>
+            <div style="display: flex; gap: 24px; align-items: center;">
+                <a href="#screenshots" class="nav-link" onclick="document.getElementById('screenshots-card')?.click(); return false;">Screenshots</a>
+                <a href="#faq" class="nav-link" onclick="document.getElementById('faq-open-button')?.click(); return false;">FAQ</a>
+                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
+                    Download
+                </a>
+            </div>
         </nav>
 
         <section class="hero">
@@ -1997,7 +2042,7 @@
                         <iconify-icon icon="solar:music-note-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h2>Sound Themes &<br>Custom Audio</h2>
+                        <h2>Sounds &<br>Custom Audio</h2>
                         <p>Pick from 8 built-in themes or bring MP3, WAV, FLAC, OGG, M4A, and WMA files so your mute state is obvious by ear.</p>
                     </div>
                 </div>
@@ -2154,6 +2199,23 @@
                             </div>
                         </div>
                     </article>
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Can I request a feature?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>Please do! A lot of features in the updates came from the community, including the clickable on-screen mute button, auto-mute, and Hold-to-Mute.</p>
+                                    <p>You can suggest a feature or report a bug on <a href="https://github.com/vertopolkalf/silence/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
 
                     <article class="faq-item">
                         <button type="button" class="faq-item-toggle" aria-expanded="false">
@@ -2167,57 +2229,6 @@
                                 <div class="faq-item-answer-content">
                                     <p>silence! mutes the selected microphone device directly, so it keeps working even when Windows says there are no supported apps using the mic.</p>
                                     <p>It is also a more reliable way to mute the mic, and it works on Windows 10 too.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Why this app was made in the first place?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>I'm a bit addicted to control and efficiency while using my PC, and I wanted a shortcut to mute my mic. Reaching for a Stream Deck during gaming was awkward.</p>
-                                    <p>I tried a lot of alternatives. Some relied on AHK and got blocked in games, and some were just bad. I got tired of that and decided to build my own app for something as simple as muting the mic.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Why C#, .NET and WinUI?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>It felt like the best fit for Windows. I wanted the app to be as invisible as possible and still feel native.</p>
-                                    <p>I was also tired of building custom GUIs and reinventing design choices for desktop apps.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Can I request a feature?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>Please do. A lot of features in the updates came from the community, including the clickable on-screen mute button, auto-mute, and Hold-to-Mute.</p>
-                                    <p>You can suggest a feature or report a bug on <a href="https://github.com/vertopolkalf/silence/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
                                 </div>
                             </div>
                         </div>
@@ -2272,6 +2283,42 @@
                             </div>
                         </div>
                     </article>
+
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Why this app was made in the first place?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>I'm a bit addicted to control and efficiency while using my PC, and I wanted a shortcut to mute my mic. Reaching for a Stream Deck during gaming was awkward.</p>
+                                    <p>I tried a lot of alternatives. Some relied on AHK and got blocked in games, and some were just bad. I got tired of that and decided to build my own app for something as simple as muting the mic.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>Why C#, .NET and WinUI?</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>It felt like the best fit for Windows. I wanted the app to be as invisible as possible and still feel native.</p>
+                                    <p>I was also tired of building custom GUIs and reinventing design choices for desktop apps.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
                 </div>
             </div>
         </aside>
@@ -2359,12 +2406,58 @@
             const panelClose = document.getElementById('faq-panel-close');
             const faqItems = Array.from(document.querySelectorAll('.faq-item'));
             let lastPanelTrigger = null;
+            const setupScreenshotsFade = (fancyboxRef) => {
+                const viewport = fancyboxRef.getCarousel?.()?.getViewport?.();
+
+                if (!viewport || viewport.dataset.screenshotsFadeReady === 'true') {
+                    return;
+                }
+
+                viewport.dataset.screenshotsFadeReady = 'true';
+
+                const prepSlide = (node) => {
+                    if (!(node instanceof HTMLElement) || !node.hasAttribute('index')) {
+                        return;
+                    }
+
+                    node.classList.add('is-mounting');
+
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            node.classList.remove('is-mounting');
+                        });
+                    });
+                };
+
+                Array.from(viewport.children).forEach(prepSlide);
+
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        mutation.addedNodes.forEach(prepSlide);
+                    });
+                });
+
+                observer.observe(viewport, { childList: true });
+                fancyboxRef.__screenshotsFadeObserver = observer;
+            };
+            const teardownScreenshotsFade = (fancyboxRef) => {
+                fancyboxRef.__screenshotsFadeObserver?.disconnect();
+                delete fancyboxRef.__screenshotsFadeObserver;
+            };
 
             if (window.Fancybox) {
                 Fancybox.bind('[data-fancybox="screenshots"]', {
                     animated: true,
-                    showClass: 'f-fadeIn',
-                    hideClass: 'f-fadeOut'
+                    mainClass: 'screenshots-fancybox',
+                    Carousel: {
+                        preload: 2,
+                    },
+                    on: {
+                        ready: setupScreenshotsFade,
+                        'Carousel.ready': setupScreenshotsFade,
+                        close: teardownScreenshotsFade,
+                        destroy: teardownScreenshotsFade,
+                    },
                 });
             }
 
