@@ -81,6 +81,22 @@
                 },
                 {
                     "@type": "Question",
+                    "name": "Why this app was made in the first place?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "I care a lot about control and efficiency while using my PC, and I wanted a shortcut to mute my microphone. Reaching for a Stream Deck during gaming was awkward, and many other options were unreliable, blocked in games, or just not good. I got tired of that and decided to build my own app for something as simple as muting the mic."
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Why C#, .NET and WinUI?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "It felt like the best fit for Windows. I wanted the app to be as invisible and native-feeling as possible, and I was tired of building custom GUIs and reinventing design choices."
+                    }
+                },
+                {
+                    "@type": "Question",
                     "name": "Can I request a feature?",
                     "acceptedAnswer": {
                         "@type": "Answer",
@@ -1745,21 +1761,31 @@
             </div>
 
             <div class="faq-card bg-faq-orange">
+                <h3>Why this app was made in the first place?</h3>
+                <p>Great question! I'm a bit addicted to control and efficiency while I'm on my PC. I have a lot of custom shortcuts and I wanted a shortcut to mute my mic. I also have Stream Deck but it was uncomfortable to reach it during gaming.<br /><br />I tried A LOT of options, some was made on AHK base and some games blocked it, some was just straight up bad. I was so tired so I decided to make my own app for such simple thing as muting mic.</p>
+            </div>
+
+            <div class="faq-card bg-faq-blue">
+                <h3>Why C#, .NET and WinUI?</h3>
+                <p>It just feels like the best option for Windows, idk. I wanted app to be as invisible as possible, and feel native. And also I was a bit tired of making custom GUIs and reinventing design choices.</p>
+            </div>
+
+            <div class="faq-card bg-faq-pink">
                 <h3>Can I request a feature?</h3>
                 <p>Please do! A lot of features in the updates came from the community, like clickable mute button on screen, auto-mute and even Hold-to-Mute. You can suggest a feature or report a bug on <a href="https://github.com/vertopolkaLF/Silence-/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
             </div>
 
-            <div class="faq-card bg-faq-blue">
+            <div class="faq-card bg-faq-yellow">
                 <h3>Can silence! mute only one app instead of muting me everywhere?</h3>
                 <p>No, it's designed as a system-level mic mute. If you mute with silence!, your microphone is muted for every app using that device.</p>
             </div>
 
-            <div class="faq-card bg-faq-pink">
+            <div class="faq-card bg-faq-purple">
                 <h3>Does it warn me if I start talking while muted?</h3>
                 <p>No, and probably never will. My goal with this app is to make it reliable, everything else comes after. <br /><br />And muting the mic in the way that silence! would have access to mic and other apps not could lead to mic being not muted. Also when mic is muted, silence! also doesn't have access to the microphone.</p>
             </div>
 
-            <div class="faq-card bg-faq-yellow">
+            <div class="faq-card bg-faq-green">
                 <h3>Can I 100% trust that my mic is muted?</h3>
                 <p>You never should trust anything for 100% :) But I'm pretty confident in my app. It uses low-level hotkey detection and mutes mic in a <i>Windows way&trade;</i>. <br /><br />When you mute your mic with silence!, you can check in microphone properties that its output is muted. Also some mics with physical indicators on them will show that it's muted. But keep in mind that some apps can forcefully unmute mic. Teams loves to do so when you join the meeting.</p>
             </div>
