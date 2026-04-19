@@ -38,6 +38,8 @@ public partial class GamepadInputService(
     private readonly Func<IReadOnlyList<int>> _pressedChordKeysProvider = pressedChordKeysProvider ?? (() => []);
 
     private Timer? _pollTimer;
+    private bool _isRecording;
+    private bool _suppressFirstPoll;
     private ulong _activeHoldButtonsMask;
     private int? _activeHoldSourceUserIndex;
     private List<int> _activeHoldChordKeys = [];
@@ -56,7 +58,29 @@ public partial class GamepadInputService(
     public event Action<ulong, IReadOnlyList<int>>? RecordingButtonsChanged;
     public event Action<double>? ButtonHoldProgress;
 
-    public bool IsRecording { get; set; }
+    public bool IsRecording
+    {
+        get
+        {
+            lock (_syncLock)
+            {
+                return _isRecording;
+            }
+        }
+        set
+        {
+            lock (_syncLock)
+            {
+                if (_isRecording == value)
+                {
+                    return;
+                }
+
+                _isRecording = value;
+                EnsurePollingStateLocked();
+            }
+        }
+    }
 
     public void StartMonitoring(
         IEnumerable<HotkeyBindingSettings>? hotkeys = null,
@@ -68,9 +92,8 @@ public partial class GamepadInputService(
             UpdateHoldHotkeysLocked(holdHotkeys);
             ResetActiveHoldLocked();
             ResetRecordingStateLocked();
-            PrimeKnownGamepadsLocked();
-            _pollTimer?.Dispose();
-            _pollTimer = new Timer(PollGamepads, null, PollingIntervalMs, PollingIntervalMs);
+            _suppressFirstPoll = true;
+            EnsurePollingStateLocked();
         }
     }
 
@@ -80,6 +103,8 @@ public partial class GamepadInputService(
         {
             _pollTimer?.Dispose();
             _pollTimer = null;
+            _isRecording = false;
+            _suppressFirstPoll = false;
             _previousPressedMasks.Clear();
             _previousPressedChordKeys = [];
             ResetActiveHoldLocked();
@@ -92,6 +117,7 @@ public partial class GamepadInputService(
         lock (_syncLock)
         {
             UpdateHotkeysLocked(hotkeys);
+            EnsurePollingStateLocked();
         }
     }
 
@@ -101,6 +127,7 @@ public partial class GamepadInputService(
         {
             UpdateHoldHotkeysLocked(holdHotkeys);
             ResetActiveHoldLocked();
+            EnsurePollingStateLocked();
         }
     }
 
@@ -234,7 +261,22 @@ public partial class GamepadInputService(
 
         RemoveDisconnectedGamepadsLocked(currentMasks.Keys, pendingActions);
 
-        if (!IsRecording)
+        if (_suppressFirstPoll && !_isRecording)
+        {
+            _previousPressedMasks.Clear();
+            foreach (var pair in currentMasks)
+            {
+                _previousPressedMasks[pair.Key] = pair.Value;
+            }
+
+            _previousPressedChordKeys = [.. currentChordKeys];
+            _suppressFirstPoll = false;
+            return pendingActions;
+        }
+
+        _suppressFirstPoll = false;
+
+        if (!_isRecording)
         {
             HandleChordOnlyHoldStateLocked(previousChordKeys, currentChordKeys, pendingActions);
         }
@@ -245,7 +287,7 @@ public partial class GamepadInputService(
                 ? storedPreviousMask
                 : 0;
 
-            if (!IsRecording)
+            if (!_isRecording)
             {
                 HandleHoldStateLocked(pair.Key, previousMask, pair.Value, previousChordKeys, currentChordKeys, pendingActions);
             }
@@ -253,7 +295,7 @@ public partial class GamepadInputService(
             _previousPressedMasks[pair.Key] = pair.Value;
         }
 
-        if (IsRecording)
+        if (_isRecording)
         {
             UpdateRecordingStateLocked(currentMasks, recordingChordKeys, pendingActions);
         }
@@ -453,7 +495,8 @@ public partial class GamepadInputService(
 
             var capturedMask = _recordingButtonsMask;
             List<int> capturedChordKeys = [.. _recordingChordKeys];
-            IsRecording = false;
+            _isRecording = false;
+            EnsurePollingStateLocked();
             ResetRecordingStateLocked();
             QueueRecordingUiUpdate(pendingActions, 0, [], 0);
             pendingActions.Add(() => ButtonsCaptured?.Invoke(capturedMask, capturedChordKeys));
@@ -528,6 +571,22 @@ public partial class GamepadInputService(
                 _previousPressedMasks[userIndex] = GetPressedMask(state.Gamepad);
             }
         }
+    }
+
+    private void EnsurePollingStateLocked()
+    {
+        if (_isRecording || _hotkeys.Count > 0 || _holdHotkeys.Count > 0)
+        {
+            _pollTimer ??= new Timer(PollGamepads, null, PollingIntervalMs, PollingIntervalMs);
+            return;
+        }
+
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+        _suppressFirstPoll = false;
+        _previousPressedMasks.Clear();
+        _previousPressedChordKeys = [];
+        ResetActiveHoldLocked();
     }
 
     private void ResetActiveHoldLocked()

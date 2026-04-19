@@ -1,3 +1,15 @@
+# silence! v1.9.2 - Startup Lag Fix
+
+> **Less startup hitching. Less controller nonsense.**
+
+## What's New in v1.9.2
+
+- **Reduced startup lag after gamepad support update** - Reworked gamepad monitoring startup so the app avoids unnecessary polling and no longer does the same heavy work immediately on launch.
+
+- **Safer first gamepad poll behavior** - Startup no longer treats the controller's initial state like a fresh button press, which helps avoid weirdness right after launch.
+
+---
+
 # silence! v1.9.1 - Patch Fixes
 
 > **Small patch. Less weirdness.**
