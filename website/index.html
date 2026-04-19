@@ -81,6 +81,14 @@
                 },
                 {
                     "@type": "Question",
+                    "name": "How is it better the muting in the Discord/Teams/[insert app name]",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "You don't need to set up same shortcut in all the apps, because silence! works for everything at once. You don't need to remember the shortcuts for each of the app. You can always see that you are 100% muted. If the app doesn't have shortucut for muting you need to open app window and click mute. There's a long list, I should stop 😅"
+                    }
+                },
+                {
+                    "@type": "Question",
                     "name": "Why this app was made in the first place?",
                     "acceptedAnswer": {
                         "@type": "Answer",
@@ -2217,6 +2225,7 @@
 
             <div class="faq-panel-body">
                 <div class="faq-list" role="list">
+
                     <article class="faq-item is-open">
                         <button type="button" class="faq-item-toggle" aria-expanded="true">
                             <h3>Why use silence! if my mic already has a physical mute button?</h3>
@@ -2233,6 +2242,7 @@
                             </div>
                         </div>
                     </article>
+
                     <article class="faq-item">
                         <button type="button" class="faq-item-toggle" aria-expanded="false">
                             <h3>Can I request a feature?</h3>
@@ -2250,7 +2260,6 @@
                         </div>
                     </article>
 
-
                     <article class="faq-item">
                         <button type="button" class="faq-item-toggle" aria-expanded="false">
                             <h3>How is this different from Windows 11's Win + Alt + K mute shortcut?</h3>
@@ -2263,6 +2272,22 @@
                                 <div class="faq-item-answer-content">
                                     <p>silence! mutes the selected microphone device directly, so it keeps working even when Windows says there are no supported apps using the mic.</p>
                                     <p>It is also a more reliable way to mute the mic, and it works on Windows 10 too.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="faq-item">
+                        <button type="button" class="faq-item-toggle" aria-expanded="false">
+                            <h3>How is it better the muting in the Discord/Teams/[insert app name]</h3>
+                            <span class="faq-item-indicator" aria-hidden="true">
+                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
+                            </span>
+                        </button>
+                        <div class="faq-item-answer">
+                            <div class="faq-item-answer-inner">
+                                <div class="faq-item-answer-content">
+                                    <p>You don't need to set up same shortcut in all the apps, because silence! works for everything at once. You don't need to remember the shortcuts for each of the app. You can always see that you are 100% muted. If the app doesn't have shortucut for muting you need to open app window and click mute. There's a long list, I should stop 😅</p>
                                 </div>
                             </div>
                         </div>
@@ -2469,6 +2494,7 @@
             const panelBackdrop = document.getElementById('faq-panel-backdrop');
             const panelClose = document.getElementById('faq-panel-close');
             const faqItems = Array.from(document.querySelectorAll('.faq-item'));
+            const isFaqHash = () => window.location.hash.toLowerCase() === '#faq';
             let lastPanelTrigger = null;
             const setupScreenshotsFade = (fancyboxRef) => {
                 const viewport = fancyboxRef.getCarousel?.()?.getViewport?.();
@@ -2597,11 +2623,21 @@
             panelClose?.addEventListener('click', closePanel);
             panelBackdrop?.addEventListener('click', closePanel);
 
+            window.addEventListener('hashchange', () => {
+                if (isFaqHash()) {
+                    openPanel();
+                }
+            });
+
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape' && panelShell?.classList.contains('is-open')) {
                     closePanel();
                 }
             });
+
+            if (isFaqHash()) {
+                openPanel();
+            }
         })();
     </script>
 
