@@ -68,16 +68,16 @@
 
 ## Screenshots
 
-| General and hotkeys | Hold to Mute |
-| --- | --- |
+| General and hotkeys                                        | Hold to Mute                                        |
+| ---------------------------------------------------------- | --------------------------------------------------- |
 | ![General settings and hotkeys](website/screenshots/1.png) | ![Hold to Mute settings](website/screenshots/2.png) |
 
-| Sounds | Overlay |
-| --- | --- |
+| Sounds                                        | Overlay                                        |
+| --------------------------------------------- | ---------------------------------------------- |
 | ![Sounds settings](website/screenshots/3.png) | ![Overlay settings](website/screenshots/4.png) |
 
-| Tray icon styles | Auto-Mute |
-| --- | --- |
+| Tray icon styles                               | Auto-Mute                                        |
+| ---------------------------------------------- | ------------------------------------------------ |
 | ![Tray icon styles](website/screenshots/6.png) | ![Auto-Mute settings](website/screenshots/7.png) |
 
 ## Installation
@@ -102,8 +102,8 @@ Requirements:
 - Visual Studio 2022 with the Windows application development workload
 
 ```powershell
-git clone https://github.com/vertopolkalf/Silence-.git
-cd Silence-
+git clone https://github.com/vertopolkalf/Silence.git
+cd Silence
 ```
 
 Then open `Silence!.sln` in Visual Studio, or publish the app with your preferred .NET / Windows App SDK workflow for `win-x64`, `win-x86`, or `win-arm64`.
