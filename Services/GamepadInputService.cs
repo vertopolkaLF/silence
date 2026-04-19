@@ -10,7 +10,9 @@ public partial class GamepadInputService(
     Func<IReadOnlyList<int>>? recordingChordKeysProvider = null,
     Func<IReadOnlyList<int>>? pressedChordKeysProvider = null) : IDisposable
 {
-    private const int PollingIntervalMs = 33;
+    private const int ActivePollingIntervalMs = 33;
+    private const int IdlePollingIntervalMs = 250;
+    private const int StartupPollingDelayMs = 250;
     private const double RecordingHoldDurationSeconds = 1.0;
     private const int MaxXInputUsers = 4;
     private const int XInputSuccess = 0;
@@ -38,6 +40,7 @@ public partial class GamepadInputService(
     private readonly Func<IReadOnlyList<int>> _pressedChordKeysProvider = pressedChordKeysProvider ?? (() => []);
 
     private Timer? _pollTimer;
+    private int _currentPollingIntervalMs;
     private bool _isRecording;
     private bool _suppressFirstPoll;
     private ulong _activeHoldButtonsMask;
@@ -241,22 +244,20 @@ public partial class GamepadInputService(
     private List<Action> PollGamepadsLocked()
     {
         List<Action> pendingActions = [];
+        Dictionary<int, XInputState> currentStates = GetConnectedControllerStates();
         Dictionary<int, ulong> currentMasks = new(MaxXInputUsers);
         Dictionary<int, ulong> previousMasks = new(MaxXInputUsers);
         List<int> currentChordKeys = NormalizeChordKeys(_pressedChordKeysProvider());
         List<int> previousChordKeys = [.. _previousPressedChordKeys];
         List<int> recordingChordKeys = NormalizeChordKeys(_recordingChordKeysProvider());
 
-        foreach (var userIndex in EnumerateConnectedControllers())
-        {
-            if (!TryGetControllerState(userIndex, out var state))
-            {
-                continue;
-            }
+        UpdatePollingCadenceLocked(currentStates.Count > 0);
 
-            currentMasks[userIndex] = GetPressedMask(state.Gamepad);
-            _previousPressedMasks.TryGetValue(userIndex, out var previousMask);
-            previousMasks[userIndex] = previousMask;
+        foreach (var pair in currentStates)
+        {
+            currentMasks[pair.Key] = GetPressedMask(pair.Value.Gamepad);
+            _previousPressedMasks.TryGetValue(pair.Key, out var previousMask);
+            previousMasks[pair.Key] = previousMask;
         }
 
         RemoveDisconnectedGamepadsLocked(currentMasks.Keys, pendingActions);
@@ -564,12 +565,9 @@ public partial class GamepadInputService(
         _previousPressedMasks.Clear();
         _previousPressedChordKeys = [];
 
-        foreach (var userIndex in EnumerateConnectedControllers())
+        foreach (var pair in GetConnectedControllerStates())
         {
-            if (TryGetControllerState(userIndex, out var state))
-            {
-                _previousPressedMasks[userIndex] = GetPressedMask(state.Gamepad);
-            }
+            _previousPressedMasks[pair.Key] = GetPressedMask(pair.Value.Gamepad);
         }
     }
 
@@ -577,16 +575,67 @@ public partial class GamepadInputService(
     {
         if (_isRecording || _hotkeys.Count > 0 || _holdHotkeys.Count > 0)
         {
-            _pollTimer ??= new Timer(PollGamepads, null, PollingIntervalMs, PollingIntervalMs);
+            int targetInterval = _isRecording ? ActivePollingIntervalMs : IdlePollingIntervalMs;
+            int dueTime = _suppressFirstPoll ? StartupPollingDelayMs : targetInterval;
+
+            if (_pollTimer == null)
+            {
+                _currentPollingIntervalMs = targetInterval;
+                _pollTimer = new Timer(PollGamepads, null, dueTime, targetInterval);
+                return;
+            }
+
+            if (_currentPollingIntervalMs != targetInterval)
+            {
+                _currentPollingIntervalMs = targetInterval;
+                _pollTimer.Change(targetInterval, targetInterval);
+            }
+
             return;
         }
 
         _pollTimer?.Dispose();
         _pollTimer = null;
+        _currentPollingIntervalMs = 0;
         _suppressFirstPoll = false;
         _previousPressedMasks.Clear();
         _previousPressedChordKeys = [];
         ResetActiveHoldLocked();
+    }
+
+    private Dictionary<int, XInputState> GetConnectedControllerStates()
+    {
+        Dictionary<int, XInputState> states = new(MaxXInputUsers);
+
+        for (int userIndex = 0; userIndex < MaxXInputUsers; userIndex++)
+        {
+            if (TryGetControllerState(userIndex, out var state))
+            {
+                states[userIndex] = state;
+            }
+        }
+
+        return states;
+    }
+
+    private void UpdatePollingCadenceLocked(bool hasConnectedControllers)
+    {
+        if (_pollTimer == null)
+        {
+            return;
+        }
+
+        int targetInterval = (_isRecording || hasConnectedControllers)
+            ? ActivePollingIntervalMs
+            : IdlePollingIntervalMs;
+
+        if (_currentPollingIntervalMs == targetInterval)
+        {
+            return;
+        }
+
+        _currentPollingIntervalMs = targetInterval;
+        _pollTimer.Change(targetInterval, targetInterval);
     }
 
     private void ResetActiveHoldLocked()
@@ -604,17 +653,6 @@ public partial class GamepadInputService(
         _recordingButtonsStartTime = default;
         _lastPreviewMask = 0;
         _lastPreviewChordSignature = string.Empty;
-    }
-
-    private static IEnumerable<int> EnumerateConnectedControllers()
-    {
-        for (int userIndex = 0; userIndex < MaxXInputUsers; userIndex++)
-        {
-            if (TryGetControllerState(userIndex, out _))
-            {
-                yield return userIndex;
-            }
-        }
     }
 
     private static bool TryGetControllerState(int userIndex, out XInputState state)

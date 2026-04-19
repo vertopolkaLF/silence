@@ -82,6 +82,7 @@ public class KeyboardHookService : IDisposable
     private readonly List<HotkeyBindingSettings> _hotkeys = new();
     private readonly List<HoldHotkeyBindingSettings> _holdHotkeys = new();
     private bool _isHooked;
+    private bool _isRecording;
 
     // Hold hotkey support
     private bool _ignoreHoldModifiers;
@@ -107,7 +108,20 @@ public class KeyboardHookService : IDisposable
     public event Action<ModifierKeys>? ModifiersChanged; // For live modifier display
     public event Action<double>? ModifierHoldProgress; // Progress of modifier hold (0.0 to 1.0)
 
-    public bool IsRecording { get; set; }
+    public bool IsRecording
+    {
+        get => _isRecording;
+        set
+        {
+            if (_isRecording == value)
+            {
+                return;
+            }
+
+            _isRecording = value;
+            EnsureMouseHookState();
+        }
+    }
 
     public void StartHook(
         IEnumerable<HotkeyBindingSettings>? hotkeys = null,
@@ -130,7 +144,7 @@ public class KeyboardHookService : IDisposable
         if (curModule != null)
         {
             _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule.ModuleName), 0);
-            _mouseHookId = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, GetModuleHandle(curModule.ModuleName), 0);
+            EnsureMouseHookState();
             _isHooked = _hookId != IntPtr.Zero || _mouseHookId != IntPtr.Zero;
         }
     }
@@ -176,6 +190,8 @@ public class KeyboardHookService : IDisposable
                 ChordKeyCodes = hotkey.ChordKeyCodes?.ToList() ?? new List<int>()
             });
         }
+
+        EnsureMouseHookState();
     }
 
     public void UpdateHotkey(int virtualKeyCode, ModifierKeys modifiers, bool ignoreModifiers = true)
@@ -218,6 +234,7 @@ public class KeyboardHookService : IDisposable
         _ignoreHoldModifiers = ignoreModifiers;
         _isHoldKeyPressed = false;
         _activeHoldHotkey = null;
+        EnsureMouseHookState();
     }
 
     public void UpdateHoldHotkey(int virtualKeyCode, ModifierKeys modifiers, bool ignoreModifiers = true)
@@ -693,6 +710,69 @@ public class KeyboardHookService : IDisposable
         _pendingMouseHoldKey = 0;
         StopMouseHoldTimer();
         ModifiersChanged?.Invoke(_currentModifiers);
+    }
+
+    private void EnsureMouseHookState()
+    {
+        if (_proc == null || _mouseProc == null)
+        {
+            return;
+        }
+
+        bool needsMouseHook = _isRecording || HasMouseBindings();
+        if (needsMouseHook)
+        {
+            InstallMouseHook();
+        }
+        else
+        {
+            UninstallMouseHook();
+        }
+
+        _isHooked = _hookId != IntPtr.Zero || _mouseHookId != IntPtr.Zero;
+    }
+
+    private bool HasMouseBindings()
+    {
+        return _hotkeys.Any(binding =>
+                IsMouseButtonKey(binding.KeyCode) ||
+                binding.ChordKeyCodes.Any(IsMouseButtonKey)) ||
+            _holdHotkeys.Any(binding =>
+                IsMouseButtonKey(binding.KeyCode) ||
+                binding.ChordKeyCodes.Any(IsMouseButtonKey));
+    }
+
+    private void InstallMouseHook()
+    {
+        if (_mouseHookId != IntPtr.Zero)
+        {
+            return;
+        }
+
+        using var curProcess = Process.GetCurrentProcess();
+        using var curModule = curProcess.MainModule;
+        if (curModule == null)
+        {
+            return;
+        }
+
+        _mouseHookId = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc!, GetModuleHandle(curModule.ModuleName), 0);
+    }
+
+    private void UninstallMouseHook()
+    {
+        if (_mouseHookId == IntPtr.Zero)
+        {
+            return;
+        }
+
+        UnhookWindowsHookEx(_mouseHookId);
+        _mouseHookId = IntPtr.Zero;
+    }
+
+    private static bool IsMouseButtonKey(int vkCode)
+    {
+        return vkCode is VirtualKeys.LButton or VirtualKeys.RButton or VirtualKeys.MButton or VirtualKeys.XButton1 or VirtualKeys.XButton2;
     }
 
     public bool IsHooked => _isHooked;
