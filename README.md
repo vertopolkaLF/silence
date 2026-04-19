@@ -1,81 +1,117 @@
 <p align="center">
-  <img src="Assets/app.png" alt="silence! Logo" width="128" height="128">
+  <img src="Assets/app.png" alt="silence! logo" width="128" height="128">
 </p>
 
 <h1 align="center">silence!</h1>
 
 <p align="center">
-  <b>A simple, lightweight microphone mute toggle for Windows with global hotkey support</b>
+  <b>Free, open-source microphone mute control for Windows with global hotkeys, hold-to-talk, gamepad input, overlay feedback, and tray controls.</b>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
-  <img src="https://img.shields.io/badge/.NET-8.0-purple?style=flat-square" alt=".NET Version">
-  <img src="https://img.shields.io/badge/UI-WinUI%203-green?style=flat-square" alt="UI Framework">
+  <a href="https://silencemute.fun/">Website</a>
+  |
+  <a href="https://github.com/vertopolkalf/Silence-/releases">Download</a>
+  |
+  <a href="https://github.com/vertopolkalf/Silence-/issues">Issues</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Windows%2010%20(1809%2B)%20%2F%2011-blue?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/.NET-8.0-purple?style=flat-square" alt=".NET version">
+  <img src="https://img.shields.io/badge/UI-WinUI%203-green?style=flat-square" alt="UI framework">
 </p>
 
 ---
 
-## ✨ Features
+## Overview
 
-- **Global Hotkey** — Mute/unmute your microphone from anywhere using a customizable keyboard shortcut
-- **System Tray** — Lives quietly in your system tray with a color-coded icon (🟢 unmuted / 🔴 muted)
-- **Quick Toggle** — Single click on the tray icon to toggle mute state
-- **Modifier Support** — Use complex hotkeys like `Ctrl + Alt + M` or simple ones like `F13`
-- **Flexible Matching** — Option to ignore additional modifiers (e.g., hotkey `Shift + F23` also fires on `Ctrl + Shift + F23`)
-- **Auto-Start** — Optionally launch with Windows
-- **Modern UI** — Mica/Acrylic backdrop, smooth animations, native Windows 10/11 look
-- **Portable** — No MSIX installer required, just extract and run
+`silence!` is a native Windows mic mute utility built for fast, reliable control from anywhere. Mute a specific microphone or all active microphones with keyboard, mouse, or gamepad input, then confirm the state with tray icons, sounds, and an on-screen overlay.
 
-## 📸 Screenshot
-<img width="958" height="955" alt="2025-12-01-10_35_35-Program_Manager-DLFHE1Lwwc" src="https://github.com/user-attachments/assets/f58e1b35-2310-4b52-a56f-5ddc36b52a46" />
+## Recent additions
 
+- Gamepad hotkeys, combos, and hold-to-mute input
+- Auto-mute on startup or after inactivity, with optional unmute on activity
+- Multiple shortcuts per action, plus dedicated mute and unmute shortcuts
+- Clickable overlay button mode and expanded overlay customization
+- Tray icon style picker, live preview, and refresh-overlay control
+- State sync and startup reliability fixes in the latest `v1.9.x` updates
 
-## 🚀 Installation
+## Features
 
-### Download Release (Recommended)
+### Input and mute control
 
-1. Go to [Releases](../../releases) page
-2. Download the latest `silence-vX.X-win-x64.zip`
-3. Extract to any folder
-4. Run `silence!.exe`
+- Multiple hotkeys per action for toggle, mute, and unmute
+- Keyboard, mouse, modifier-only, and gamepad bindings
+- Hold-to-mute, hold-to-unmute, or toggle-while-holding behavior
+- Optional "ignore modifiers" matching for more flexible shortcuts
+- Microphone selection with an `All Microphones` mode
 
-### Build from Source
+### Feedback and customization
 
-**Requirements:**
-- Windows 10 version 1809 (build 17763) or later
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- Visual Studio 2022 with "Windows application development" workload (optional)
+- Visual overlay with icon-only or icon-and-text modes
+- Overlay visibility modes: always visible, muted only, unmuted only, or after toggle
+- Clickable overlay mode that turns the overlay into an on-screen mute button
+- Customizable overlay appearance, size, opacity, colors, and position
+- Three tray icon styles: standard, filled circle, and dot
+- Built-in sound themes plus custom audio files (`MP3`, `WAV`, `FLAC`, `OGG`, `M4A`, `WMA`)
+- Separate sound behavior for toggle, hold, and auto-mute flows
+
+### Everyday quality-of-life
+
+- Start with Windows, launch minimized to tray, or start already muted
+- Auto-mute after inactivity with optional auto-unmute on activity
+- Left-click tray toggle for fast mute changes from the notification area
+- Automatic update checks and in-app update flow
+- English and Russian localization
+- Native WinUI 3 interface with Windows 11 Mica and Windows 10 Acrylic styling
+
+## Screenshots
+
+| General and hotkeys | Hold to Mute |
+| --- | --- |
+| ![General settings and hotkeys](website/screenshots/1.png) | ![Hold to Mute settings](website/screenshots/2.png) |
+
+| Sounds | Overlay |
+| --- | --- |
+| ![Sounds settings](website/screenshots/3.png) | ![Overlay settings](website/screenshots/4.png) |
+
+| Tray icon styles | Auto-Mute |
+| --- | --- |
+| ![Tray icon styles](website/screenshots/6.png) | ![Auto-Mute settings](website/screenshots/7.png) |
+
+## Installation
+
+### Download a release
+
+1. Open the [latest release](https://github.com/vertopolkalf/Silence-/releases/latest).
+2. Pick the package for your architecture:
+   - Installer: `silence-v<version>-x64-setup.exe`, `silence-v<version>-x86-setup.exe`, or `silence-v<version>-arm64-setup.exe`
+   - Portable: `silence-v<version>-win-x64.zip`, `silence-v<version>-win-x86.zip`, or `silence-v<version>-win-arm64.zip`
+3. Install it or extract the portable archive.
+4. Launch `silence!.exe`.
+
+No MSIX packaging is required.
+
+### Build from source
+
+Requirements:
+
+- Windows 10 version 1809 (build `17763`) or later
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Visual Studio 2022 with the Windows application development workload
 
 ```powershell
-# Clone the repository
-git clone https://github.com/yourusername/silence.git
-cd silence
-
-# Build and publish
-dotnet publish -c Release -r win-x64 --self-contained
+git clone https://github.com/vertopolkalf/Silence-.git
+cd Silence-
 ```
 
-The output will be in `bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\`
+Then open `Silence!.sln` in Visual Studio, or publish the app with your preferred .NET / Windows App SDK workflow for `win-x64`, `win-x86`, or `win-arm64`.
 
-## 📝 License
+## Contributing
 
-This project is open source. Feel free to use, modify, and distribute.
+Bug reports, feature requests, and pull requests are welcome.
 
-## 🤝 Contributing
+## License
 
-Contributions are welcome! Feel free to:
-- Report bugs
-- Suggest features
-- Submit pull requests
-
----
-
-<p align="center">
-  Made with ❤️ for people who are tired of fumbling with mute buttons during meetings
-</p>
-
-
-
-
-developer: https://www.reddit.com/user/vertopolkaLF/ (for r/windows11 and r/windows verification)
+This project is open source and available under the [MIT License](LICENSE).
