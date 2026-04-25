@@ -1,22 +1,23 @@
 #![windows_subsystem = "windows"]
 
 use std::{
-    ffi::c_void,
     fs,
     mem::size_of,
     path::PathBuf,
     ptr::{null, null_mut},
+    process::Command,
     sync::Mutex,
+    time::SystemTime,
 };
 
 use anyhow::{Context, Result};
+use dioxus::prelude::*;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use windows::{
     core::{PCWSTR, w},
     Win32::{
         Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM},
-        Graphics::Gdi::UpdateWindow,
         Media::Audio::{
             Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator, MMDeviceEnumerator, eCapture,
             eConsole,
@@ -33,16 +34,13 @@ use windows::{
             },
             WindowsAndMessaging::{
                 AppendMenuW, CallNextHookEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW,
-                DestroyMenu, DestroyWindow, DispatchMessageW, GWLP_USERDATA, GetCursorPos,
-                GetMessageW, GetWindowLongPtrW, HHOOK, HMENU, IDC_ARROW, IDI_APPLICATION,
-                KBDLLHOOKSTRUCT, LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG, PostMessageW,
-                PostQuitMessage, RegisterClassW, SW_HIDE, SW_SHOW, SendMessageW, SetForegroundWindow,
-                SetWindowLongPtrW, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN,
-                TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WINDOW_EX_STYLE,
-                WM_APP, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY, WM_KEYDOWN, WM_KEYUP,
-                WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_SETTEXT, WNDCLASSW, WS_BORDER,
-                WS_CAPTION, WS_CHILD, WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
-                WH_KEYBOARD_LL,
+                DestroyMenu, DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW, HHOOK,
+                IDC_ARROW, IDI_APPLICATION, KBDLLHOOKSTRUCT, LoadCursorW, LoadIconW,
+                MENU_ITEM_FLAGS, MSG, PostMessageW, PostQuitMessage, RegisterClassW,
+                SetForegroundWindow, SetTimer, SetWindowsHookExW, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
+                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WINDOW_EX_STYLE, WM_APP,
+                WM_COMMAND, WM_DESTROY, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP,
+                WM_TIMER, WNDCLASSW, WS_OVERLAPPED, WH_KEYBOARD_LL,
             },
         },
     },
@@ -50,34 +48,15 @@ use windows::{
 
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_TOGGLE_MUTE: u32 = WM_APP + 2;
-const WM_REFRESH_UI: u32 = WM_APP + 3;
-
 const ID_TRAY: u32 = 1;
+const ID_CONFIG_TIMER: usize = 10;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
-const ID_BTN_RECORD: usize = 2001;
-const ID_BTN_SAVE: usize = 2002;
-const ID_BTN_CANCEL: usize = 2003;
-const ID_LABEL_SHORTCUT: isize = 3001;
-const ID_LABEL_STATUS: isize = 3002;
 
-const VK_BACK: u32 = 0x08;
-const VK_TAB: u32 = 0x09;
-const VK_RETURN: u32 = 0x0D;
 const VK_SHIFT: u32 = 0x10;
 const VK_CONTROL: u32 = 0x11;
 const VK_MENU: u32 = 0x12;
-const VK_ESCAPE: u32 = 0x1B;
-const VK_SPACE: u32 = 0x20;
-const VK_PRIOR: u32 = 0x21;
-const VK_NEXT: u32 = 0x22;
-const VK_END: u32 = 0x23;
-const VK_HOME: u32 = 0x24;
-const VK_LEFT: u32 = 0x25;
-const VK_UP: u32 = 0x26;
-const VK_RIGHT: u32 = 0x27;
-const VK_DOWN: u32 = 0x28;
 const VK_LWIN: u32 = 0x5B;
 const VK_RWIN: u32 = 0x5C;
 const VK_NUMPAD0: u32 = 0x60;
@@ -105,16 +84,6 @@ impl Default for Shortcut {
 }
 
 impl Shortcut {
-    fn from_current_modifiers(vk: u32) -> Self {
-        Self {
-            ctrl: key_down(VK_CONTROL),
-            alt: key_down(VK_MENU),
-            shift: key_down(VK_SHIFT),
-            win: key_down(VK_LWIN) || key_down(VK_RWIN),
-            vk,
-        }
-    }
-
     fn is_pressed(&self, vk: u32) -> bool {
         self.vk == vk
             && self.ctrl == key_down(VK_CONTROL)
@@ -155,38 +124,49 @@ impl Default for Config {
     }
 }
 
-#[derive(Default)]
 struct AppState {
     hwnd: HWND,
-    settings_hwnd: HWND,
-    shortcut_label: HWND,
-    status_label: HWND,
     hook: HHOOK,
     shortcut: Shortcut,
-    pending_shortcut: Shortcut,
     muted: bool,
-    recording: bool,
     shortcut_down: bool,
+    config_modified: Option<SystemTime>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        let config = load_config().unwrap_or_default();
+        Self {
+            hwnd: HWND(null_mut()),
+            hook: HHOOK(null_mut()),
+            shortcut: config.shortcut,
+            muted: false,
+            shortcut_down: false,
+            config_modified: config_modified_time(),
+        }
+    }
 }
 
 unsafe impl Send for AppState {}
 
-static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| {
-    let config = load_config().unwrap_or_default();
-    Mutex::new(AppState {
-        shortcut: config.shortcut,
-        pending_shortcut: config.shortcut,
-        ..Default::default()
-    })
-});
+static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState::default()));
 
 fn main() -> Result<()> {
+    if std::env::args().any(|arg| arg == "--settings") {
+        dioxus::launch(settings_app);
+        return Ok(());
+    }
+
+    run_background_app()
+}
+
+fn run_background_app() -> Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
     }
 
     let instance = unsafe { GetModuleHandleW(None)? };
-    register_classes(instance.into())?;
+    register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
     {
         let mut state = STATE.lock().unwrap();
@@ -196,6 +176,9 @@ fn main() -> Result<()> {
 
     install_keyboard_hook(instance.into())?;
     add_tray_icon(hwnd)?;
+    unsafe {
+        let _ = SetTimer(hwnd, ID_CONFIG_TIMER, 1000, None);
+    }
 
     unsafe {
         let mut msg = MSG::default();
@@ -209,26 +192,16 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn register_classes(instance: HINSTANCE) -> Result<()> {
+fn register_class(instance: HINSTANCE) -> Result<()> {
     unsafe {
-        let cursor = LoadCursorW(None, IDC_ARROW)?;
-        let main = WNDCLASSW {
-            hCursor: cursor,
+        let class = WNDCLASSW {
+            hCursor: LoadCursorW(None, IDC_ARROW)?,
             hInstance: instance,
             lpszClassName: w!("SilenceV2Hidden"),
             lpfnWndProc: Some(main_wnd_proc),
             ..Default::default()
         };
-        RegisterClassW(&main);
-
-        let settings = WNDCLASSW {
-            hCursor: cursor,
-            hInstance: instance,
-            lpszClassName: w!("SilenceV2Settings"),
-            lpfnWndProc: Some(settings_wnd_proc),
-            ..Default::default()
-        };
-        RegisterClassW(&settings);
+        RegisterClassW(&class);
     }
     Ok(())
 }
@@ -250,7 +223,10 @@ fn create_message_window(instance: HINSTANCE) -> Result<HWND> {
             None,
         )
     }?;
-    ensure_hwnd(hwnd, "create hidden window")
+    if hwnd.0.is_null() {
+        anyhow::bail!("failed to create hidden window");
+    }
+    Ok(hwnd)
 }
 
 fn install_keyboard_hook(instance: HINSTANCE) -> Result<()> {
@@ -271,17 +247,17 @@ fn add_tray_icon(hwnd: HWND) -> Result<()> {
         hIcon: icon,
         ..Default::default()
     };
-    write_wide_buf(&mut nid.szTip, "Silence: microphone shortcut");
+    write_wide_buf(&mut nid.szTip, "Silence");
     unsafe {
         Shell_NotifyIconW(NIM_ADD, &nid).ok()?;
     }
-    refresh_tray_icon();
+    refresh_tray_tip();
     Ok(())
 }
 
-fn refresh_tray_icon() {
+fn refresh_tray_tip() {
     let state = STATE.lock().unwrap();
-    if is_null_hwnd(state.hwnd) {
+    if state.hwnd.0.is_null() {
         return;
     }
     let mut nid = NOTIFYICONDATAW {
@@ -304,7 +280,7 @@ fn refresh_tray_icon() {
 
 fn remove_tray_icon() {
     let state = STATE.lock().unwrap();
-    if is_null_hwnd(state.hwnd) {
+    if state.hwnd.0.is_null() {
         return;
     }
     let nid = NOTIFYICONDATAW {
@@ -328,7 +304,7 @@ unsafe extern "system" fn main_wnd_proc(
         WM_TRAY => {
             match lparam.0 as u32 {
                 WM_RBUTTONUP => show_tray_menu(hwnd),
-                WM_LBUTTONDBLCLK => show_settings_window(hwnd),
+                WM_LBUTTONDBLCLK => open_settings_window(),
                 _ => {}
             }
             LRESULT(0)
@@ -336,7 +312,7 @@ unsafe extern "system" fn main_wnd_proc(
         WM_COMMAND => {
             match wparam.0 & 0xffff {
                 ID_MENU_TOGGLE => toggle_mute(),
-                ID_MENU_SETTINGS => show_settings_window(hwnd),
+                ID_MENU_SETTINGS => open_settings_window(),
                 ID_MENU_EXIT => {
                     let _ = unsafe { DestroyWindow(hwnd) };
                 }
@@ -344,13 +320,14 @@ unsafe extern "system" fn main_wnd_proc(
             }
             LRESULT(0)
         }
-        WM_TOGGLE_MUTE => {
-            toggle_mute();
+        WM_TIMER => {
+            if wparam.0 == ID_CONFIG_TIMER {
+                reload_config_if_changed();
+            }
             LRESULT(0)
         }
-        WM_REFRESH_UI => {
-            refresh_settings_labels();
-            refresh_tray_icon();
+        WM_TOGGLE_MUTE => {
+            toggle_mute();
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -384,224 +361,11 @@ fn show_tray_menu(hwnd: HWND) {
     }
 }
 
-fn show_settings_window(owner: HWND) {
-    let instance = unsafe { GetModuleHandleW(None).ok().map(HINSTANCE::from) };
-    let Some(instance) = instance else {
+fn open_settings_window() {
+    let Ok(exe) = std::env::current_exe() else {
         return;
     };
-
-    let mut state = STATE.lock().unwrap();
-    if !is_null_hwnd(state.settings_hwnd) {
-        unsafe {
-            let _ = ShowWindow(state.settings_hwnd, SW_SHOW);
-            let _ = SetForegroundWindow(state.settings_hwnd);
-        }
-        return;
-    }
-    state.pending_shortcut = state.shortcut;
-    state.recording = false;
-    drop(state);
-
-    let hwnd = unsafe {
-        CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            w!("SilenceV2Settings"),
-            w!("Silence Settings"),
-            WS_CAPTION | WS_SYSMENU,
-            420,
-            260,
-            390,
-            190,
-            owner,
-            None,
-            instance,
-            None,
-        )
-    }
-    .unwrap_or_default();
-    if !is_null_hwnd(hwnd) {
-        unsafe {
-            let _ = ShowWindow(hwnd, SW_SHOW);
-            let _ = UpdateWindow(hwnd);
-        }
-    }
-}
-
-unsafe extern "system" fn settings_wnd_proc(
-    hwnd: HWND,
-    msg: u32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
-    match msg {
-        WM_CREATE => {
-            create_settings_controls(hwnd);
-            LRESULT(0)
-        }
-        WM_COMMAND => {
-            match wparam.0 & 0xffff {
-                ID_BTN_RECORD => {
-                    let mut state = STATE.lock().unwrap();
-                    state.recording = true;
-                    set_label_text(state.shortcut_label, "Press a shortcut...");
-                }
-                ID_BTN_SAVE => {
-                    let shortcut = {
-                        let mut state = STATE.lock().unwrap();
-                        state.shortcut = state.pending_shortcut;
-                        state.shortcut
-                    };
-                    if let Err(err) = save_config(&Config { shortcut }) {
-                        eprintln!("failed to save config: {err:?}");
-                    }
-                    refresh_settings_labels();
-                    refresh_tray_icon();
-                }
-                ID_BTN_CANCEL => {
-                    let _ = unsafe { DestroyWindow(hwnd) };
-                }
-                _ => {}
-            }
-            LRESULT(0)
-        }
-        WM_CLOSE => {
-            let _ = unsafe { ShowWindow(hwnd, SW_HIDE) };
-            LRESULT(0)
-        }
-        WM_DESTROY => {
-            let mut state = STATE.lock().unwrap();
-            state.settings_hwnd = HWND(null_mut());
-            state.shortcut_label = HWND(null_mut());
-            state.status_label = HWND(null_mut());
-            state.recording = false;
-            LRESULT(0)
-        }
-        _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
-    }
-}
-
-fn create_settings_controls(hwnd: HWND) {
-    unsafe {
-        let font = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
-        let label = CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            w!("STATIC"),
-            w!("Shortcut:"),
-            WS_CHILD | WS_VISIBLE,
-            18,
-            20,
-            90,
-            24,
-            hwnd,
-            None,
-            None,
-            None,
-        )
-        .unwrap_or_default();
-        SetWindowLongPtrW(label, GWLP_USERDATA, font);
-
-        let shortcut_label = CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            w!("STATIC"),
-            w!(""),
-            WS_CHILD | WS_VISIBLE | WS_BORDER,
-            105,
-            18,
-            245,
-            26,
-            hwnd,
-            hmenu(ID_LABEL_SHORTCUT as usize),
-            None,
-            None,
-        )
-        .unwrap_or_default();
-
-        let record = CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            w!("BUTTON"),
-            w!("Record shortcut"),
-            WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-            105,
-            55,
-            145,
-            30,
-            hwnd,
-            hmenu(ID_BTN_RECORD),
-            None,
-            None,
-        )
-        .unwrap_or_default();
-
-        let status_label = CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            w!("STATIC"),
-            w!(""),
-            WS_CHILD | WS_VISIBLE,
-            18,
-            96,
-            340,
-            24,
-            hwnd,
-            hmenu(ID_LABEL_STATUS as usize),
-            None,
-            None,
-        )
-        .unwrap_or_default();
-
-        let save = CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            w!("BUTTON"),
-            w!("Save"),
-            WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-            188,
-            125,
-            80,
-            30,
-            hwnd,
-            hmenu(ID_BTN_SAVE),
-            None,
-            None,
-        )
-        .unwrap_or_default();
-        let cancel = CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            w!("BUTTON"),
-            w!("Close"),
-            WS_CHILD | WS_VISIBLE | WS_TABSTOP,
-            275,
-            125,
-            80,
-            30,
-            hwnd,
-            hmenu(ID_BTN_CANCEL),
-            None,
-            None,
-        )
-        .unwrap_or_default();
-
-        let mut state = STATE.lock().unwrap();
-        state.settings_hwnd = hwnd;
-        state.shortcut_label = shortcut_label;
-        state.status_label = status_label;
-        drop(state);
-
-        let _ = (label, record, save, cancel);
-        refresh_settings_labels();
-    }
-}
-
-fn refresh_settings_labels() {
-    let state = STATE.lock().unwrap();
-    if is_null_hwnd(state.settings_hwnd) {
-        return;
-    }
-    set_label_text(state.shortcut_label, &state.pending_shortcut.display());
-    let status = if state.muted {
-        "Microphone is muted"
-    } else {
-        "Microphone is on"
-    };
-    set_label_text(state.status_label, status);
+    let _ = Command::new(exe).arg("--settings").spawn();
 }
 
 unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -620,13 +384,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         let mut consumed = false;
         {
             let mut state = STATE.lock().unwrap();
-            if state.recording {
-                let shortcut = Shortcut::from_current_modifiers(vk);
-                state.pending_shortcut = shortcut;
-                state.recording = false;
-                set_label_text(state.shortcut_label, &shortcut.display());
-                consumed = true;
-            } else if state.shortcut.is_pressed(vk) && !state.shortcut_down {
+            if state.shortcut.is_pressed(vk) && !state.shortcut_down {
                 state.shortcut_down = true;
                 trigger = true;
                 consumed = true;
@@ -654,14 +412,8 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 fn toggle_mute() {
     match set_mute_to_inverse() {
         Ok(muted) => {
-            let hwnd = {
-                let mut state = STATE.lock().unwrap();
-                state.muted = muted;
-                state.hwnd
-            };
-            unsafe {
-                let _ = PostMessageW(hwnd, WM_REFRESH_UI, WPARAM(0), LPARAM(0));
-            }
+            STATE.lock().unwrap().muted = muted;
+            refresh_tray_tip();
         }
         Err(err) => eprintln!("failed to toggle microphone mute: {err:?}"),
     }
@@ -697,6 +449,21 @@ fn default_capture_volume() -> Result<IAudioEndpointVolume> {
     }
 }
 
+fn reload_config_if_changed() {
+    let modified = config_modified_time();
+    let mut state = STATE.lock().unwrap();
+    if modified == state.config_modified {
+        return;
+    }
+    if let Ok(config) = load_config() {
+        state.shortcut = config.shortcut;
+        state.config_modified = modified;
+        state.shortcut_down = false;
+        drop(state);
+        refresh_tray_tip();
+    }
+}
+
 fn load_config() -> Result<Config> {
     let path = config_path()?;
     if !path.exists() {
@@ -720,6 +487,10 @@ fn config_path() -> Result<PathBuf> {
     Ok(PathBuf::from(appdata).join("SilenceV2").join("config.json"))
 }
 
+fn config_modified_time() -> Option<SystemTime> {
+    config_path().ok()?.metadata().ok()?.modified().ok()
+}
+
 fn cleanup() {
     remove_tray_icon();
     let hook = STATE.lock().unwrap().hook;
@@ -740,33 +511,23 @@ fn is_modifier(vk: u32) -> bool {
 
 fn vk_name(vk: u32) -> String {
     match vk {
-        VK_BACK => "Backspace".to_string(),
-        VK_TAB => "Tab".to_string(),
-        VK_RETURN => "Enter".to_string(),
-        VK_ESCAPE => "Esc".to_string(),
-        VK_SPACE => "Space".to_string(),
-        VK_PRIOR => "Page Up".to_string(),
-        VK_NEXT => "Page Down".to_string(),
-        VK_END => "End".to_string(),
-        VK_HOME => "Home".to_string(),
-        VK_LEFT => "Left".to_string(),
-        VK_UP => "Up".to_string(),
-        VK_RIGHT => "Right".to_string(),
-        VK_DOWN => "Down".to_string(),
+        0x08 => "Backspace".to_string(),
+        0x09 => "Tab".to_string(),
+        0x0D => "Enter".to_string(),
+        0x1B => "Esc".to_string(),
+        0x20 => "Space".to_string(),
+        0x21 => "Page Up".to_string(),
+        0x22 => "Page Down".to_string(),
+        0x23 => "End".to_string(),
+        0x24 => "Home".to_string(),
+        0x25 => "Left".to_string(),
+        0x26 => "Up".to_string(),
+        0x27 => "Right".to_string(),
+        0x28 => "Down".to_string(),
         0x30..=0x39 | 0x41..=0x5A => char::from_u32(vk).unwrap().to_string(),
         VK_NUMPAD0..=0x69 => format!("Numpad {}", vk - VK_NUMPAD0),
         VK_F1..=0x87 => format!("F{}", vk - VK_F1 + 1),
         _ => format!("VK {vk}"),
-    }
-}
-
-fn set_label_text(hwnd: HWND, text: &str) {
-    if is_null_hwnd(hwnd) {
-        return;
-    }
-    let wide = wide(text);
-    unsafe {
-        let _ = SendMessageW(hwnd, WM_SETTEXT, WPARAM(0), LPARAM(wide.as_ptr() as isize));
     }
 }
 
@@ -781,17 +542,254 @@ fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-fn ensure_hwnd(hwnd: HWND, action: &str) -> Result<HWND> {
-    if is_null_hwnd(hwnd) {
-        anyhow::bail!("failed to {action}");
+fn settings_app() -> Element {
+    let initial = load_config().unwrap_or_default().shortcut;
+    let mut ctrl = use_signal(|| initial.ctrl);
+    let mut alt = use_signal(|| initial.alt);
+    let mut shift = use_signal(|| initial.shift);
+    let mut win = use_signal(|| initial.win);
+    let mut vk = use_signal(|| initial.vk);
+    let mut saved = use_signal(|| false);
+
+    let shortcut = Shortcut {
+        ctrl: ctrl(),
+        alt: alt(),
+        shift: shift(),
+        win: win(),
+        vk: vk(),
+    };
+    let current = shortcut.display();
+
+    rsx! {
+        style { {SETTINGS_CSS} }
+        main {
+            class: "shell",
+            section {
+                class: "header",
+                h1 { "Silence" }
+                p { "Microphone mute shortcut" }
+            }
+
+            section {
+                class: "panel",
+                div { class: "shortcut", "{current}" }
+                div {
+                    class: "mods",
+                    button {
+                        class: if ctrl() { "toggle active" } else { "toggle" },
+                        onclick: move |_| {
+                            ctrl.toggle();
+                            saved.set(false);
+                        },
+                        "Ctrl"
+                    }
+                    button {
+                        class: if alt() { "toggle active" } else { "toggle" },
+                        onclick: move |_| {
+                            alt.toggle();
+                            saved.set(false);
+                        },
+                        "Alt"
+                    }
+                    button {
+                        class: if shift() { "toggle active" } else { "toggle" },
+                        onclick: move |_| {
+                            shift.toggle();
+                            saved.set(false);
+                        },
+                        "Shift"
+                    }
+                    button {
+                        class: if win() { "toggle active" } else { "toggle" },
+                        onclick: move |_| {
+                            win.toggle();
+                            saved.set(false);
+                        },
+                        "Win"
+                    }
+                }
+                div {
+                    class: "keys",
+                    for &(code, label) in SHORTCUT_KEYS {
+                        button {
+                            class: if vk() == code { "key active" } else { "key" },
+                            onclick: move |_| {
+                                vk.set(code);
+                                saved.set(false);
+                            },
+                            "{label}"
+                        }
+                    }
+                }
+            }
+
+            footer {
+                button {
+                    class: "save",
+                    onclick: move |_| {
+                        let shortcut = Shortcut {
+                            ctrl: ctrl(),
+                            alt: alt(),
+                            shift: shift(),
+                            win: win(),
+                            vk: vk(),
+                        };
+                        if save_config(&Config { shortcut }).is_ok() {
+                            saved.set(true);
+                        }
+                    },
+                    "Save"
+                }
+                span {
+                    class: if saved() { "status visible" } else { "status" },
+                    "Saved"
+                }
+            }
+        }
     }
-    Ok(hwnd)
 }
 
-fn hmenu(id: usize) -> HMENU {
-    HMENU(id as *mut c_void)
+const SHORTCUT_KEYS: &[(u32, &str)] = &[
+    (b'M' as u32, "M"),
+    (b'X' as u32, "X"),
+    (b'Z' as u32, "Z"),
+    (b'K' as u32, "K"),
+    (b'Q' as u32, "Q"),
+    (b'1' as u32, "1"),
+    (b'2' as u32, "2"),
+    (b'3' as u32, "3"),
+    (0x20, "Space"),
+    (VK_F1, "F1"),
+    (VK_F1 + 1, "F2"),
+    (VK_F1 + 2, "F3"),
+    (VK_F1 + 3, "F4"),
+    (VK_F1 + 4, "F5"),
+    (VK_F1 + 5, "F6"),
+    (VK_F1 + 6, "F7"),
+    (VK_F1 + 7, "F8"),
+    (VK_F1 + 8, "F9"),
+    (VK_F1 + 9, "F10"),
+    (VK_F1 + 10, "F11"),
+    (VK_F1 + 11, "F12"),
+];
+
+const SETTINGS_CSS: &str = r#"
+* {
+  box-sizing: border-box;
 }
 
-fn is_null_hwnd(hwnd: HWND) -> bool {
-    hwnd.0.is_null()
+body {
+  margin: 0;
+  background: #f6f7f9;
+  color: #17191d;
+  font-family: Segoe UI, Inter, system-ui, sans-serif;
 }
+
+.shell {
+  width: min(100vw, 560px);
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.header {
+  margin-bottom: 18px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+p {
+  margin: 4px 0 0;
+  color: #69707d;
+  font-size: 14px;
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.shortcut {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #cfd5dd;
+  border-radius: 6px;
+  background: #fbfcfd;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mods {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.toggle,
+.key,
+.save {
+  height: 34px;
+  border: 1px solid #cfd5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #252a31;
+  font: inherit;
+  font-size: 13px;
+}
+
+.toggle:hover,
+.key:hover,
+.save:hover {
+  background: #f1f4f7;
+}
+
+.active {
+  border-color: #2f6fed;
+  background: #eaf1ff;
+  color: #123f91;
+}
+
+.keys {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.save {
+  min-width: 96px;
+  color: #ffffff;
+  border-color: #0f5fd7;
+  background: #1769e0;
+}
+
+.save:hover {
+  background: #0f5fd7;
+}
+
+footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.status {
+  opacity: 0;
+  color: #207044;
+  font-size: 13px;
+}
+
+.status.visible {
+  opacity: 1;
+}
+"#;
