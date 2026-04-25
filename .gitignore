@@ -4,3 +4,4 @@
 
 # Optional: If you use 'cargo-expand' or other tools that generate temp files
 **/*.rs.bk
+/silence!

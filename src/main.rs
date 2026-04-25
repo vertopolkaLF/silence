@@ -4,18 +4,17 @@ use std::{
     fs,
     mem::size_of,
     path::PathBuf,
-    ptr::{null, null_mut},
     process::Command,
+    ptr::{null, null_mut},
     sync::Mutex,
     time::SystemTime,
 };
 
 use anyhow::{Context, Result};
-use dioxus::prelude::*;
+use dioxus::desktop::{Config as DesktopConfig, LogicalSize, WindowBuilder};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use windows::{
-    core::{PCWSTR, w},
     Win32::{
         Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM},
         Media::Audio::{
@@ -29,8 +28,8 @@ use windows::{
         UI::{
             Input::KeyboardAndMouse::GetAsyncKeyState,
             Shell::{
-                NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY,
-                NOTIFYICONDATAW, Shell_NotifyIconW,
+                NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
+                Shell_NotifyIconW,
             },
             WindowsAndMessaging::{
                 AppendMenuW, CallNextHookEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW,
@@ -38,13 +37,16 @@ use windows::{
                 IDC_ARROW, IDI_APPLICATION, KBDLLHOOKSTRUCT, LoadCursorW, LoadIconW,
                 MENU_ITEM_FLAGS, MSG, PostMessageW, PostQuitMessage, RegisterClassW,
                 SetForegroundWindow, SetTimer, SetWindowsHookExW, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WINDOW_EX_STYLE, WM_APP,
-                WM_COMMAND, WM_DESTROY, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP,
-                WM_TIMER, WNDCLASSW, WS_OVERLAPPED, WH_KEYBOARD_LL,
+                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL,
+                WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_KEYDOWN, WM_KEYUP,
+                WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
             },
         },
     },
+    core::{PCWSTR, w},
 };
+
+mod gui;
 
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_TOGGLE_MUTE: u32 = WM_APP + 2;
@@ -153,7 +155,21 @@ static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState::default(
 
 fn main() -> Result<()> {
     if std::env::args().any(|arg| arg == "--settings") {
-        dioxus::launch(settings_app);
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
+        }
+        let cfg = DesktopConfig::new()
+            .with_window(
+                WindowBuilder::new()
+                    .with_title("silence!")
+                    .with_decorations(false)
+                    .with_resizable(false)
+                    .with_inner_size(LogicalSize::new(760.0, 590.0)),
+            )
+            .with_background_color((35, 28, 26, 255));
+        dioxus::LaunchBuilder::desktop()
+            .with_cfg(cfg)
+            .launch(gui::settings_app);
         return Ok(());
     }
 
@@ -349,14 +365,37 @@ fn show_tray_menu(hwnd: HWND) {
         let status_w = wide(status);
         let settings_w = wide("Settings...");
         let exit_w = wide("Exit");
-        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0), ID_MENU_TOGGLE, PCWSTR(status_w.as_ptr()));
-        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0), ID_MENU_SETTINGS, PCWSTR(settings_w.as_ptr()));
-        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0), ID_MENU_EXIT, PCWSTR(exit_w.as_ptr()));
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_TOGGLE,
+            PCWSTR(status_w.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_SETTINGS,
+            PCWSTR(settings_w.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_EXIT,
+            PCWSTR(exit_w.as_ptr()),
+        );
 
         let mut pt = POINT::default();
         let _ = GetCursorPos(&mut pt);
         let _ = SetForegroundWindow(hwnd);
-        let _ = TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_BOTTOMALIGN, pt.x, pt.y, 0, hwnd, None);
+        let _ = TrackPopupMenu(
+            menu,
+            TPM_LEFTALIGN | TPM_BOTTOMALIGN,
+            pt.x,
+            pt.y,
+            0,
+            hwnd,
+            None,
+        );
         let _ = DestroyMenu(menu);
     }
 }
@@ -541,255 +580,3 @@ fn write_wide_buf<const N: usize>(buf: &mut [u16; N], text: &str) {
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
 }
-
-fn settings_app() -> Element {
-    let initial = load_config().unwrap_or_default().shortcut;
-    let mut ctrl = use_signal(|| initial.ctrl);
-    let mut alt = use_signal(|| initial.alt);
-    let mut shift = use_signal(|| initial.shift);
-    let mut win = use_signal(|| initial.win);
-    let mut vk = use_signal(|| initial.vk);
-    let mut saved = use_signal(|| false);
-
-    let shortcut = Shortcut {
-        ctrl: ctrl(),
-        alt: alt(),
-        shift: shift(),
-        win: win(),
-        vk: vk(),
-    };
-    let current = shortcut.display();
-
-    rsx! {
-        style { {SETTINGS_CSS} }
-        main {
-            class: "shell",
-            section {
-                class: "header",
-                h1 { "Silence" }
-                p { "Microphone mute shortcut" }
-            }
-
-            section {
-                class: "panel",
-                div { class: "shortcut", "{current}" }
-                div {
-                    class: "mods",
-                    button {
-                        class: if ctrl() { "toggle active" } else { "toggle" },
-                        onclick: move |_| {
-                            ctrl.toggle();
-                            saved.set(false);
-                        },
-                        "Ctrl"
-                    }
-                    button {
-                        class: if alt() { "toggle active" } else { "toggle" },
-                        onclick: move |_| {
-                            alt.toggle();
-                            saved.set(false);
-                        },
-                        "Alt"
-                    }
-                    button {
-                        class: if shift() { "toggle active" } else { "toggle" },
-                        onclick: move |_| {
-                            shift.toggle();
-                            saved.set(false);
-                        },
-                        "Shift"
-                    }
-                    button {
-                        class: if win() { "toggle active" } else { "toggle" },
-                        onclick: move |_| {
-                            win.toggle();
-                            saved.set(false);
-                        },
-                        "Win"
-                    }
-                }
-                div {
-                    class: "keys",
-                    for &(code, label) in SHORTCUT_KEYS {
-                        button {
-                            class: if vk() == code { "key active" } else { "key" },
-                            onclick: move |_| {
-                                vk.set(code);
-                                saved.set(false);
-                            },
-                            "{label}"
-                        }
-                    }
-                }
-            }
-
-            footer {
-                button {
-                    class: "save",
-                    onclick: move |_| {
-                        let shortcut = Shortcut {
-                            ctrl: ctrl(),
-                            alt: alt(),
-                            shift: shift(),
-                            win: win(),
-                            vk: vk(),
-                        };
-                        if save_config(&Config { shortcut }).is_ok() {
-                            saved.set(true);
-                        }
-                    },
-                    "Save"
-                }
-                span {
-                    class: if saved() { "status visible" } else { "status" },
-                    "Saved"
-                }
-            }
-        }
-    }
-}
-
-const SHORTCUT_KEYS: &[(u32, &str)] = &[
-    (b'M' as u32, "M"),
-    (b'X' as u32, "X"),
-    (b'Z' as u32, "Z"),
-    (b'K' as u32, "K"),
-    (b'Q' as u32, "Q"),
-    (b'1' as u32, "1"),
-    (b'2' as u32, "2"),
-    (b'3' as u32, "3"),
-    (0x20, "Space"),
-    (VK_F1, "F1"),
-    (VK_F1 + 1, "F2"),
-    (VK_F1 + 2, "F3"),
-    (VK_F1 + 3, "F4"),
-    (VK_F1 + 4, "F5"),
-    (VK_F1 + 5, "F6"),
-    (VK_F1 + 6, "F7"),
-    (VK_F1 + 7, "F8"),
-    (VK_F1 + 8, "F9"),
-    (VK_F1 + 9, "F10"),
-    (VK_F1 + 10, "F11"),
-    (VK_F1 + 11, "F12"),
-];
-
-const SETTINGS_CSS: &str = r#"
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: #f6f7f9;
-  color: #17191d;
-  font-family: Segoe UI, Inter, system-ui, sans-serif;
-}
-
-.shell {
-  width: min(100vw, 560px);
-  min-height: 100vh;
-  padding: 28px;
-}
-
-.header {
-  margin-bottom: 18px;
-}
-
-h1 {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 650;
-  letter-spacing: 0;
-}
-
-p {
-  margin: 4px 0 0;
-  color: #69707d;
-  font-size: 14px;
-}
-
-.panel {
-  background: #ffffff;
-  border: 1px solid #dfe3e8;
-  border-radius: 8px;
-  padding: 18px;
-}
-
-.shortcut {
-  display: flex;
-  align-items: center;
-  min-height: 42px;
-  padding: 0 12px;
-  border: 1px solid #cfd5dd;
-  border-radius: 6px;
-  background: #fbfcfd;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.mods {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.toggle,
-.key,
-.save {
-  height: 34px;
-  border: 1px solid #cfd5dd;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #252a31;
-  font: inherit;
-  font-size: 13px;
-}
-
-.toggle:hover,
-.key:hover,
-.save:hover {
-  background: #f1f4f7;
-}
-
-.active {
-  border-color: #2f6fed;
-  background: #eaf1ff;
-  color: #123f91;
-}
-
-.keys {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.save {
-  min-width: 96px;
-  color: #ffffff;
-  border-color: #0f5fd7;
-  background: #1769e0;
-}
-
-.save:hover {
-  background: #0f5fd7;
-}
-
-footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.status {
-  opacity: 0;
-  color: #207044;
-  font-size: 13px;
-}
-
-.status.visible {
-  opacity: 1;
-}
-"#;
