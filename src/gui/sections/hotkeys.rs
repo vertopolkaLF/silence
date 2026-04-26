@@ -373,7 +373,6 @@ fn HotkeyModal(
                 div { class: "hotkey-modal-grid",
                     div { class: "field-group modal-field",
                         label { "Shortcut" }
-                        div { class: "shortcut-record-row",
                             div { class: "shortcut-record-stack",
                                 div { class: "shortcut-record-row",
                                     KeyDisplay {
@@ -413,7 +412,7 @@ fn HotkeyModal(
                                     p { class: "shortcut-record-hint", "Hold to bind only modifier keys" }
                                 }
                             }
-                        }
+                        
                     }
 
                     label {

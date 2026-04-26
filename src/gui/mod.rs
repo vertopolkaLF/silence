@@ -70,9 +70,10 @@ pub fn settings_app() -> Element {
         }
     });
     let theme_style = crate::WindowsAccent::load().css_vars();
-    let titlebar_icon_style = format!(
+    let icon_style = format!(
         r#".titlebar-settings {{ --titlebar-icon: url("{SETTINGS_ICON}"); }}
-.titlebar-close {{ --titlebar-icon: url("{CLOSE_ICON}"); }}"#
+.titlebar-close {{ --titlebar-icon: url("{CLOSE_ICON}"); }}
+.icon-close {{ --icon: url("{CLOSE_ICON}"); }}"#
     );
     let font_face = format!(
         r#"@font-face {{
@@ -95,7 +96,7 @@ pub fn settings_app() -> Element {
         link { rel: "stylesheet", href: SOUNDS_CSS }
         link { rel: "stylesheet", href: HOTKEYS_CSS }
         style { {theme_style} }
-        style { {titlebar_icon_style} }
+        style { {icon_style} }
         div {
             class: "window",
             div {

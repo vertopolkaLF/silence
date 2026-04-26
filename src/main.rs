@@ -1,23 +1,22 @@
 #![windows_subsystem = "windows"]
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ffi::c_void,
     fs,
+    io::Cursor,
     mem::size_of,
     path::PathBuf,
     process::Command,
     ptr::{null, null_mut},
-    sync::{
-        Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::Mutex,
     time::SystemTime,
 };
 
 use anyhow::{Context, Result};
 use dioxus::desktop::{Config as DesktopConfig, LogicalSize, WindowBuilder};
 use once_cell::sync::Lazy;
+use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Source};
 use serde::{Deserialize, Serialize};
 use windows::{
     Win32::{
@@ -30,7 +29,6 @@ use windows::{
             DEVICE_STATE_ACTIVE, Endpoints::IAudioEndpointVolume, IMMDevice, IMMDeviceEnumerator,
             MMDeviceEnumerator, eCapture, eConsole,
         },
-        Media::Multimedia::mciSendStringW,
         System::{
             Com::{
                 CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
@@ -544,7 +542,31 @@ impl Default for AppState {
 unsafe impl Send for AppState {}
 
 static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState::default()));
-static SOUND_ALIAS_COUNTER: AtomicUsize = AtomicUsize::new(1);
+static AUDIO_ENGINE: Lazy<Mutex<Option<AudioEngine>>> = Lazy::new(|| Mutex::new(None));
+
+struct AudioEngine {
+    sink: MixerDeviceSink,
+    cached_sounds: HashMap<String, Vec<u8>>,
+}
+
+impl AudioEngine {
+    fn new() -> Result<Self> {
+        Ok(Self {
+            sink: DeviceSinkBuilder::open_default_sink().context("open default audio stream")?,
+            cached_sounds: HashMap::new(),
+        })
+    }
+
+    fn sound_bytes(&mut self, file: &str, path: &PathBuf) -> Result<Vec<u8>> {
+        if let Some(bytes) = self.cached_sounds.get(file) {
+            return Ok(bytes.clone());
+        }
+
+        let bytes = fs::read(path).with_context(|| format!("read sound asset {}", path.display()))?;
+        self.cached_sounds.insert(file.to_string(), bytes.clone());
+        Ok(bytes)
+    }
+}
 
 const SOUND_THEMES: &[SoundTheme] = &[
     SoundTheme {
@@ -1282,19 +1304,17 @@ pub fn sound_theme_label(theme_id: &str) -> &'static str {
 fn play_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
     let file = sound_file_name(theme, muted);
     let path = sound_asset_path(&file).with_context(|| format!("find sound asset {file}"))?;
-    let volume = (u16::from(volume.min(100)) * 10).to_string();
-    std::thread::spawn(move || {
-        let alias_number = SOUND_ALIAS_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let alias = format!("silence_sfx_{alias_number}");
-        let path = path.to_string_lossy();
-        let open = format!(r#"open "{}" type mpegvideo alias {}"#, path, alias);
-        if unsafe { mci_send(&open) } != 0 {
-            return;
-        }
-        let _ = unsafe { mci_send(&format!("setaudio {alias} volume to {volume}")) };
-        let _ = unsafe { mci_send(&format!("play {alias} wait")) };
-        let _ = unsafe { mci_send(&format!("close {alias}")) };
-    });
+    let volume = f32::from(volume.min(100)) / 100.0;
+
+    let mut audio = AUDIO_ENGINE.lock().unwrap();
+    if audio.is_none() {
+        *audio = Some(AudioEngine::new()?);
+    }
+
+    let engine = audio.as_mut().expect("audio engine initialized");
+    let bytes = engine.sound_bytes(&file, &path)?;
+    let decoder = Decoder::try_from(Cursor::new(bytes)).context("decode sound asset")?;
+    engine.sink.mixer().add(decoder.amplify(volume));
     Ok(())
 }
 
@@ -1324,11 +1344,6 @@ fn sound_asset_path(file: &str) -> Option<PathBuf> {
         .into_iter()
         .map(|root| root.join("assets").join("sounds").join(file))
         .find(|path| path.exists())
-}
-
-unsafe fn mci_send(command: &str) -> u32 {
-    let command = wide(command);
-    unsafe { mciSendStringW(PCWSTR(command.as_ptr()), None, HWND(null_mut())) }
 }
 
 fn selected_capture_volume() -> Result<IAudioEndpointVolume> {
