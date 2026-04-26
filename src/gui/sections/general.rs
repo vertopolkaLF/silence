@@ -1,22 +1,20 @@
 use dioxus::prelude::*;
 
 pub fn render(
-    mut shortcut: Signal<crate::Shortcut>,
-    mut mic_device_id: Signal<Option<String>>,
-    sound_settings: Signal<crate::SoundSettings>,
-    overlay: Signal<crate::OverlayConfig>,
+    settings: Signal<super::super::SettingsSnapshot>,
     mut recording: Signal<bool>,
 ) -> Element {
-    let current = shortcut().display();
-    let selected_value = mic_device_id().unwrap_or_default();
-    let mic_muted = crate::mic_mute_state(mic_device_id().as_deref()).unwrap_or(false);
+    let snapshot = settings();
+    let current = snapshot.config.shortcut.display();
+    let selected_value = snapshot.config.mic_device_id.clone().unwrap_or_default();
+    let mic_muted = snapshot.muted;
     let mic_status = if mic_muted {
         "Microphone is muted"
     } else {
         "Microphone is unmuted"
     };
-    let devices = crate::capture_devices().unwrap_or_default();
-    let mic_label = crate::selected_mic_label(mic_device_id().as_deref(), &devices);
+    let mic_label =
+        crate::selected_mic_label(snapshot.config.mic_device_id.as_deref(), &snapshot.devices);
 
     rsx! {
         section {
@@ -41,11 +39,12 @@ pub fn render(
                     value: "{selected_value}",
                     onchange: move |evt| {
                         let value = evt.value();
-                        mic_device_id.set(if value.is_empty() { None } else { Some(value) });
-                        save_general(shortcut, mic_device_id, sound_settings, overlay);
+                        super::super::update_settings(settings, |config| {
+                            config.mic_device_id = if value.is_empty() { None } else { Some(value) };
+                        });
                     },
                     option { value: "", "Default input device" }
-                    for device in devices {
+                    for device in snapshot.devices {
                         option {
                             value: "{device.id}",
                             selected: selected_value == device.id,
@@ -80,17 +79,19 @@ pub fn render(
                     onkeydown: move |evt| {
                         evt.prevent_default();
                         if let Some(next) = shortcut_from_keyboard_data(&evt.data()) {
-                            shortcut.set(next);
                             recording.set(false);
-                            save_general(shortcut, mic_device_id, sound_settings, overlay);
+                            super::super::update_settings(settings, |config| {
+                                config.shortcut = next;
+                            });
                         }
                     }
                 }
                 button {
                     class: "icon-button",
                     onclick: move |_| {
-                        shortcut.set(crate::Shortcut::default());
-                        save_general(shortcut, mic_device_id, sound_settings, overlay);
+                        super::super::update_settings(settings, |config| {
+                            config.shortcut = crate::Shortcut::default();
+                        });
                     },
                     title: "Reset shortcut",
                     span { class: "solar-icon icon-reset" }
@@ -116,20 +117,6 @@ pub fn render(
         }
 
     }
-}
-
-fn save_general(
-    shortcut: Signal<crate::Shortcut>,
-    mic_device_id: Signal<Option<String>>,
-    sound_settings: Signal<crate::SoundSettings>,
-    overlay: Signal<crate::OverlayConfig>,
-) {
-    let mut config = crate::load_config().unwrap_or_default();
-    config.shortcut = shortcut();
-    config.mic_device_id = mic_device_id();
-    config.sound_settings = sound_settings();
-    config.overlay = overlay();
-    let _ = crate::save_config(&config);
 }
 
 fn shortcut_from_keyboard_data(data: &dioxus::events::KeyboardData) -> Option<crate::Shortcut> {

@@ -69,7 +69,7 @@ const WM_TRAY: u32 = WM_APP + 1;
 const WM_TOGGLE_MUTE: u32 = WM_APP + 2;
 const WM_OVERLAY_POSITIONING: u32 = WM_APP + 3;
 const ID_TRAY: u32 = 1;
-const ID_CONFIG_TIMER: usize = 10;
+const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
 const ID_OVERLAY_DRAG_TIMER: usize = 12;
 const ID_MENU_TOGGLE: usize = 1001;
@@ -135,7 +135,7 @@ impl Shortcut {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 struct Config {
     #[serde(default)]
     shortcut: Shortcut,
@@ -457,7 +457,7 @@ fn run_background_app() -> Result<()> {
     install_keyboard_hook(instance.into())?;
     add_tray_icon(hwnd)?;
     unsafe {
-        let _ = SetTimer(hwnd, ID_CONFIG_TIMER, 1000, None);
+        let _ = SetTimer(hwnd, ID_STATE_TIMER, 250, None);
     }
 
     unsafe {
@@ -659,8 +659,8 @@ unsafe extern "system" fn main_wnd_proc(
             LRESULT(0)
         }
         WM_TIMER => {
-            if wparam.0 == ID_CONFIG_TIMER {
-                reload_config_if_changed();
+            if wparam.0 == ID_STATE_TIMER {
+                refresh_runtime_state();
             } else if wparam.0 == ID_OVERLAY_HIDE_TIMER {
                 let _ = unsafe { KillTimer(hwnd, ID_OVERLAY_HIDE_TIMER) };
                 apply_overlay_visibility();
@@ -824,18 +824,32 @@ fn toggle_mute() {
     match set_mute_to_inverse() {
         Ok(muted) => {
             play_mute_sound(muted);
-            STATE.lock().unwrap().muted = muted;
-            refresh_tray_tip();
-            let overlay = STATE.lock().unwrap().overlay.clone();
-            native_overlay::update(muted, &overlay);
-            if overlay.enabled && overlay.visibility == "AfterToggle" {
-                let millis = (overlay.duration_secs.clamp(0.1, 10.0) * 1000.0) as u32;
-                show_overlay_temporarily(millis);
-            } else {
-                apply_overlay_visibility();
-            }
+            set_global_mute_state(muted, true);
         }
         Err(err) => eprintln!("failed to toggle microphone mute: {err:?}"),
+    }
+}
+
+fn set_global_mute_state(muted: bool, trigger_overlay: bool) {
+    let changed = {
+        let mut state = STATE.lock().unwrap();
+        let changed = state.muted != muted;
+        state.muted = muted;
+        changed
+    };
+
+    if !changed && !trigger_overlay {
+        return;
+    }
+
+    refresh_tray_tip();
+    let overlay = STATE.lock().unwrap().overlay.clone();
+    native_overlay::update(muted, &overlay);
+    if trigger_overlay && overlay.enabled && overlay.visibility == "AfterToggle" {
+        let millis = (overlay.duration_secs.clamp(0.1, 10.0) * 1000.0) as u32;
+        show_overlay_temporarily(millis);
+    } else {
+        apply_overlay_visibility();
     }
 }
 
@@ -1120,6 +1134,21 @@ unsafe fn capture_device_name(device: &IMMDevice) -> Option<String> {
     if name.is_empty() { None } else { Some(name) }
 }
 
+fn refresh_runtime_state() {
+    reload_config_if_changed();
+    refresh_mute_state();
+}
+
+fn refresh_mute_state() {
+    let Ok(muted) = current_mute_state() else {
+        return;
+    };
+    let changed = STATE.lock().unwrap().muted != muted;
+    if changed {
+        set_global_mute_state(muted, true);
+    }
+}
+
 fn reload_config_if_changed() {
     let modified = config_modified_time();
     let mut state = STATE.lock().unwrap();
@@ -1127,19 +1156,14 @@ fn reload_config_if_changed() {
         return;
     }
     if let Ok(config) = load_config() {
-        let muted = capture_volume(config.mic_device_id.as_deref())
-            .and_then(|volume| unsafe { Ok(volume.GetMute()?.as_bool()) })
-            .unwrap_or(state.muted);
         state.shortcut = config.shortcut;
         state.mic_device_id = config.mic_device_id;
         state.sound_settings = config.sound_settings;
         state.overlay = config.overlay.clone();
-        state.muted = muted;
         state.config_modified = modified;
         state.shortcut_down = false;
         drop(state);
         refresh_tray_tip();
-        native_overlay::update(muted, &config.overlay);
         apply_overlay_visibility();
     }
 }

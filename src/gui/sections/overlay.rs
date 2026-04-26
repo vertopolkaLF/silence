@@ -1,20 +1,16 @@
 use dioxus::prelude::*;
 
-pub fn render(
-    shortcut: Signal<crate::Shortcut>,
-    mic_device_id: Signal<Option<String>>,
-    sound_settings: Signal<crate::SoundSettings>,
-    mut overlay: Signal<crate::OverlayConfig>,
-) -> Element {
+pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let mut positioning = use_signal(|| false);
-    let settings = overlay();
-    let duration = format!("{:.1}", settings.duration_secs.clamp(0.1, 10.0));
-    let x = format!("{:.0}", settings.position_x.clamp(0.0, 100.0));
-    let y = format!("{:.0}", settings.position_y.clamp(0.0, 100.0));
-    let scale = settings.scale.clamp(10, 400);
-    let duration_progress = format!("{:.0}%", settings.duration_secs.clamp(0.1, 10.0) * 10.0);
-    let x_progress = format!("{:.0}%", settings.position_x.clamp(0.0, 100.0));
-    let y_progress = format!("{:.0}%", settings.position_y.clamp(0.0, 100.0));
+    let snapshot = settings();
+    let overlay = snapshot.config.overlay.clone();
+    let duration = format!("{:.1}", overlay.duration_secs.clamp(0.1, 10.0));
+    let x = format!("{:.0}", overlay.position_x.clamp(0.0, 100.0));
+    let y = format!("{:.0}", overlay.position_y.clamp(0.0, 100.0));
+    let scale = overlay.scale.clamp(10, 400);
+    let duration_progress = format!("{:.0}%", overlay.duration_secs.clamp(0.1, 10.0) * 10.0);
+    let x_progress = format!("{:.0}%", overlay.position_x.clamp(0.0, 100.0));
+    let y_progress = format!("{:.0}%", overlay.position_y.clamp(0.0, 100.0));
     let scale_progress = format!("{:.0}%", (scale as f64 - 10.0) / 390.0 * 100.0);
 
     rsx! {
@@ -29,12 +25,11 @@ pub fn render(
                         h2 { "Enable overlay" }
                     }
                     super::Toggle {
-                        checked: settings.enabled,
+                        checked: overlay.enabled,
                         onchange: move |checked| {
-                            let mut next = overlay();
-                            next.enabled = checked;
-                            overlay.set(next);
-                            save_overlay(shortcut, mic_device_id, sound_settings, overlay);
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.enabled = checked;
+                            });
                         }
                     }
                 }
@@ -46,23 +41,22 @@ pub fn render(
                     div { class: "select-wrap",
                         select {
                             class: "select-like",
-                            value: "{settings.visibility}",
+                            value: "{overlay.visibility}",
                             onchange: move |evt| {
-                                let mut next = overlay();
-                                next.visibility = evt.value();
-                                overlay.set(next);
-                                save_overlay(shortcut, mic_device_id, sound_settings, overlay);
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.visibility = evt.value();
+                                });
                             },
-                            option { value: "Always", selected: settings.visibility == "Always", "Always visible" }
-                            option { value: "WhenMuted", selected: settings.visibility == "WhenMuted", "Visible when muted" }
-                            option { value: "WhenUnmuted", selected: settings.visibility == "WhenUnmuted", "Visible when unmuted" }
-                            option { value: "AfterToggle", selected: settings.visibility == "AfterToggle", "Show after toggle" }
+                            option { value: "Always", selected: overlay.visibility == "Always", "Always visible" }
+                            option { value: "WhenMuted", selected: overlay.visibility == "WhenMuted", "Visible when muted" }
+                            option { value: "WhenUnmuted", selected: overlay.visibility == "WhenUnmuted", "Visible when unmuted" }
+                            option { value: "AfterToggle", selected: overlay.visibility == "AfterToggle", "Show after toggle" }
                         }
                         span { class: "solar-icon select-icon icon-down" }
                     }
                 }
 
-                if settings.visibility == "AfterToggle" {
+                if overlay.visibility == "AfterToggle" {
                     div { class: "overlay-range-row",
                         div {
                             label { "Duration" }
@@ -78,10 +72,9 @@ pub fn render(
                             style: "--range-progress: {duration_progress};",
                             oninput: move |evt| {
                                 if let Ok(value) = evt.value().parse::<f64>() {
-                                    let mut next = overlay();
-                                    next.duration_secs = value.clamp(0.1, 10.0);
-                                    overlay.set(next);
-                                    save_overlay(shortcut, mic_device_id, sound_settings, overlay);
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.duration_secs = value.clamp(0.1, 10.0);
+                                    });
                                 }
                             }
                         }
@@ -105,10 +98,9 @@ pub fn render(
                         style: "--range-progress: {x_progress};",
                         oninput: move |evt| {
                             if let Ok(value) = evt.value().parse::<f64>() {
-                                let mut next = overlay();
-                                next.position_x = value.clamp(0.0, 100.0);
-                                overlay.set(next);
-                                save_overlay(shortcut, mic_device_id, sound_settings, overlay);
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.position_x = value.clamp(0.0, 100.0);
+                                });
                             }
                         }
                     }
@@ -129,10 +121,9 @@ pub fn render(
                         style: "--range-progress: {y_progress};",
                         oninput: move |evt| {
                             if let Ok(value) = evt.value().parse::<f64>() {
-                                let mut next = overlay();
-                                next.position_y = value.clamp(0.0, 100.0);
-                                overlay.set(next);
-                                save_overlay(shortcut, mic_device_id, sound_settings, overlay);
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.position_y = value.clamp(0.0, 100.0);
+                                });
                             }
                         }
                     }
@@ -153,10 +144,9 @@ pub fn render(
                         style: "--range-progress: {scale_progress};",
                         oninput: move |evt| {
                             if let Ok(value) = evt.value().parse::<u32>() {
-                                let mut next = overlay();
-                                next.scale = value.clamp(10, 400);
-                                overlay.set(next);
-                                save_overlay(shortcut, mic_device_id, sound_settings, overlay);
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.scale = value.clamp(10, 400);
+                                });
                             }
                         }
                     }
@@ -166,12 +156,11 @@ pub fn render(
                     class: "check-row",
                     input {
                         r#type: "checkbox",
-                        checked: settings.show_text,
+                        checked: overlay.show_text,
                         onchange: move |evt| {
-                            let mut next = overlay();
-                            next.show_text = evt.checked();
-                            overlay.set(next);
-                            save_overlay(shortcut, mic_device_id, sound_settings, overlay);
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.show_text = evt.checked();
+                            });
                         }
                     }
                     span { "Show text next to the icon" }
@@ -189,7 +178,9 @@ pub fn render(
                         onchange: move |checked| {
                             positioning.set(checked);
                             if let Some(next) = crate::set_overlay_positioning(checked) {
-                                overlay.set(next);
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay = next;
+                                });
                             }
                         }
                     }
@@ -197,18 +188,4 @@ pub fn render(
             }
         }
     }
-}
-
-fn save_overlay(
-    shortcut: Signal<crate::Shortcut>,
-    mic_device_id: Signal<Option<String>>,
-    sound_settings: Signal<crate::SoundSettings>,
-    overlay: Signal<crate::OverlayConfig>,
-) {
-    let mut config = crate::load_config().unwrap_or_default();
-    config.shortcut = shortcut();
-    config.mic_device_id = mic_device_id();
-    config.sound_settings = sound_settings();
-    config.overlay = overlay();
-    let _ = crate::save_config(&config);
 }

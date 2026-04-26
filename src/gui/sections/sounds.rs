@@ -1,15 +1,11 @@
 use dioxus::prelude::*;
 
-pub fn render(
-    shortcut: Signal<crate::Shortcut>,
-    mic_device_id: Signal<Option<String>>,
-    mut sound_settings: Signal<crate::SoundSettings>,
-    overlay: Signal<crate::OverlayConfig>,
-) -> Element {
-    let settings = sound_settings();
-    let volume = settings.volume.min(100);
-    let mute_theme = settings.mute_theme.clone();
-    let unmute_theme = settings.unmute_theme.clone();
+pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
+    let snapshot = settings();
+    let sound_settings = snapshot.config.sound_settings.clone();
+    let volume = sound_settings.volume.min(100);
+    let mute_theme = sound_settings.mute_theme.clone();
+    let unmute_theme = sound_settings.unmute_theme.clone();
     let mute_label = crate::sound_theme_label(&mute_theme);
     let unmute_label = crate::sound_theme_label(&unmute_theme);
 
@@ -23,12 +19,11 @@ pub fn render(
                 div { class: "sound-card-title",
                     h2 { "Enable sounds" }
                     super::Toggle {
-                        checked: settings.enabled,
+                        checked: sound_settings.enabled,
                         onchange: move |checked| {
-                            let mut next = sound_settings();
-                            next.enabled = checked;
-                            sound_settings.set(next);
-                            save_sounds(shortcut, mic_device_id, sound_settings, overlay);
+                            super::super::update_settings(settings, |config| {
+                                config.sound_settings.enabled = checked;
+                            });
                         }
                     }
                 }
@@ -51,10 +46,9 @@ pub fn render(
                         style: "--range-progress: {volume}%;",
                         oninput: move |evt| {
                             if let Ok(value) = evt.value().parse::<u8>() {
-                                let mut next = sound_settings();
-                                next.volume = value.min(100);
-                                sound_settings.set(next);
-                                save_sounds(shortcut, mic_device_id, sound_settings, overlay);
+                                super::super::update_settings(settings, |config| {
+                                    config.sound_settings.volume = value.min(100);
+                                });
                             }
                         }
                     }
@@ -69,10 +63,7 @@ pub fn render(
                     label: mute_label,
                     muted: true,
                     volume,
-                    shortcut,
-                    mic_device_id,
-                    sound_settings,
-                    overlay
+                    settings
                 }
                 SoundPicker {
                     title: "Unmute Sound",
@@ -80,10 +71,7 @@ pub fn render(
                     label: unmute_label,
                     muted: false,
                     volume,
-                    shortcut,
-                    mic_device_id,
-                    sound_settings,
-                    overlay
+                    settings
                 }
             }
         }
@@ -97,10 +85,7 @@ fn SoundPicker(
     label: &'static str,
     muted: bool,
     volume: u8,
-    shortcut: Signal<crate::Shortcut>,
-    mic_device_id: Signal<Option<String>>,
-    mut sound_settings: Signal<crate::SoundSettings>,
-    overlay: Signal<crate::OverlayConfig>,
+    settings: Signal<super::super::SettingsSnapshot>,
 ) -> Element {
     rsx! {
         div { class: "sound-picker",
@@ -111,15 +96,14 @@ fn SoundPicker(
                         class: "select-like sound-select",
                         value: "{value}",
                         onchange: move |evt| {
-                            let mut next = sound_settings();
                             let value = evt.value();
-                            if muted {
-                                next.mute_theme = value;
-                            } else {
-                                next.unmute_theme = value;
-                            }
-                            sound_settings.set(next);
-                            save_sounds(shortcut, mic_device_id, sound_settings, overlay);
+                            super::super::update_settings(settings, |config| {
+                                if muted {
+                                    config.sound_settings.mute_theme = value;
+                                } else {
+                                    config.sound_settings.unmute_theme = value;
+                                }
+                            });
                         },
                         for theme in crate::sound_themes() {
                             option {
@@ -142,18 +126,4 @@ fn SoundPicker(
             }
         }
     }
-}
-
-fn save_sounds(
-    shortcut: Signal<crate::Shortcut>,
-    mic_device_id: Signal<Option<String>>,
-    sound_settings: Signal<crate::SoundSettings>,
-    overlay: Signal<crate::OverlayConfig>,
-) {
-    let mut config = crate::load_config().unwrap_or_default();
-    config.shortcut = shortcut();
-    config.mic_device_id = mic_device_id();
-    config.sound_settings = sound_settings();
-    config.overlay = overlay();
-    let _ = crate::save_config(&config);
 }

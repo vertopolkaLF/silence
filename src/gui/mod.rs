@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use std::time::Duration;
 
 mod sections;
 mod tabs;
@@ -16,22 +17,56 @@ const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
 
+#[derive(Clone, PartialEq)]
+pub struct SettingsSnapshot {
+    pub config: crate::Config,
+    pub devices: Vec<crate::MicDevice>,
+    pub muted: bool,
+}
+
+impl SettingsSnapshot {
+    fn load() -> Self {
+        Self::from_config(crate::load_config().unwrap_or_default())
+    }
+
+    fn from_config(config: crate::Config) -> Self {
+        let devices = crate::capture_devices().unwrap_or_default();
+        let muted = crate::mic_mute_state(config.mic_device_id.as_deref()).unwrap_or(false);
+        Self {
+            config,
+            devices,
+            muted,
+        }
+    }
+}
+
+pub fn update_settings(
+    mut settings: Signal<SettingsSnapshot>,
+    update: impl FnOnce(&mut crate::Config),
+) {
+    let mut config = crate::load_config().unwrap_or_else(|_| settings().config);
+    update(&mut config);
+    let _ = crate::save_config(&config);
+    settings.set(SettingsSnapshot::from_config(config));
+}
+
 pub fn settings_app() -> Element {
     let desktop = dioxus::desktop::use_window();
     let drag_desktop = desktop.clone();
     let devtools_desktop = desktop.clone();
     let close_desktop = desktop.clone();
-    let initial = crate::load_config().unwrap_or_default();
-    let initial_shortcut = initial.shortcut;
-    let initial_mic_device_id = initial.mic_device_id.clone();
-    let initial_sound_settings = initial.sound_settings.clone();
-    let initial_overlay = initial.overlay.clone();
-    let shortcut = use_signal(move || initial_shortcut);
-    let mic_device_id = use_signal(move || initial_mic_device_id.clone());
-    let sound_settings = use_signal(move || initial_sound_settings.clone());
-    let overlay = use_signal(move || initial_overlay.clone());
+    let mut settings = use_signal(SettingsSnapshot::load);
     let active_tab = use_signal(|| SettingsTab::General);
     let recording = use_signal(|| false);
+    use_future(move || async move {
+        loop {
+            let next = SettingsSnapshot::load();
+            if *settings.peek() != next {
+                settings.set(next);
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    });
     let theme_style = crate::WindowsAccent::load().css_vars();
     let titlebar_icon_style = format!(
         r#".titlebar-settings {{ --titlebar-icon: url("{SETTINGS_ICON}"); }}
@@ -88,7 +123,7 @@ pub fn settings_app() -> Element {
                 {tabs::render(active_tab)}
                 main {
                     class: "content",
-                    {sections::render(active_tab(), shortcut, mic_device_id, sound_settings, overlay, recording)}
+                    {sections::render(active_tab(), settings, recording)}
                 }
             }
         }
