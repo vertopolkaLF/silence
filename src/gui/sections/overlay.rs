@@ -1,7 +1,236 @@
 use dioxus::prelude::*;
 
-use super::super::tabs::SettingsTab;
+pub fn render(
+    shortcut: Signal<crate::Shortcut>,
+    mic_device_id: Signal<Option<String>>,
+    sound_settings: Signal<crate::SoundSettings>,
+    mut overlay: Signal<crate::OverlayConfig>,
+    mut saved: Signal<bool>,
+) -> Element {
+    let settings = overlay();
+    let duration = format!("{:.1}", settings.duration_secs.clamp(0.1, 10.0));
+    let x = format!("{:.0}", settings.position_x.clamp(0.0, 100.0));
+    let y = format!("{:.0}", settings.position_y.clamp(0.0, 100.0));
+    let scale = settings.scale.clamp(10, 400);
+    let duration_progress = format!("{:.0}%", settings.duration_secs.clamp(0.1, 10.0) * 10.0);
+    let x_progress = format!("{:.0}%", settings.position_x.clamp(0.0, 100.0));
+    let y_progress = format!("{:.0}%", settings.position_y.clamp(0.0, 100.0));
+    let scale_progress = format!("{:.0}%", (scale as f64 - 10.0) / 390.0 * 100.0);
 
-pub fn render() -> Element {
-    super::empty_section(SettingsTab::Overlay)
+    rsx! {
+        section { class: "overlay-panel",
+            div { class: "overlay-header",
+                h1 { "Overlay" }
+                p { "A small topmost window that passes clicks through to whatever is underneath." }
+            }
+
+            section { class: "sound-card",
+                div { class: "sound-card-title",
+                    div {
+                        h2 { "Enable overlay" }
+                        p { "Shows microphone state above other windows." }
+                    }
+                    label { class: "sound-toggle",
+                        input {
+                            r#type: "checkbox",
+                            checked: settings.enabled,
+                            onchange: move |evt| {
+                                let mut next = overlay();
+                                next.enabled = evt.checked();
+                                overlay.set(next);
+                                saved.set(false);
+                            }
+                        }
+                        span { class: "toggle-track" }
+                        span { class: "toggle-label",
+                            if settings.enabled {
+                                "Overlay enabled"
+                            } else {
+                                "Overlay disabled"
+                            }
+                        }
+                    }
+                }
+            }
+
+            section { class: "sound-card",
+                div { class: "overlay-field",
+                    label { "Visibility" }
+                    div { class: "select-wrap",
+                        select {
+                            class: "select-like",
+                            value: "{settings.visibility}",
+                            onchange: move |evt| {
+                                let mut next = overlay();
+                                next.visibility = evt.value();
+                                overlay.set(next);
+                                saved.set(false);
+                            },
+                            option { value: "Always", selected: settings.visibility == "Always", "Always visible" }
+                            option { value: "WhenMuted", selected: settings.visibility == "WhenMuted", "Visible when muted" }
+                            option { value: "WhenUnmuted", selected: settings.visibility == "WhenUnmuted", "Visible when unmuted" }
+                            option { value: "AfterToggle", selected: settings.visibility == "AfterToggle", "Show after toggle" }
+                        }
+                        span { class: "solar-icon select-icon icon-down" }
+                    }
+                }
+
+                if settings.visibility == "AfterToggle" {
+                    div { class: "overlay-range-row",
+                        div {
+                            label { "Duration" }
+                            span { class: "sound-value", "{duration}s" }
+                        }
+                        input {
+                            class: "volume-slider",
+                            r#type: "range",
+                            min: "0.1",
+                            max: "10",
+                            step: "0.1",
+                            value: "{duration}",
+                            style: "--range-progress: {duration_progress};",
+                            oninput: move |evt| {
+                                if let Ok(value) = evt.value().parse::<f64>() {
+                                    let mut next = overlay();
+                                    next.duration_secs = value.clamp(0.1, 10.0);
+                                    overlay.set(next);
+                                    saved.set(false);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            section { class: "sound-card",
+                div { class: "overlay-range-row",
+                    div {
+                        label { "Horizontal position" }
+                        span { class: "sound-value", "{x}%" }
+                    }
+                    input {
+                        class: "volume-slider",
+                        r#type: "range",
+                        min: "0",
+                        max: "100",
+                        step: "1",
+                        value: "{x}",
+                        style: "--range-progress: {x_progress};",
+                        oninput: move |evt| {
+                            if let Ok(value) = evt.value().parse::<f64>() {
+                                let mut next = overlay();
+                                next.position_x = value.clamp(0.0, 100.0);
+                                overlay.set(next);
+                                saved.set(false);
+                            }
+                        }
+                    }
+                }
+
+                div { class: "overlay-range-row",
+                    div {
+                        label { "Vertical position" }
+                        span { class: "sound-value", "{y}%" }
+                    }
+                    input {
+                        class: "volume-slider",
+                        r#type: "range",
+                        min: "0",
+                        max: "100",
+                        step: "1",
+                        value: "{y}",
+                        style: "--range-progress: {y_progress};",
+                        oninput: move |evt| {
+                            if let Ok(value) = evt.value().parse::<f64>() {
+                                let mut next = overlay();
+                                next.position_y = value.clamp(0.0, 100.0);
+                                overlay.set(next);
+                                saved.set(false);
+                            }
+                        }
+                    }
+                }
+
+                div { class: "overlay-range-row",
+                    div {
+                        label { "Size" }
+                        span { class: "sound-value", "{scale}%" }
+                    }
+                    input {
+                        class: "volume-slider",
+                        r#type: "range",
+                        min: "10",
+                        max: "400",
+                        step: "5",
+                        value: "{scale}",
+                        style: "--range-progress: {scale_progress};",
+                        oninput: move |evt| {
+                            if let Ok(value) = evt.value().parse::<u32>() {
+                                let mut next = overlay();
+                                next.scale = value.clamp(10, 400);
+                                overlay.set(next);
+                                saved.set(false);
+                            }
+                        }
+                    }
+                }
+
+                label {
+                    class: "check-row",
+                    input {
+                        r#type: "checkbox",
+                        checked: settings.show_text,
+                        onchange: move |evt| {
+                            let mut next = overlay();
+                            next.show_text = evt.checked();
+                            overlay.set(next);
+                            saved.set(false);
+                        }
+                    }
+                    span { "Show text next to the icon" }
+                }
+            }
+
+            footer {
+                button {
+                    class: "secondary",
+                    onclick: move |_| {
+                        if save_overlay(shortcut, mic_device_id, sound_settings, overlay).is_ok() {
+                            crate::request_overlay_preview();
+                        }
+                    },
+                    span { class: "solar-icon button-icon icon-monitor" }
+                    "Preview"
+                }
+                button {
+                    class: "save",
+                    onclick: move |_| {
+                        if save_overlay(shortcut, mic_device_id, sound_settings, overlay).is_ok() {
+                            saved.set(true);
+                        }
+                    },
+                    span { class: "solar-icon button-icon icon-shield" }
+                    "Save"
+                }
+                span {
+                    class: if saved() { "status visible" } else { "status" },
+                    "Saved"
+                }
+            }
+        }
+    }
+}
+
+fn save_overlay(
+    shortcut: Signal<crate::Shortcut>,
+    mic_device_id: Signal<Option<String>>,
+    sound_settings: Signal<crate::SoundSettings>,
+    overlay: Signal<crate::OverlayConfig>,
+) -> anyhow::Result<()> {
+    let mut config = crate::load_config().unwrap_or_default();
+    config.shortcut = shortcut();
+    config.mic_device_id = mic_device_id();
+    config.sound_settings = sound_settings();
+    config.overlay = overlay();
+    crate::save_config(&config)
 }

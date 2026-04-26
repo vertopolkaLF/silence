@@ -3,6 +3,8 @@ use dioxus::prelude::*;
 pub fn render(
     mut shortcut: Signal<crate::Shortcut>,
     mut mic_device_id: Signal<Option<String>>,
+    sound_settings: Signal<crate::SoundSettings>,
+    overlay: Signal<crate::OverlayConfig>,
     mut recording: Signal<bool>,
     mut saved: Signal<bool>,
 ) -> Element {
@@ -118,10 +120,12 @@ pub fn render(
             button {
                 class: "save",
                 onclick: move |_| {
-                    if crate::save_config(&crate::Config {
-                        shortcut: shortcut(),
-                        mic_device_id: mic_device_id(),
-                    }).is_ok() {
+                    let mut config = crate::load_config().unwrap_or_default();
+                    config.shortcut = shortcut();
+                    config.mic_device_id = mic_device_id();
+                    config.sound_settings = sound_settings();
+                    config.overlay = overlay();
+                    if crate::save_config(&config).is_ok() {
                         saved.set(true);
                     }
                 },

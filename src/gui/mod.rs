@@ -11,6 +11,7 @@ const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::cs
 const GEIST_FONT: Asset = asset!("/assets/fonts/Geist-VariableFont_wght.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
+const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
@@ -21,8 +22,14 @@ pub fn settings_app() -> Element {
     let devtools_desktop = desktop.clone();
     let close_desktop = desktop.clone();
     let initial = crate::load_config().unwrap_or_default();
-    let shortcut = use_signal(move || initial.shortcut);
-    let mic_device_id = use_signal(move || initial.mic_device_id.clone());
+    let initial_shortcut = initial.shortcut;
+    let initial_mic_device_id = initial.mic_device_id.clone();
+    let initial_sound_settings = initial.sound_settings.clone();
+    let initial_overlay = initial.overlay.clone();
+    let shortcut = use_signal(move || initial_shortcut);
+    let mic_device_id = use_signal(move || initial_mic_device_id.clone());
+    let sound_settings = use_signal(move || initial_sound_settings.clone());
+    let overlay = use_signal(move || initial_overlay.clone());
     let active_tab = use_signal(|| SettingsTab::General);
     let recording = use_signal(|| false);
     let saved = use_signal(|| false);
@@ -49,6 +56,7 @@ pub fn settings_app() -> Element {
         link { rel: "stylesheet", href: TITLEBAR_CSS }
         link { rel: "stylesheet", href: TABS_CSS }
         link { rel: "stylesheet", href: GENERAL_CSS }
+        link { rel: "stylesheet", href: SOUNDS_CSS }
         style { {theme_style} }
         style { {titlebar_icon_style} }
         div {
@@ -81,7 +89,7 @@ pub fn settings_app() -> Element {
                 {tabs::render(active_tab)}
                 main {
                     class: "content",
-                    {sections::render(active_tab(), shortcut, mic_device_id, recording, saved)}
+                    {sections::render(active_tab(), shortcut, mic_device_id, sound_settings, overlay, recording, saved)}
                 }
             }
         }

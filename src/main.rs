@@ -7,7 +7,10 @@ use std::{
     path::PathBuf,
     process::Command,
     ptr::{null, null_mut},
-    sync::Mutex,
+    sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::SystemTime,
 };
 
@@ -26,6 +29,7 @@ use windows::{
             DEVICE_STATE_ACTIVE, Endpoints::IAudioEndpointVolume, IMMDevice, IMMDeviceEnumerator,
             MMDeviceEnumerator, eCapture, eConsole,
         },
+        Media::Multimedia::mciSendStringW,
         System::{
             Com::{
                 CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
@@ -45,12 +49,13 @@ use windows::{
                 AppendMenuW, CallNextHookEx, CreateIconFromResourceEx, CreatePopupMenu,
                 CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow, DispatchMessageW,
                 FindWindowW, GetCursorPos, GetMessageW, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION,
-                IsIconic, KBDLLHOOKSTRUCT, LR_DEFAULTSIZE, LoadCursorW, LoadIconW, MENU_ITEM_FLAGS,
-                MSG, PostMessageW, PostQuitMessage, RegisterClassW, SW_RESTORE,
+                IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW,
+                MENU_ITEM_FLAGS, MSG, PostMessageW, PostQuitMessage, RegisterClassW, SW_RESTORE,
                 SetForegroundWindow, SetTimer, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN,
                 TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx,
-                WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_KEYDOWN,
-                WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
+                WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
+                WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
+                WS_OVERLAPPED,
             },
         },
     },
@@ -58,11 +63,14 @@ use windows::{
 };
 
 mod gui;
+mod native_overlay;
 
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_TOGGLE_MUTE: u32 = WM_APP + 2;
+const WM_PREVIEW_OVERLAY: u32 = WM_APP + 3;
 const ID_TRAY: u32 = 1;
 const ID_CONFIG_TIMER: usize = 10;
+const ID_OVERLAY_HIDE_TIMER: usize = 11;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
@@ -132,6 +140,10 @@ struct Config {
     shortcut: Shortcut,
     #[serde(default)]
     mic_device_id: Option<String>,
+    #[serde(default)]
+    sound_settings: SoundSettings,
+    #[serde(default)]
+    overlay: OverlayConfig,
 }
 
 impl Default for Config {
@@ -139,6 +151,8 @@ impl Default for Config {
         Self {
             shortcut: Shortcut::default(),
             mic_device_id: None,
+            sound_settings: SoundSettings::default(),
+            overlay: OverlayConfig::default(),
         }
     }
 }
@@ -148,9 +162,104 @@ struct AppState {
     hook: HHOOK,
     shortcut: Shortcut,
     mic_device_id: Option<String>,
+    sound_settings: SoundSettings,
+    overlay: OverlayConfig,
     muted: bool,
     shortcut_down: bool,
     config_modified: Option<SystemTime>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct OverlayConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_overlay_visibility")]
+    pub visibility: String,
+    #[serde(default = "default_overlay_position_x")]
+    pub position_x: f64,
+    #[serde(default = "default_overlay_position_y")]
+    pub position_y: f64,
+    #[serde(default = "default_overlay_duration_secs")]
+    pub duration_secs: f64,
+    #[serde(default = "default_overlay_scale")]
+    pub scale: u32,
+    #[serde(default)]
+    pub show_text: bool,
+}
+
+impl Default for OverlayConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            visibility: default_overlay_visibility(),
+            position_x: default_overlay_position_x(),
+            position_y: default_overlay_position_y(),
+            duration_secs: default_overlay_duration_secs(),
+            scale: default_overlay_scale(),
+            show_text: false,
+        }
+    }
+}
+
+fn default_overlay_visibility() -> String {
+    "WhenMuted".to_string()
+}
+
+fn default_overlay_position_x() -> f64 {
+    50.0
+}
+
+fn default_overlay_position_y() -> f64 {
+    80.0
+}
+
+fn default_overlay_duration_secs() -> f64 {
+    2.0
+}
+
+fn default_overlay_scale() -> u32 {
+    100
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SoundSettings {
+    #[serde(default = "default_sounds_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_sound_volume")]
+    pub volume: u8,
+    #[serde(default = "default_sound_theme")]
+    pub mute_theme: String,
+    #[serde(default = "default_sound_theme")]
+    pub unmute_theme: String,
+}
+
+impl Default for SoundSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_sounds_enabled(),
+            volume: default_sound_volume(),
+            mute_theme: default_sound_theme(),
+            unmute_theme: default_sound_theme(),
+        }
+    }
+}
+
+fn default_sounds_enabled() -> bool {
+    true
+}
+
+fn default_sound_volume() -> u8 {
+    20
+}
+
+fn default_sound_theme() -> String {
+    "8bit".to_string()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SoundTheme {
+    pub id: &'static str,
+    pub label: &'static str,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -240,6 +349,8 @@ impl Default for AppState {
             hook: HHOOK(null_mut()),
             shortcut: config.shortcut,
             mic_device_id: config.mic_device_id,
+            sound_settings: config.sound_settings,
+            overlay: config.overlay,
             muted: false,
             shortcut_down: false,
             config_modified: config_modified_time(),
@@ -250,6 +361,42 @@ impl Default for AppState {
 unsafe impl Send for AppState {}
 
 static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState::default()));
+static SOUND_ALIAS_COUNTER: AtomicUsize = AtomicUsize::new(1);
+
+const SOUND_THEMES: &[SoundTheme] = &[
+    SoundTheme {
+        id: "8bit",
+        label: "8-Bit",
+    },
+    SoundTheme {
+        id: "blob",
+        label: "Blob",
+    },
+    SoundTheme {
+        id: "digital",
+        label: "Digital",
+    },
+    SoundTheme {
+        id: "discord",
+        label: "Discord",
+    },
+    SoundTheme {
+        id: "pop",
+        label: "Pop",
+    },
+    SoundTheme {
+        id: "punchy",
+        label: "Punchy",
+    },
+    SoundTheme {
+        id: "scifi",
+        label: "Sci-Fi",
+    },
+    SoundTheme {
+        id: "vibrant",
+        label: "Vibrant",
+    },
+];
 
 fn main() -> Result<()> {
     if std::env::args().any(|arg| arg == "--settings") {
@@ -297,11 +444,14 @@ fn run_background_app() -> Result<()> {
     register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
     let muted = current_mute_state().unwrap_or(false);
+    let overlay_config = STATE.lock().unwrap().overlay.clone();
     {
         let mut state = STATE.lock().unwrap();
         state.hwnd = hwnd;
         state.muted = muted;
     }
+    native_overlay::init(instance.into(), muted, &overlay_config)?;
+    apply_overlay_visibility();
 
     install_keyboard_hook(instance.into())?;
     add_tray_icon(hwnd)?;
@@ -510,11 +660,22 @@ unsafe extern "system" fn main_wnd_proc(
         WM_TIMER => {
             if wparam.0 == ID_CONFIG_TIMER {
                 reload_config_if_changed();
+            } else if wparam.0 == ID_OVERLAY_HIDE_TIMER {
+                let _ = unsafe { KillTimer(hwnd, ID_OVERLAY_HIDE_TIMER) };
+                apply_overlay_visibility();
             }
             LRESULT(0)
         }
         WM_TOGGLE_MUTE => {
             toggle_mute();
+            LRESULT(0)
+        }
+        WM_PREVIEW_OVERLAY => {
+            show_overlay_temporarily(3000);
+            LRESULT(0)
+        }
+        WM_DISPLAYCHANGE => {
+            native_overlay::reposition();
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -645,11 +806,72 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 fn toggle_mute() {
     match set_mute_to_inverse() {
         Ok(muted) => {
+            play_mute_sound(muted);
             STATE.lock().unwrap().muted = muted;
             refresh_tray_tip();
+            let overlay = STATE.lock().unwrap().overlay.clone();
+            native_overlay::update(muted, &overlay);
+            if overlay.enabled && overlay.visibility == "AfterToggle" {
+                let millis = (overlay.duration_secs.clamp(0.1, 10.0) * 1000.0) as u32;
+                show_overlay_temporarily(millis);
+            } else {
+                apply_overlay_visibility();
+            }
         }
         Err(err) => eprintln!("failed to toggle microphone mute: {err:?}"),
     }
+}
+
+fn apply_overlay_visibility() {
+    let (muted, overlay) = {
+        let state = STATE.lock().unwrap();
+        (state.muted, state.overlay.clone())
+    };
+
+    native_overlay::update(muted, &overlay);
+    if !overlay.enabled {
+        native_overlay::hide();
+        return;
+    }
+
+    let should_show = match overlay.visibility.as_str() {
+        "Always" => true,
+        "WhenMuted" => muted,
+        "WhenUnmuted" => !muted,
+        "AfterToggle" => false,
+        _ => muted,
+    };
+
+    if should_show {
+        native_overlay::show();
+    } else {
+        native_overlay::hide();
+    }
+}
+
+fn show_overlay_temporarily(duration_ms: u32) {
+    let (hwnd, muted, overlay) = {
+        let state = STATE.lock().unwrap();
+        (state.hwnd, state.muted, state.overlay.clone())
+    };
+    native_overlay::update(muted, &overlay);
+    native_overlay::show();
+    unsafe {
+        let _ = KillTimer(hwnd, ID_OVERLAY_HIDE_TIMER);
+        let _ = SetTimer(hwnd, ID_OVERLAY_HIDE_TIMER, duration_ms, None);
+    }
+}
+
+pub fn request_overlay_preview() {
+    let class = wide("SilenceV2Hidden");
+    let hwnd = unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR(null())) };
+    let Ok(hwnd) = hwnd else {
+        return;
+    };
+    if hwnd.0.is_null() {
+        return;
+    }
+    let _ = unsafe { PostMessageW(hwnd, WM_PREVIEW_OVERLAY, WPARAM(0), LPARAM(0)) };
 }
 
 fn current_mute_state() -> Result<bool> {
@@ -672,6 +894,89 @@ fn set_mute_to_inverse() -> Result<bool> {
         volume.SetMute(next, null())?;
         Ok(next)
     }
+}
+
+fn play_mute_sound(muted: bool) {
+    let settings = STATE.lock().unwrap().sound_settings.clone();
+    if !settings.enabled {
+        return;
+    }
+    let theme = if muted {
+        settings.mute_theme.as_str()
+    } else {
+        settings.unmute_theme.as_str()
+    };
+    if let Err(err) = play_sound(theme, muted, settings.volume) {
+        eprintln!("failed to play mute sound: {err:?}");
+    }
+}
+
+pub fn preview_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
+    play_sound(theme, muted, volume)
+}
+
+pub fn sound_themes() -> &'static [SoundTheme] {
+    SOUND_THEMES
+}
+
+pub fn sound_theme_label(theme_id: &str) -> &'static str {
+    SOUND_THEMES
+        .iter()
+        .find(|theme| theme.id == theme_id)
+        .map(|theme| theme.label)
+        .unwrap_or(SOUND_THEMES[0].label)
+}
+
+fn play_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
+    let file = sound_file_name(theme, muted);
+    let path = sound_asset_path(&file).with_context(|| format!("find sound asset {file}"))?;
+    let volume = (u16::from(volume.min(100)) * 10).to_string();
+    std::thread::spawn(move || {
+        let alias_number = SOUND_ALIAS_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let alias = format!("silence_sfx_{alias_number}");
+        let path = path.to_string_lossy();
+        let open = format!(r#"open "{}" type mpegvideo alias {}"#, path, alias);
+        if unsafe { mci_send(&open) } != 0 {
+            return;
+        }
+        let _ = unsafe { mci_send(&format!("setaudio {alias} volume to {volume}")) };
+        let _ = unsafe { mci_send(&format!("play {alias} wait")) };
+        let _ = unsafe { mci_send(&format!("close {alias}")) };
+    });
+    Ok(())
+}
+
+fn sound_file_name(theme: &str, muted: bool) -> String {
+    let theme = if SOUND_THEMES.iter().any(|known| known.id == theme) {
+        theme
+    } else {
+        SOUND_THEMES[0].id
+    };
+    let action = if muted { "mute" } else { "unmute" };
+    format!("{theme}_{action}.mp3")
+}
+
+fn sound_asset_path(file: &str) -> Option<PathBuf> {
+    let mut roots = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        roots.push(cwd);
+    }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        roots.extend(parent.ancestors().map(PathBuf::from));
+    }
+    roots.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")));
+
+    roots
+        .into_iter()
+        .map(|root| root.join("assets").join("sounds").join(file))
+        .find(|path| path.exists())
+}
+
+unsafe fn mci_send(command: &str) -> u32 {
+    let command = wide(command);
+    unsafe { mciSendStringW(PCWSTR(command.as_ptr()), None, HWND(null_mut())) }
 }
 
 fn selected_capture_volume() -> Result<IAudioEndpointVolume> {
@@ -780,11 +1085,15 @@ fn reload_config_if_changed() {
             .unwrap_or(state.muted);
         state.shortcut = config.shortcut;
         state.mic_device_id = config.mic_device_id;
+        state.sound_settings = config.sound_settings;
+        state.overlay = config.overlay.clone();
         state.muted = muted;
         state.config_modified = modified;
         state.shortcut_down = false;
         drop(state);
         refresh_tray_tip();
+        native_overlay::update(muted, &config.overlay);
+        apply_overlay_visibility();
     }
 }
 
@@ -816,6 +1125,7 @@ fn config_modified_time() -> Option<SystemTime> {
 }
 
 fn cleanup() {
+    native_overlay::destroy();
     remove_tray_icon();
     let hook = STATE.lock().unwrap().hook;
     if !hook.0.is_null() {
