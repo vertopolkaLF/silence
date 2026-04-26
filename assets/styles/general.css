@@ -12,19 +12,19 @@
   height: 54px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border: 1px solid color-mix(in oklch, var(--success), transparent 70%);
   border-radius: 12px;
-  background: rgba(16, 185, 129, 0.1);
+  background: color-mix(in oklch, var(--success), transparent 90%);
   color: var(--success);
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.1);
+  box-shadow: 0 0 12px color-mix(in oklch, var(--success), transparent 90%);
   transition: all 200ms ease;
 }
 
 .mic-dot.muted {
-  border-color: rgba(239, 68, 68, 0.3);
-  background: rgba(239, 68, 68, 0.1);
+  border-color: color-mix(in oklch, var(--danger), transparent 70%);
+  background: color-mix(in oklch, var(--danger), transparent 90%);
   color: var(--danger);
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 0 12px color-mix(in oklch, var(--danger), transparent 90%);
 }
 
 .mic-dot .solar-icon {
@@ -57,7 +57,7 @@
   color: var(--text);
   font-size: 14px;
   transition: all 150ms ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px var(--shadow-faint);
 }
 
 .select-icon {
@@ -106,7 +106,7 @@ footer {
   color: var(--text);
   font-size: 14px;
   transition: all 150ms ease;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 2px var(--shadow-soft);
 }
 
 .recorder:focus,

@@ -17,30 +17,38 @@ body {
 }
 
 :root {
-  --bg: oklch(14.08% 0.0044 285.82);
-  --chrome: oklch(14.08% 0.0044 285.82);
-  --surface: oklch(18.31% 0.004 285.99);
-  --surface-2: oklch(21.03% 0.0059 285.89);
-  --surface-3: oklch(27.39% 0.0055 286.03);
-  --surface-color-1: oklch(18.45% 0.02 39.26);
-  --surface-color-2: oklch(21.88% 0.03 45.19);
-  --surface-color-3: oklch(26.4% 0.04 51.69);
-  --surface-color-4: oklch(31.01% 0.05 49.12);
-  --surface-color-5: oklch(35.85% 0.06 47.67);
+  --windows-accent: oklch(71.63% 0.1778 46.3);
+  --neutral-bg: oklch(14.08% 0.0044 285.82);
+  --neutral-surface: oklch(18.31% 0.004 285.99);
+  --neutral-surface-2: oklch(21.03% 0.0059 285.89);
+  --neutral-surface-3: oklch(27.39% 0.0055 286.03);
+  --bg: color-mix(in oklch, var(--neutral-bg) 97%, var(--windows-accent));
+  --chrome: color-mix(in oklch, var(--neutral-bg) 96%, var(--windows-accent));
+  --surface: color-mix(in oklch, var(--neutral-surface) 96%, var(--windows-accent));
+  --surface-2: color-mix(in oklch, var(--neutral-surface-2) 95%, var(--windows-accent));
+  --surface-3: color-mix(in oklch, var(--neutral-surface-3) 94%, var(--windows-accent));
+  --surface-hover: color-mix(in oklch, var(--surface-2) 82%, var(--accent-text));
+  --surface-color-1: oklch(from var(--windows-accent) 18.5% calc(c * 0.18) h);
+  --surface-color-2: oklch(from var(--windows-accent) 21.5% calc(c * 0.26) h);
+  --surface-color-3: oklch(from var(--windows-accent) 24.5% calc(c * 0.34) h);
+  --surface-color-4: oklch(from var(--windows-accent) 28% calc(c * 0.42) h);
+  --surface-color-5: oklch(from var(--windows-accent) 31.5% calc(c * 0.5) h);
   --border: oklch(27.39% 0.0055 286.03);
   --border-strong: oklch(37.03% 0.0119 285.81);
   --text: oklch(98.51% 0 0);
   --muted: oklch(71.18% 0.0129 286.07);
   --faint: oklch(44.19% 0.0146 285.79);
-  --accent: oklch(71.63% 0.1778 46.3);
-  --accent-strong: oklch(76.29% 0.1487 49.96);
-  --accent-soft: oklch(30.73% 0.0706 44.33);
+  --accent: var(--windows-accent);
+  --accent-text: color-mix(in oklch, var(--text) 65%, var(--windows-accent));
+  --accent-strong: color-mix(in oklch, var(--windows-accent), var(--neutral-bg) 18%);
+  --accent-soft: color-mix(in oklch, var(--windows-accent), var(--bg) 78%);
   --success: oklch(69.59% 0.1491 162.48);
   --danger: oklch(63.68% 0.2078 25.33);
-  --focus: oklch(71.63% 0.1778 46.3);
+  --focus: var(--windows-accent);
   --shadow-soft: oklch(0% 0 0 / 10%);
   --shadow-medium: oklch(0% 0 0 / 20%);
   --shadow-faint: oklch(0% 0 0 / 5%);
+  --highlight-line: oklch(100% 0 0 / 3%);
   --on-accent: oklch(100% 0 0);
 }
 
@@ -167,8 +175,8 @@ button {
 
 .secondary:hover,
 .icon-button:hover {
-  background: var(--surface-3);
-  border-color: var(--faint);
+  background: var(--surface-hover);
+  border-color: color-mix(in oklch, var(--border-strong) 74%, var(--accent-text));
 }
 
 .secondary:focus-visible,

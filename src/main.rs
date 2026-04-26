@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::{
+    ffi::c_void,
     fs,
     mem::size_of,
     path::PathBuf,
@@ -17,7 +18,8 @@ use serde::{Deserialize, Serialize};
 use windows::{
     Win32::{
         Foundation::{
-            ERROR_ALREADY_EXISTS, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM,
+            ERROR_ALREADY_EXISTS, ERROR_SUCCESS, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT,
+            POINT, WPARAM,
         },
         Media::Audio::{
             Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator, MMDeviceEnumerator, eCapture,
@@ -26,6 +28,7 @@ use windows::{
         System::{
             Com::{CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx},
             LibraryLoader::GetModuleHandleW,
+            Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW},
             Threading::CreateMutexW,
         },
         UI::{
@@ -138,6 +141,78 @@ struct AppState {
     muted: bool,
     shortcut_down: bool,
     config_modified: Option<SystemTime>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct WindowsAccent {
+    accent: (u8, u8, u8),
+}
+
+impl Default for WindowsAccent {
+    fn default() -> Self {
+        Self {
+            accent: (250, 121, 48),
+        }
+    }
+}
+
+impl WindowsAccent {
+    pub fn load() -> Self {
+        let fallback = Self::default();
+        Self {
+            accent: read_windows_accent_dword()
+                .map(windows_accent_to_rgb)
+                .unwrap_or(fallback.accent),
+        }
+    }
+
+    pub fn css_vars(self) -> String {
+        let (r, g, b) = self.accent;
+        format!(":root {{ --windows-accent: rgb({r}, {g}, {b}); }}")
+    }
+}
+
+fn read_windows_accent_dword() -> Option<u32> {
+    read_registry_dword(
+        w!(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent"),
+        w!("AccentColorMenu"),
+    )
+    .or_else(|| read_registry_dword(w!(r"Software\Microsoft\Windows\DWM"), w!("AccentColor")))
+    .or_else(|| {
+        read_registry_dword(
+            w!(r"Software\Microsoft\Windows\DWM"),
+            w!("ColorizationColor"),
+        )
+    })
+}
+
+fn read_registry_dword(subkey: PCWSTR, value_name: PCWSTR) -> Option<u32> {
+    let mut data = 0u32;
+    let mut data_size = size_of::<u32>() as u32;
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            subkey,
+            value_name,
+            RRF_RT_REG_DWORD,
+            None,
+            Some(&mut data as *mut _ as *mut c_void),
+            Some(&mut data_size),
+        )
+    };
+    if status == ERROR_SUCCESS {
+        Some(data)
+    } else {
+        None
+    }
+}
+
+fn windows_accent_to_rgb(value: u32) -> (u8, u8, u8) {
+    (
+        (value & 0xff) as u8,
+        ((value >> 8) & 0xff) as u8,
+        ((value >> 16) & 0xff) as u8,
+    )
 }
 
 impl Default for AppState {

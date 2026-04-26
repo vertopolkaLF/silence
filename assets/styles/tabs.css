@@ -51,7 +51,7 @@
 .nav-item.active {
   border-color: transparent;
   background: var(--surface-color-3);
-  color: var(--accent-strong);
+  color: var(--accent-text);
 }
 
 .nav-icon {

@@ -35,13 +35,15 @@
 
 #close:hover {
   background: var(--danger);
-  color: #fff;
+  color: var(--on-accent);
 }
 
-.titlebar-button img {
+.titlebar-glyph {
   width: 16px;
   height: 16px;
-  filter: invert(88%);
+  background: currentColor;
+  -webkit-mask: var(--titlebar-icon) center / contain no-repeat;
+  mask: var(--titlebar-icon) center / contain no-repeat;
   pointer-events: none;
 }
 

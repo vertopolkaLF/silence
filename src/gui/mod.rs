@@ -25,6 +25,11 @@ pub fn settings_app() -> Element {
     let active_tab = use_signal(|| SettingsTab::General);
     let recording = use_signal(|| false);
     let saved = use_signal(|| false);
+    let theme_style = crate::WindowsAccent::load().css_vars();
+    let titlebar_icon_style = format!(
+        r#".titlebar-settings {{ --titlebar-icon: url("{SETTINGS_ICON}"); }}
+.titlebar-close {{ --titlebar-icon: url("{CLOSE_ICON}"); }}"#
+    );
     let font_face = format!(
         r#"@font-face {{
   font-family: "Geist";
@@ -43,6 +48,8 @@ pub fn settings_app() -> Element {
         link { rel: "stylesheet", href: TITLEBAR_CSS }
         link { rel: "stylesheet", href: TABS_CSS }
         link { rel: "stylesheet", href: GENERAL_CSS }
+        style { {theme_style} }
+        style { {titlebar_icon_style} }
         div {
             class: "window",
             div {
@@ -56,10 +63,7 @@ pub fn settings_app() -> Element {
                         title: "Open DevTools",
                         onmousedown: move |evt| evt.stop_propagation(),
                         onclick: move |_| devtools_desktop.devtool(),
-                        img {
-                            src: SETTINGS_ICON,
-                            alt: "DevTools"
-                        }
+                        span { class: "titlebar-glyph titlebar-settings" }
                     }
                 }
                 button {
@@ -67,10 +71,7 @@ pub fn settings_app() -> Element {
                     id: "close",
                     onmousedown: move |evt| evt.stop_propagation(),
                     onclick: move |_| close_desktop.close(),
-                    img {
-                        src: CLOSE_ICON,
-                        alt: "Close"
-                    }
+                    span { class: "titlebar-glyph titlebar-close" }
                 }
             }
 
