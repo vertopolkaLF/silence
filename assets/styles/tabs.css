@@ -1,0 +1,48 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 6px;
+  background: #291f1c;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  height: 45px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #f2ece7;
+  text-align: left;
+  font: inherit;
+  font-size: 17px;
+}
+
+.nav-item:hover {
+  background: #342927;
+}
+
+.nav-item.active {
+  background: #362c29;
+}
+
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  width: 4px;
+  height: 24px;
+  border-radius: 2px;
+  background: #ff9b3c;
+}
+
+.nav-icon {
+  width: 26px;
+  text-align: center;
+  font-size: 21px;
+}

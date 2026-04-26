@@ -166,6 +166,13 @@ fn main() -> Result<()> {
                     .with_resizable(false)
                     .with_inner_size(LogicalSize::new(760.0, 590.0)),
             )
+            .with_icon(
+                dioxus::desktop::icon_from_memory(include_bytes!("../assets/app.png"))
+                    .expect("load app icon"),
+            )
+            .with_custom_head(
+                r#"<link rel="icon" href="/assets/app.ico" type="image/x-icon">"#.to_string(),
+            )
             .with_background_color((35, 28, 26, 255));
         dioxus::LaunchBuilder::desktop()
             .with_cfg(cfg)

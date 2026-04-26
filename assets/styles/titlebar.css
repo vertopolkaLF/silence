@@ -1,0 +1,56 @@
+.titlebar {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0px;
+  padding: 0 0 0 12px;
+  background: #201917;
+  user-select: none;
+}
+
+.titlebar-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin-right: 12px;
+}
+
+.title {
+  font-size: 14px;
+  color: #fffaf6;
+}
+
+.title-spacer {
+  flex: 1;
+}
+
+.titlebar-button {
+  width: 50px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #f5eee9;
+  transition: .2s ease;
+}
+
+.titlebar-button:hover {
+  background: #fff1;
+}
+
+#close:hover {
+  background: #e81123;
+}
+
+.titlebar-button img {
+  width: 16px;
+  height: 16px;
+  filter: invert(100%);
+  pointer-events: none;
+}
+
+.devtools-button {
+  margin-right: 8px;
+}

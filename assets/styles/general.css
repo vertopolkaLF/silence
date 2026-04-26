@@ -1,0 +1,98 @@
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 28px;
+}
+
+.mic-dot {
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #26b34d;
+  font-size: 31px;
+}
+
+.mic-dot.muted {
+  background: #a0443a;
+}
+
+.field-group {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.select-like {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border: 1px solid #403633;
+  border-radius: 5px;
+  background: #403734;
+  color: #f9f3ee;
+  font-size: 17px;
+}
+
+.hotkeys {
+  display: grid;
+  gap: 18px;
+}
+
+.hotkey-title-row,
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.hotkey-title-row.lower {
+  margin-top: 8px;
+}
+
+.hotkey-row {
+  display: grid;
+  grid-template-columns: 1fr 40px 86px;
+  gap: 10px;
+}
+
+.recorder {
+  height: 40px;
+  min-width: 0;
+  border: 1px solid #4b413e;
+  border-radius: 5px;
+  padding: 0 14px;
+  background: #403734;
+  color: #fff8f2;
+  font: inherit;
+  font-size: 17px;
+}
+
+.recorder:focus,
+.recorder.recording {
+  outline: 2px solid #ff9b3c;
+  outline-offset: 0;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+}
+
+.check-row input {
+  width: 25px;
+  height: 25px;
+  accent-color: #ff9b3c;
+}
+
+footer {
+  justify-content: flex-start;
+  margin-top: 26px;
+}
