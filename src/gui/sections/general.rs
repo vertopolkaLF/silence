@@ -19,6 +19,8 @@ pub fn render(
     rsx! {
         section {
             class: "status-row",
+            id: "general-status",
+            "data-settings-section": "true",
             div {
                 class: if mic_muted { "mic-dot muted" } else { "mic-dot" },
                 span { class: "solar-icon icon-mic" }

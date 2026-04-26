@@ -57,6 +57,7 @@ pub fn settings_app() -> Element {
     let close_desktop = desktop.clone();
     let mut settings = use_signal(SettingsSnapshot::load);
     let active_tab = use_signal(|| SettingsTab::General);
+    let active_section = use_signal(|| SettingsTab::General.first_section_id().to_string());
     let recording = use_signal(|| false);
     use_future(move || async move {
         loop {
@@ -120,12 +121,44 @@ pub fn settings_app() -> Element {
 
             div {
                 class: "body",
-                {tabs::render(active_tab)}
+                {tabs::render(active_tab, active_section)}
                 main {
                     class: "content",
+                    onscroll: move |_| {
+                        update_active_section(active_section);
+                    },
                     {sections::render(active_tab(), settings, recording)}
                 }
             }
         }
     }
+}
+
+fn update_active_section(mut active_section: Signal<String>) {
+    spawn(async move {
+        let script = r#"
+        const content = document.querySelector('.content');
+        const sections = [...document.querySelectorAll('[data-settings-section]')];
+        if (!content || sections.length === 0) {
+          return '';
+        }
+
+        const top = content.getBoundingClientRect().top;
+        let active = sections[0];
+        for (const section of sections) {
+          if (section.getBoundingClientRect().top - top <= 96) {
+            active = section;
+          }
+        }
+        return active.id || '';
+        "#;
+
+        if let Ok(id) = dioxus::document::eval(script).await {
+            if let Some(id) = id.as_str() {
+                if !id.is_empty() {
+                    active_section.set(id.to_string());
+                }
+            }
+        }
+    });
 }

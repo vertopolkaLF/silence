@@ -27,9 +27,12 @@ pub fn render(
 }
 
 fn empty_section(tab: SettingsTab) -> Element {
+    let section_id = tab.first_section_id();
     rsx! {
         section {
             class: "empty-section",
+            id: "{section_id}",
+            "data-settings-section": "true",
             div {
                 class: "empty-card",
                 span { class: "solar-icon empty-icon icon-settings" }

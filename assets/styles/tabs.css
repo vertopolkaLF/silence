@@ -59,3 +59,73 @@
   height: 21px;
   color: currentColor;
 }
+
+.nav-subsections-shell {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin: 0 0 0 24px;
+  opacity: 0;
+  transform-origin: top;
+  transform: translateY(-3px);
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    grid-template-rows 170ms ease,
+    margin 170ms ease,
+    opacity 120ms ease,
+    transform 170ms ease;
+}
+
+.nav-subsections-shell.open {
+  grid-template-rows: 1fr;
+  margin: 4px 0 8px 24px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.nav-subsections {
+  min-height: 0;
+  display: grid;
+  gap: 1px;
+  padding-left: 22px;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.nav-subitem {
+  position: relative;
+  height: 32px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--faint);
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.nav-subitem:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.nav-subitem.active {
+  color: var(--accent-text);
+  background: transparent;
+  font-weight: 620;
+}
+
+.nav-subsections-shell.open .nav-subitem.active::before {
+  content: "";
+  position: absolute;
+  left: -23px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+}

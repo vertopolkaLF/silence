@@ -35,6 +35,66 @@
   gap: 14px;
 }
 
+.overlay-appearance {
+  gap: 18px;
+}
+
+.overlay-variant-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.overlay-variant {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  width: 74px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  transition: color 150ms ease;
+}
+
+.overlay-variant:hover,
+.overlay-variant.active {
+  color: var(--text);
+}
+
+.overlay-variant-preview {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.overlay-variant.active .overlay-variant-preview {
+  border-color: var(--accent);
+}
+
+.overlay-variant-preview.mic {
+  color: var(--success);
+}
+
+.overlay-variant-preview.mic .solar-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.overlay-variant-preview.dot span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
 .sound-card {
   display: grid;
   gap: 16px;

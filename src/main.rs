@@ -40,6 +40,7 @@ use windows::{
             Threading::CreateMutexW,
         },
         UI::{
+            HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
             Input::KeyboardAndMouse::GetAsyncKeyState,
             Shell::{
                 NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
@@ -186,6 +187,20 @@ pub struct OverlayConfig {
     pub scale: u32,
     #[serde(default)]
     pub show_text: bool,
+    #[serde(default = "default_overlay_variant")]
+    pub variant: String,
+    #[serde(default = "default_overlay_icon_style")]
+    pub icon_style: String,
+    #[serde(default = "default_overlay_background_style")]
+    pub background_style: String,
+    #[serde(default = "default_overlay_background_opacity")]
+    pub background_opacity: u8,
+    #[serde(default = "default_overlay_content_opacity")]
+    pub content_opacity: u8,
+    #[serde(default = "default_overlay_border_radius")]
+    pub border_radius: u8,
+    #[serde(default = "default_overlay_show_border")]
+    pub show_border: bool,
 }
 
 impl Default for OverlayConfig {
@@ -198,6 +213,13 @@ impl Default for OverlayConfig {
             duration_secs: default_overlay_duration_secs(),
             scale: default_overlay_scale(),
             show_text: false,
+            variant: default_overlay_variant(),
+            icon_style: default_overlay_icon_style(),
+            background_style: default_overlay_background_style(),
+            background_opacity: default_overlay_background_opacity(),
+            content_opacity: default_overlay_content_opacity(),
+            border_radius: default_overlay_border_radius(),
+            show_border: default_overlay_show_border(),
         }
     }
 }
@@ -220,6 +242,34 @@ fn default_overlay_duration_secs() -> f64 {
 
 fn default_overlay_scale() -> u32 {
     100
+}
+
+fn default_overlay_variant() -> String {
+    "MicIcon".to_string()
+}
+
+fn default_overlay_icon_style() -> String {
+    "Colored".to_string()
+}
+
+fn default_overlay_background_style() -> String {
+    "Dark".to_string()
+}
+
+fn default_overlay_background_opacity() -> u8 {
+    90
+}
+
+fn default_overlay_content_opacity() -> u8 {
+    100
+}
+
+fn default_overlay_border_radius() -> u8 {
+    6
+}
+
+fn default_overlay_show_border() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -400,6 +450,8 @@ const SOUND_THEMES: &[SoundTheme] = &[
 ];
 
 fn main() -> Result<()> {
+    set_dpi_awareness();
+
     if std::env::args().any(|arg| arg == "--settings") {
         let settings_mutex = unsafe { CreateMutexW(None, true, w!("SilenceV2SettingsWindow"))? };
         if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
@@ -434,6 +486,12 @@ fn main() -> Result<()> {
     }
 
     run_background_app()
+}
+
+fn set_dpi_awareness() {
+    unsafe {
+        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
 }
 
 fn run_background_app() -> Result<()> {

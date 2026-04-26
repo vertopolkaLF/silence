@@ -23,3 +23,7 @@
   border-bottom-left-radius: 16px;
   box-shadow: -1px -1px 0 var(--highlight-line);
 }
+
+[data-settings-section] {
+  scroll-margin-top: 50px;
+}

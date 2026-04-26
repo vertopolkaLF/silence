@@ -8,13 +8,23 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let x = format!("{:.0}", overlay.position_x.clamp(0.0, 100.0));
     let y = format!("{:.0}", overlay.position_y.clamp(0.0, 100.0));
     let scale = overlay.scale.clamp(10, 400);
+    let content_opacity = overlay.content_opacity.clamp(20, 100);
+    let background_opacity = overlay.background_opacity.min(100);
+    let border_radius = overlay.border_radius.min(24);
     let duration_progress = format!("{:.0}%", overlay.duration_secs.clamp(0.1, 10.0) * 10.0);
     let x_progress = format!("{:.0}%", overlay.position_x.clamp(0.0, 100.0));
     let y_progress = format!("{:.0}%", overlay.position_y.clamp(0.0, 100.0));
     let scale_progress = format!("{:.0}%", (scale as f64 - 10.0) / 390.0 * 100.0);
+    let content_opacity_progress =
+        format!("{:.0}%", (content_opacity as f64 - 20.0) / 80.0 * 100.0);
+    let background_opacity_progress = format!("{background_opacity}%");
+    let border_radius_progress = format!("{:.0}%", border_radius as f64 / 24.0 * 100.0);
 
     rsx! {
-        section { class: "overlay-panel",
+        section {
+            class: "overlay-panel",
+            id: "overlay-overview",
+            "data-settings-section": "true",
             div { class: "overlay-header",
                 h1 { "Overlay" }
             }
@@ -33,9 +43,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         }
                     }
                 }
-            }
 
-            section { class: "sound-card",
                 div { class: "overlay-field",
                     label { "Visibility" }
                     div { class: "select-wrap",
@@ -129,9 +137,63 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
 
+                div { class: "sound-card-title",
+                    div {
+                        h2 { "Move overlay" }
+                        p { "Shows the overlay until this is turned off." }
+                    }
+                    super::Toggle {
+                        checked: positioning(),
+                        onchange: move |checked| {
+                            positioning.set(checked);
+                            if let Some(next) = crate::set_overlay_positioning(checked) {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay = next;
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            section { class: "sound-card overlay-appearance",
+                id: "overlay-appearance",
+                "data-settings-section": "true",
+                div { class: "section-head", h1 { "Appearance" } }
+
+                div { class: "overlay-field",
+                    label { "Overlay style" }
+                    div { class: "overlay-variant-grid",
+                        button {
+                            class: if overlay.variant == "MicIcon" { "overlay-variant active" } else { "overlay-variant" },
+                            onclick: move |_| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.variant = "MicIcon".to_string();
+                                });
+                            },
+                            span { class: "overlay-variant-preview mic",
+                                span { class: "solar-icon icon-mic" }
+                            }
+                            span { "Mic Icon" }
+                        }
+                        button {
+                            class: if overlay.variant == "Dot" { "overlay-variant active" } else { "overlay-variant" },
+                            onclick: move |_| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.variant = "Dot".to_string();
+                                });
+                            },
+                            span { class: "overlay-variant-preview dot",
+                                span {}
+                            }
+                            span { "Dot" }
+                        }
+                    }
+                }
+
                 div { class: "overlay-range-row",
                     div {
-                        label { "Size" }
+                        label { "Size scale" }
                         span { class: "sound-value", "{scale}%" }
                     }
                     input {
@@ -152,37 +214,138 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
 
-                label {
-                    class: "check-row",
-                    input {
-                        r#type: "checkbox",
-                        checked: overlay.show_text,
-                        onchange: move |evt| {
-                            super::super::update_settings(settings, |config| {
-                                config.overlay.show_text = evt.checked();
-                            });
-                        }
-                    }
-                    span { "Show text next to the icon" }
-                }
-            }
-
-            section { class: "sound-card",
-                div { class: "sound-card-title",
+                div { class: "overlay-range-row",
                     div {
-                        h2 { "Move overlay" }
-                        p { "Shows the overlay until this is turned off." }
+                        label { "Opacity" }
+                        span { class: "sound-value", "{content_opacity}%" }
                     }
-                    super::Toggle {
-                        checked: positioning(),
-                        onchange: move |checked| {
-                            positioning.set(checked);
-                            if let Some(next) = crate::set_overlay_positioning(checked) {
+                    input {
+                        class: "volume-slider",
+                        r#type: "range",
+                        min: "20",
+                        max: "100",
+                        step: "5",
+                        value: "{content_opacity}",
+                        style: "--range-progress: {content_opacity_progress};",
+                        oninput: move |evt| {
+                            if let Ok(value) = evt.value().parse::<u8>() {
                                 super::super::update_settings(settings, |config| {
-                                    config.overlay = next;
+                                    config.overlay.content_opacity = value.clamp(20, 100);
                                 });
                             }
                         }
+                    }
+                }
+
+                if overlay.variant != "Dot" {
+                    label {
+                        class: "check-row",
+                        input {
+                            r#type: "checkbox",
+                            checked: overlay.show_text,
+                            onchange: move |evt| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.show_text = evt.checked();
+                                });
+                            }
+                        }
+                        span { "Show text next to the icon" }
+                    }
+
+                    div { class: "overlay-field",
+                        label { "Icon style" }
+                        div { class: "select-wrap",
+                            select {
+                                class: "select-like",
+                                value: "{overlay.icon_style}",
+                                onchange: move |evt| {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.icon_style = evt.value();
+                                    });
+                                },
+                                option { value: "Colored", selected: overlay.icon_style == "Colored", "Colored (red/green)" }
+                                option { value: "Monochrome", selected: overlay.icon_style == "Monochrome", "Monochrome" }
+                            }
+                            span { class: "solar-icon select-icon icon-down" }
+                        }
+                    }
+
+                    div { class: "overlay-field",
+                        label { "Background" }
+                        div { class: "select-wrap",
+                            select {
+                                class: "select-like",
+                                value: "{overlay.background_style}",
+                                onchange: move |evt| {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.background_style = evt.value();
+                                    });
+                                },
+                                option { value: "Dark", selected: overlay.background_style == "Dark", "Dark" }
+                                option { value: "Light", selected: overlay.background_style == "Light", "Light" }
+                            }
+                            span { class: "solar-icon select-icon icon-down" }
+                        }
+                    }
+
+                    div { class: "overlay-range-row",
+                        div {
+                            label { "Background opacity" }
+                            span { class: "sound-value", "{background_opacity}%" }
+                        }
+                        input {
+                            class: "volume-slider",
+                            r#type: "range",
+                            min: "0",
+                            max: "100",
+                            step: "5",
+                            value: "{background_opacity}",
+                            style: "--range-progress: {background_opacity_progress};",
+                            oninput: move |evt| {
+                                if let Ok(value) = evt.value().parse::<u8>() {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.background_opacity = value.min(100);
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    div { class: "overlay-range-row",
+                        div {
+                            label { "Border radius" }
+                            span { class: "sound-value", "{border_radius}px" }
+                        }
+                        input {
+                            class: "volume-slider",
+                            r#type: "range",
+                            min: "0",
+                            max: "24",
+                            step: "1",
+                            value: "{border_radius}",
+                            style: "--range-progress: {border_radius_progress};",
+                            oninput: move |evt| {
+                                if let Ok(value) = evt.value().parse::<u8>() {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.border_radius = value.min(24);
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    label {
+                        class: "check-row",
+                        input {
+                            r#type: "checkbox",
+                            checked: overlay.show_border,
+                            onchange: move |evt| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.show_border = evt.checked();
+                                });
+                            }
+                        }
+                        span { "Show border" }
                     }
                 }
             }
