@@ -16,7 +16,9 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use windows::{
     Win32::{
-        Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM},
+        Foundation::{
+            ERROR_ALREADY_EXISTS, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM,
+        },
         Media::Audio::{
             Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator, MMDeviceEnumerator, eCapture,
             eConsole,
@@ -24,6 +26,7 @@ use windows::{
         System::{
             Com::{CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx},
             LibraryLoader::GetModuleHandleW,
+            Threading::CreateMutexW,
         },
         UI::{
             Input::KeyboardAndMouse::GetAsyncKeyState,
@@ -33,13 +36,14 @@ use windows::{
             },
             WindowsAndMessaging::{
                 AppendMenuW, CallNextHookEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW,
-                DestroyMenu, DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW, HHOOK,
-                IDC_ARROW, IDI_APPLICATION, KBDLLHOOKSTRUCT, LoadCursorW, LoadIconW,
-                MENU_ITEM_FLAGS, MSG, PostMessageW, PostQuitMessage, RegisterClassW,
-                SetForegroundWindow, SetTimer, SetWindowsHookExW, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL,
-                WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_KEYDOWN, WM_KEYUP,
-                WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
+                DestroyMenu, DestroyWindow, DispatchMessageW, FindWindowW, GetCursorPos,
+                GetMessageW, HHOOK, IDC_ARROW, IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT,
+                LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG, PostMessageW, PostQuitMessage,
+                RegisterClassW, SW_RESTORE, SetForegroundWindow, SetTimer, SetWindowsHookExW,
+                ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage,
+                UnhookWindowsHookEx, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND,
+                WM_DESTROY, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER,
+                WNDCLASSW, WS_OVERLAPPED,
             },
         },
     },
@@ -55,6 +59,7 @@ const ID_CONFIG_TIMER: usize = 10;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
+const SETTINGS_WINDOW_TITLE: &str = "silence!";
 
 const VK_SHIFT: u32 = 0x10;
 const VK_CONTROL: u32 = 0x11;
@@ -155,15 +160,21 @@ static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState::default(
 
 fn main() -> Result<()> {
     if std::env::args().any(|arg| arg == "--settings") {
+        let settings_mutex = unsafe { CreateMutexW(None, true, w!("SilenceV2SettingsWindow"))? };
+        if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+            focus_settings_window();
+            return Ok(());
+        }
+
         unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
         }
         let cfg = DesktopConfig::new()
             .with_window(
                 WindowBuilder::new()
-                    .with_title("silence!")
+                    .with_title(SETTINGS_WINDOW_TITLE)
                     .with_decorations(false)
-                    .with_resizable(false)
+                    .with_resizable(true)
                     .with_inner_size(LogicalSize::new(760.0, 590.0)),
             )
             .with_icon(
@@ -177,6 +188,7 @@ fn main() -> Result<()> {
         dioxus::LaunchBuilder::desktop()
             .with_cfg(cfg)
             .launch(gui::settings_app);
+        let _settings_mutex = settings_mutex;
         return Ok(());
     }
 
@@ -408,10 +420,33 @@ fn show_tray_menu(hwnd: HWND) {
 }
 
 fn open_settings_window() {
+    if focus_settings_window() {
+        return;
+    }
+
     let Ok(exe) = std::env::current_exe() else {
         return;
     };
     let _ = Command::new(exe).arg("--settings").spawn();
+}
+
+fn focus_settings_window() -> bool {
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    let hwnd = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) };
+    let Ok(hwnd) = hwnd else {
+        return false;
+    };
+
+    if hwnd.0.is_null() {
+        return false;
+    }
+
+    unsafe {
+        if IsIconic(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+        SetForegroundWindow(hwnd).as_bool()
+    }
 }
 
 unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {

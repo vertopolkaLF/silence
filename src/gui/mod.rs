@@ -12,8 +12,6 @@ const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::cs
 const GEIST_FONT: Asset = asset!("/assets/fonts/Geist-VariableFont_wght.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
-const MAXIMIZE_ICON: Asset = asset!("/assets/icons/codicon_chrome-maximize.svg");
-const MINIMIZE_ICON: Asset = asset!("/assets/icons/codicon_chrome-minimize.svg");
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
@@ -22,8 +20,6 @@ pub fn settings_app() -> Element {
     let desktop = dioxus::desktop::use_window();
     let drag_desktop = desktop.clone();
     let devtools_desktop = desktop.clone();
-    let minimize_desktop = desktop.clone();
-    let maximize_desktop = desktop.clone();
     let close_desktop = desktop.clone();
     let initial = crate::load_config().unwrap_or_default().shortcut;
     let shortcut = use_signal(|| initial);
@@ -71,26 +67,6 @@ pub fn settings_app() -> Element {
                             src: SETTINGS_ICON,
                             alt: "DevTools"
                         }
-                    }
-                }
-                button {
-                    class: "titlebar-button",
-                    id: "minimize",
-                    onmousedown: move |evt| evt.stop_propagation(),
-                    onclick: move |_| minimize_desktop.window.set_minimized(true),
-                    img {
-                        src: MINIMIZE_ICON,
-                        alt: "Minimize"
-                    }
-                }
-                button {
-                    class: "titlebar-button",
-                    id: "maximize",
-                    onmousedown: move |evt| evt.stop_propagation(),
-                    onclick: move |_| maximize_desktop.toggle_maximized(),
-                    img {
-                        src: MAXIMIZE_ICON,
-                        alt: "Maximize"
                     }
                 }
                 button {
