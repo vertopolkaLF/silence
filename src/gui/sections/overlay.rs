@@ -5,8 +5,8 @@ pub fn render(
     mic_device_id: Signal<Option<String>>,
     sound_settings: Signal<crate::SoundSettings>,
     mut overlay: Signal<crate::OverlayConfig>,
-    mut saved: Signal<bool>,
 ) -> Element {
+    let mut positioning = use_signal(|| false);
     let settings = overlay();
     let duration = format!("{:.1}", settings.duration_secs.clamp(0.1, 10.0));
     let x = format!("{:.0}", settings.position_x.clamp(0.0, 100.0));
@@ -30,24 +30,13 @@ pub fn render(
                         h2 { "Enable overlay" }
                         p { "Shows microphone state above other windows." }
                     }
-                    label { class: "sound-toggle",
-                        input {
-                            r#type: "checkbox",
-                            checked: settings.enabled,
-                            onchange: move |evt| {
-                                let mut next = overlay();
-                                next.enabled = evt.checked();
-                                overlay.set(next);
-                                saved.set(false);
-                            }
-                        }
-                        span { class: "toggle-track" }
-                        span { class: "toggle-label",
-                            if settings.enabled {
-                                "Overlay enabled"
-                            } else {
-                                "Overlay disabled"
-                            }
+                    super::Toggle {
+                        checked: settings.enabled,
+                        onchange: move |checked| {
+                            let mut next = overlay();
+                            next.enabled = checked;
+                            overlay.set(next);
+                            save_overlay(shortcut, mic_device_id, sound_settings, overlay);
                         }
                     }
                 }
@@ -64,7 +53,7 @@ pub fn render(
                                 let mut next = overlay();
                                 next.visibility = evt.value();
                                 overlay.set(next);
-                                saved.set(false);
+                                save_overlay(shortcut, mic_device_id, sound_settings, overlay);
                             },
                             option { value: "Always", selected: settings.visibility == "Always", "Always visible" }
                             option { value: "WhenMuted", selected: settings.visibility == "WhenMuted", "Visible when muted" }
@@ -94,7 +83,7 @@ pub fn render(
                                     let mut next = overlay();
                                     next.duration_secs = value.clamp(0.1, 10.0);
                                     overlay.set(next);
-                                    saved.set(false);
+                                    save_overlay(shortcut, mic_device_id, sound_settings, overlay);
                                 }
                             }
                         }
@@ -121,7 +110,7 @@ pub fn render(
                                 let mut next = overlay();
                                 next.position_x = value.clamp(0.0, 100.0);
                                 overlay.set(next);
-                                saved.set(false);
+                                save_overlay(shortcut, mic_device_id, sound_settings, overlay);
                             }
                         }
                     }
@@ -145,7 +134,7 @@ pub fn render(
                                 let mut next = overlay();
                                 next.position_y = value.clamp(0.0, 100.0);
                                 overlay.set(next);
-                                saved.set(false);
+                                save_overlay(shortcut, mic_device_id, sound_settings, overlay);
                             }
                         }
                     }
@@ -169,7 +158,7 @@ pub fn render(
                                 let mut next = overlay();
                                 next.scale = value.clamp(10, 400);
                                 overlay.set(next);
-                                saved.set(false);
+                                save_overlay(shortcut, mic_device_id, sound_settings, overlay);
                             }
                         }
                     }
@@ -184,37 +173,26 @@ pub fn render(
                             let mut next = overlay();
                             next.show_text = evt.checked();
                             overlay.set(next);
-                            saved.set(false);
+                            save_overlay(shortcut, mic_device_id, sound_settings, overlay);
                         }
                     }
                     span { "Show text next to the icon" }
                 }
             }
 
-            footer {
-                button {
-                    class: "secondary",
-                    onclick: move |_| {
-                        if save_overlay(shortcut, mic_device_id, sound_settings, overlay).is_ok() {
-                            crate::request_overlay_preview();
+            section { class: "sound-card",
+                div { class: "sound-card-title",
+                    div {
+                        h2 { "Move overlay" }
+                        p { "Shows the overlay until this is turned off." }
+                    }
+                    super::Toggle {
+                        checked: positioning(),
+                        onchange: move |checked| {
+                            positioning.set(checked);
+                            crate::set_overlay_positioning(checked);
                         }
-                    },
-                    span { class: "solar-icon button-icon icon-monitor" }
-                    "Preview"
-                }
-                button {
-                    class: "save",
-                    onclick: move |_| {
-                        if save_overlay(shortcut, mic_device_id, sound_settings, overlay).is_ok() {
-                            saved.set(true);
-                        }
-                    },
-                    span { class: "solar-icon button-icon icon-shield" }
-                    "Save"
-                }
-                span {
-                    class: if saved() { "status visible" } else { "status" },
-                    "Saved"
+                    }
                 }
             }
         }
@@ -226,11 +204,11 @@ fn save_overlay(
     mic_device_id: Signal<Option<String>>,
     sound_settings: Signal<crate::SoundSettings>,
     overlay: Signal<crate::OverlayConfig>,
-) -> anyhow::Result<()> {
+) {
     let mut config = crate::load_config().unwrap_or_default();
     config.shortcut = shortcut();
     config.mic_device_id = mic_device_id();
     config.sound_settings = sound_settings();
     config.overlay = overlay();
-    crate::save_config(&config)
+    let _ = crate::save_config(&config);
 }

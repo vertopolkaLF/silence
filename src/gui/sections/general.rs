@@ -6,7 +6,6 @@ pub fn render(
     sound_settings: Signal<crate::SoundSettings>,
     overlay: Signal<crate::OverlayConfig>,
     mut recording: Signal<bool>,
-    mut saved: Signal<bool>,
 ) -> Element {
     let current = shortcut().display();
     let selected_value = mic_device_id().unwrap_or_default();
@@ -43,7 +42,7 @@ pub fn render(
                     onchange: move |evt| {
                         let value = evt.value();
                         mic_device_id.set(if value.is_empty() { None } else { Some(value) });
-                        saved.set(false);
+                        save_general(shortcut, mic_device_id, sound_settings, overlay);
                     },
                     option { value: "", "Default input device" }
                     for device in devices {
@@ -83,7 +82,7 @@ pub fn render(
                         if let Some(next) = shortcut_from_keyboard_data(&evt.data()) {
                             shortcut.set(next);
                             recording.set(false);
-                            saved.set(false);
+                            save_general(shortcut, mic_device_id, sound_settings, overlay);
                         }
                     }
                 }
@@ -91,7 +90,7 @@ pub fn render(
                     class: "icon-button",
                     onclick: move |_| {
                         shortcut.set(crate::Shortcut::default());
-                        saved.set(false);
+                        save_general(shortcut, mic_device_id, sound_settings, overlay);
                     },
                     title: "Reset shortcut",
                     span { class: "solar-icon icon-reset" }
@@ -116,28 +115,21 @@ pub fn render(
             }
         }
 
-        footer {
-            button {
-                class: "save",
-                onclick: move |_| {
-                    let mut config = crate::load_config().unwrap_or_default();
-                    config.shortcut = shortcut();
-                    config.mic_device_id = mic_device_id();
-                    config.sound_settings = sound_settings();
-                    config.overlay = overlay();
-                    if crate::save_config(&config).is_ok() {
-                        saved.set(true);
-                    }
-                },
-                span { class: "solar-icon button-icon icon-shield" }
-                "Save"
-            }
-            span {
-                class: if saved() { "status visible" } else { "status" },
-                "Saved"
-            }
-        }
     }
+}
+
+fn save_general(
+    shortcut: Signal<crate::Shortcut>,
+    mic_device_id: Signal<Option<String>>,
+    sound_settings: Signal<crate::SoundSettings>,
+    overlay: Signal<crate::OverlayConfig>,
+) {
+    let mut config = crate::load_config().unwrap_or_default();
+    config.shortcut = shortcut();
+    config.mic_device_id = mic_device_id();
+    config.sound_settings = sound_settings();
+    config.overlay = overlay();
+    let _ = crate::save_config(&config);
 }
 
 fn shortcut_from_keyboard_data(data: &dioxus::events::KeyboardData) -> Option<crate::Shortcut> {

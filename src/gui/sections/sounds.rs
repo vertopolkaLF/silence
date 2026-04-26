@@ -5,7 +5,6 @@ pub fn render(
     mic_device_id: Signal<Option<String>>,
     mut sound_settings: Signal<crate::SoundSettings>,
     overlay: Signal<crate::OverlayConfig>,
-    mut saved: Signal<bool>,
 ) -> Element {
     let settings = sound_settings();
     let volume = settings.volume.min(100);
@@ -23,24 +22,13 @@ pub fn render(
             section { class: "sound-card",
                 div { class: "sound-card-title",
                     h2 { "Enable sounds" }
-                    label { class: "sound-toggle",
-                        input {
-                            r#type: "checkbox",
-                            checked: settings.enabled,
-                            onchange: move |evt| {
-                                let mut next = sound_settings();
-                                next.enabled = evt.checked();
-                                sound_settings.set(next);
-                                saved.set(false);
-                            }
-                        }
-                        span { class: "toggle-track" }
-                        span { class: "toggle-label",
-                            if settings.enabled {
-                                "Sounds enabled"
-                            } else {
-                                "Sounds disabled"
-                            }
+                    super::Toggle {
+                        checked: settings.enabled,
+                        onchange: move |checked| {
+                            let mut next = sound_settings();
+                            next.enabled = checked;
+                            sound_settings.set(next);
+                            save_sounds(shortcut, mic_device_id, sound_settings, overlay);
                         }
                     }
                 }
@@ -66,7 +54,7 @@ pub fn render(
                                 let mut next = sound_settings();
                                 next.volume = value.min(100);
                                 sound_settings.set(next);
-                                saved.set(false);
+                                save_sounds(shortcut, mic_device_id, sound_settings, overlay);
                             }
                         }
                     }
@@ -81,8 +69,10 @@ pub fn render(
                     label: mute_label,
                     muted: true,
                     volume,
+                    shortcut,
+                    mic_device_id,
                     sound_settings,
-                    saved
+                    overlay
                 }
                 SoundPicker {
                     title: "Unmute Sound",
@@ -90,30 +80,10 @@ pub fn render(
                     label: unmute_label,
                     muted: false,
                     volume,
+                    shortcut,
+                    mic_device_id,
                     sound_settings,
-                    saved
-                }
-            }
-
-            footer {
-                button {
-                    class: "save",
-                    onclick: move |_| {
-                        let mut config = crate::load_config().unwrap_or_default();
-                        config.shortcut = shortcut();
-                        config.mic_device_id = mic_device_id();
-                        config.sound_settings = sound_settings();
-                        config.overlay = overlay();
-                        if crate::save_config(&config).is_ok() {
-                            saved.set(true);
-                        }
-                    },
-                    span { class: "solar-icon button-icon icon-shield" }
-                    "Save"
-                }
-                span {
-                    class: if saved() { "status visible" } else { "status" },
-                    "Saved"
+                    overlay
                 }
             }
         }
@@ -127,8 +97,10 @@ fn SoundPicker(
     label: &'static str,
     muted: bool,
     volume: u8,
+    shortcut: Signal<crate::Shortcut>,
+    mic_device_id: Signal<Option<String>>,
     mut sound_settings: Signal<crate::SoundSettings>,
-    mut saved: Signal<bool>,
+    overlay: Signal<crate::OverlayConfig>,
 ) -> Element {
     rsx! {
         div { class: "sound-picker",
@@ -147,7 +119,7 @@ fn SoundPicker(
                                 next.unmute_theme = value;
                             }
                             sound_settings.set(next);
-                            saved.set(false);
+                            save_sounds(shortcut, mic_device_id, sound_settings, overlay);
                         },
                         for theme in crate::sound_themes() {
                             option {
@@ -170,4 +142,18 @@ fn SoundPicker(
             }
         }
     }
+}
+
+fn save_sounds(
+    shortcut: Signal<crate::Shortcut>,
+    mic_device_id: Signal<Option<String>>,
+    sound_settings: Signal<crate::SoundSettings>,
+    overlay: Signal<crate::OverlayConfig>,
+) {
+    let mut config = crate::load_config().unwrap_or_default();
+    config.shortcut = shortcut();
+    config.mic_device_id = mic_device_id();
+    config.sound_settings = sound_settings();
+    config.overlay = overlay();
+    let _ = crate::save_config(&config);
 }

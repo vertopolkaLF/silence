@@ -67,10 +67,11 @@ mod native_overlay;
 
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_TOGGLE_MUTE: u32 = WM_APP + 2;
-const WM_PREVIEW_OVERLAY: u32 = WM_APP + 3;
+const WM_OVERLAY_POSITIONING: u32 = WM_APP + 3;
 const ID_TRAY: u32 = 1;
 const ID_CONFIG_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
+const ID_OVERLAY_DRAG_TIMER: usize = 12;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
@@ -663,6 +664,10 @@ unsafe extern "system" fn main_wnd_proc(
             } else if wparam.0 == ID_OVERLAY_HIDE_TIMER {
                 let _ = unsafe { KillTimer(hwnd, ID_OVERLAY_HIDE_TIMER) };
                 apply_overlay_visibility();
+            } else if wparam.0 == ID_OVERLAY_DRAG_TIMER {
+                if let Some((x, y)) = native_overlay::process_drag() {
+                    save_overlay_position(x, y);
+                }
             }
             LRESULT(0)
         }
@@ -670,8 +675,20 @@ unsafe extern "system" fn main_wnd_proc(
             toggle_mute();
             LRESULT(0)
         }
-        WM_PREVIEW_OVERLAY => {
-            show_overlay_temporarily(3000);
+        WM_OVERLAY_POSITIONING => {
+            let active = wparam.0 != 0;
+            if let Some((x, y)) = native_overlay::set_positioning(active) {
+                save_overlay_position(x, y);
+            }
+            unsafe {
+                if active {
+                    let _ = KillTimer(hwnd, ID_OVERLAY_HIDE_TIMER);
+                    let _ = SetTimer(hwnd, ID_OVERLAY_DRAG_TIMER, 16, None);
+                } else {
+                    let _ = KillTimer(hwnd, ID_OVERLAY_DRAG_TIMER);
+                    apply_overlay_visibility();
+                }
+            }
             LRESULT(0)
         }
         WM_DISPLAYCHANGE => {
@@ -829,6 +846,11 @@ fn apply_overlay_visibility() {
     };
 
     native_overlay::update(muted, &overlay);
+    if native_overlay::is_positioning() {
+        native_overlay::show();
+        return;
+    }
+
     if !overlay.enabled {
         native_overlay::hide();
         return;
@@ -862,7 +884,7 @@ fn show_overlay_temporarily(duration_ms: u32) {
     }
 }
 
-pub fn request_overlay_preview() {
+pub fn set_overlay_positioning(active: bool) {
     let class = wide("SilenceV2Hidden");
     let hwnd = unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR(null())) };
     let Ok(hwnd) = hwnd else {
@@ -871,7 +893,26 @@ pub fn request_overlay_preview() {
     if hwnd.0.is_null() {
         return;
     }
-    let _ = unsafe { PostMessageW(hwnd, WM_PREVIEW_OVERLAY, WPARAM(0), LPARAM(0)) };
+    let _ = unsafe {
+        PostMessageW(
+            hwnd,
+            WM_OVERLAY_POSITIONING,
+            WPARAM(usize::from(active)),
+            LPARAM(0),
+        )
+    };
+}
+
+fn save_overlay_position(position_x: f64, position_y: f64) {
+    let mut config = load_config().unwrap_or_default();
+    config.overlay.position_x = position_x;
+    config.overlay.position_y = position_y;
+    let _ = save_config(&config);
+
+    let mut state = STATE.lock().unwrap();
+    state.overlay.position_x = position_x;
+    state.overlay.position_y = position_y;
+    state.config_modified = config_modified_time();
 }
 
 fn current_mute_state() -> Result<bool> {

@@ -32,7 +32,6 @@ pub fn settings_app() -> Element {
     let overlay = use_signal(move || initial_overlay.clone());
     let active_tab = use_signal(|| SettingsTab::General);
     let recording = use_signal(|| false);
-    let saved = use_signal(|| false);
     let theme_style = crate::WindowsAccent::load().css_vars();
     let titlebar_icon_style = format!(
         r#".titlebar-settings {{ --titlebar-icon: url("{SETTINGS_ICON}"); }}
@@ -89,7 +88,7 @@ pub fn settings_app() -> Element {
                 {tabs::render(active_tab)}
                 main {
                     class: "content",
-                    {sections::render(active_tab(), shortcut, mic_device_id, sound_settings, overlay, recording, saved)}
+                    {sections::render(active_tab(), shortcut, mic_device_id, sound_settings, overlay, recording)}
                 }
             }
         }

@@ -28,7 +28,7 @@
   gap: 10px;
 }
 
-.overlay-range-row > div {
+.overlay-range-row>div {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -51,17 +51,17 @@
   gap: 14px;
 }
 
-.sound-toggle {
+.toggle {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  min-width: 190px;
   color: var(--text);
   font-size: 14px;
   font-weight: 500;
+  cursor: pointer;
 }
 
-.sound-toggle input {
+.toggle input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
@@ -91,20 +91,19 @@
   transition: transform 150ms ease;
 }
 
-.sound-toggle input:checked + .toggle-track {
+.toggle input:checked+.toggle-track {
   background: var(--accent);
 }
 
-.sound-toggle input:checked + .toggle-track::after {
+.toggle input:checked+.toggle-track::after {
   transform: translateX(20px);
 }
 
-.sound-toggle input:focus-visible + .toggle-track {
+.toggle input:focus-visible+.toggle-track {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
-.toggle-label,
 .sound-value {
   color: var(--muted);
 }
@@ -137,11 +136,9 @@
 .volume-slider::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    var(--accent) 0 var(--range-progress),
-    var(--surface-3) var(--range-progress) 100%
-  );
+  background: linear-gradient(to right,
+      var(--accent) 0 var(--range-progress),
+      var(--surface-3) var(--range-progress) 100%);
 }
 
 .volume-slider::-webkit-slider-thumb {
@@ -195,13 +192,10 @@
 }
 
 @media (max-width: 680px) {
+
   .sound-card-title,
   .sound-row-head {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .sound-toggle {
-    min-width: 0;
   }
 }

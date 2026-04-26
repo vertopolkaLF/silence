@@ -17,7 +17,6 @@ pub fn render(
     sound_settings: Signal<crate::SoundSettings>,
     overlay_settings: Signal<crate::OverlayConfig>,
     recording: Signal<bool>,
-    saved: Signal<bool>,
 ) -> Element {
     match tab {
         SettingsTab::General => general::render(
@@ -26,23 +25,14 @@ pub fn render(
             sound_settings,
             overlay_settings,
             recording,
-            saved,
         ),
         SettingsTab::HoldToMute => hold_to_mute::render(),
-        SettingsTab::Sounds => sounds::render(
-            shortcut,
-            mic_device_id,
-            sound_settings,
-            overlay_settings,
-            saved,
-        ),
-        SettingsTab::Overlay => overlay::render(
-            shortcut,
-            mic_device_id,
-            sound_settings,
-            overlay_settings,
-            saved,
-        ),
+        SettingsTab::Sounds => {
+            sounds::render(shortcut, mic_device_id, sound_settings, overlay_settings)
+        }
+        SettingsTab::Overlay => {
+            overlay::render(shortcut, mic_device_id, sound_settings, overlay_settings)
+        }
         SettingsTab::TrayIcon => tray_icon::render(),
         SettingsTab::AutoMute => auto_mute::render(),
         SettingsTab::About => about::render(),
@@ -59,6 +49,20 @@ fn empty_section(tab: SettingsTab) -> Element {
                 h1 { "{tab.label()}" }
                 p { "This section is reserved for future settings." }
             }
+        }
+    }
+}
+
+#[component]
+pub(super) fn Toggle(checked: bool, onchange: EventHandler<bool>) -> Element {
+    rsx! {
+        label { class: "toggle",
+            input {
+                r#type: "checkbox",
+                checked,
+                onchange: move |evt| onchange.call(evt.checked())
+            }
+            span { class: "toggle-track" }
         }
     }
 }

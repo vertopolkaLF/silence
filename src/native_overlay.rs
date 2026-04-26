@@ -11,13 +11,16 @@ use windows::{
             FF_DONTCARE, FW_MEDIUM, FillRect, OUT_DEFAULT_PRECIS, PAINTSTRUCT, PS_SOLID, RoundRect,
             SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
         },
+        UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON},
         UI::WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, GetSystemMetrics, HWND_TOPMOST,
-            IDC_ARROW, LWA_ALPHA, LWA_COLORKEY, LoadCursorW, RegisterClassW, SM_CXSCREEN,
-            SM_CYSCREEN, SW_HIDE, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_SHOWWINDOW,
-            SetLayeredWindowAttributes, SetWindowPos, ShowWindow, WM_ERASEBKGND, WM_PAINT,
-            WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-            WS_EX_TRANSPARENT, WS_POPUP,
+            CreateWindowExW, DefWindowProcW, DestroyWindow, GWL_EXSTYLE, GetCursorPos,
+            GetSystemMetrics, GetWindowLongW, HWND_TOPMOST, IDC_ARROW, IDC_SIZEALL, LWA_ALPHA,
+            LWA_COLORKEY, LoadCursorW, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_HIDE,
+            SW_SHOWNOACTIVATE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER,
+            SWP_NOSIZE, SWP_SHOWWINDOW, SetCursor, SetLayeredWindowAttributes, SetWindowLongW,
+            SetWindowPos, ShowWindow, WM_ERASEBKGND, WM_PAINT, WM_SETCURSOR, WNDCLASSW,
+            WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+            WS_POPUP,
         },
     },
     core::{PCWSTR, w},
@@ -34,6 +37,14 @@ struct NativeOverlay {
     settings: crate::OverlayConfig,
     width: i32,
     height: i32,
+    x: i32,
+    y: i32,
+    positioning: bool,
+    dragging: bool,
+    drag_offset_x: i32,
+    drag_offset_y: i32,
+    was_mouse_down: bool,
+    awaiting_initial_release: bool,
 }
 
 unsafe impl Send for NativeOverlay {}
@@ -86,6 +97,14 @@ pub fn init(instance: HINSTANCE, muted: bool, settings: &crate::OverlayConfig) -
         settings: settings.clone(),
         width: 48,
         height: 48,
+        x: 100,
+        y: 100,
+        positioning: false,
+        dragging: false,
+        drag_offset_x: 0,
+        drag_offset_y: 0,
+        was_mouse_down: false,
+        awaiting_initial_release: false,
     };
     native.apply_layout();
     *overlay = Some(native);
@@ -108,8 +127,8 @@ pub fn show() {
             let _ = SetWindowPos(
                 overlay.hwnd,
                 HWND_TOPMOST,
-                overlay.x(),
-                overlay.y(),
+                overlay.x,
+                overlay.y,
                 overlay.width,
                 overlay.height,
                 SWP_NOACTIVATE | SWP_SHOWWINDOW,
@@ -132,6 +151,52 @@ pub fn reposition() {
     }
 }
 
+pub fn set_positioning(active: bool) -> Option<(f64, f64)> {
+    if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
+        let position = if active {
+            None
+        } else {
+            Some(overlay.current_percent_position())
+        };
+        overlay.positioning = active;
+        overlay.dragging = false;
+        overlay.was_mouse_down = false;
+        overlay.awaiting_initial_release = active && mouse_down();
+        overlay.set_click_through(!active || overlay.awaiting_initial_release);
+        if active {
+            overlay.apply_layout();
+            unsafe {
+                let _ = ShowWindow(overlay.hwnd, SW_SHOWNOACTIVATE);
+                let _ = SetWindowPos(
+                    overlay.hwnd,
+                    HWND_TOPMOST,
+                    overlay.x,
+                    overlay.y,
+                    overlay.width,
+                    overlay.height,
+                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                );
+            }
+        }
+        return position;
+    }
+
+    None
+}
+
+pub fn process_drag() -> Option<(f64, f64)> {
+    OVERLAY.lock().unwrap().as_mut()?.process_drag()
+}
+
+pub fn is_positioning() -> bool {
+    OVERLAY
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|overlay| overlay.positioning)
+        .unwrap_or(false)
+}
+
 pub fn destroy() {
     if let Some(overlay) = OVERLAY.lock().unwrap().take() {
         unsafe {
@@ -149,13 +214,17 @@ impl NativeOverlay {
         } else {
             self.height
         };
+        if !self.dragging {
+            self.x = self.saved_x();
+            self.y = self.saved_y();
+        }
 
         unsafe {
             let _ = SetWindowPos(
                 self.hwnd,
                 HWND_TOPMOST,
-                self.x(),
-                self.y(),
+                self.x,
+                self.y,
                 self.width,
                 self.height,
                 SWP_NOACTIVATE,
@@ -163,14 +232,109 @@ impl NativeOverlay {
         }
     }
 
-    fn x(&self) -> i32 {
+    fn saved_x(&self) -> i32 {
         let screen = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(self.width);
         percent_to_axis(self.settings.position_x, screen, self.width)
     }
 
-    fn y(&self) -> i32 {
+    fn saved_y(&self) -> i32 {
         let screen = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(self.height);
         percent_to_axis(self.settings.position_y, screen, self.height)
+    }
+
+    fn process_drag(&mut self) -> Option<(f64, f64)> {
+        if !self.positioning {
+            return None;
+        }
+
+        let mut cursor = windows::Win32::Foundation::POINT::default();
+        unsafe {
+            let _ = GetCursorPos(&mut cursor);
+        }
+        let mouse_down = mouse_down();
+        if self.awaiting_initial_release {
+            if !mouse_down {
+                self.awaiting_initial_release = false;
+                self.set_click_through(false);
+            }
+            self.was_mouse_down = mouse_down;
+            return None;
+        }
+
+        if mouse_down && !self.was_mouse_down && self.contains(cursor.x, cursor.y) {
+            self.dragging = true;
+            self.drag_offset_x = cursor.x - self.x;
+            self.drag_offset_y = cursor.y - self.y;
+        }
+
+        if self.dragging && mouse_down {
+            self.x = (cursor.x - self.drag_offset_x).clamp(0, self.screen_width() - self.width);
+            self.y = (cursor.y - self.drag_offset_y).clamp(0, self.screen_height() - self.height);
+            unsafe {
+                let _ = SetWindowPos(
+                    self.hwnd,
+                    HWND_TOPMOST,
+                    self.x,
+                    self.y,
+                    self.width,
+                    self.height,
+                    SWP_NOACTIVATE,
+                );
+            }
+        }
+
+        let mut saved = None;
+        if self.dragging && !mouse_down {
+            self.dragging = false;
+            saved = Some(self.current_percent_position());
+        }
+
+        self.was_mouse_down = mouse_down;
+        saved
+    }
+
+    fn contains(&self, x: i32, y: i32) -> bool {
+        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+    }
+
+    fn current_percent_position(&mut self) -> (f64, f64) {
+        let width = self.screen_width();
+        let height = self.screen_height();
+        let x = axis_to_percent(self.x, width, self.width);
+        let y = axis_to_percent(self.y, height, self.height);
+        self.settings.position_x = x;
+        self.settings.position_y = y;
+        (x, y)
+    }
+
+    fn screen_width(&self) -> i32 {
+        unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(self.width)
+    }
+
+    fn screen_height(&self) -> i32 {
+        unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(self.height)
+    }
+
+    fn set_click_through(&self, click_through: bool) {
+        unsafe {
+            let style = GetWindowLongW(self.hwnd, GWL_EXSTYLE);
+            let transparent = WS_EX_TRANSPARENT.0 as i32;
+            let next_style = if click_through {
+                style | transparent
+            } else {
+                style & !transparent
+            };
+            let _ = SetWindowLongW(self.hwnd, GWL_EXSTYLE, next_style);
+            let _ = SetWindowPos(
+                self.hwnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER,
+            );
+        }
     }
 
     fn repaint(&self) {
@@ -330,6 +494,23 @@ unsafe extern "system" fn overlay_wnd_proc(
             }
             LRESULT(0)
         }
+        WM_SETCURSOR => {
+            if OVERLAY
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|overlay| overlay.positioning)
+                .unwrap_or(false)
+            {
+                unsafe {
+                    if let Ok(cursor) = LoadCursorW(None, IDC_SIZEALL) {
+                        let _ = SetCursor(cursor);
+                    }
+                }
+                return LRESULT(1);
+            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }
 }
@@ -337,6 +518,15 @@ unsafe extern "system" fn overlay_wnd_proc(
 fn percent_to_axis(percent: f64, screen: i32, size: i32) -> i32 {
     let available = (screen - size).max(0) as f64;
     (available * percent.clamp(0.0, 100.0) / 100.0).round() as i32
+}
+
+fn axis_to_percent(position: i32, screen: i32, size: i32) -> f64 {
+    let available = (screen - size).max(1) as f64;
+    (position as f64 * 100.0 / available).clamp(0.0, 100.0)
+}
+
+fn mouse_down() -> bool {
+    unsafe { (GetAsyncKeyState(VK_LBUTTON.0 as i32) as u16 & 0x8000) != 0 }
 }
 
 fn colorref(r: u8, g: u8, b: u8) -> COLORREF {
