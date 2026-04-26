@@ -2,16 +2,20 @@ use dioxus::prelude::*;
 
 pub fn render(
     mut shortcut: Signal<crate::Shortcut>,
+    mut mic_device_id: Signal<Option<String>>,
     mut recording: Signal<bool>,
     mut saved: Signal<bool>,
 ) -> Element {
     let current = shortcut().display();
-    let mic_muted = crate::current_mute_state().unwrap_or(false);
+    let selected_value = mic_device_id().unwrap_or_default();
+    let mic_muted = crate::mic_mute_state(mic_device_id().as_deref()).unwrap_or(false);
     let mic_status = if mic_muted {
         "Microphone is muted"
     } else {
         "Microphone is unmuted"
     };
+    let devices = crate::capture_devices().unwrap_or_default();
+    let mic_label = crate::selected_mic_label(mic_device_id().as_deref(), &devices);
 
     rsx! {
         section {
@@ -23,16 +27,35 @@ pub fn render(
             div {
                 class: "status-copy",
                 h1 { "{mic_status}" }
-                p { "Default input device" }
+                p { "{mic_label}" }
             }
         }
 
         section {
             class: "field-group",
             label { "Microphone" }
-            div {
-                class: "select-like",
-                span { "All Microphones" }
+            div { class: "select-wrap",
+                select {
+                    class: "select-like",
+                    value: "{selected_value}",
+                    onchange: move |evt| {
+                        let value = evt.value();
+                        mic_device_id.set(if value.is_empty() { None } else { Some(value) });
+                        saved.set(false);
+                    },
+                    option { value: "", "Default input device" }
+                    for device in devices {
+                        option {
+                            value: "{device.id}",
+                            selected: selected_value == device.id,
+                            if device.is_default {
+                                "{device.name} (default)"
+                            } else {
+                                "{device.name}"
+                            }
+                        }
+                    }
+                }
                 span { class: "solar-icon select-icon icon-down" }
             }
         }
@@ -95,7 +118,10 @@ pub fn render(
             button {
                 class: "save",
                 onclick: move |_| {
-                    if crate::save_config(&crate::Config { shortcut: shortcut() }).is_ok() {
+                    if crate::save_config(&crate::Config {
+                        shortcut: shortcut(),
+                        mic_device_id: mic_device_id(),
+                    }).is_ok() {
                         saved.set(true);
                     }
                 },

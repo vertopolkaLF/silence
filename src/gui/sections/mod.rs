@@ -13,11 +13,12 @@ mod tray_icon;
 pub fn render(
     tab: SettingsTab,
     shortcut: Signal<crate::Shortcut>,
+    mic_device_id: Signal<Option<String>>,
     recording: Signal<bool>,
     saved: Signal<bool>,
 ) -> Element {
     match tab {
-        SettingsTab::General => general::render(shortcut, recording, saved),
+        SettingsTab::General => general::render(shortcut, mic_device_id, recording, saved),
         SettingsTab::HoldToMute => hold_to_mute::render(),
         SettingsTab::Sounds => sounds::render(),
         SettingsTab::Overlay => overlay::render(),

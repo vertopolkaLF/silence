@@ -17,16 +17,20 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use windows::{
     Win32::{
+        Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
         Foundation::{
             ERROR_ALREADY_EXISTS, ERROR_SUCCESS, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT,
             POINT, WPARAM,
         },
         Media::Audio::{
-            Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator, MMDeviceEnumerator, eCapture,
-            eConsole,
+            DEVICE_STATE_ACTIVE, Endpoints::IAudioEndpointVolume, IMMDevice, IMMDeviceEnumerator,
+            MMDeviceEnumerator, eCapture, eConsole,
         },
         System::{
-            Com::{CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx},
+            Com::{
+                CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
+                CoTaskMemFree, STGM_READ,
+            },
             LibraryLoader::GetModuleHandleW,
             Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW},
             Threading::CreateMutexW,
@@ -38,19 +42,19 @@ use windows::{
                 Shell_NotifyIconW,
             },
             WindowsAndMessaging::{
-                AppendMenuW, CallNextHookEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW,
-                DestroyMenu, DestroyWindow, DispatchMessageW, FindWindowW, GetCursorPos,
-                GetMessageW, HHOOK, IDC_ARROW, IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT,
-                LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG, PostMessageW, PostQuitMessage,
-                RegisterClassW, SW_RESTORE, SetForegroundWindow, SetTimer, SetWindowsHookExW,
-                ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage,
-                UnhookWindowsHookEx, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND,
-                WM_DESTROY, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER,
-                WNDCLASSW, WS_OVERLAPPED,
+                AppendMenuW, CallNextHookEx, CreateIconFromResourceEx, CreatePopupMenu,
+                CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow, DispatchMessageW,
+                FindWindowW, GetCursorPos, GetMessageW, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION,
+                IsIconic, KBDLLHOOKSTRUCT, LR_DEFAULTSIZE, LoadCursorW, LoadIconW, MENU_ITEM_FLAGS,
+                MSG, PostMessageW, PostQuitMessage, RegisterClassW, SW_RESTORE,
+                SetForegroundWindow, SetTimer, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN,
+                TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx,
+                WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_KEYDOWN,
+                WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
             },
         },
     },
-    core::{PCWSTR, w},
+    core::{PCWSTR, PWSTR, w},
 };
 
 mod gui;
@@ -63,6 +67,7 @@ const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
+const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 
 const VK_SHIFT: u32 = 0x10;
 const VK_CONTROL: u32 = 0x11;
@@ -121,15 +126,19 @@ impl Shortcut {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct Config {
+    #[serde(default)]
     shortcut: Shortcut,
+    #[serde(default)]
+    mic_device_id: Option<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             shortcut: Shortcut::default(),
+            mic_device_id: None,
         }
     }
 }
@@ -138,9 +147,17 @@ struct AppState {
     hwnd: HWND,
     hook: HHOOK,
     shortcut: Shortcut,
+    mic_device_id: Option<String>,
     muted: bool,
     shortcut_down: bool,
     config_modified: Option<SystemTime>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MicDevice {
+    pub id: String,
+    pub name: String,
+    pub is_default: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -222,6 +239,7 @@ impl Default for AppState {
             hwnd: HWND(null_mut()),
             hook: HHOOK(null_mut()),
             shortcut: config.shortcut,
+            mic_device_id: config.mic_device_id,
             muted: false,
             shortcut_down: false,
             config_modified: config_modified_time(),
@@ -278,10 +296,11 @@ fn run_background_app() -> Result<()> {
     let instance = unsafe { GetModuleHandleW(None)? };
     register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
+    let muted = current_mute_state().unwrap_or(false);
     {
         let mut state = STATE.lock().unwrap();
         state.hwnd = hwnd;
-        state.muted = current_mute_state().unwrap_or(false);
+        state.muted = muted;
     }
 
     install_keyboard_hook(instance.into())?;
@@ -347,7 +366,8 @@ fn install_keyboard_hook(instance: HINSTANCE) -> Result<()> {
 }
 
 fn add_tray_icon(hwnd: HWND) -> Result<()> {
-    let icon = unsafe { LoadIconW(None, IDI_APPLICATION)? };
+    let icon = load_app_icon().or_else(|| unsafe { LoadIconW(None, IDI_APPLICATION).ok() });
+    let icon = icon.context("load tray icon")?;
     let mut nid = NOTIFYICONDATAW {
         cbSize: size_of::<NOTIFYICONDATAW>() as u32,
         hWnd: hwnd,
@@ -363,6 +383,63 @@ fn add_tray_icon(hwnd: HWND) -> Result<()> {
     }
     refresh_tray_tip();
     Ok(())
+}
+
+fn load_app_icon() -> Option<HICON> {
+    let icon_bytes = include_bytes!("../assets/app.ico");
+    let image = best_ico_image(icon_bytes, 16)?;
+    unsafe {
+        CreateIconFromResourceEx(image, true, ICON_RESOURCE_VERSION, 0, 0, LR_DEFAULTSIZE).ok()
+    }
+}
+
+fn best_ico_image(bytes: &[u8], target: u32) -> Option<&[u8]> {
+    if bytes.len() < 6 || u16::from_le_bytes([bytes[2], bytes[3]]) != 1 {
+        return None;
+    }
+
+    let count = u16::from_le_bytes([bytes[4], bytes[5]]) as usize;
+    let mut best: Option<(u32, usize, usize)> = None;
+    for index in 0..count {
+        let offset = 6 + index * 16;
+        if offset + 16 > bytes.len() {
+            return None;
+        }
+
+        let width = if bytes[offset] == 0 {
+            256
+        } else {
+            bytes[offset] as u32
+        };
+        let size = u32::from_le_bytes([
+            bytes[offset + 8],
+            bytes[offset + 9],
+            bytes[offset + 10],
+            bytes[offset + 11],
+        ]) as usize;
+        let image_offset = u32::from_le_bytes([
+            bytes[offset + 12],
+            bytes[offset + 13],
+            bytes[offset + 14],
+            bytes[offset + 15],
+        ]) as usize;
+        if image_offset + size > bytes.len() {
+            continue;
+        }
+
+        let score = width.abs_diff(target);
+        if best
+            .map(|(best_score, best_size, _)| {
+                score < best_score || (score == best_score && size > best_size)
+            })
+            .unwrap_or(true)
+        {
+            best = Some((score, size, image_offset));
+        }
+    }
+
+    let (_, size, image_offset) = best?;
+    Some(&bytes[image_offset..image_offset + size])
 }
 
 fn refresh_tray_tip() {
@@ -576,13 +653,19 @@ fn toggle_mute() {
 }
 
 fn current_mute_state() -> Result<bool> {
-    let volume = default_capture_volume()?;
+    let volume = selected_capture_volume()?;
+    let muted = unsafe { volume.GetMute()? };
+    Ok(muted.as_bool())
+}
+
+pub fn mic_mute_state(device_id: Option<&str>) -> Result<bool> {
+    let volume = capture_volume(device_id)?;
     let muted = unsafe { volume.GetMute()? };
     Ok(muted.as_bool())
 }
 
 fn set_mute_to_inverse() -> Result<bool> {
-    let volume = default_capture_volume()?;
+    let volume = selected_capture_volume()?;
     unsafe {
         let muted = volume.GetMute()?;
         let next = !muted.as_bool();
@@ -591,18 +674,98 @@ fn set_mute_to_inverse() -> Result<bool> {
     }
 }
 
-fn default_capture_volume() -> Result<IAudioEndpointVolume> {
+fn selected_capture_volume() -> Result<IAudioEndpointVolume> {
+    let device_id = STATE.lock().unwrap().mic_device_id.clone();
+    capture_volume(device_id.as_deref())
+}
+
+fn capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
     unsafe {
         let enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
                 .context("create audio device enumerator")?;
-        let device = enumerator
-            .GetDefaultAudioEndpoint(eCapture, eConsole)
-            .context("get default capture endpoint")?;
+        let device = capture_device(&enumerator, device_id)?;
         device
             .Activate(CLSCTX_ALL, None)
             .context("activate endpoint volume")
     }
+}
+
+unsafe fn capture_device(
+    enumerator: &IMMDeviceEnumerator,
+    device_id: Option<&str>,
+) -> Result<IMMDevice> {
+    if let Some(device_id) = device_id.filter(|id| !id.is_empty()) {
+        let id = wide(device_id);
+        if let Ok(device) = unsafe { enumerator.GetDevice(PCWSTR(id.as_ptr())) } {
+            if unsafe { device.GetState()? } == DEVICE_STATE_ACTIVE {
+                return Ok(device);
+            }
+        }
+    }
+
+    unsafe { enumerator.GetDefaultAudioEndpoint(eCapture, eConsole) }
+        .context("get default capture endpoint")
+}
+
+pub fn capture_devices() -> Result<Vec<MicDevice>> {
+    unsafe {
+        let enumerator: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+                .context("create audio device enumerator")?;
+        let default_id = capture_device_id(
+            &enumerator
+                .GetDefaultAudioEndpoint(eCapture, eConsole)
+                .context("get default capture endpoint")?,
+        )
+        .ok();
+        let collection = enumerator
+            .EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
+            .context("enumerate capture endpoints")?;
+        let count = collection.GetCount().context("count capture endpoints")?;
+        let mut devices = Vec::with_capacity(count as usize);
+
+        for index in 0..count {
+            let device = collection.Item(index).context("get capture endpoint")?;
+            let id = capture_device_id(&device)?;
+            let name = capture_device_name(&device).unwrap_or_else(|| "Microphone".to_string());
+            let is_default = default_id.as_deref() == Some(id.as_str());
+            devices.push(MicDevice {
+                id,
+                name,
+                is_default,
+            });
+        }
+
+        Ok(devices)
+    }
+}
+
+pub fn selected_mic_label(selected_id: Option<&str>, devices: &[MicDevice]) -> String {
+    selected_id
+        .and_then(|id| devices.iter().find(|device| device.id == id))
+        .map(|device| device.name.clone())
+        .or_else(|| {
+            devices
+                .iter()
+                .find(|device| device.is_default)
+                .map(|device| format!("{} (default)", device.name))
+        })
+        .unwrap_or_else(|| "Default input device".to_string())
+}
+
+unsafe fn capture_device_id(device: &IMMDevice) -> Result<String> {
+    let id = unsafe { device.GetId()? };
+    let text = unsafe { pwstr_to_string(id) };
+    unsafe { CoTaskMemFree(Some(id.0 as *const c_void)) };
+    Ok(text)
+}
+
+unsafe fn capture_device_name(device: &IMMDevice) -> Option<String> {
+    let store = unsafe { device.OpenPropertyStore(STGM_READ).ok()? };
+    let value = unsafe { store.GetValue(&PKEY_Device_FriendlyName).ok()? };
+    let name = value.to_string();
+    if name.is_empty() { None } else { Some(name) }
 }
 
 fn reload_config_if_changed() {
@@ -612,7 +775,12 @@ fn reload_config_if_changed() {
         return;
     }
     if let Ok(config) = load_config() {
+        let muted = capture_volume(config.mic_device_id.as_deref())
+            .and_then(|volume| unsafe { Ok(volume.GetMute()?.as_bool()) })
+            .unwrap_or(state.muted);
         state.shortcut = config.shortcut;
+        state.mic_device_id = config.mic_device_id;
+        state.muted = muted;
         state.config_modified = modified;
         state.shortcut_down = false;
         drop(state);
@@ -696,4 +864,17 @@ fn write_wide_buf<const N: usize>(buf: &mut [u16; N], text: &str) {
 
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+unsafe fn pwstr_to_string(value: PWSTR) -> String {
+    if value.0.is_null() {
+        return String::new();
+    }
+
+    let mut len = 0usize;
+    while unsafe { *value.0.add(len) } != 0 {
+        len += 1;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(value.0, len) };
+    String::from_utf16_lossy(slice)
 }

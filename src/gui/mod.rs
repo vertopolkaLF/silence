@@ -20,8 +20,9 @@ pub fn settings_app() -> Element {
     let drag_desktop = desktop.clone();
     let devtools_desktop = desktop.clone();
     let close_desktop = desktop.clone();
-    let initial = crate::load_config().unwrap_or_default().shortcut;
-    let shortcut = use_signal(|| initial);
+    let initial = crate::load_config().unwrap_or_default();
+    let shortcut = use_signal(move || initial.shortcut);
+    let mic_device_id = use_signal(move || initial.mic_device_id.clone());
     let active_tab = use_signal(|| SettingsTab::General);
     let recording = use_signal(|| false);
     let saved = use_signal(|| false);
@@ -80,7 +81,7 @@ pub fn settings_app() -> Element {
                 {tabs::render(active_tab)}
                 main {
                     class: "content",
-                    {sections::render(active_tab(), shortcut, recording, saved)}
+                    {sections::render(active_tab(), shortcut, mic_device_id, recording, saved)}
                 }
             }
         }

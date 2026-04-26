@@ -44,13 +44,18 @@
   max-width: 520px;
 }
 
+.select-wrap {
+  position: relative;
+}
+
 .select-like {
   height: 40px;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 0 12px;
+  padding: 0 38px 0 12px;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: var(--surface-2);
@@ -58,9 +63,15 @@
   font-size: 14px;
   transition: all 150ms ease;
   box-shadow: 0 1px 2px var(--shadow-faint);
+  appearance: none;
 }
 
 .select-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  pointer-events: none;
+  transform: translateY(-50%);
   width: 17px;
   height: 17px;
   color: var(--faint);
