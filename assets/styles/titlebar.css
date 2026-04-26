@@ -1,23 +1,25 @@
 .titlebar {
-  height: 44px;
+  height: 42px;
   display: flex;
   align-items: center;
-  gap: 0px;
+  gap: 0;
   padding: 0 0 0 12px;
-  background: #201917;
+  border-bottom: 1px solid #222;
+  background: #141414;
   user-select: none;
 }
 
 .titlebar-icon {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   flex: 0 0 auto;
-  margin-right: 12px;
+  margin-right: 10px;
 }
 
 .title {
-  font-size: 14px;
-  color: #fffaf6;
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--text);
 }
 
 .title-spacer {
@@ -25,32 +27,34 @@
 }
 
 .titlebar-button {
-  width: 50px;
+  width: 46px;
   height: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 0;
   background: transparent;
-  color: #f5eee9;
-  transition: .2s ease;
+  color: var(--muted);
+  transition: background 140ms ease, color 140ms ease;
 }
 
 .titlebar-button:hover {
-  background: #fff1;
+  background: #242424;
+  color: var(--text);
 }
 
 #close:hover {
-  background: #e81123;
+  background: #8f2d2f;
+  color: #fff;
 }
 
 .titlebar-button img {
   width: 16px;
   height: 16px;
-  filter: invert(100%);
+  filter: invert(88%);
   pointer-events: none;
 }
 
 .devtools-button {
-  margin-right: 8px;
+  margin-right: 4px;
 }

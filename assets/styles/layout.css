@@ -1,17 +1,18 @@
 .window {
   width: 100vw;
   height: 100vh;
-  background: #231b19;
+  background: var(--bg);
 }
 
 .body {
   display: grid;
-  grid-template-columns: 252px 1fr;
-  height: calc(100vh - 44px);
+  grid-template-columns: 236px minmax(0, 1fr);
+  height: calc(100vh - 42px);
+  border-top: 1px solid #222;
 }
 
 .content {
   overflow-y: auto;
-  padding: 30px 30px 36px;
-  background: #2b2421;
+  padding: 30px 34px 36px;
+  background: var(--surface);
 }

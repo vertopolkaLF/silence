@@ -36,13 +36,13 @@ impl SettingsTab {
 
     fn icon(self) -> &'static str {
         match self {
-            Self::General => "⚙",
-            Self::HoldToMute => "○",
-            Self::Sounds => "◔",
-            Self::Overlay => "⇧",
-            Self::TrayIcon => "◌",
-            Self::AutoMute => "◷",
-            Self::About => "ⓘ",
+            Self::General => "icon-settings",
+            Self::HoldToMute => "icon-mic",
+            Self::Sounds => "icon-volume",
+            Self::Overlay => "icon-monitor",
+            Self::TrayIcon => "icon-widget",
+            Self::AutoMute => "icon-magic",
+            Self::About => "icon-info",
         }
     }
 }
@@ -55,7 +55,7 @@ pub fn render(mut active_tab: Signal<SettingsTab>) -> Element {
                 button {
                     class: if active_tab() == tab { "nav-item active" } else { "nav-item" },
                     onclick: move |_| active_tab.set(tab),
-                    span { class: "nav-icon", "{tab.icon()}" }
+                    span { class: "solar-icon nav-icon {tab.icon()}" }
                     span { "{tab.label()}" }
                 }
             }

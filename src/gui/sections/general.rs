@@ -16,14 +16,25 @@ pub fn render(
     rsx! {
         section {
             class: "status-row",
-            div { class: if mic_muted { "mic-dot muted" } else { "mic-dot" }, "🎙" }
-            h1 { "{mic_status}" }
+            div {
+                class: if mic_muted { "mic-dot muted" } else { "mic-dot" },
+                span { class: "solar-icon icon-mic" }
+            }
+            div {
+                class: "status-copy",
+                h1 { "{mic_status}" }
+                p { "Default input device" }
+            }
         }
 
         section {
             class: "field-group",
             label { "Microphone" }
-            div { class: "select-like", "All Microphones" span { "⌄" } }
+            div {
+                class: "select-like",
+                span { "All Microphones" }
+                span { class: "solar-icon select-icon icon-down" }
+            }
         }
 
         section {
@@ -57,11 +68,13 @@ pub fn render(
                         shortcut.set(crate::Shortcut::default());
                         saved.set(false);
                     },
-                    "×"
+                    title: "Reset shortcut",
+                    span { class: "solar-icon icon-reset" }
                 }
                 button {
                     class: "secondary",
                     onclick: move |_| recording.set(true),
+                    span { class: "solar-icon button-icon icon-record" }
                     "Record"
                 }
             }
@@ -86,6 +99,7 @@ pub fn render(
                         saved.set(true);
                     }
                 },
+                span { class: "solar-icon button-icon icon-shield" }
                 "Save"
             }
             span {

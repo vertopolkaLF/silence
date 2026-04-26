@@ -1,28 +1,44 @@
 .status-row {
   display: flex;
   align-items: center;
-  gap: 22px;
-  margin-bottom: 28px;
+  gap: 16px;
+  margin-bottom: 30px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
 }
 
 .mic-dot {
-  width: 62px;
-  height: 62px;
+  width: 54px;
+  height: 54px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  background: #26b34d;
-  font-size: 31px;
+  border: 1px solid #36543a;
+  border-radius: 8px;
+  background: #1b2a1e;
+  color: var(--success);
 }
 
 .mic-dot.muted {
-  background: #a0443a;
+  border-color: #5a332f;
+  background: #2d1e1c;
+  color: var(--danger);
+}
+
+.mic-dot .solar-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.status-copy {
+  display: grid;
+  gap: 4px;
 }
 
 .field-group {
   display: grid;
   gap: 10px;
   margin-bottom: 28px;
+  max-width: 520px;
 }
 
 .select-like {
@@ -30,17 +46,29 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
-  border: 1px solid #403633;
-  border-radius: 5px;
-  background: #403734;
-  color: #f9f3ee;
-  font-size: 17px;
+  gap: 14px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.select-icon {
+  width: 17px;
+  height: 17px;
+  color: var(--faint);
 }
 
 .hotkeys {
   display: grid;
-  gap: 18px;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.section-head {
+  margin-bottom: 2px;
 }
 
 .hotkey-title-row,
@@ -52,47 +80,50 @@ footer {
 }
 
 .hotkey-title-row.lower {
-  margin-top: 8px;
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .hotkey-row {
   display: grid;
-  grid-template-columns: 1fr 40px 86px;
+  grid-template-columns: minmax(160px, 1fr) 38px 96px;
   gap: 10px;
 }
 
 .recorder {
-  height: 40px;
+  height: 38px;
   min-width: 0;
-  border: 1px solid #4b413e;
-  border-radius: 5px;
-  padding: 0 14px;
-  background: #403734;
-  color: #fff8f2;
-  font: inherit;
-  font-size: 17px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  padding: 0 12px;
+  background: #191919;
+  color: var(--text);
+  font-size: 14px;
 }
 
 .recorder:focus,
 .recorder.recording {
-  outline: 2px solid #ff9b3c;
-  outline-offset: 0;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-color: transparent;
 }
 
 .check-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 400;
+  color: var(--muted);
+  font-weight: 450;
 }
 
 .check-row input {
-  width: 25px;
-  height: 25px;
-  accent-color: #ff9b3c;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
 }
 
 footer {
   justify-content: flex-start;
-  margin-top: 26px;
+  margin-top: 28px;
 }

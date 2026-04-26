@@ -31,8 +31,12 @@ fn empty_section(tab: SettingsTab) -> Element {
     rsx! {
         section {
             class: "empty-section",
-            h1 { "{tab.label()}" }
-            p { "This section is reserved for future settings." }
+            div {
+                class: "empty-card",
+                span { class: "solar-icon empty-icon icon-settings" }
+                h1 { "{tab.label()}" }
+                p { "This section is reserved for future settings." }
+            }
         }
     }
 }

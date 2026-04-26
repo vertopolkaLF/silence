@@ -184,7 +184,7 @@ fn main() -> Result<()> {
             .with_custom_head(
                 r#"<link rel="icon" href="/assets/app.ico" type="image/x-icon">"#.to_string(),
             )
-            .with_background_color((35, 28, 26, 255));
+            .with_background_color((18, 18, 18, 255));
         dioxus::LaunchBuilder::desktop()
             .with_cfg(cfg)
             .launch(gui::settings_app);
