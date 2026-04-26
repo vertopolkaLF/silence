@@ -6,6 +6,7 @@ mod about;
 mod auto_mute;
 mod general;
 mod hold_to_mute;
+mod hotkeys;
 mod overlay;
 mod sounds;
 mod tray_icon;
@@ -16,14 +17,55 @@ pub fn render(
     recording: Signal<bool>,
 ) -> Element {
     match tab {
-        SettingsTab::General => general::render(settings, recording),
-        SettingsTab::HoldToMute => hold_to_mute::render(),
-        SettingsTab::Sounds => sounds::render(settings),
-        SettingsTab::Overlay => overlay::render(settings),
-        SettingsTab::TrayIcon => tray_icon::render(),
-        SettingsTab::AutoMute => auto_mute::render(),
-        SettingsTab::About => about::render(),
+        SettingsTab::General => rsx! { GeneralSection { settings, recording } },
+        SettingsTab::HoldToMute => rsx! { HoldToMuteSection {} },
+        SettingsTab::Hotkeys => rsx! { HotkeysSection { settings } },
+        SettingsTab::Sounds => rsx! { SoundsSection { settings } },
+        SettingsTab::Overlay => rsx! { OverlaySection { settings } },
+        SettingsTab::TrayIcon => rsx! { TrayIconSection {} },
+        SettingsTab::AutoMute => rsx! { AutoMuteSection {} },
+        SettingsTab::About => rsx! { AboutSection {} },
     }
+}
+
+#[component]
+fn GeneralSection(settings: Signal<super::SettingsSnapshot>, recording: Signal<bool>) -> Element {
+    general::render(settings, recording)
+}
+
+#[component]
+fn HoldToMuteSection() -> Element {
+    hold_to_mute::render()
+}
+
+#[component]
+fn HotkeysSection(settings: Signal<super::SettingsSnapshot>) -> Element {
+    hotkeys::render(settings)
+}
+
+#[component]
+fn SoundsSection(settings: Signal<super::SettingsSnapshot>) -> Element {
+    sounds::render(settings)
+}
+
+#[component]
+fn OverlaySection(settings: Signal<super::SettingsSnapshot>) -> Element {
+    overlay::render(settings)
+}
+
+#[component]
+fn TrayIconSection() -> Element {
+    tray_icon::render()
+}
+
+#[component]
+fn AutoMuteSection() -> Element {
+    auto_mute::render()
+}
+
+#[component]
+fn AboutSection() -> Element {
+    about::render()
 }
 
 fn empty_section(tab: SettingsTab) -> Element {

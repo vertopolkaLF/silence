@@ -11,6 +11,7 @@ const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
 const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::css());
 const GEIST_FONT: Asset = asset!("/assets/fonts/Geist-VariableFont_wght.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
+const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
@@ -92,6 +93,7 @@ pub fn settings_app() -> Element {
         link { rel: "stylesheet", href: TABS_CSS }
         link { rel: "stylesheet", href: GENERAL_CSS }
         link { rel: "stylesheet", href: SOUNDS_CSS }
+        link { rel: "stylesheet", href: HOTKEYS_CSS }
         style { {theme_style} }
         style { {titlebar_icon_style} }
         div {
@@ -114,7 +116,12 @@ pub fn settings_app() -> Element {
                     class: "titlebar-button",
                     id: "close",
                     onmousedown: move |evt| evt.stop_propagation(),
-                    onclick: move |_| close_desktop.close(),
+                    onclick: move |_| {
+                        update_settings(settings, |config| {
+                            config.hotkeys_paused = false;
+                        });
+                        close_desktop.close();
+                    },
                     span { class: "titlebar-glyph titlebar-close" }
                 }
             }

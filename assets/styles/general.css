@@ -77,34 +77,15 @@
   color: var(--faint);
 }
 
-.hotkeys {
-  display: grid;
-  gap: 16px;
-  max-width: 640px;
-}
-
 .section-head {
   margin-bottom: 2px;
 }
 
-.hotkey-title-row,
 footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-}
-
-.hotkey-title-row.lower {
-  margin-top: 6px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.hotkey-row {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) 38px 96px;
-  gap: 10px;
 }
 
 .recorder {

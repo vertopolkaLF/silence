@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::{
+    collections::HashSet,
     ffi::c_void,
     fs,
     mem::size_of,
@@ -51,12 +52,12 @@ use windows::{
                 CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow, DispatchMessageW,
                 FindWindowW, GetCursorPos, GetMessageW, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION,
                 IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW,
-                MENU_ITEM_FLAGS, MSG, PostMessageW, PostQuitMessage, RegisterClassW, SW_RESTORE,
-                SendMessageW, SetForegroundWindow, SetTimer, SetWindowsHookExW, ShowWindow,
-                TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage,
-                UnhookWindowsHookEx, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND,
-                WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP,
-                WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
+                MENU_ITEM_FLAGS, MSG, PostQuitMessage, RegisterClassW, SW_RESTORE, SendMessageW,
+                SetForegroundWindow, SetTimer, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN,
+                TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx,
+                WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
+                WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
+                WS_OVERLAPPED,
             },
         },
     },
@@ -88,7 +89,7 @@ const VK_NUMPAD0: u32 = 0x60;
 const VK_F1: u32 = 0x70;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
-struct Shortcut {
+pub struct Shortcut {
     ctrl: bool,
     alt: bool,
     shift: bool,
@@ -109,7 +110,28 @@ impl Default for Shortcut {
 }
 
 impl Shortcut {
-    fn is_pressed(&self, vk: u32) -> bool {
+    fn is_pressed(&self, vk: u32, ignore_modifiers: bool) -> bool {
+        if self.vk == 0 {
+            let current_ctrl = key_down(VK_CONTROL);
+            let current_alt = key_down(VK_MENU);
+            let current_shift = key_down(VK_SHIFT);
+            let current_win = key_down(VK_LWIN) || key_down(VK_RWIN);
+            if ignore_modifiers {
+                return (!self.ctrl || current_ctrl)
+                    && (!self.alt || current_alt)
+                    && (!self.shift || current_shift)
+                    && (!self.win || current_win);
+            }
+            return self.ctrl == current_ctrl
+                && self.alt == current_alt
+                && self.shift == current_shift
+                && self.win == current_win;
+        }
+
+        if ignore_modifiers {
+            return self.vk == vk;
+        }
+
         self.vk == vk
             && self.ctrl == key_down(VK_CONTROL)
             && self.alt == key_down(VK_MENU)
@@ -118,6 +140,14 @@ impl Shortcut {
     }
 
     fn display(self) -> String {
+        let parts = self.parts();
+        if parts.is_empty() {
+            return "None".to_string();
+        }
+        parts.join(" + ")
+    }
+
+    pub fn parts(self) -> Vec<String> {
         let mut parts = Vec::new();
         if self.ctrl {
             parts.push("Ctrl".to_string());
@@ -131,15 +161,109 @@ impl Shortcut {
         if self.win {
             parts.push("Win".to_string());
         }
-        parts.push(vk_name(self.vk));
-        parts.join(" + ")
+        if self.vk != 0 {
+            parts.push(vk_name(self.vk));
+        }
+        parts
     }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub enum HotkeyAction {
+    ToggleMute,
+    Mute,
+    Unmute,
+    OpenSettings,
+}
+
+impl HotkeyAction {
+    pub const ALL: &'static [Self] = &[
+        Self::ToggleMute,
+        Self::Mute,
+        Self::Unmute,
+        Self::OpenSettings,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::ToggleMute => "Toggle microphone",
+            Self::Mute => "Mute microphone",
+            Self::Unmute => "Unmute microphone",
+            Self::OpenSettings => "Open settings",
+        }
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::ToggleMute => "ToggleMute",
+            Self::Mute => "Mute",
+            Self::Unmute => "Unmute",
+            Self::OpenSettings => "OpenSettings",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Self {
+        match id {
+            "Mute" => Self::Mute,
+            "Unmute" => Self::Unmute,
+            "OpenSettings" => Self::OpenSettings,
+            _ => Self::ToggleMute,
+        }
+    }
+
+    pub fn needs_target(self) -> bool {
+        matches!(self, Self::ToggleMute | Self::Mute | Self::Unmute)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct HotkeyBinding {
+    #[serde(default = "default_hotkey_id")]
+    pub id: String,
+    #[serde(default)]
+    pub action: HotkeyAction,
+    #[serde(default)]
+    pub shortcut: Shortcut,
+    #[serde(default)]
+    pub ignore_modifiers: bool,
+    #[serde(default)]
+    pub target: Option<String>,
+}
+
+impl Default for HotkeyAction {
+    fn default() -> Self {
+        Self::ToggleMute
+    }
+}
+
+impl Default for HotkeyBinding {
+    fn default() -> Self {
+        Self {
+            id: default_hotkey_id(),
+            action: HotkeyAction::ToggleMute,
+            shortcut: Shortcut::default(),
+            ignore_modifiers: false,
+            target: None,
+        }
+    }
+}
+
+fn default_hotkey_id() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    format!("hotkey-{nanos}")
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 struct Config {
     #[serde(default)]
     shortcut: Shortcut,
+    #[serde(default)]
+    hotkeys: Vec<HotkeyBinding>,
+    #[serde(default)]
+    hotkeys_paused: bool,
     #[serde(default)]
     mic_device_id: Option<String>,
     #[serde(default)]
@@ -152,6 +276,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             shortcut: Shortcut::default(),
+            hotkeys: vec![HotkeyBinding::default()],
+            hotkeys_paused: false,
             mic_device_id: None,
             sound_settings: SoundSettings::default(),
             overlay: OverlayConfig::default(),
@@ -163,11 +289,14 @@ struct AppState {
     hwnd: HWND,
     hook: HHOOK,
     shortcut: Shortcut,
+    hotkeys: Vec<HotkeyBinding>,
+    hotkeys_paused: bool,
     mic_device_id: Option<String>,
     sound_settings: SoundSettings,
     overlay: OverlayConfig,
     muted: bool,
     shortcut_down: bool,
+    hotkeys_down: HashSet<String>,
     config_modified: Option<SystemTime>,
 }
 
@@ -399,11 +528,14 @@ impl Default for AppState {
             hwnd: HWND(null_mut()),
             hook: HHOOK(null_mut()),
             shortcut: config.shortcut,
+            hotkeys: config.hotkeys,
+            hotkeys_paused: config.hotkeys_paused,
             mic_device_id: config.mic_device_id,
             sound_settings: config.sound_settings,
             overlay: config.overlay,
             muted: false,
             shortcut_down: false,
+            hotkeys_down: HashSet::new(),
             config_modified: config_modified_time(),
         }
     }
@@ -663,10 +795,16 @@ fn refresh_tray_tip() {
         uFlags: NIF_TIP,
         ..Default::default()
     };
+    let primary_shortcut = state
+        .hotkeys
+        .iter()
+        .find(|hotkey| hotkey.action == HotkeyAction::ToggleMute)
+        .map(|hotkey| hotkey.shortcut.display())
+        .unwrap_or_else(|| "no hotkey".to_string());
     let tip = if state.muted {
-        format!("Silence: microphone muted ({})", state.shortcut.display())
+        format!("Silence: microphone muted ({primary_shortcut})")
     } else {
-        format!("Silence: microphone on ({})", state.shortcut.display())
+        format!("Silence: microphone on ({primary_shortcut})")
     };
     write_wide_buf(&mut nid.szTip, &tip);
     unsafe {
@@ -848,20 +986,48 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     let is_down = event == WM_KEYDOWN || event == 0x0104;
     let is_up = event == WM_KEYUP || event == 0x0105;
 
-    if is_down && !is_modifier(vk) {
-        let mut trigger = false;
+    if STATE.lock().unwrap().hotkeys_paused {
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+
+    if is_down {
+        let mut actions = Vec::new();
         let mut consumed = false;
         {
             let mut state = STATE.lock().unwrap();
-            if state.shortcut.is_pressed(vk) && !state.shortcut_down {
-                state.shortcut_down = true;
-                trigger = true;
-                consumed = true;
+            let matching_hotkeys: Vec<HotkeyBinding> = state
+                .hotkeys
+                .iter()
+                .filter(|hotkey| {
+                    if hotkey.shortcut.vk == 0 && !is_modifier(vk) {
+                        return false;
+                    }
+                    hotkey.shortcut.is_pressed(vk, hotkey.ignore_modifiers)
+                })
+                .cloned()
+                .collect();
+            let exact_keys: HashSet<u32> = matching_hotkeys
+                .iter()
+                .filter(|hotkey| !hotkey.ignore_modifiers)
+                .map(|hotkey| hotkey.shortcut.vk)
+                .collect();
+
+            for hotkey in matching_hotkeys {
+                if hotkey.shortcut.vk == 0 && !is_modifier(vk) {
+                    continue;
+                }
+                if hotkey.ignore_modifiers && exact_keys.contains(&hotkey.shortcut.vk) {
+                    continue;
+                }
+                if !state.hotkeys_down.contains(&hotkey.id) {
+                    state.hotkeys_down.insert(hotkey.id.clone());
+                    actions.push(hotkey_action_request(&hotkey));
+                    consumed = true;
+                }
             }
         }
-        if trigger {
-            let hwnd = STATE.lock().unwrap().hwnd;
-            let _ = unsafe { PostMessageW(hwnd, WM_TOGGLE_MUTE, WPARAM(0), LPARAM(0)) };
+        for action in actions {
+            run_hotkey_action(action);
         }
         if consumed {
             return LRESULT(1);
@@ -870,6 +1036,20 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 
     if is_up {
         let mut state = STATE.lock().unwrap();
+        let released: Vec<String> = state
+            .hotkeys
+            .iter()
+            .filter(|hotkey| {
+                hotkey.shortcut.vk == vk
+                    || (hotkey.shortcut.vk == 0
+                        && is_modifier(vk)
+                        && !hotkey.shortcut.is_pressed(vk, hotkey.ignore_modifiers))
+            })
+            .map(|hotkey| hotkey.id.clone())
+            .collect();
+        for id in released {
+            state.hotkeys_down.remove(&id);
+        }
         if state.shortcut.vk == vk {
             state.shortcut_down = false;
         }
@@ -878,13 +1058,58 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
 }
 
+enum HotkeyRequest {
+    ToggleMute { target: Option<String> },
+    SetMute { target: Option<String>, muted: bool },
+    OpenSettings,
+}
+
+fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
+    match hotkey.action {
+        HotkeyAction::ToggleMute => HotkeyRequest::ToggleMute {
+            target: hotkey.target.clone(),
+        },
+        HotkeyAction::Mute => HotkeyRequest::SetMute {
+            target: hotkey.target.clone(),
+            muted: true,
+        },
+        HotkeyAction::Unmute => HotkeyRequest::SetMute {
+            target: hotkey.target.clone(),
+            muted: false,
+        },
+        HotkeyAction::OpenSettings => HotkeyRequest::OpenSettings,
+    }
+}
+
+fn run_hotkey_action(action: HotkeyRequest) {
+    match action {
+        HotkeyRequest::ToggleMute { target } => toggle_mute_target(target.as_deref()),
+        HotkeyRequest::SetMute { target, muted } => set_mute_target(target.as_deref(), muted),
+        HotkeyRequest::OpenSettings => open_settings_window(),
+    }
+}
+
 fn toggle_mute() {
-    match set_mute_to_inverse() {
+    toggle_mute_target(None);
+}
+
+fn toggle_mute_target(device_id: Option<&str>) {
+    match set_mute_to_inverse(device_id) {
         Ok(muted) => {
             play_mute_sound(muted);
             set_global_mute_state(muted, true);
         }
         Err(err) => eprintln!("failed to toggle microphone mute: {err:?}"),
+    }
+}
+
+fn set_mute_target(device_id: Option<&str>, muted: bool) {
+    match set_mute(device_id, muted) {
+        Ok(muted) => {
+            play_mute_sound(muted);
+            set_global_mute_state(muted, true);
+        }
+        Err(err) => eprintln!("failed to set microphone mute: {err:?}"),
     }
 }
 
@@ -1005,14 +1230,22 @@ pub fn mic_mute_state(device_id: Option<&str>) -> Result<bool> {
     Ok(muted.as_bool())
 }
 
-fn set_mute_to_inverse() -> Result<bool> {
-    let volume = selected_capture_volume()?;
+fn set_mute_to_inverse(device_id: Option<&str>) -> Result<bool> {
+    let volume = target_capture_volume(device_id)?;
     unsafe {
         let muted = volume.GetMute()?;
         let next = !muted.as_bool();
         volume.SetMute(next, null())?;
         Ok(next)
     }
+}
+
+fn set_mute(device_id: Option<&str>, muted: bool) -> Result<bool> {
+    let volume = target_capture_volume(device_id)?;
+    unsafe {
+        volume.SetMute(muted, null())?;
+    }
+    Ok(muted)
 }
 
 fn play_mute_sound(muted: bool) {
@@ -1101,6 +1334,14 @@ unsafe fn mci_send(command: &str) -> u32 {
 fn selected_capture_volume() -> Result<IAudioEndpointVolume> {
     let device_id = STATE.lock().unwrap().mic_device_id.clone();
     capture_volume(device_id.as_deref())
+}
+
+fn target_capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
+    if device_id.is_some_and(|id| !id.is_empty()) {
+        capture_volume(device_id)
+    } else {
+        selected_capture_volume()
+    }
 }
 
 fn capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
@@ -1215,11 +1456,14 @@ fn reload_config_if_changed() {
     }
     if let Ok(config) = load_config() {
         state.shortcut = config.shortcut;
+        state.hotkeys = config.hotkeys;
+        state.hotkeys_paused = config.hotkeys_paused;
         state.mic_device_id = config.mic_device_id;
         state.sound_settings = config.sound_settings;
         state.overlay = config.overlay.clone();
         state.config_modified = modified;
         state.shortcut_down = false;
+        state.hotkeys_down.clear();
         drop(state);
         refresh_tray_tip();
         apply_overlay_visibility();
@@ -1232,7 +1476,23 @@ fn load_config() -> Result<Config> {
         return Ok(Config::default());
     }
     let content = fs::read_to_string(path)?;
-    Ok(serde_json::from_str(&content)?)
+    let has_hotkeys = serde_json::from_str::<serde_json::Value>(&content)
+        .ok()
+        .and_then(|value| {
+            value
+                .as_object()
+                .map(|object| object.contains_key("hotkeys"))
+        })
+        .unwrap_or(false);
+    let mut config: Config = serde_json::from_str(&content)?;
+    if !has_hotkeys {
+        config.hotkeys = vec![HotkeyBinding {
+            shortcut: config.shortcut,
+            ..HotkeyBinding::default()
+        }];
+    }
+    normalize_hotkeys(&mut config.hotkeys);
+    Ok(config)
 }
 
 fn save_config(config: &Config) -> Result<()> {
@@ -1242,6 +1502,18 @@ fn save_config(config: &Config) -> Result<()> {
     }
     fs::write(path, serde_json::to_string_pretty(config)?)?;
     Ok(())
+}
+
+fn normalize_hotkeys(hotkeys: &mut [HotkeyBinding]) {
+    let mut seen = HashSet::new();
+    for hotkey in hotkeys {
+        if hotkey.id.is_empty() || !seen.insert(hotkey.id.clone()) {
+            hotkey.id = default_hotkey_id();
+            while !seen.insert(hotkey.id.clone()) {
+                hotkey.id = default_hotkey_id();
+            }
+        }
+    }
 }
 
 fn config_path() -> Result<PathBuf> {

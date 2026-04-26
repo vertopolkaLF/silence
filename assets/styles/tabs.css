@@ -63,17 +63,13 @@
 .nav-subsections-shell {
   display: grid;
   grid-template-rows: 0fr;
-  margin: 0 0 0 24px;
+  margin: -4px 0 0 24px;
   opacity: 0;
   transform-origin: top;
   transform: translateY(-3px);
   overflow: hidden;
   pointer-events: none;
-  transition:
-    grid-template-rows 170ms ease,
-    margin 170ms ease,
-    opacity 120ms ease,
-    transform 170ms ease;
+  transition: .2s ease;
 }
 
 .nav-subsections-shell.open {

@@ -1,0 +1,312 @@
+.hotkeys-panel {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.hotkey-table {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.hotkey-table-head,
+.hotkey-main-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) 84px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hotkey-table-head {
+  height: 38px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.hotkey-entry {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.hotkey-entry:first-of-type {
+  border-top: 0;
+}
+
+.hotkey-action-cell,
+.hotkey-row-actions {
+  min-width: 0;
+}
+
+.hotkey-action-cell h3,
+.hotkey-secondary-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hotkey-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hotkey-secondary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 84px);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hotkey-modifier-mode {
+  justify-self: end;
+}
+
+.danger-button:hover {
+  color: var(--danger);
+  border-color: color-mix(in oklch, var(--danger), transparent 35%);
+}
+
+.hotkey-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 0;
+  border-top: 1px solid var(--border);
+}
+
+.hotkey-empty .solar-icon {
+  color: var(--faint);
+}
+
+.add-hotkey-button {
+  justify-self: start;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: oklch(0% 0 0 / 42%);
+  animation: modal-fade 140ms ease;
+}
+
+.mini-modal {
+  width: min(430px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 18px 60px var(--shadow-medium);
+  animation: modal-rise 170ms ease;
+}
+
+.mini-modal-head,
+.mini-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.hotkey-modal-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.modal-field {
+  max-width: none;
+  margin-bottom: 0;
+}
+
+.modal-check {
+  margin-top: -2px;
+}
+
+.shortcut-record-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.shortcut-record-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.shortcut-record-row .secondary:focus-visible,
+.shortcut-record-row .secondary:active {
+  outline: 0;
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.shortcut-record-hint {
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.shortcut-display {
+  position: relative;
+  min-height: 28px;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0 6px;
+  overflow: hidden;
+  --pending-offset: 0px;
+  transition: gap 200ms ease;
+}
+
+.shortcut-display.fake-input {
+  height: 38px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: inset 0 1px 2px var(--shadow-soft);
+}
+
+.shortcut-display.fake-input .shortcut-pending {
+  left: calc(5px + var(--pending-offset));
+}
+
+.shortcut-display::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: calc(100% - var(--hold-progress, 0%));
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: right 40ms linear, opacity 120ms ease;
+}
+
+.shortcut-display.recording::after {
+  opacity: 1;
+}
+
+.keycap {
+  max-width: 92px;
+  min-width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border: none;
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 620;
+  box-shadow: 0 1px 0 var(--shadow-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: keycap-rise 200ms ease both;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.shortcut-pending {
+  position: absolute;
+  left: var(--pending-offset);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  animation: pending-in 200ms ease both;
+  transition: left 200ms ease, opacity 200ms ease, transform 200ms ease;
+}
+
+.shortcut-pending.exiting {
+  animation: pending-out 200ms ease both;
+}
+
+.target-field {
+  width: 100%;
+}
+
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes keycap-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pending-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-50% + 8px));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes pending-out {
+  from {
+    opacity: 1;
+    transform: translateY(-50%);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(calc(-50% + 8px));
+  }
+}
+
+@media (max-width: 760px) {
+
+  .hotkey-table-head,
+  .hotkey-main-row,
+  .hotkey-secondary-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
+  }
+}

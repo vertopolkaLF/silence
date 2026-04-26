@@ -12,6 +12,7 @@ pub struct SettingsSection {
 pub enum SettingsTab {
     General,
     HoldToMute,
+    Hotkeys,
     Sounds,
     Overlay,
     TrayIcon,
@@ -23,6 +24,7 @@ impl SettingsTab {
     const ALL: &'static [Self] = &[
         Self::General,
         Self::HoldToMute,
+        Self::Hotkeys,
         Self::Sounds,
         Self::Overlay,
         Self::TrayIcon,
@@ -34,6 +36,7 @@ impl SettingsTab {
         match self {
             Self::General => "General",
             Self::HoldToMute => "Hold to Mute",
+            Self::Hotkeys => "Hotkeys",
             Self::Sounds => "Sounds",
             Self::Overlay => "Overlay",
             Self::TrayIcon => "Tray Icon",
@@ -46,6 +49,7 @@ impl SettingsTab {
         match self {
             Self::General => "icon-settings",
             Self::HoldToMute => "icon-mic",
+            Self::Hotkeys => "icon-keyboard",
             Self::Sounds => "icon-volume",
             Self::Overlay => "icon-monitor",
             Self::TrayIcon => "icon-widget",
@@ -63,6 +67,10 @@ impl SettingsTab {
             Self::HoldToMute => &[SettingsSection {
                 id: "hold-to-mute-overview",
                 label: "Hold to Mute",
+            }],
+            Self::Hotkeys => &[SettingsSection {
+                id: "hotkeys-overview",
+                label: "Hotkeys",
             }],
             Self::Sounds => &[SettingsSection {
                 id: "sounds-overview",
