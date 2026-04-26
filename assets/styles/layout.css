@@ -6,13 +6,15 @@
 
 .body {
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   height: calc(100vh - 42px);
-  border-top: 1px solid #222;
+  background: var(--chrome);
 }
 
 .content {
   overflow-y: auto;
-  padding: 30px 34px 36px;
+  padding: 40px 48px;
   background: var(--surface);
+  border-top-left-radius: 12px;
+  box-shadow: -1px -1px 0px rgba(255, 255, 255, 0.03);
 }

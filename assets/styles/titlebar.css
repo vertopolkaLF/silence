@@ -4,8 +4,7 @@
   align-items: center;
   gap: 0;
   padding: 0 0 0 12px;
-  border-bottom: 1px solid #222;
-  background: #141414;
+  background: var(--chrome);
   user-select: none;
 }
 
@@ -39,12 +38,12 @@
 }
 
 .titlebar-button:hover {
-  background: #242424;
+  background: var(--surface-3);
   color: var(--text);
 }
 
 #close:hover {
-  background: #8f2d2f;
+  background: var(--danger);
   color: #fff;
 }
 
