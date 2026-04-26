@@ -1,7 +1,8 @@
-use std::{ffi::c_void, mem::size_of, ptr::null_mut, sync::Mutex};
+use std::{collections::HashMap, ffi::c_void, mem::size_of, ptr::null_mut, sync::Mutex};
 
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
+use resvg::{tiny_skia, usvg};
 use windows::{
     Win32::{
         Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
@@ -37,6 +38,8 @@ const ID_CONTENT_TRANSITION_TIMER: usize = 30;
 const ID_WINDOW_FADE_TIMER: usize = 31;
 
 static OVERLAY: Lazy<Mutex<Option<NativeOverlay>>> = Lazy::new(|| Mutex::new(None));
+static ICON_MASK_CACHE: Lazy<Mutex<HashMap<(String, bool, u32), Vec<u8>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 struct OverlayMetrics {
     padding: i32,
     right_padding: i32,
@@ -733,7 +736,30 @@ impl NativeOverlay {
             state_accent(muted)
         };
 
-        if let Some(mask) = render_text_mask(self.width, self.height, |hdc| unsafe {
+        let icon_left = if self.settings.show_text {
+            metrics.padding
+        } else {
+            (self.width - metrics.icon_size) / 2
+        };
+        let icon_top = (self.height - metrics.icon_size) / 2;
+        if let Some(mask) = overlay_icon_mask(
+            &self.settings.icon_pair,
+            muted,
+            metrics.icon_size.max(1) as u32,
+        ) {
+            composite_masked_subrect(
+                target_bits,
+                self.width,
+                self.height,
+                &mask,
+                metrics.icon_size.max(1),
+                metrics.icon_size.max(1),
+                icon_left.max(0),
+                icon_top.max(0),
+                icon_color,
+                opacity,
+            );
+        } else if let Some(mask) = render_text_mask(self.width, self.height, |hdc| unsafe {
             let icon_face = crate::wide("Segoe Fluent Icons");
             let icon_font = CreateFontW(
                 metrics.icon_font_size,
@@ -1091,6 +1117,105 @@ fn composite_masked_color(
             ]);
         }
     }
+}
+
+fn composite_masked_subrect(
+    target_bits: *mut c_void,
+    target_width: i32,
+    target_height: i32,
+    mask: &[u8],
+    mask_width: i32,
+    mask_height: i32,
+    offset_x: i32,
+    offset_y: i32,
+    color: (u8, u8, u8),
+    opacity: f64,
+) {
+    if target_bits.is_null()
+        || target_width <= 0
+        || target_height <= 0
+        || mask_width <= 0
+        || mask_height <= 0
+    {
+        return;
+    }
+
+    let pixel_count = (mask_width * mask_height) as usize;
+    if mask.len() < pixel_count {
+        return;
+    }
+
+    let opacity = opacity.clamp(0.0, 1.0);
+    if opacity <= 0.0 {
+        return;
+    }
+
+    unsafe {
+        let target = std::slice::from_raw_parts_mut(
+            target_bits as *mut u32,
+            (target_width * target_height) as usize,
+        );
+        for mask_y in 0..mask_height {
+            let dst_y = offset_y + mask_y;
+            if !(0..target_height).contains(&dst_y) {
+                continue;
+            }
+            for mask_x in 0..mask_width {
+                let dst_x = offset_x + mask_x;
+                if !(0..target_width).contains(&dst_x) {
+                    continue;
+                }
+
+                let mask_index = (mask_y * mask_width + mask_x) as usize;
+                let coverage = mask[mask_index];
+                let src_alpha = (coverage as f64 / 255.0) * opacity;
+                if src_alpha <= 0.0 {
+                    continue;
+                }
+
+                let dst_index = (dst_y * target_width + dst_x) as usize;
+                let dst = &mut target[dst_index];
+                let [dst_b, dst_g, dst_r, dst_a] = dst.to_le_bytes();
+                let inv_alpha = 1.0 - src_alpha;
+                let out_a = src_alpha + (dst_a as f64 / 255.0) * inv_alpha;
+                let out_r = color.0 as f64 * src_alpha + dst_r as f64 * inv_alpha;
+                let out_g = color.1 as f64 * src_alpha + dst_g as f64 * inv_alpha;
+                let out_b = color.2 as f64 * src_alpha + dst_b as f64 * inv_alpha;
+
+                *dst = u32::from_le_bytes([
+                    out_b.round().clamp(0.0, 255.0) as u8,
+                    out_g.round().clamp(0.0, 255.0) as u8,
+                    out_r.round().clamp(0.0, 255.0) as u8,
+                    (out_a * 255.0).round().clamp(0.0, 255.0) as u8,
+                ]);
+            }
+        }
+    }
+}
+
+fn overlay_icon_mask(icon_pair: &str, muted: bool, size: u32) -> Option<Vec<u8>> {
+    let key = (icon_pair.to_string(), muted, size);
+    if let Some(mask) = ICON_MASK_CACHE.lock().unwrap().get(&key).cloned() {
+        return Some(mask);
+    }
+
+    let svg = crate::overlay_icons::overlay_icon_svg(icon_pair, muted);
+    let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).ok()?;
+    let svg_size = tree.size().to_int_size();
+    let scale = (size as f32 / svg_size.width() as f32).min(size as f32 / svg_size.height() as f32);
+    let mut pixmap = tiny_skia::Pixmap::new(size, size)?;
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    let mask = pixmap
+        .take_demultiplied()
+        .chunks_exact(4)
+        .map(|pixel| pixel[3])
+        .collect::<Vec<_>>();
+    ICON_MASK_CACHE.lock().unwrap().insert(key, mask.clone());
+    Some(mask)
 }
 
 fn finalize_overlay_argb(

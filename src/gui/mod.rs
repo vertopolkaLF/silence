@@ -48,6 +48,7 @@ pub fn update_settings(
     let mut config = crate::load_config().unwrap_or_else(|_| settings().config);
     update(&mut config);
     let _ = crate::save_config(&config);
+    crate::apply_live_config(&config, crate::config_modified_time());
     settings.set(SettingsSnapshot::from_config(config));
 }
 

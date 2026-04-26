@@ -23,6 +23,10 @@
   max-width: 420px;
 }
 
+.overlay-icon-field {
+  max-width: 100%;
+}
+
 .overlay-range-row {
   display: grid;
   gap: 10px;
@@ -39,44 +43,93 @@
   gap: 18px;
 }
 
+.overlay-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-8px);
+  visibility: hidden;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 220ms ease,
+    transform 220ms ease,
+    visibility 220ms step-end;
+}
+
+.overlay-collapse.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 220ms ease,
+    transform 220ms ease,
+    visibility 0ms linear;
+}
+
+.overlay-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  gap: 16px;
+}
+
 .overlay-variant-grid {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
-.overlay-variant {
+.overlay-variant,
+.overlay-icon-option {
   display: grid;
   gap: 8px;
   justify-items: center;
-  width: 74px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 0;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: 12px;
-  transition: color 150ms ease;
+  transition:
+    color 150ms ease,
+    transform 180ms ease;
+}
+
+.overlay-variant {
+  width: 74px;
 }
 
 .overlay-variant:hover,
-.overlay-variant.active {
+.overlay-variant.active,
+.overlay-icon-option:hover,
+.overlay-icon-option.active {
   color: var(--text);
+  transform: translateY(-2px);
 }
 
-.overlay-variant-preview {
+.overlay-variant-preview,
+.overlay-icon-preview {
   width: 56px;
   height: 56px;
   display: grid;
   place-items: center;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--surface-2);
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
 }
 
-.overlay-variant.active .overlay-variant-preview {
+.overlay-variant.active .overlay-variant-preview,
+.overlay-icon-option.active .overlay-icon-preview {
   border-color: var(--accent);
+  box-shadow: 0 10px 18px var(--shadow-faint);
 }
 
 .overlay-variant-preview.mic {
@@ -93,6 +146,69 @@
   height: 22px;
   border-radius: 50%;
   background: var(--success);
+}
+
+.overlay-icon-grid {
+  --overlay-icon-tile-size: 56px;
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(var(--overlay-icon-tile-size), var(--overlay-icon-tile-size)));
+  column-gap: 8px;
+  row-gap: 10px;
+  justify-content: space-between;
+}
+
+.overlay-icon-option {
+  width: var(--overlay-icon-tile-size);
+  gap: 5px;
+  font-size: 11px;
+}
+
+.overlay-icon-preview {
+  width: 100%;
+  height: 56px;
+  min-height: 56px;
+  padding: 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-2);
+  transition: color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.overlay-icon-preview {
+  overflow: hidden;
+}
+
+.overlay-icon-preview.live {
+  color: var(--success);
+}
+
+.overlay-icon-preview.muted {
+  color: var(--danger);
+}
+
+.overlay-icon-preview .solar-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.overlay-icon-extra-wrap {
+  margin-top: -2px;
+}
+
+.overlay-icon-grid-extra {
+  padding-top: 2px;
+}
+
+.overlay-icon-toggle-glyph {
+  width: 16px;
+  height: 16px;
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.overlay-icon-toggle.expanded .overlay-icon-toggle-glyph {
+  transform: rotate(180deg);
 }
 
 .sound-card {

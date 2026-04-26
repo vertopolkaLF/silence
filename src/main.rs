@@ -64,6 +64,7 @@ use windows::{
 
 mod gui;
 mod native_overlay;
+pub(crate) mod overlay_icons;
 
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_TOGGLE_MUTE: u32 = WM_APP + 2;
@@ -316,6 +317,8 @@ pub struct OverlayConfig {
     pub show_text: bool,
     #[serde(default = "default_overlay_variant")]
     pub variant: String,
+    #[serde(default = "crate::overlay_icons::default_overlay_icon_pair")]
+    pub icon_pair: String,
     #[serde(default = "default_overlay_icon_style")]
     pub icon_style: String,
     #[serde(default = "default_overlay_background_style")]
@@ -341,6 +344,7 @@ impl Default for OverlayConfig {
             scale: default_overlay_scale(),
             show_text: false,
             variant: default_overlay_variant(),
+            icon_pair: crate::overlay_icons::default_overlay_icon_pair(),
             icon_style: default_overlay_icon_style(),
             background_style: default_overlay_background_style(),
             background_opacity: default_overlay_background_opacity(),
@@ -562,7 +566,8 @@ impl AudioEngine {
             return Ok(bytes.clone());
         }
 
-        let bytes = fs::read(path).with_context(|| format!("read sound asset {}", path.display()))?;
+        let bytes =
+            fs::read(path).with_context(|| format!("read sound asset {}", path.display()))?;
         self.cached_sounds.insert(file.to_string(), bytes.clone());
         Ok(bytes)
     }
@@ -1465,23 +1470,13 @@ fn refresh_mute_state() {
 
 fn reload_config_if_changed() {
     let modified = config_modified_time();
-    let mut state = STATE.lock().unwrap();
+    let state = STATE.lock().unwrap();
     if modified == state.config_modified {
         return;
     }
     if let Ok(config) = load_config() {
-        state.shortcut = config.shortcut;
-        state.hotkeys = config.hotkeys;
-        state.hotkeys_paused = config.hotkeys_paused;
-        state.mic_device_id = config.mic_device_id;
-        state.sound_settings = config.sound_settings;
-        state.overlay = config.overlay.clone();
-        state.config_modified = modified;
-        state.shortcut_down = false;
-        state.hotkeys_down.clear();
         drop(state);
-        refresh_tray_tip();
-        apply_overlay_visibility();
+        apply_live_config(&config, modified);
     }
 }
 
@@ -1517,6 +1512,22 @@ fn save_config(config: &Config) -> Result<()> {
     }
     fs::write(path, serde_json::to_string_pretty(config)?)?;
     Ok(())
+}
+
+pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
+    let mut state = STATE.lock().unwrap();
+    state.shortcut = config.shortcut;
+    state.hotkeys = config.hotkeys.clone();
+    state.hotkeys_paused = config.hotkeys_paused;
+    state.mic_device_id = config.mic_device_id.clone();
+    state.sound_settings = config.sound_settings.clone();
+    state.overlay = config.overlay.clone();
+    state.config_modified = modified;
+    state.shortcut_down = false;
+    state.hotkeys_down.clear();
+    drop(state);
+    refresh_tray_tip();
+    apply_overlay_visibility();
 }
 
 fn normalize_hotkeys(hotkeys: &mut [HotkeyBinding]) {

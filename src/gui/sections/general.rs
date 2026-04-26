@@ -12,6 +12,8 @@ pub fn render(
     } else {
         "Microphone is unmuted"
     };
+    let status_icon =
+        crate::overlay_icons::overlay_icon_css_url(&snapshot.config.overlay.icon_pair, mic_muted);
     let mic_label =
         crate::selected_mic_label(snapshot.config.mic_device_id.as_deref(), &snapshot.devices);
 
@@ -22,7 +24,10 @@ pub fn render(
             "data-settings-section": "true",
             div {
                 class: if mic_muted { "mic-dot muted" } else { "mic-dot" },
-                span { class: "solar-icon icon-mic" }
+                span {
+                    class: "solar-icon",
+                    style: "--icon: url('{status_icon}');"
+                }
             }
             div {
                 class: "status-copy",

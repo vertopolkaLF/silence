@@ -412,7 +412,7 @@ fn HotkeyModal(
                                     p { class: "shortcut-record-hint", "Hold to bind only modifier keys" }
                                 }
                             }
-                        
+
                     }
 
                     label {

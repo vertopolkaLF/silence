@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let mut positioning = use_signal(|| false);
+    let mut icons_expanded = use_signal(|| false);
     let snapshot = settings();
     let overlay = snapshot.config.overlay.clone();
     let duration = format!("{:.1}", overlay.duration_secs.clamp(0.1, 10.0));
@@ -11,6 +12,10 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let content_opacity = overlay.content_opacity.clamp(20, 100);
     let background_opacity = overlay.background_opacity.min(100);
     let border_radius = overlay.border_radius.min(24);
+    let icon_controls_open = overlay.variant != "Dot";
+    let duration_controls_open = overlay.visibility == "AfterToggle";
+    let preview_muted = snapshot.muted;
+    let preview_tone_class = if preview_muted { "muted" } else { "live" };
     let duration_progress = format!("{:.0}%", overlay.duration_secs.clamp(0.1, 10.0) * 10.0);
     let x_progress = format!("{:.0}%", overlay.position_x.clamp(0.0, 100.0));
     let y_progress = format!("{:.0}%", overlay.position_y.clamp(0.0, 100.0));
@@ -64,25 +69,28 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
 
-                if overlay.visibility == "AfterToggle" {
-                    div { class: "overlay-range-row",
-                        div {
-                            label { "Duration" }
-                            span { class: "sound-value", "{duration}s" }
-                        }
-                        input {
-                            class: "volume-slider",
-                            r#type: "range",
-                            min: "0.1",
-                            max: "10",
-                            step: "0.1",
-                            value: "{duration}",
-                            style: "--range-progress: {duration_progress};",
-                            oninput: move |evt| {
-                                if let Ok(value) = evt.value().parse::<f64>() {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.duration_secs = value.clamp(0.1, 10.0);
-                                    });
+                div {
+                    class: if duration_controls_open { "overlay-collapse open" } else { "overlay-collapse" },
+                    div { class: "overlay-collapse-inner",
+                        div { class: "overlay-range-row",
+                            div {
+                                label { "Duration" }
+                                span { class: "sound-value", "{duration}s" }
+                            }
+                            input {
+                                class: "volume-slider",
+                                r#type: "range",
+                                min: "0.1",
+                                max: "10",
+                                step: "0.1",
+                                value: "{duration}",
+                                style: "--range-progress: {duration_progress};",
+                                oninput: move |evt| {
+                                    if let Ok(value) = evt.value().parse::<f64>() {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.duration_secs = value.clamp(0.1, 10.0);
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -191,6 +199,209 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
 
+                div {
+                    class: if icon_controls_open { "overlay-collapse open" } else { "overlay-collapse" },
+                    div { class: "overlay-collapse-inner",
+                        div { class: "overlay-field overlay-icon-field",
+                            label { "Mic icons" }
+                            div { class: "overlay-icon-grid overlay-icon-grid-primary",
+                                for pair in crate::overlay_icons::featured_overlay_icon_pairs().iter() {
+                                    button {
+                                        class: if overlay.icon_pair == pair.id {
+                                            "overlay-icon-option active"
+                                        } else {
+                                            "overlay-icon-option"
+                                        },
+                                        onclick: {
+                                            let id = pair.id.to_string();
+                                            move |_| {
+                                                let next_id = id.clone();
+                                                super::super::update_settings(settings, move |config| {
+                                                    config.overlay.icon_pair = next_id;
+                                                });
+                                            }
+                                        },
+                                        title: "{pair.label}",
+                                        span { class: "overlay-icon-preview {preview_tone_class}",
+                                            span {
+                                                class: "solar-icon",
+                                                style: format!(
+                                                    "--icon: url('{}');",
+                                                    crate::overlay_icons::overlay_icon_css_url(
+                                                        pair.id,
+                                                        preview_muted,
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                        span { "{pair.label}" }
+                                    }
+                                }
+                                button {
+                                    class: if icons_expanded() {
+                                        "overlay-icon-option overlay-icon-toggle expanded"
+                                    } else {
+                                        "overlay-icon-option overlay-icon-toggle"
+                                    },
+                                    title: if icons_expanded() { "Collapse icons" } else { "Expand icons" },
+                                    onclick: move |_| icons_expanded.set(!icons_expanded()),
+                                    span { class: "overlay-icon-preview",
+                                        span { class: "solar-icon icon-down overlay-icon-toggle-glyph" }
+                                    }
+                                    span { if icons_expanded() { "Collapse" } else { "Expand" } }
+                                }
+                            }
+                            div {
+                                class: if icons_expanded() {
+                                    "overlay-collapse open overlay-icon-extra-wrap"
+                                } else {
+                                    "overlay-collapse overlay-icon-extra-wrap"
+                                },
+                                div { class: "overlay-collapse-inner",
+                                    div { class: "overlay-icon-grid overlay-icon-grid-extra",
+                                        for pair in crate::overlay_icons::extra_overlay_icon_pairs().iter() {
+                                            button {
+                                                class: if overlay.icon_pair == pair.id {
+                                                    "overlay-icon-option active"
+                                                } else {
+                                                    "overlay-icon-option"
+                                                },
+                                                onclick: {
+                                                    let id = pair.id.to_string();
+                                                    move |_| {
+                                                        let next_id = id.clone();
+                                                        super::super::update_settings(settings, move |config| {
+                                                            config.overlay.icon_pair = next_id;
+                                                        });
+                                                    }
+                                                },
+                                                title: "{pair.label}",
+                                                span { class: "overlay-icon-preview {preview_tone_class}",
+                                                    span {
+                                                        class: "solar-icon",
+                                                        style: format!(
+                                                            "--icon: url('{}');",
+                                                            crate::overlay_icons::overlay_icon_css_url(
+                                                                pair.id,
+                                                                preview_muted,
+                                                            ),
+                                                        )
+                                                    }
+                                                }
+                                                span { "{pair.label}" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        label {
+                            class: "check-row",
+                            input {
+                                r#type: "checkbox",
+                                checked: overlay.show_text,
+                                onchange: move |evt| {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.show_text = evt.checked();
+                                    });
+                                }
+                            }
+                            span { "Show text next to the icon" }
+                        }
+                        div { class: "overlay-field",
+                            label { "Icon style" }
+                            div { class: "select-wrap",
+                                select {
+                                    class: "select-like",
+                                    value: "{overlay.icon_style}",
+                                    onchange: move |evt| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.icon_style = evt.value();
+                                        });
+                                    },
+                                    option { value: "Colored", selected: overlay.icon_style == "Colored", "Colored (red/green)" }
+                                    option { value: "Monochrome", selected: overlay.icon_style == "Monochrome", "Monochrome" }
+                                }
+                                span { class: "solar-icon select-icon icon-down" }
+                            }
+                        }
+                        div { class: "overlay-field",
+                            label { "Background" }
+                            div { class: "select-wrap",
+                                select {
+                                    class: "select-like",
+                                    value: "{overlay.background_style}",
+                                    onchange: move |evt| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.background_style = evt.value();
+                                        });
+                                    },
+                                    option { value: "Dark", selected: overlay.background_style == "Dark", "Dark" }
+                                    option { value: "Light", selected: overlay.background_style == "Light", "Light" }
+                                }
+                                span { class: "solar-icon select-icon icon-down" }
+                            }
+                        }
+                        div { class: "overlay-range-row",
+                            div {
+                                label { "Background opacity" }
+                                span { class: "sound-value", "{background_opacity}%" }
+                            }
+                            input {
+                                class: "volume-slider",
+                                r#type: "range",
+                                min: "0",
+                                max: "100",
+                                step: "5",
+                                value: "{background_opacity}",
+                                style: "--range-progress: {background_opacity_progress};",
+                                oninput: move |evt| {
+                                    if let Ok(value) = evt.value().parse::<u8>() {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.background_opacity = value.min(100);
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        div { class: "overlay-range-row",
+                            div {
+                                label { "Border radius" }
+                                span { class: "sound-value", "{border_radius}px" }
+                            }
+                            input {
+                                class: "volume-slider",
+                                r#type: "range",
+                                min: "0",
+                                max: "24",
+                                step: "1",
+                                value: "{border_radius}",
+                                style: "--range-progress: {border_radius_progress};",
+                                oninput: move |evt| {
+                                    if let Ok(value) = evt.value().parse::<u8>() {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.border_radius = value.min(24);
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        label {
+                            class: "check-row",
+                            input {
+                                r#type: "checkbox",
+                                checked: overlay.show_border,
+                                onchange: move |evt| {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.show_border = evt.checked();
+                                    });
+                                }
+                            }
+                            span { "Show border" }
+                        }
+                    }
+                }
+
                 div { class: "overlay-range-row",
                     div {
                         label { "Size scale" }
@@ -234,118 +445,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 });
                             }
                         }
-                    }
-                }
-
-                if overlay.variant != "Dot" {
-                    label {
-                        class: "check-row",
-                        input {
-                            r#type: "checkbox",
-                            checked: overlay.show_text,
-                            onchange: move |evt| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.show_text = evt.checked();
-                                });
-                            }
-                        }
-                        span { "Show text next to the icon" }
-                    }
-
-                    div { class: "overlay-field",
-                        label { "Icon style" }
-                        div { class: "select-wrap",
-                            select {
-                                class: "select-like",
-                                value: "{overlay.icon_style}",
-                                onchange: move |evt| {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.icon_style = evt.value();
-                                    });
-                                },
-                                option { value: "Colored", selected: overlay.icon_style == "Colored", "Colored (red/green)" }
-                                option { value: "Monochrome", selected: overlay.icon_style == "Monochrome", "Monochrome" }
-                            }
-                            span { class: "solar-icon select-icon icon-down" }
-                        }
-                    }
-
-                    div { class: "overlay-field",
-                        label { "Background" }
-                        div { class: "select-wrap",
-                            select {
-                                class: "select-like",
-                                value: "{overlay.background_style}",
-                                onchange: move |evt| {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.background_style = evt.value();
-                                    });
-                                },
-                                option { value: "Dark", selected: overlay.background_style == "Dark", "Dark" }
-                                option { value: "Light", selected: overlay.background_style == "Light", "Light" }
-                            }
-                            span { class: "solar-icon select-icon icon-down" }
-                        }
-                    }
-
-                    div { class: "overlay-range-row",
-                        div {
-                            label { "Background opacity" }
-                            span { class: "sound-value", "{background_opacity}%" }
-                        }
-                        input {
-                            class: "volume-slider",
-                            r#type: "range",
-                            min: "0",
-                            max: "100",
-                            step: "5",
-                            value: "{background_opacity}",
-                            style: "--range-progress: {background_opacity_progress};",
-                            oninput: move |evt| {
-                                if let Ok(value) = evt.value().parse::<u8>() {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.background_opacity = value.min(100);
-                                    });
-                                }
-                            }
-                        }
-                    }
-
-                    div { class: "overlay-range-row",
-                        div {
-                            label { "Border radius" }
-                            span { class: "sound-value", "{border_radius}px" }
-                        }
-                        input {
-                            class: "volume-slider",
-                            r#type: "range",
-                            min: "0",
-                            max: "24",
-                            step: "1",
-                            value: "{border_radius}",
-                            style: "--range-progress: {border_radius_progress};",
-                            oninput: move |evt| {
-                                if let Ok(value) = evt.value().parse::<u8>() {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.border_radius = value.min(24);
-                                    });
-                                }
-                            }
-                        }
-                    }
-
-                    label {
-                        class: "check-row",
-                        input {
-                            r#type: "checkbox",
-                            checked: overlay.show_border,
-                            onchange: move |evt| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.show_border = evt.checked();
-                                });
-                            }
-                        }
-                        span { "Show border" }
                     }
                 }
             }
