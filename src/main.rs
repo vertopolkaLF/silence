@@ -844,7 +844,6 @@ fn set_global_mute_state(muted: bool, trigger_overlay: bool) {
 
     refresh_tray_tip();
     let overlay = STATE.lock().unwrap().overlay.clone();
-    native_overlay::update(muted, &overlay);
     if trigger_overlay && overlay.enabled && overlay.visibility == "AfterToggle" {
         let millis = (overlay.duration_secs.clamp(0.1, 10.0) * 1000.0) as u32;
         show_overlay_temporarily(millis);
@@ -859,8 +858,8 @@ fn apply_overlay_visibility() {
         (state.muted, state.overlay.clone())
     };
 
-    native_overlay::update(muted, &overlay);
     if native_overlay::is_positioning() {
+        native_overlay::update(muted, &overlay);
         native_overlay::show();
         return;
     }
@@ -879,6 +878,7 @@ fn apply_overlay_visibility() {
     };
 
     if should_show {
+        native_overlay::update(muted, &overlay);
         native_overlay::show();
     } else {
         native_overlay::hide();

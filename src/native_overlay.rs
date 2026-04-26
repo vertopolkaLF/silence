@@ -125,10 +125,18 @@ pub fn init(instance: HINSTANCE, muted: bool, settings: &crate::OverlayConfig) -
 
 pub fn update(muted: bool, settings: &crate::OverlayConfig) {
     if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
-        overlay.muted = muted;
+        overlay.muted = displayed_mute_state(muted, settings);
         overlay.settings = settings.clone();
         overlay.apply_layout();
         overlay.repaint();
+    }
+}
+
+fn displayed_mute_state(muted: bool, settings: &crate::OverlayConfig) -> bool {
+    match settings.visibility.as_str() {
+        "WhenMuted" => true,
+        "WhenUnmuted" => false,
+        _ => muted,
     }
 }
 
