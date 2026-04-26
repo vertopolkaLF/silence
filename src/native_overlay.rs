@@ -1,4 +1,11 @@
-use std::sync::Mutex;
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
+    thread,
+    time::Duration,
+};
 
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -16,11 +23,10 @@ use windows::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, GWL_EXSTYLE, GetCursorPos,
             GetSystemMetrics, GetWindowLongW, HWND_TOPMOST, IDC_ARROW, IDC_SIZEALL, LWA_ALPHA,
             LWA_COLORKEY, LoadCursorW, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_HIDE,
-            SW_SHOWNOACTIVATE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER,
-            SWP_NOSIZE, SWP_SHOWWINDOW, SetCursor, SetLayeredWindowAttributes, SetWindowLongW,
-            SetWindowPos, ShowWindow, WM_ERASEBKGND, WM_PAINT, WM_SETCURSOR, WNDCLASSW,
-            WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
-            WS_POPUP,
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+            SWP_SHOWWINDOW, SetCursor, SetLayeredWindowAttributes, SetWindowLongW, SetWindowPos,
+            ShowWindow, WM_ERASEBKGND, WM_PAINT, WM_SETCURSOR, WNDCLASSW, WS_EX_LAYERED,
+            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
         },
     },
     core::{PCWSTR, w},
@@ -28,8 +34,12 @@ use windows::{
 
 const CLASS_NAME: PCWSTR = w!("SilenceV2Overlay");
 const TRANSPARENT_KEY: COLORREF = COLORREF(0x00ff00ff);
+const OVERLAY_ALPHA: u8 = 245;
+const FADE_DURATION_MS: u32 = 300;
+const FADE_STEPS: u32 = 18;
 
 static OVERLAY: Lazy<Mutex<Option<NativeOverlay>>> = Lazy::new(|| Mutex::new(None));
+static FADE_EPOCH: AtomicU64 = AtomicU64::new(0);
 
 struct NativeOverlay {
     hwnd: HWND,
@@ -45,6 +55,7 @@ struct NativeOverlay {
     drag_offset_y: i32,
     was_mouse_down: bool,
     awaiting_initial_release: bool,
+    visible: bool,
 }
 
 unsafe impl Send for NativeOverlay {}
@@ -87,7 +98,7 @@ pub fn init(instance: HINSTANCE, muted: bool, settings: &crate::OverlayConfig) -
     .context("create overlay window")?;
 
     unsafe {
-        SetLayeredWindowAttributes(hwnd, TRANSPARENT_KEY, 245, LWA_COLORKEY | LWA_ALPHA)
+        SetLayeredWindowAttributes(hwnd, TRANSPARENT_KEY, OVERLAY_ALPHA, LWA_COLORKEY | LWA_ALPHA)
             .context("configure overlay transparency")?;
     }
 
@@ -105,6 +116,7 @@ pub fn init(instance: HINSTANCE, muted: bool, settings: &crate::OverlayConfig) -
         drag_offset_y: 0,
         was_mouse_down: false,
         awaiting_initial_release: false,
+        visible: false,
     };
     native.apply_layout();
     *overlay = Some(native);
@@ -121,27 +133,14 @@ pub fn update(muted: bool, settings: &crate::OverlayConfig) {
 }
 
 pub fn show() {
-    if let Some(overlay) = OVERLAY.lock().unwrap().as_ref() {
-        unsafe {
-            let _ = ShowWindow(overlay.hwnd, SW_SHOWNOACTIVATE);
-            let _ = SetWindowPos(
-                overlay.hwnd,
-                HWND_TOPMOST,
-                overlay.x,
-                overlay.y,
-                overlay.width,
-                overlay.height,
-                SWP_NOACTIVATE | SWP_SHOWWINDOW,
-            );
-        }
+    if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
+        overlay.show();
     }
 }
 
 pub fn hide() {
-    if let Some(overlay) = OVERLAY.lock().unwrap().as_ref() {
-        unsafe {
-            let _ = ShowWindow(overlay.hwnd, SW_HIDE);
-        }
+    if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
+        overlay.hide();
     }
 }
 
@@ -165,18 +164,7 @@ pub fn set_positioning(active: bool) -> Option<(f64, f64)> {
         overlay.set_click_through(!active || overlay.awaiting_initial_release);
         if active {
             overlay.apply_layout();
-            unsafe {
-                let _ = ShowWindow(overlay.hwnd, SW_SHOWNOACTIVATE);
-                let _ = SetWindowPos(
-                    overlay.hwnd,
-                    HWND_TOPMOST,
-                    overlay.x,
-                    overlay.y,
-                    overlay.width,
-                    overlay.height,
-                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
-                );
-            }
+            overlay.show();
         }
         return position;
     }
@@ -206,6 +194,60 @@ pub fn destroy() {
 }
 
 impl NativeOverlay {
+    fn show(&mut self) {
+        unsafe {
+            let _ = SetWindowPos(
+                self.hwnd,
+                HWND_TOPMOST,
+                self.x,
+                self.y,
+                self.width,
+                self.height,
+                SWP_NOACTIVATE,
+            );
+
+            if self.visible {
+                let _ = SetWindowPos(
+                    self.hwnd,
+                    HWND_TOPMOST,
+                    self.x,
+                    self.y,
+                    self.width,
+                    self.height,
+                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                );
+                return;
+            }
+
+            self.visible = true;
+            let epoch = next_fade_epoch();
+            set_alpha(self.hwnd, 0);
+            let _ = SetWindowPos(
+                self.hwnd,
+                HWND_TOPMOST,
+                self.x,
+                self.y,
+                self.width,
+                self.height,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            );
+            fade_alpha(self.hwnd, epoch, 0, OVERLAY_ALPHA, false);
+        }
+    }
+
+    fn hide(&mut self) {
+        unsafe {
+            if !self.visible {
+                let _ = ShowWindow(self.hwnd, SW_HIDE);
+                return;
+            }
+
+            self.visible = false;
+            let epoch = next_fade_epoch();
+            fade_alpha(self.hwnd, epoch, OVERLAY_ALPHA, 0, true);
+        }
+    }
+
     fn apply_layout(&mut self) {
         let scale = self.settings.scale.clamp(10, 400) as f64 / 100.0;
         self.height = (48.0 * scale).round() as i32;
@@ -523,6 +565,41 @@ fn percent_to_axis(percent: f64, screen: i32, size: i32) -> i32 {
 fn axis_to_percent(position: i32, screen: i32, size: i32) -> f64 {
     let available = (screen - size).max(1) as f64;
     (position as f64 * 100.0 / available).clamp(0.0, 100.0)
+}
+
+fn next_fade_epoch() -> u64 {
+    FADE_EPOCH.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+fn fade_alpha(hwnd: HWND, epoch: u64, from: u8, to: u8, hide_after: bool) {
+    let hwnd_value = hwnd.0 as isize;
+    thread::spawn(move || {
+        let hwnd = HWND(hwnd_value as _);
+        for step in 0..=FADE_STEPS {
+            if FADE_EPOCH.load(Ordering::SeqCst) != epoch {
+                return;
+            }
+
+            let progress = step as f64 / FADE_STEPS as f64;
+            let alpha = from as f64 + (to as f64 - from as f64) * progress;
+            set_alpha(hwnd, alpha.round().clamp(0.0, 255.0) as u8);
+            thread::sleep(Duration::from_millis(
+                (FADE_DURATION_MS / FADE_STEPS).max(1) as u64,
+            ));
+        }
+
+        if hide_after && FADE_EPOCH.load(Ordering::SeqCst) == epoch {
+            unsafe {
+                let _ = ShowWindow(hwnd, SW_HIDE);
+            }
+        }
+    });
+}
+
+fn set_alpha(hwnd: HWND, alpha: u8) {
+    unsafe {
+        let _ = SetLayeredWindowAttributes(hwnd, TRANSPARENT_KEY, alpha, LWA_COLORKEY | LWA_ALPHA);
+    }
 }
 
 fn mouse_down() -> bool {

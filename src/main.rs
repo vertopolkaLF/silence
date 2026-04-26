@@ -51,11 +51,11 @@ use windows::{
                 FindWindowW, GetCursorPos, GetMessageW, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION,
                 IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW,
                 MENU_ITEM_FLAGS, MSG, PostMessageW, PostQuitMessage, RegisterClassW, SW_RESTORE,
-                SetForegroundWindow, SetTimer, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN,
-                TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx,
-                WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
-                WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
-                WS_OVERLAPPED,
+                SendMessageW, SetForegroundWindow, SetTimer, SetWindowsHookExW, ShowWindow,
+                TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage,
+                UnhookWindowsHookEx, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND,
+                WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP,
+                WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
             },
         },
     },
@@ -884,23 +884,29 @@ fn show_overlay_temporarily(duration_ms: u32) {
     }
 }
 
-pub fn set_overlay_positioning(active: bool) {
+pub fn set_overlay_positioning(active: bool) -> Option<OverlayConfig> {
     let class = wide("SilenceV2Hidden");
     let hwnd = unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR(null())) };
     let Ok(hwnd) = hwnd else {
-        return;
+        return None;
     };
     if hwnd.0.is_null() {
-        return;
+        return None;
     }
     let _ = unsafe {
-        PostMessageW(
+        SendMessageW(
             hwnd,
             WM_OVERLAY_POSITIONING,
             WPARAM(usize::from(active)),
             LPARAM(0),
         )
     };
+
+    if active {
+        None
+    } else {
+        load_config().ok().map(|config| config.overlay)
+    }
 }
 
 fn save_overlay_position(position_x: f64, position_y: f64) {

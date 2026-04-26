@@ -16,6 +16,12 @@ body {
   color: var(--text);
 }
 
+#main {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
 :root {
   --windows-accent: oklch(71.63% 0.1778 46.3);
   --neutral-bg: oklch(14.08% 0.0044 285.82);

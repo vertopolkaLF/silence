@@ -21,14 +21,12 @@ pub fn render(
         section { class: "overlay-panel",
             div { class: "overlay-header",
                 h1 { "Overlay" }
-                p { "A small topmost window that passes clicks through to whatever is underneath." }
             }
 
             section { class: "sound-card",
                 div { class: "sound-card-title",
                     div {
                         h2 { "Enable overlay" }
-                        p { "Shows microphone state above other windows." }
                     }
                     super::Toggle {
                         checked: settings.enabled,
@@ -190,7 +188,9 @@ pub fn render(
                         checked: positioning(),
                         onchange: move |checked| {
                             positioning.set(checked);
-                            crate::set_overlay_positioning(checked);
+                            if let Some(next) = crate::set_overlay_positioning(checked) {
+                                overlay.set(next);
+                            }
                         }
                     }
                 }

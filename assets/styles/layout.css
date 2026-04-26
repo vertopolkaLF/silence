@@ -2,6 +2,7 @@
   position: relative;
   width: 100vw;
   height: 100vh;
+  overflow: hidden;
   background: var(--bg);
 }
 
@@ -9,11 +10,13 @@
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   height: 100vh;
+  min-height: 0;
   background: var(--chrome);
 }
 
 .content {
   overflow-y: auto;
+  min-height: 0;
   padding: 50px 48px 50px;
   background: var(--surface);
   border-top-left-radius: 16px;
