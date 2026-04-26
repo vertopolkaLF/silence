@@ -5,7 +5,6 @@ mod tabs;
 
 use tabs::SettingsTab;
 
-const APP_ICON: Asset = asset!("/assets/app.png");
 const APP_ICO: Asset = asset!("/assets/app.ico");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
 const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::css());
@@ -49,12 +48,6 @@ pub fn settings_app() -> Element {
             div {
                 class: "titlebar",
                 onmousedown: move |_| drag_desktop.drag(),
-                img {
-                    class: "titlebar-icon",
-                    src: APP_ICON,
-                    alt: "silence!"
-                }
-                div { class: "title", "silence!" }
                 div { class: "title-spacer" }
                 if cfg!(debug_assertions) {
                     button {

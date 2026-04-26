@@ -1,8 +1,9 @@
 * {
   box-sizing: border-box;
   scrollbar-width: thin;
-  scrollbar-color: #555 transparent;
-  font-family: "Geist", "Aptos", sans-serif;
+  scrollbar-color: oklch(44.95% 0 0) transparent;
+  font-family: "Inter", "Geist", "Aptos", sans-serif;
+  user-select: none;
 }
 
 html,
@@ -16,22 +17,31 @@ body {
 }
 
 :root {
-  --bg: #09090b;
-  --chrome: #09090b;
-  --surface: #121214;
-  --surface-2: #18181b;
-  --surface-3: #27272a;
-  --border: #27272a;
-  --border-strong: #3f3f46;
-  --text: #fafafa;
-  --muted: #a1a1aa;
-  --faint: #52525b;
-  --accent: #8b5cf6;
-  --accent-strong: #a78bfa;
-  --accent-soft: #2e1065;
-  --success: #10b981;
-  --danger: #ef4444;
-  --focus: #8b5cf6;
+  --bg: oklch(14.08% 0.0044 285.82);
+  --chrome: oklch(14.08% 0.0044 285.82);
+  --surface: oklch(18.31% 0.004 285.99);
+  --surface-2: oklch(21.03% 0.0059 285.89);
+  --surface-3: oklch(27.39% 0.0055 286.03);
+  --surface-color-1: oklch(18.45% 0.02 39.26);
+  --surface-color-2: oklch(21.88% 0.03 45.19);
+  --surface-color-3: oklch(26.4% 0.04 51.69);
+  --surface-color-4: oklch(31.01% 0.05 49.12);
+  --surface-color-5: oklch(35.85% 0.06 47.67);
+  --border: oklch(27.39% 0.0055 286.03);
+  --border-strong: oklch(37.03% 0.0119 285.81);
+  --text: oklch(98.51% 0 0);
+  --muted: oklch(71.18% 0.0129 286.07);
+  --faint: oklch(44.19% 0.0146 285.79);
+  --accent: oklch(71.63% 0.1778 46.3);
+  --accent-strong: oklch(76.29% 0.1487 49.96);
+  --accent-soft: oklch(30.73% 0.0706 44.33);
+  --success: oklch(69.59% 0.1491 162.48);
+  --danger: oklch(63.68% 0.2078 25.33);
+  --focus: oklch(71.63% 0.1778 46.3);
+  --shadow-soft: oklch(0% 0 0 / 10%);
+  --shadow-medium: oklch(0% 0 0 / 20%);
+  --shadow-faint: oklch(0% 0 0 / 5%);
+  --on-accent: oklch(100% 0 0);
 }
 
 h1 {
@@ -143,7 +153,7 @@ button {
   font-size: 14px;
   font-weight: 500;
   transition: all 150ms ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px var(--shadow-soft);
 }
 
 .secondary,
@@ -187,9 +197,9 @@ button {
   min-width: 104px;
   border-color: var(--accent);
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
   font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px var(--shadow-medium);
 }
 
 .save:hover {
@@ -229,7 +239,7 @@ button {
   border-radius: 12px;
   background: var(--surface-2);
   text-align: center;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 6px var(--shadow-faint);
 }
 
 .empty-icon {

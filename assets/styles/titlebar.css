@@ -1,28 +1,19 @@
 .titlebar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 10;
   height: 42px;
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 0 0 0 12px;
-  background: var(--chrome);
+  padding: 0;
+  background: transparent;
   user-select: none;
-}
-
-.titlebar-icon {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  margin-right: 10px;
-}
-
-.title {
-  font-size: 13px;
-  font-weight: 560;
-  color: var(--text);
 }
 
 .title-spacer {
   flex: 1;
+  height: 100%;
 }
 
 .titlebar-button {

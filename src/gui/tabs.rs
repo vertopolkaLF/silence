@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
 
+const APP_ICON: Asset = asset!("/assets/app.png");
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SettingsTab {
     General,
@@ -51,6 +53,15 @@ pub fn render(mut active_tab: Signal<SettingsTab>) -> Element {
     rsx! {
         nav {
             class: "sidebar",
+            div {
+                class: "sidebar-brand",
+                img {
+                    class: "sidebar-brand-icon",
+                    src: APP_ICON,
+                    alt: "silence!"
+                }
+                span { "silence!" }
+            }
             for &tab in SettingsTab::ALL {
                 button {
                     class: if active_tab() == tab { "nav-item active" } else { "nav-item" },
