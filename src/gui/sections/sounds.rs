@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
 
+use crate::gui::controls::{Range, Select, SelectOption};
+
 pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let snapshot = settings();
     let sound_settings = snapshot.config.sound_settings.clone();
@@ -38,15 +40,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 }
                 div { class: "volume-row",
                     span { class: "solar-icon icon-volume volume-low" }
-                    input {
-                        class: "volume-slider",
-                        r#type: "range",
-                        min: "0",
-                        max: "100",
-                        step: "1",
-                        value: "{volume}",
-                        style: "--range-progress: {volume}%;",
-                        oninput: move |evt| {
+                    Range {
+                        value: volume.to_string(),
+                        min: "0".to_string(),
+                        max: "100".to_string(),
+                        step: "1".to_string(),
+                        progress: format!("{volume}%"),
+                        oninput: move |evt: FormEvent| {
                             if let Ok(value) = evt.value().parse::<u8>() {
                                 super::super::update_settings(settings, |config| {
                                     config.sound_settings.volume = value.min(100);
@@ -89,33 +89,35 @@ fn SoundPicker(
     volume: u8,
     settings: Signal<super::super::SettingsSnapshot>,
 ) -> Element {
+    let theme_options = crate::sound_themes()
+        .iter()
+        .map(|theme| {
+            SelectOption::new(theme.id, theme.label)
+                .icon("icon-volume")
+                .end_icon("icon-play")
+        })
+        .collect::<Vec<_>>();
+
     rsx! {
         div { class: "sound-picker",
             label { "{title}" }
             div { class: "sound-select-row",
-                div { class: "select-wrap sound-select-wrap",
-                    select {
-                        class: "select-like sound-select",
-                        value: "{value}",
-                        onchange: move |evt| {
-                            let value = evt.value();
-                            super::super::update_settings(settings, |config| {
-                                if muted {
-                                    config.sound_settings.mute_theme = value;
-                                } else {
-                                    config.sound_settings.unmute_theme = value;
-                                }
-                            });
-                        },
-                        for theme in crate::sound_themes() {
-                            option {
-                                value: "{theme.id}",
-                                selected: value == theme.id,
-                                "{theme.label}"
+                Select {
+                    class: "sound-select-wrap".to_string(),
+                    value: value.clone(),
+                    options: theme_options,
+                    on_option_action: move |value: String| {
+                        let _ = crate::preview_sound(&value, muted, volume);
+                    },
+                    onchange: move |value: String| {
+                        super::super::update_settings(settings, |config| {
+                            if muted {
+                                config.sound_settings.mute_theme = value;
+                            } else {
+                                config.sound_settings.unmute_theme = value;
                             }
-                        }
+                        });
                     }
-                    span { class: "solar-icon select-icon icon-down" }
                 }
                 button {
                     class: "icon-button preview-button",

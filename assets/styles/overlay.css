@@ -40,24 +40,20 @@
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transform: translateY(-8px);
   visibility: hidden;
   transition:
-    grid-template-rows 220ms ease,
-    opacity 220ms ease,
-    transform 220ms ease,
-    visibility 220ms step-end;
+    grid-template-rows 0.2s ease,
+    opacity 0.2s ease,
+    visibility 0s linear 0.2s;
 }
 
 .overlay-collapse.open {
   grid-template-rows: 1fr;
   opacity: 1;
-  transform: translateY(0);
   visibility: visible;
   transition:
-    grid-template-rows 220ms ease,
-    opacity 220ms ease,
-    transform 220ms ease,
+    grid-template-rows 0.2s ease,
+    opacity 0.2s ease,
     visibility 0ms linear;
 }
 
@@ -106,8 +102,8 @@
   font: inherit;
   font-size: 11px;
   transition:
-    color 150ms ease,
-    transform 180ms ease;
+    color var(--ui-transition),
+    transform var(--ui-transition);
   width: var(--overlay-icon-tile-size, var(--overlay-variant-tile-size));
 }
 
@@ -126,9 +122,9 @@
   border-radius: 12px;
   background: var(--surface-2);
   transition:
-    border-color 180ms ease,
-    background 180ms ease,
-    box-shadow 180ms ease;
+    border-color var(--ui-transition),
+    background var(--ui-transition),
+    box-shadow var(--ui-transition);
   overflow: hidden;
 }
 
@@ -181,7 +177,7 @@
 .overlay-icon-toggle-glyph {
   width: 16px;
   height: 16px;
-  transition: transform 180ms ease, color 180ms ease;
+  transition: transform var(--ui-transition), color var(--ui-transition);
 }
 
 .overlay-icon-toggle.expanded .overlay-icon-toggle-glyph {

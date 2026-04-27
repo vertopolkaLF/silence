@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
 
+use crate::gui::controls::{Select, SelectOption};
+
 pub fn render(
     settings: Signal<super::super::SettingsSnapshot>,
     _recording: Signal<bool>,
@@ -16,6 +18,20 @@ pub fn render(
         crate::overlay_icons::overlay_icon_css_url(&snapshot.config.overlay.icon_pair, mic_muted);
     let mic_label =
         crate::selected_mic_label(snapshot.config.mic_device_id.as_deref(), &snapshot.devices);
+    let mic_options = std::iter::once(
+        SelectOption::new("", "Default input device")
+            .detail("Follows the Windows default microphone")
+            .icon("icon-mic"),
+    )
+    .chain(snapshot.devices.iter().map(|device| {
+        let option = SelectOption::new(device.id.clone(), device.name.clone()).icon("icon-mic");
+        if device.is_default {
+            option.detail("Windows default")
+        } else {
+            option
+        }
+    }))
+    .collect::<Vec<_>>();
 
     rsx! {
         section {
@@ -39,30 +55,14 @@ pub fn render(
         section {
             class: "field-group",
             label { "Microphone" }
-            div { class: "select-wrap",
-                select {
-                    class: "select-like",
-                    value: "{selected_value}",
-                    onchange: move |evt| {
-                        let value = evt.value();
-                        super::super::update_settings(settings, |config| {
-                            config.mic_device_id = if value.is_empty() { None } else { Some(value) };
-                        });
-                    },
-                    option { value: "", "Default input device" }
-                    for device in snapshot.devices {
-                        option {
-                            value: "{device.id}",
-                            selected: selected_value == device.id,
-                            if device.is_default {
-                                "{device.name} (default)"
-                            } else {
-                                "{device.name}"
-                            }
-                        }
-                    }
+            Select {
+                value: selected_value.clone(),
+                options: mic_options,
+                onchange: move |value: String| {
+                    super::super::update_settings(settings, |config| {
+                        config.mic_device_id = if value.is_empty() { None } else { Some(value) };
+                    });
                 }
-                span { class: "solar-icon select-icon icon-down" }
             }
         }
 

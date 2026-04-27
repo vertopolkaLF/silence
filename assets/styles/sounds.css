@@ -55,7 +55,7 @@
   border-radius: 999px;
   background: var(--surface-3);
   box-shadow: inset 0 1px 2px var(--shadow-medium);
-  transition: background 150ms ease;
+  transition: background var(--ui-transition);
 }
 
 .toggle-track::after {
@@ -68,7 +68,7 @@
   border-radius: 50%;
   background: var(--text);
   box-shadow: 0 1px 2px var(--shadow-medium);
-  transition: transform 150ms ease;
+  transition: transform var(--ui-transition);
 }
 
 .toggle input:checked + .toggle-track {
@@ -105,40 +105,6 @@
   color: var(--muted);
 }
 
-.volume-slider {
-  width: 100%;
-  height: 18px;
-  margin: 0;
-  accent-color: var(--accent);
-  background: transparent;
-}
-
-.volume-slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    var(--accent) 0 var(--range-progress),
-    var(--surface-3) var(--range-progress) 100%
-  );
-}
-
-.volume-slider::-webkit-slider-thumb {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  margin-top: -7px;
-  border: 3px solid var(--surface-3);
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 1px 4px var(--shadow-medium);
-}
-
-.volume-slider:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 8px;
-}
-
 .sound-picker-card {
   gap: 22px;
 }
@@ -155,11 +121,6 @@
 .sound-select-wrap {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.sound-select {
-  height: 42px;
-  font-size: 15px;
 }
 
 .preview-button {

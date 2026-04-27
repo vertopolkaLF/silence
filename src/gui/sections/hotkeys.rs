@@ -2,6 +2,8 @@ use std::time::{Duration, Instant};
 
 use dioxus::prelude::*;
 
+use crate::gui::controls::{Checkbox, Select, SelectOption};
+
 const MODIFIER_HOLD_DURATION: Duration = Duration::from_millis(1000);
 
 pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
@@ -415,38 +417,25 @@ fn HotkeyModal(
 
                     }
 
-                    label {
-                        class: "check-row modal-check",
-                        input {
-                            r#type: "checkbox",
-                            checked: draft_ignore_modifiers(),
-                            onchange: move |evt| draft_ignore_modifiers.set(evt.checked())
-                        }
-                        span { "Ignore modifiers" }
+                    Checkbox {
+                        class: "modal-check".to_string(),
+                        checked: draft_ignore_modifiers(),
+                        label: "Ignore modifiers".to_string(),
+                        onchange: move |checked: bool| draft_ignore_modifiers.set(checked)
                     }
 
                     div { class: "field-group modal-field",
                         label { "Action" }
-                        div { class: "select-wrap",
-                            select {
-                                class: "select-like",
-                                value: "{action.id()}",
-                                onchange: move |evt| {
-                                    let action = crate::HotkeyAction::from_id(&evt.value());
-                                    draft_action.set(action);
-                                    if !action.needs_target() {
-                                        draft_target.set(String::new());
-                                    }
-                                },
-                                for option in crate::HotkeyAction::ALL {
-                                    option {
-                                        value: "{option.id()}",
-                                        selected: *option == action,
-                                        "{option.label()}"
-                                    }
+                        Select {
+                            value: action.id().to_string(),
+                            options: action_options(),
+                            onchange: move |value: String| {
+                                let action = crate::HotkeyAction::from_id(&value);
+                                draft_action.set(action);
+                                if !action.needs_target() {
+                                    draft_target.set(String::new());
                                 }
                             }
-                            span { class: "solar-icon select-icon icon-down" }
                         }
                     }
 
@@ -454,7 +443,7 @@ fn HotkeyModal(
                         TargetSelect {
                             value: draft_target(),
                             devices,
-                            onchange: move |value| draft_target.set(value)
+                            onchange: move |value: String| draft_target.set(value)
                         }
                     }
                 }
@@ -604,31 +593,54 @@ fn TargetSelect(
     devices: Vec<crate::MicDevice>,
     onchange: EventHandler<String>,
 ) -> Element {
+    let options = std::iter::once(
+        SelectOption::new("", "Selected microphone")
+            .detail("Follow whatever microphone is currently active")
+            .icon("icon-mic"),
+    )
+    .chain(devices.into_iter().map(|device| {
+        let option = SelectOption::new(device.id, device.name).icon("icon-mic");
+        if device.is_default {
+            option.detail("Windows default")
+        } else {
+            option
+        }
+    }))
+    .collect::<Vec<_>>();
+
     rsx! {
         div { class: "field-group modal-field target-field",
             label { "Target" }
-            div { class: "select-wrap",
-                select {
-                    class: "select-like",
-                    value: "{value}",
-                    onchange: move |evt| onchange.call(evt.value()),
-                    option { value: "", selected: value.is_empty(), "Selected microphone" }
-                    for device in devices {
-                        option {
-                            value: "{device.id}",
-                            selected: value == device.id,
-                            if device.is_default {
-                                "{device.name} (default)"
-                            } else {
-                                "{device.name}"
-                            }
-                        }
-                    }
-                }
-                span { class: "solar-icon select-icon icon-down" }
+            Select {
+                value: value.clone(),
+                options,
+                onchange: move |value: String| onchange.call(value)
             }
         }
     }
+}
+
+fn action_options() -> Vec<SelectOption> {
+    crate::HotkeyAction::ALL
+        .iter()
+        .map(|action| {
+            let option = SelectOption::new(action.id(), action.label());
+            match action {
+                crate::HotkeyAction::ToggleMute => option
+                    .detail("Flip the mute state for the chosen microphone")
+                    .icon("icon-mic"),
+                crate::HotkeyAction::Mute => option
+                    .detail("Force the microphone into the muted state")
+                    .icon("icon-mic"),
+                crate::HotkeyAction::Unmute => option
+                    .detail("Force the microphone into the live state")
+                    .icon("icon-mic"),
+                crate::HotkeyAction::OpenSettings => option
+                    .detail("Bring the settings window to the front")
+                    .icon("icon-settings"),
+            }
+        })
+        .collect()
 }
 
 fn target_label(target: Option<&str>, devices: &[crate::MicDevice]) -> String {

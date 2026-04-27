@@ -17,7 +17,7 @@
   background: color-mix(in oklch, var(--success), transparent 90%);
   color: var(--success);
   box-shadow: 0 0 12px color-mix(in oklch, var(--success), transparent 90%);
-  transition: all 200ms ease;
+  transition: all var(--ui-transition);
 }
 
 .mic-dot.muted {
@@ -44,39 +44,6 @@
   max-width: 520px;
 }
 
-.select-wrap {
-  position: relative;
-}
-
-.select-like {
-  height: 40px;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 0 38px 0 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 14px;
-  transition: all 150ms ease;
-  box-shadow: 0 1px 2px var(--shadow-faint);
-  appearance: none;
-}
-
-.select-icon {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  pointer-events: none;
-  transform: translateY(-50%);
-  width: 17px;
-  height: 17px;
-  color: var(--faint);
-}
-
 .section-head {
   margin-bottom: 2px;
 }
@@ -97,7 +64,7 @@ footer {
   background: var(--surface-2);
   color: var(--text);
   font-size: 14px;
-  transition: all 150ms ease;
+  transition: all var(--ui-transition);
   box-shadow: inset 0 1px 2px var(--shadow-soft);
 }
 
@@ -106,20 +73,6 @@ footer {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-color: transparent;
-}
-
-.check-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--muted);
-  font-weight: 450;
-}
-
-.check-row input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
 }
 
 footer {

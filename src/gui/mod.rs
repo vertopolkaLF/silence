@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 use std::time::Duration;
 
+mod controls;
 mod sections;
 mod tabs;
 
@@ -8,6 +9,7 @@ use tabs::SettingsTab;
 
 const APP_ICO: Asset = asset!("/assets/app.ico");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
+const CONTROLS_CSS: Asset = asset!("/assets/styles/controls.css", AssetOptions::css());
 const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::css());
 const GEIST_FONT: Asset = asset!("/assets/fonts/Geist-VariableFont_wght.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
@@ -91,6 +93,7 @@ pub fn settings_app() -> Element {
         link { rel: "icon", href: APP_ICO, r#type: "image/x-icon" }
         style { {font_face} }
         link { rel: "stylesheet", href: GLOBAL_CSS }
+        link { rel: "stylesheet", href: CONTROLS_CSS }
         link { rel: "stylesheet", href: LAYOUT_CSS }
         link { rel: "stylesheet", href: TITLEBAR_CSS }
         link { rel: "stylesheet", href: TABS_CSS }

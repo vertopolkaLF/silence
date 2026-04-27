@@ -2,7 +2,7 @@
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: oklch(44.95% 0 0) transparent;
-  font-family: "Inter", "Geist", "Aptos", sans-serif;
+  font-family: "Geist", "Aptos", sans-serif;
   user-select: none;
 }
 
@@ -170,7 +170,7 @@ button {
   color: var(--text);
   font-size: 14px;
   font-weight: 500;
-  transition: all 150ms ease;
+  transition: all var(--ui-transition);
   box-shadow: 0 1px 2px var(--shadow-soft);
 }
 
@@ -241,7 +241,7 @@ button {
   opacity: 0;
   color: var(--accent-strong);
   font-size: 14px;
-  transition: opacity 140ms ease;
+  transition: opacity var(--ui-transition);
 }
 
 .status.visible {

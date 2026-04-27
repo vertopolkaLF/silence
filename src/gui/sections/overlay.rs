@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
 
+use crate::gui::controls::{Checkbox, Range, Select, SelectOption};
+
 pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let mut positioning = use_signal(|| false);
     let mut icons_expanded = use_signal(|| false);
@@ -24,6 +26,36 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
         format!("{:.0}%", (content_opacity as f64 - 20.0) / 80.0 * 100.0);
     let background_opacity_progress = format!("{background_opacity}%");
     let border_radius_progress = format!("{:.0}%", border_radius as f64 / 24.0 * 100.0);
+    let visibility_options = vec![
+        SelectOption::new("Always", "Always visible")
+            .detail("Keep the overlay on screen at all times")
+            .icon("icon-widget"),
+        SelectOption::new("WhenMuted", "Visible when muted")
+            .detail("Only show the overlay while the microphone is muted")
+            .icon("icon-mic"),
+        SelectOption::new("WhenUnmuted", "Visible when unmuted")
+            .detail("Only show the overlay while the microphone is live")
+            .icon("icon-mic"),
+        SelectOption::new("AfterToggle", "Show after toggle")
+            .detail("Appear briefly after a mute state change")
+            .icon("icon-record"),
+    ];
+    let icon_style_options = vec![
+        SelectOption::new("Colored", "Colored")
+            .detail("Use red and green states")
+            .icon("icon-mic"),
+        SelectOption::new("Monochrome", "Monochrome")
+            .detail("Keep the icon neutral and let the shape carry meaning")
+            .icon("icon-mic"),
+    ];
+    let background_options = vec![
+        SelectOption::new("Dark", "Dark")
+            .detail("Blends into most apps with low contrast")
+            .icon("icon-widget"),
+        SelectOption::new("Light", "Light")
+            .detail("Stays readable on darker workspaces")
+            .icon("icon-widget"),
+    ];
 
     rsx! {
         section {
@@ -51,21 +83,14 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
 
                 div { class: "overlay-field",
                     label { "Visibility" }
-                    div { class: "select-wrap",
-                        select {
-                            class: "select-like",
-                            value: "{overlay.visibility}",
-                            onchange: move |evt| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.visibility = evt.value();
-                                });
-                            },
-                            option { value: "Always", selected: overlay.visibility == "Always", "Always visible" }
-                            option { value: "WhenMuted", selected: overlay.visibility == "WhenMuted", "Visible when muted" }
-                            option { value: "WhenUnmuted", selected: overlay.visibility == "WhenUnmuted", "Visible when unmuted" }
-                            option { value: "AfterToggle", selected: overlay.visibility == "AfterToggle", "Show after toggle" }
+                    Select {
+                        value: overlay.visibility.clone(),
+                        options: visibility_options,
+                        onchange: move |value: String| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.visibility = value;
+                            });
                         }
-                        span { class: "solar-icon select-icon icon-down" }
                     }
                 }
 
@@ -77,15 +102,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 label { "Duration" }
                                 span { class: "sound-value", "{duration}s" }
                             }
-                            input {
-                                class: "volume-slider",
-                                r#type: "range",
-                                min: "0.1",
-                                max: "10",
-                                step: "0.1",
-                                value: "{duration}",
-                                style: "--range-progress: {duration_progress};",
-                                oninput: move |evt| {
+                            Range {
+                                value: duration.clone(),
+                                min: "0.1".to_string(),
+                                max: "10".to_string(),
+                                step: "0.1".to_string(),
+                                progress: duration_progress.clone(),
+                                oninput: move |evt: FormEvent| {
                                     if let Ok(value) = evt.value().parse::<f64>() {
                                         super::super::update_settings(settings, |config| {
                                             config.overlay.duration_secs = value.clamp(0.1, 10.0);
@@ -104,15 +127,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         label { "Horizontal position" }
                         span { class: "sound-value", "{x}%" }
                     }
-                    input {
-                        class: "volume-slider",
-                        r#type: "range",
-                        min: "0",
-                        max: "100",
-                        step: "1",
-                        value: "{x}",
-                        style: "--range-progress: {x_progress};",
-                        oninput: move |evt| {
+                    Range {
+                        value: x.clone(),
+                        min: "0".to_string(),
+                        max: "100".to_string(),
+                        step: "1".to_string(),
+                        progress: x_progress.clone(),
+                        oninput: move |evt: FormEvent| {
                             if let Ok(value) = evt.value().parse::<f64>() {
                                 super::super::update_settings(settings, |config| {
                                     config.overlay.position_x = value.clamp(0.0, 100.0);
@@ -127,15 +148,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         label { "Vertical position" }
                         span { class: "sound-value", "{y}%" }
                     }
-                    input {
-                        class: "volume-slider",
-                        r#type: "range",
-                        min: "0",
-                        max: "100",
-                        step: "1",
-                        value: "{y}",
-                        style: "--range-progress: {y_progress};",
-                        oninput: move |evt| {
+                    Range {
+                        value: y.clone(),
+                        min: "0".to_string(),
+                        max: "100".to_string(),
+                        step: "1".to_string(),
+                        progress: y_progress.clone(),
+                        oninput: move |evt: FormEvent| {
                             if let Ok(value) = evt.value().parse::<f64>() {
                                 super::super::update_settings(settings, |config| {
                                     config.overlay.position_y = value.clamp(0.0, 100.0);
@@ -303,51 +322,38 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 }
                             }
                         }
-                        label {
-                            class: "check-row",
-                            input {
-                                r#type: "checkbox",
-                                checked: overlay.show_text,
-                                onchange: move |evt| {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.show_text = evt.checked();
-                                    });
-                                }
+                        Checkbox {
+                            class: "overlay-checkbox".to_string(),
+                            checked: overlay.show_text,
+                            label: "Show text next to the icon".to_string(),
+                            onchange: move |checked: bool| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.show_text = checked;
+                                });
                             }
-                            span { "Show text next to the icon" }
                         }
                         div { class: "overlay-field",
                             label { "Icon style" }
-                            div { class: "select-wrap",
-                                select {
-                                    class: "select-like",
-                                    value: "{overlay.icon_style}",
-                                    onchange: move |evt| {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.icon_style = evt.value();
-                                        });
-                                    },
-                                    option { value: "Colored", selected: overlay.icon_style == "Colored", "Colored (red/green)" }
-                                    option { value: "Monochrome", selected: overlay.icon_style == "Monochrome", "Monochrome" }
+                            Select {
+                                value: overlay.icon_style.clone(),
+                                options: icon_style_options,
+                                onchange: move |value: String| {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.icon_style = value;
+                                    });
                                 }
-                                span { class: "solar-icon select-icon icon-down" }
                             }
                         }
                         div { class: "overlay-field",
                             label { "Background" }
-                            div { class: "select-wrap",
-                                select {
-                                    class: "select-like",
-                                    value: "{overlay.background_style}",
-                                    onchange: move |evt| {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.background_style = evt.value();
-                                        });
-                                    },
-                                    option { value: "Dark", selected: overlay.background_style == "Dark", "Dark" }
-                                    option { value: "Light", selected: overlay.background_style == "Light", "Light" }
+                            Select {
+                                value: overlay.background_style.clone(),
+                                options: background_options,
+                                onchange: move |value: String| {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.background_style = value;
+                                    });
                                 }
-                                span { class: "solar-icon select-icon icon-down" }
                             }
                         }
                         div { class: "overlay-range-row",
@@ -355,15 +361,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 label { "Background opacity" }
                                 span { class: "sound-value", "{background_opacity}%" }
                             }
-                            input {
-                                class: "volume-slider",
-                                r#type: "range",
-                                min: "0",
-                                max: "100",
-                                step: "5",
-                                value: "{background_opacity}",
-                                style: "--range-progress: {background_opacity_progress};",
-                                oninput: move |evt| {
+                            Range {
+                                value: background_opacity.to_string(),
+                                min: "0".to_string(),
+                                max: "100".to_string(),
+                                step: "5".to_string(),
+                                progress: background_opacity_progress.clone(),
+                                oninput: move |evt: FormEvent| {
                                     if let Ok(value) = evt.value().parse::<u8>() {
                                         super::super::update_settings(settings, |config| {
                                             config.overlay.background_opacity = value.min(100);
@@ -377,15 +381,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 label { "Border radius" }
                                 span { class: "sound-value", "{border_radius}px" }
                             }
-                            input {
-                                class: "volume-slider",
-                                r#type: "range",
-                                min: "0",
-                                max: "24",
-                                step: "1",
-                                value: "{border_radius}",
-                                style: "--range-progress: {border_radius_progress};",
-                                oninput: move |evt| {
+                            Range {
+                                value: border_radius.to_string(),
+                                min: "0".to_string(),
+                                max: "24".to_string(),
+                                step: "1".to_string(),
+                                progress: border_radius_progress.clone(),
+                                oninput: move |evt: FormEvent| {
                                     if let Ok(value) = evt.value().parse::<u8>() {
                                         super::super::update_settings(settings, |config| {
                                             config.overlay.border_radius = value.min(24);
@@ -394,18 +396,15 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 }
                             }
                         }
-                        label {
-                            class: "check-row",
-                            input {
-                                r#type: "checkbox",
-                                checked: overlay.show_border,
-                                onchange: move |evt| {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.show_border = evt.checked();
-                                    });
-                                }
+                        Checkbox {
+                            class: "overlay-checkbox".to_string(),
+                            checked: overlay.show_border,
+                            label: "Show border".to_string(),
+                            onchange: move |checked: bool| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.show_border = checked;
+                                });
                             }
-                            span { "Show border" }
                         }
                     }
                 }
@@ -415,15 +414,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         label { "Size scale" }
                         span { class: "sound-value", "{scale}%" }
                     }
-                    input {
-                        class: "volume-slider",
-                        r#type: "range",
-                        min: "10",
-                        max: "400",
-                        step: "5",
-                        value: "{scale}",
-                        style: "--range-progress: {scale_progress};",
-                        oninput: move |evt| {
+                    Range {
+                        value: scale.to_string(),
+                        min: "10".to_string(),
+                        max: "400".to_string(),
+                        step: "5".to_string(),
+                        progress: scale_progress.clone(),
+                        oninput: move |evt: FormEvent| {
                             if let Ok(value) = evt.value().parse::<u32>() {
                                 super::super::update_settings(settings, |config| {
                                     config.overlay.scale = value.clamp(10, 400);
@@ -438,15 +435,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         label { "Opacity" }
                         span { class: "sound-value", "{content_opacity}%" }
                     }
-                    input {
-                        class: "volume-slider",
-                        r#type: "range",
-                        min: "20",
-                        max: "100",
-                        step: "5",
-                        value: "{content_opacity}",
-                        style: "--range-progress: {content_opacity_progress};",
-                        oninput: move |evt| {
+                    Range {
+                        value: content_opacity.to_string(),
+                        min: "20".to_string(),
+                        max: "100".to_string(),
+                        step: "5".to_string(),
+                        progress: content_opacity_progress.clone(),
+                        oninput: move |evt: FormEvent| {
                             if let Ok(value) = evt.value().parse::<u8>() {
                                 super::super::update_settings(settings, |config| {
                                     config.overlay.content_opacity = value.clamp(20, 100);

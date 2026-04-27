@@ -25,7 +25,7 @@
   border: 0;
   background: transparent;
   color: var(--muted);
-  transition: background 140ms ease, color 140ms ease;
+  transition: background var(--ui-transition), color var(--ui-transition);
 }
 
 .titlebar-button:hover {

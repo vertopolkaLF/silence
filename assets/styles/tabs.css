@@ -40,7 +40,7 @@
   font: inherit;
   font-size: 14px;
   font-weight: 500;
-  transition: background 150ms ease, color 150ms ease;
+  transition: background var(--ui-transition), color var(--ui-transition);
 }
 
 .nav-item:hover {
@@ -101,7 +101,7 @@
   font: inherit;
   font-size: 13px;
   font-weight: 500;
-  transition: background 150ms ease, color 150ms ease;
+  transition: background var(--ui-transition), color var(--ui-transition);
 }
 
 .nav-subitem:hover {
