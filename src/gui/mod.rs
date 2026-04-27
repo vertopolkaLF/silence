@@ -13,6 +13,7 @@ const GEIST_FONT: Asset = asset!("/assets/fonts/Geist-VariableFont_wght.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
+const OVERLAY_CSS: Asset = asset!("/assets/styles/overlay.css", AssetOptions::css());
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
@@ -95,6 +96,7 @@ pub fn settings_app() -> Element {
         link { rel: "stylesheet", href: TABS_CSS }
         link { rel: "stylesheet", href: GENERAL_CSS }
         link { rel: "stylesheet", href: SOUNDS_CSS }
+        link { rel: "stylesheet", href: OVERLAY_CSS }
         link { rel: "stylesheet", href: HOTKEYS_CSS }
         style { {theme_style} }
         style { {icon_style} }
