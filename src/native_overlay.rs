@@ -1209,13 +1209,63 @@ fn overlay_icon_mask(icon_pair: &str, muted: bool, size: u32) -> Option<Vec<u8>>
         tiny_skia::Transform::from_scale(scale, scale),
         &mut pixmap.as_mut(),
     );
-    let mask = pixmap
+    let raw_mask = pixmap
         .take_demultiplied()
         .chunks_exact(4)
         .map(|pixel| pixel[3])
         .collect::<Vec<_>>();
+    let mask = recenter_alpha_mask(&raw_mask, size as usize, size as usize);
     ICON_MASK_CACHE.lock().unwrap().insert(key, mask.clone());
     Some(mask)
+}
+
+fn recenter_alpha_mask(mask: &[u8], width: usize, height: usize) -> Vec<u8> {
+    if width == 0 || height == 0 || mask.len() < width * height {
+        return mask.to_vec();
+    }
+
+    let mut min_x = width;
+    let mut min_y = height;
+    let mut max_x = 0usize;
+    let mut max_y = 0usize;
+    let mut has_pixels = false;
+
+    for y in 0..height {
+        for x in 0..width {
+            if mask[y * width + x] == 0 {
+                continue;
+            }
+            has_pixels = true;
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+    }
+
+    if !has_pixels {
+        return mask.to_vec();
+    }
+
+    let bounds_width = max_x - min_x + 1;
+    let bounds_height = max_y - min_y + 1;
+    let target_x = width.saturating_sub(bounds_width) / 2;
+    let target_y = height.saturating_sub(bounds_height) / 2;
+
+    if min_x == target_x && min_y == target_y {
+        return mask.to_vec();
+    }
+
+    let mut centered = vec![0; width * height];
+    for row in 0..bounds_height {
+        let src_start = (min_y + row) * width + min_x;
+        let src_end = src_start + bounds_width;
+        let dst_start = (target_y + row) * width + target_x;
+        let dst_end = dst_start + bounds_width;
+        centered[dst_start..dst_end].copy_from_slice(&mask[src_start..src_end]);
+    }
+
+    centered
 }
 
 fn finalize_overlay_argb(

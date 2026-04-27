@@ -76,13 +76,15 @@
 }
 
 .overlay-variant-grid {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
+  --overlay-variant-tile-size: 56px;
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(var(--overlay-variant-tile-size), var(--overlay-variant-tile-size)));
+  column-gap: 12px;
+  row-gap: 12px;
+  justify-content: start;
 }
 
-.overlay-variant,
 .overlay-icon-option {
   display: grid;
   gap: 8px;
@@ -97,21 +99,15 @@
   transition:
     color 150ms ease,
     transform 180ms ease;
+  width: var(--overlay-icon-tile-size, var(--overlay-variant-tile-size));
 }
 
-.overlay-variant {
-  width: 74px;
-}
-
-.overlay-variant:hover,
-.overlay-variant.active,
 .overlay-icon-option:hover,
 .overlay-icon-option.active {
   color: var(--text);
   transform: translateY(-2px);
 }
 
-.overlay-variant-preview,
 .overlay-icon-preview {
   width: 56px;
   height: 56px;
@@ -126,17 +122,16 @@
     box-shadow 180ms ease;
 }
 
-.overlay-variant.active .overlay-variant-preview,
 .overlay-icon-option.active .overlay-icon-preview {
   border-color: var(--accent);
   box-shadow: 0 10px 18px var(--shadow-faint);
 }
 
-.overlay-variant-preview.mic {
-  color: var(--success);
+.overlay-variant-option {
+  --overlay-icon-tile-size: var(--overlay-variant-tile-size);
 }
 
-.overlay-variant-preview.mic .solar-icon {
+.overlay-variant-preview .solar-icon {
   width: 26px;
   height: 26px;
 }
@@ -162,18 +157,6 @@
   width: var(--overlay-icon-tile-size);
   gap: 5px;
   font-size: 11px;
-}
-
-.overlay-icon-preview {
-  width: 100%;
-  height: 56px;
-  min-height: 56px;
-  padding: 5px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  background: var(--surface-2);
-  transition: color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
 .overlay-icon-preview {

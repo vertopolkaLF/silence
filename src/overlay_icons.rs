@@ -23,7 +23,7 @@ macro_rules! pair {
     };
 }
 
-const ICON_PAIRS: [OverlayIconPair; 18] = [
+const ICON_PAIRS: [OverlayIconPair; 17] = [
     pair!("fluent", "Fluent", "fluent-mic.svg", "fluent-mic-off.svg"),
     pair!(
         "solar",
@@ -48,12 +48,6 @@ const ICON_PAIRS: [OverlayIconPair; 18] = [
         "tabler",
         "Tabler",
         "tabler-microphone.svg",
-        "tabler-microphone-off.svg"
-    ),
-    pair!(
-        "tabler-fill",
-        "Tabler Fill",
-        "tabler-microphone-filled.svg",
         "tabler-microphone-off.svg"
     ),
     pair!(

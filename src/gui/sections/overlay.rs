@@ -173,25 +173,33 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     label { "Overlay style" }
                     div { class: "overlay-variant-grid",
                         button {
-                            class: if overlay.variant == "MicIcon" { "overlay-variant active" } else { "overlay-variant" },
+                            class: if overlay.variant == "MicIcon" {
+                                "overlay-icon-option overlay-variant-option active"
+                            } else {
+                                "overlay-icon-option overlay-variant-option"
+                            },
                             onclick: move |_| {
                                 super::super::update_settings(settings, |config| {
                                     config.overlay.variant = "MicIcon".to_string();
                                 });
                             },
-                            span { class: "overlay-variant-preview mic",
+                            span { class: "overlay-icon-preview overlay-variant-preview live",
                                 span { class: "solar-icon icon-mic" }
                             }
                             span { "Mic Icon" }
                         }
                         button {
-                            class: if overlay.variant == "Dot" { "overlay-variant active" } else { "overlay-variant" },
+                            class: if overlay.variant == "Dot" {
+                                "overlay-icon-option overlay-variant-option active"
+                            } else {
+                                "overlay-icon-option overlay-variant-option"
+                            },
                             onclick: move |_| {
                                 super::super::update_settings(settings, |config| {
                                     config.overlay.variant = "Dot".to_string();
                                 });
                             },
-                            span { class: "overlay-variant-preview dot",
+                            span { class: "overlay-icon-preview overlay-variant-preview dot",
                                 span {}
                             }
                             span { "Dot" }
