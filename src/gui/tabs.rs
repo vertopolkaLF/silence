@@ -23,8 +23,8 @@ pub enum SettingsTab {
 impl SettingsTab {
     const ALL: &'static [Self] = &[
         Self::General,
-        Self::HoldToMute,
         Self::Hotkeys,
+        Self::HoldToMute,
         Self::Sounds,
         Self::Overlay,
         Self::TrayIcon,

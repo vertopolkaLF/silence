@@ -22,8 +22,8 @@ use windows::{
     Win32::{
         Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
         Foundation::{
-            ERROR_ALREADY_EXISTS, ERROR_SUCCESS, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT,
-            POINT, WPARAM,
+            ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError, HINSTANCE,
+            HWND, LPARAM, LRESULT, POINT, WPARAM,
         },
         Media::Audio::{
             DEVICE_STATE_ACTIVE, Endpoints::IAudioEndpointVolume, IMMDevice, IMMDeviceEnumerator,
@@ -35,7 +35,10 @@ use windows::{
                 CoTaskMemFree, STGM_READ,
             },
             LibraryLoader::GetModuleHandleW,
-            Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW},
+            Registry::{
+                HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_DWORD, RegDeleteKeyValueW, RegGetValueW,
+                RegSetKeyValueW,
+            },
             Threading::CreateMutexW,
         },
         UI::{
@@ -78,7 +81,7 @@ const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
-const STARTUP_RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const STARTUP_RUN_VALUE: &str = "SilenceV2";
 
 pub(crate) const HOTKEY_TARGET_ALL_MICROPHONES: &str = "__all_microphones__";
@@ -1592,6 +1595,9 @@ fn config_modified_time() -> Option<SystemTime> {
 }
 
 pub(crate) fn sync_startup_registration(enabled: bool) -> Result<()> {
+    let subkey = wide(STARTUP_RUN_SUBKEY);
+    let value_name = wide(STARTUP_RUN_VALUE);
+
     if enabled {
         let command = format!(
             "\"{}\"",
@@ -1599,27 +1605,35 @@ pub(crate) fn sync_startup_registration(enabled: bool) -> Result<()> {
                 .context("locate current executable for startup registration")?
                 .display()
         );
-        let status = Command::new("reg")
-            .args([
-                "add",
-                STARTUP_RUN_KEY,
-                "/v",
-                STARTUP_RUN_VALUE,
-                "/t",
-                "REG_SZ",
-                "/d",
-                command.as_str(),
-                "/f",
-            ])
-            .status()
-            .context("register app for Windows startup")?;
-        anyhow::ensure!(status.success(), "startup registration command failed");
+        let command_wide = wide(&command);
+        let status = unsafe {
+            RegSetKeyValueW(
+                HKEY_CURRENT_USER,
+                PCWSTR(subkey.as_ptr()),
+                PCWSTR(value_name.as_ptr()),
+                REG_SZ.0,
+                Some(command_wide.as_ptr() as *const c_void),
+                (command_wide.len() * size_of::<u16>()) as u32,
+            )
+        };
+        anyhow::ensure!(
+            status == ERROR_SUCCESS,
+            "startup registration failed with status {status:?}"
+        );
         return Ok(());
     }
 
-    let _ = Command::new("reg")
-        .args(["delete", STARTUP_RUN_KEY, "/v", STARTUP_RUN_VALUE, "/f"])
-        .status();
+    let status = unsafe {
+        RegDeleteKeyValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(subkey.as_ptr()),
+            PCWSTR(value_name.as_ptr()),
+        )
+    };
+    anyhow::ensure!(
+        status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND,
+        "startup registration removal failed with status {status:?}"
+    );
     Ok(())
 }
 
