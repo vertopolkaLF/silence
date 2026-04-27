@@ -1,13 +1,10 @@
 use dioxus::prelude::*;
 
-use crate::gui::controls::{Select, SelectOption};
-
 pub fn render(
     settings: Signal<super::super::SettingsSnapshot>,
     _recording: Signal<bool>,
 ) -> Element {
     let snapshot = settings();
-    let selected_value = snapshot.config.mic_device_id.clone().unwrap_or_default();
     let mic_muted = snapshot.muted;
     let mic_status = if mic_muted {
         "Microphone is muted"
@@ -16,22 +13,7 @@ pub fn render(
     };
     let status_icon =
         crate::overlay_icons::overlay_icon_css_url(&snapshot.config.overlay.icon_pair, mic_muted);
-    let mic_label =
-        crate::selected_mic_label(snapshot.config.mic_device_id.as_deref(), &snapshot.devices);
-    let mic_options = std::iter::once(
-        SelectOption::new("", "Default input device")
-            .detail("Follows the Windows default microphone")
-            .icon("icon-mic"),
-    )
-    .chain(snapshot.devices.iter().map(|device| {
-        let option = SelectOption::new(device.id.clone(), device.name.clone()).icon("icon-mic");
-        if device.is_default {
-            option.detail("Windows default")
-        } else {
-            option
-        }
-    }))
-    .collect::<Vec<_>>();
+    let mic_label = crate::default_mic_label(&snapshot.devices);
 
     rsx! {
         section {
@@ -52,19 +34,24 @@ pub fn render(
             }
         }
 
-        section {
-            class: "field-group",
-            label { "Microphone" }
-            Select {
-                value: selected_value.clone(),
-                options: mic_options,
-                onchange: move |value: String| {
-                    super::super::update_settings(settings, |config| {
-                        config.mic_device_id = if value.is_empty() { None } else { Some(value) };
-                    });
+        section { class: "sound-card startup-card",
+            div { class: "section-head",
+                h1 { "Startup options" }
+            }
+            div { class: "sound-card-title startup-row",
+                div { class: "startup-copy",
+                    h2 { "Launch at Windows startup" }
+                    p { "Start silence! in the tray as soon as you sign in." }
+                }
+                super::Toggle {
+                    checked: snapshot.config.startup.launch_on_startup,
+                    onchange: move |checked| {
+                        super::super::update_settings(settings, |config| {
+                            config.startup.launch_on_startup = checked;
+                        });
+                    }
                 }
             }
         }
-
     }
 }

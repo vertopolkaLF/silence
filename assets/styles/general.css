@@ -48,6 +48,23 @@
   margin-bottom: 2px;
 }
 
+.startup-card {
+  max-width: 720px;
+}
+
+.startup-row {
+  align-items: center;
+}
+
+.startup-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.startup-copy p {
+  color: var(--muted);
+}
+
 footer {
   display: flex;
   align-items: center;

@@ -9,17 +9,26 @@ use tabs::SettingsTab;
 
 const APP_ICO: Asset = asset!("/assets/app.ico");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
+const INFO_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/info-circle-bold.svg");
+const KEYBOARD_BOLD_ICON: Asset = asset!("/assets/icons/keyboard-bold.svg");
+const KEYBOARD_LINEAR_ICON: Asset = asset!("/assets/icons/keyboard-linear.svg");
+const MAGIC_STICK_3_BOLD_ICON: Asset = asset!("/assets/icons/magic-stick-3-bold.svg");
 const CONTROLS_CSS: Asset = asset!("/assets/styles/controls.css", AssetOptions::css());
 const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::css());
 const GEIST_FONT: Asset = asset!("/assets/fonts/Geist-VariableFont_wght.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
+const MICROPHONE_3_BOLD_ICON: Asset = asset!("/assets/icons/microphone-3-bold.svg");
+const MONITOR_BOLD_ICON: Asset = asset!("/assets/icons/monitor-bold.svg");
 const OVERLAY_CSS: Asset = asset!("/assets/styles/overlay.css", AssetOptions::css());
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
+const SETTINGS_BOLD_ICON: Asset = asset!("/assets/icons/settings-bold.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
+const VOLUME_LOUD_BOLD_ICON: Asset = asset!("/assets/icons/volume-loud-bold.svg");
+const WIDGET_BOLD_ICON: Asset = asset!("/assets/icons/widget-bold.svg");
 
 #[derive(Clone, PartialEq)]
 pub struct SettingsSnapshot {
@@ -35,7 +44,7 @@ impl SettingsSnapshot {
 
     fn from_config(config: crate::Config) -> Self {
         let devices = crate::capture_devices().unwrap_or_default();
-        let muted = crate::mic_mute_state(config.mic_device_id.as_deref()).unwrap_or(false);
+        let muted = crate::mic_mute_state(None).unwrap_or(false);
         Self {
             config,
             devices,
@@ -49,8 +58,12 @@ pub fn update_settings(
     update: impl FnOnce(&mut crate::Config),
 ) {
     let mut config = crate::load_config().unwrap_or_else(|_| settings().config);
+    let startup_was_enabled = config.startup.launch_on_startup;
     update(&mut config);
     let _ = crate::save_config(&config);
+    if config.startup.launch_on_startup != startup_was_enabled {
+        let _ = crate::sync_startup_registration(config.startup.launch_on_startup);
+    }
     crate::apply_live_config(&config, crate::config_modified_time());
     settings.set(SettingsSnapshot::from_config(config));
 }
@@ -77,7 +90,16 @@ pub fn settings_app() -> Element {
     let icon_style = format!(
         r#".titlebar-settings {{ --titlebar-icon: url("{SETTINGS_ICON}"); }}
 .titlebar-close {{ --titlebar-icon: url("{CLOSE_ICON}"); }}
-.icon-close {{ --icon: url("{CLOSE_ICON}"); }}"#
+.icon-close {{ --icon: url("{CLOSE_ICON}"); }}
+.icon-keyboard {{ --icon: url("{KEYBOARD_LINEAR_ICON}"); }}
+.icon-settings-bold {{ --icon: url("{SETTINGS_BOLD_ICON}"); }}
+.icon-microphone-3-bold {{ --icon: url("{MICROPHONE_3_BOLD_ICON}"); }}
+.icon-volume-loud-bold {{ --icon: url("{VOLUME_LOUD_BOLD_ICON}"); }}
+.icon-monitor-bold {{ --icon: url("{MONITOR_BOLD_ICON}"); }}
+.icon-widget-bold {{ --icon: url("{WIDGET_BOLD_ICON}"); }}
+.icon-magic-stick-3-bold {{ --icon: url("{MAGIC_STICK_3_BOLD_ICON}"); }}
+.icon-info-circle-bold {{ --icon: url("{INFO_CIRCLE_BOLD_ICON}"); }}
+.icon-keyboard-bold {{ --icon: url("{KEYBOARD_BOLD_ICON}"); }}"#
     );
     let font_face = format!(
         r#"@font-face {{

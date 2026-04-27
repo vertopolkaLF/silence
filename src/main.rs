@@ -78,6 +78,10 @@ const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
+const STARTUP_RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+const STARTUP_RUN_VALUE: &str = "SilenceV2";
+
+pub(crate) const HOTKEY_TARGET_ALL_MICROPHONES: &str = "__all_microphones__";
 
 const VK_SHIFT: u32 = 0x10;
 const VK_CONTROL: u32 = 0x11;
@@ -264,7 +268,7 @@ struct Config {
     #[serde(default)]
     hotkeys_paused: bool,
     #[serde(default)]
-    mic_device_id: Option<String>,
+    startup: StartupSettings,
     #[serde(default)]
     sound_settings: SoundSettings,
     #[serde(default)]
@@ -277,11 +281,17 @@ impl Default for Config {
             shortcut: Shortcut::default(),
             hotkeys: vec![HotkeyBinding::default()],
             hotkeys_paused: false,
-            mic_device_id: None,
+            startup: StartupSettings::default(),
             sound_settings: SoundSettings::default(),
             overlay: OverlayConfig::default(),
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+pub struct StartupSettings {
+    #[serde(default)]
+    pub launch_on_startup: bool,
 }
 
 struct AppState {
@@ -290,7 +300,6 @@ struct AppState {
     shortcut: Shortcut,
     hotkeys: Vec<HotkeyBinding>,
     hotkeys_paused: bool,
-    mic_device_id: Option<String>,
     sound_settings: SoundSettings,
     overlay: OverlayConfig,
     muted: bool,
@@ -532,7 +541,6 @@ impl Default for AppState {
             shortcut: config.shortcut,
             hotkeys: config.hotkeys,
             hotkeys_paused: config.hotkeys_paused,
-            mic_device_id: config.mic_device_id,
             sound_settings: config.sound_settings,
             overlay: config.overlay,
             muted: false,
@@ -1122,9 +1130,10 @@ fn toggle_mute() {
 
 fn toggle_mute_target(device_id: Option<&str>) {
     match set_mute_to_inverse(device_id) {
-        Ok(muted) => {
-            play_mute_sound(muted);
-            set_global_mute_state(muted, true);
+        Ok(target_muted) => {
+            play_mute_sound(target_muted);
+            let global_muted = current_mute_state().unwrap_or(target_muted);
+            set_global_mute_state(global_muted, true);
         }
         Err(err) => eprintln!("failed to toggle microphone mute: {err:?}"),
     }
@@ -1132,9 +1141,10 @@ fn toggle_mute_target(device_id: Option<&str>) {
 
 fn set_mute_target(device_id: Option<&str>, muted: bool) {
     match set_mute(device_id, muted) {
-        Ok(muted) => {
-            play_mute_sound(muted);
-            set_global_mute_state(muted, true);
+        Ok(target_muted) => {
+            play_mute_sound(target_muted);
+            let global_muted = current_mute_state().unwrap_or(target_muted);
+            set_global_mute_state(global_muted, true);
         }
         Err(err) => eprintln!("failed to set microphone mute: {err:?}"),
     }
@@ -1246,7 +1256,7 @@ fn save_overlay_position(position_x: f64, position_y: f64) {
 }
 
 fn current_mute_state() -> Result<bool> {
-    let volume = selected_capture_volume()?;
+    let volume = capture_volume(None)?;
     let muted = unsafe { volume.GetMute()? };
     Ok(muted.as_bool())
 }
@@ -1258,6 +1268,11 @@ pub fn mic_mute_state(device_id: Option<&str>) -> Result<bool> {
 }
 
 fn set_mute_to_inverse(device_id: Option<&str>) -> Result<bool> {
+    if is_all_microphones_target(device_id) {
+        let next = !current_mute_state()?;
+        set_all_capture_devices_mute(next)?;
+        return Ok(next);
+    }
     let volume = target_capture_volume(device_id)?;
     unsafe {
         let muted = volume.GetMute()?;
@@ -1268,6 +1283,10 @@ fn set_mute_to_inverse(device_id: Option<&str>) -> Result<bool> {
 }
 
 fn set_mute(device_id: Option<&str>, muted: bool) -> Result<bool> {
+    if is_all_microphones_target(device_id) {
+        set_all_capture_devices_mute(muted)?;
+        return Ok(muted);
+    }
     let volume = target_capture_volume(device_id)?;
     unsafe {
         volume.SetMute(muted, null())?;
@@ -1351,17 +1370,12 @@ fn sound_asset_path(file: &str) -> Option<PathBuf> {
         .find(|path| path.exists())
 }
 
-fn selected_capture_volume() -> Result<IAudioEndpointVolume> {
-    let device_id = STATE.lock().unwrap().mic_device_id.clone();
-    capture_volume(device_id.as_deref())
+fn is_all_microphones_target(device_id: Option<&str>) -> bool {
+    matches!(device_id, Some(id) if id == HOTKEY_TARGET_ALL_MICROPHONES)
 }
 
 fn target_capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
-    if device_id.is_some_and(|id| !id.is_empty()) {
-        capture_volume(device_id)
-    } else {
-        selected_capture_volume()
-    }
+    capture_volume(device_id.filter(|id| !id.is_empty()))
 }
 
 fn capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
@@ -1391,6 +1405,38 @@ unsafe fn capture_device(
 
     unsafe { enumerator.GetDefaultAudioEndpoint(eCapture, eConsole) }
         .context("get default capture endpoint")
+}
+
+fn active_capture_device_volumes() -> Result<Vec<IAudioEndpointVolume>> {
+    unsafe {
+        let enumerator: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+                .context("create audio device enumerator")?;
+        let collection = enumerator
+            .EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
+            .context("enumerate capture endpoints")?;
+        let count = collection.GetCount().context("count capture endpoints")?;
+        let mut volumes = Vec::with_capacity(count as usize);
+
+        for index in 0..count {
+            let device = collection.Item(index).context("get capture endpoint")?;
+            let volume = device
+                .Activate(CLSCTX_ALL, None)
+                .context("activate endpoint volume")?;
+            volumes.push(volume);
+        }
+
+        Ok(volumes)
+    }
+}
+
+fn set_all_capture_devices_mute(muted: bool) -> Result<()> {
+    for volume in active_capture_device_volumes()? {
+        unsafe {
+            volume.SetMute(muted, null())?;
+        }
+    }
+    Ok(())
 }
 
 pub fn capture_devices() -> Result<Vec<MicDevice>> {
@@ -1426,17 +1472,12 @@ pub fn capture_devices() -> Result<Vec<MicDevice>> {
     }
 }
 
-pub fn selected_mic_label(selected_id: Option<&str>, devices: &[MicDevice]) -> String {
-    selected_id
-        .and_then(|id| devices.iter().find(|device| device.id == id))
+pub fn default_mic_label(devices: &[MicDevice]) -> String {
+    devices
+        .iter()
+        .find(|device| device.is_default)
         .map(|device| device.name.clone())
-        .or_else(|| {
-            devices
-                .iter()
-                .find(|device| device.is_default)
-                .map(|device| format!("{} (default)", device.name))
-        })
-        .unwrap_or_else(|| "Default input device".to_string())
+        .unwrap_or_else(|| "Default microphone".to_string())
 }
 
 unsafe fn capture_device_id(device: &IMMDevice) -> Result<String> {
@@ -1519,7 +1560,6 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.shortcut = config.shortcut;
     state.hotkeys = config.hotkeys.clone();
     state.hotkeys_paused = config.hotkeys_paused;
-    state.mic_device_id = config.mic_device_id.clone();
     state.sound_settings = config.sound_settings.clone();
     state.overlay = config.overlay.clone();
     state.config_modified = modified;
@@ -1549,6 +1589,38 @@ fn config_path() -> Result<PathBuf> {
 
 fn config_modified_time() -> Option<SystemTime> {
     config_path().ok()?.metadata().ok()?.modified().ok()
+}
+
+pub(crate) fn sync_startup_registration(enabled: bool) -> Result<()> {
+    if enabled {
+        let command = format!(
+            "\"{}\"",
+            std::env::current_exe()
+                .context("locate current executable for startup registration")?
+                .display()
+        );
+        let status = Command::new("reg")
+            .args([
+                "add",
+                STARTUP_RUN_KEY,
+                "/v",
+                STARTUP_RUN_VALUE,
+                "/t",
+                "REG_SZ",
+                "/d",
+                command.as_str(),
+                "/f",
+            ])
+            .status()
+            .context("register app for Windows startup")?;
+        anyhow::ensure!(status.success(), "startup registration command failed");
+        return Ok(());
+    }
+
+    let _ = Command::new("reg")
+        .args(["delete", STARTUP_RUN_KEY, "/v", STARTUP_RUN_VALUE, "/f"])
+        .status();
+    Ok(())
 }
 
 fn cleanup() {

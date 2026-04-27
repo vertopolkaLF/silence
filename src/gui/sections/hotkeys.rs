@@ -5,6 +5,8 @@ use dioxus::prelude::*;
 use crate::gui::controls::{Checkbox, Select, SelectOption};
 
 const MODIFIER_HOLD_DURATION: Duration = Duration::from_millis(1000);
+const DEFAULT_TARGET_LABEL: &str = "Default";
+const ALL_MICROPHONES_LABEL: &str = "All microphones";
 
 pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let mut modal = use_signal(|| None::<ModalMode>);
@@ -72,7 +74,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
 
                 if hotkeys.is_empty() {
                     div { class: "hotkey-empty",
-                        span { class: "solar-icon icon-keyboard" }
+                        span { class: "solar-icon icon-keyboard-bold" }
                         p { "No hotkeys configured." }
                     }
                 }
@@ -593,19 +595,22 @@ fn TargetSelect(
     devices: Vec<crate::MicDevice>,
     onchange: EventHandler<String>,
 ) -> Element {
+    let default_detail = default_target_detail(&devices);
     let options = std::iter::once(
-        SelectOption::new("", "Selected microphone")
-            .detail("Follow whatever microphone is currently active")
+        SelectOption::new("", DEFAULT_TARGET_LABEL)
+            .detail(default_detail)
             .icon("icon-mic"),
     )
-    .chain(devices.into_iter().map(|device| {
-        let option = SelectOption::new(device.id, device.name).icon("icon-mic");
-        if device.is_default {
-            option.detail("Windows default")
-        } else {
-            option
-        }
-    }))
+    .chain(std::iter::once(
+        SelectOption::new(crate::HOTKEY_TARGET_ALL_MICROPHONES, ALL_MICROPHONES_LABEL)
+            .detail("Apply the action to every active microphone")
+            .icon("icon-mic"),
+    ))
+    .chain(
+        devices
+            .into_iter()
+            .map(|device| SelectOption::new(device.id, device.name).icon("icon-mic")),
+    )
     .collect::<Vec<_>>();
 
     rsx! {
@@ -644,11 +649,23 @@ fn action_options() -> Vec<SelectOption> {
 }
 
 fn target_label(target: Option<&str>, devices: &[crate::MicDevice]) -> String {
+    if matches!(target, Some(crate::HOTKEY_TARGET_ALL_MICROPHONES)) {
+        return ALL_MICROPHONES_LABEL.to_string();
+    }
+
     target
         .filter(|target| !target.is_empty())
         .and_then(|target| devices.iter().find(|device| device.id == target))
         .map(|device| device.name.clone())
-        .unwrap_or_else(|| "Selected microphone".to_string())
+        .unwrap_or_else(|| DEFAULT_TARGET_LABEL.to_string())
+}
+
+fn default_target_detail(devices: &[crate::MicDevice]) -> String {
+    devices
+        .iter()
+        .find(|device| device.is_default)
+        .map(|device| device.name.clone())
+        .unwrap_or_else(|| "Use the current Windows default microphone".to_string())
 }
 
 fn sync_legacy_shortcut(config: &mut crate::Config) {

@@ -58,6 +58,27 @@ impl SettingsTab {
         }
     }
 
+    fn active_icon(self) -> &'static str {
+        match self {
+            Self::General => "icon-settings-bold",
+            Self::HoldToMute => "icon-microphone-3-bold",
+            Self::Hotkeys => "icon-keyboard-bold",
+            Self::Sounds => "icon-volume-loud-bold",
+            Self::Overlay => "icon-monitor-bold",
+            Self::TrayIcon => "icon-widget-bold",
+            Self::AutoMute => "icon-magic-stick-3-bold",
+            Self::About => "icon-info-circle-bold",
+        }
+    }
+
+    fn icon_for_state(self, active: bool) -> &'static str {
+        if active {
+            self.active_icon()
+        } else {
+            self.icon()
+        }
+    }
+
     pub fn sections(self) -> &'static [SettingsSection] {
         match self {
             Self::General => &[SettingsSection {
@@ -130,7 +151,7 @@ pub fn render(mut active_tab: Signal<SettingsTab>, mut active_section: Signal<St
                         active_section.set(tab.first_section_id().to_string());
                         scroll_to_section(tab.first_section_id());
                     },
-                    span { class: "solar-icon nav-icon {tab.icon()}" }
+                    span { class: "solar-icon nav-icon {tab.icon_for_state(active_tab() == tab)}" }
                     span { "{tab.label()}" }
                 }
 
