@@ -16,7 +16,7 @@ use std::{
 use anyhow::{Context, Result};
 use dioxus::desktop::{Config as DesktopConfig, LogicalSize, WindowBuilder};
 use once_cell::sync::Lazy;
-use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Source};
+use rodio::{buffer::SamplesBuffer, Decoder, DeviceSinkBuilder, MixerDeviceSink, Source};
 use serde::{Deserialize, Serialize};
 use windows::{
     Win32::{
@@ -561,7 +561,7 @@ static AUDIO_ENGINE: Lazy<Mutex<Option<AudioEngine>>> = Lazy::new(|| Mutex::new(
 
 struct AudioEngine {
     sink: MixerDeviceSink,
-    cached_sounds: HashMap<String, Vec<u8>>,
+    cached_sounds: HashMap<String, SamplesBuffer>,
 }
 
 impl AudioEngine {
@@ -572,15 +572,17 @@ impl AudioEngine {
         })
     }
 
-    fn sound_bytes(&mut self, file: &str, path: &PathBuf) -> Result<Vec<u8>> {
-        if let Some(bytes) = self.cached_sounds.get(file) {
-            return Ok(bytes.clone());
+    fn decoded_sound(&mut self, file: &str, path: &PathBuf) -> Result<SamplesBuffer> {
+        if let Some(sound) = self.cached_sounds.get(file) {
+            return Ok(sound.clone());
         }
 
         let bytes =
             fs::read(path).with_context(|| format!("read sound asset {}", path.display()))?;
-        self.cached_sounds.insert(file.to_string(), bytes.clone());
-        Ok(bytes)
+        let decoder = Decoder::try_from(Cursor::new(bytes)).context("decode sound asset")?;
+        let sound = decoder.record();
+        self.cached_sounds.insert(file.to_string(), sound.clone());
+        Ok(sound)
     }
 }
 
@@ -679,8 +681,10 @@ fn run_background_app() -> Result<()> {
         state.hwnd = hwnd;
         state.muted = muted;
     }
+    let sound_settings = STATE.lock().unwrap().sound_settings.clone();
     native_overlay::init(instance.into(), muted, &overlay_config)?;
     apply_overlay_visibility();
+    prime_sound_assets(&sound_settings);
 
     install_keyboard_hook(instance.into())?;
     add_tray_icon(hwnd)?;
@@ -1328,10 +1332,24 @@ pub fn sound_theme_label(theme_id: &str) -> &'static str {
         .unwrap_or(SOUND_THEMES[0].label)
 }
 
-fn play_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
+fn prime_sound_assets(settings: &SoundSettings) {
+    if !settings.enabled {
+        return;
+    }
+
+    for (theme, muted) in [
+        (settings.mute_theme.as_str(), true),
+        (settings.unmute_theme.as_str(), false),
+    ] {
+        if let Err(err) = load_decoded_sound(theme, muted) {
+            eprintln!("failed to preload sound asset: {err:?}");
+        }
+    }
+}
+
+fn load_decoded_sound(theme: &str, muted: bool) -> Result<SamplesBuffer> {
     let file = sound_file_name(theme, muted);
     let path = sound_asset_path(&file).with_context(|| format!("find sound asset {file}"))?;
-    let volume = f32::from(volume.min(100)) / 100.0;
 
     let mut audio = AUDIO_ENGINE.lock().unwrap();
     if audio.is_none() {
@@ -1339,9 +1357,15 @@ fn play_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
     }
 
     let engine = audio.as_mut().expect("audio engine initialized");
-    let bytes = engine.sound_bytes(&file, &path)?;
-    let decoder = Decoder::try_from(Cursor::new(bytes)).context("decode sound asset")?;
-    engine.sink.mixer().add(decoder.amplify(volume));
+    engine.decoded_sound(&file, &path)
+}
+
+fn play_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
+    let volume = f32::from(volume.min(100)) / 100.0;
+    let sound = load_decoded_sound(theme, muted)?;
+    let mut audio = AUDIO_ENGINE.lock().unwrap();
+    let engine = audio.as_mut().expect("audio engine initialized");
+    engine.sink.mixer().add(sound.amplify(volume));
     Ok(())
 }
 
@@ -1571,6 +1595,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     drop(state);
     refresh_tray_tip();
     apply_overlay_visibility();
+    prime_sound_assets(&config.sound_settings);
 }
 
 fn normalize_hotkeys(hotkeys: &mut [HotkeyBinding]) {
