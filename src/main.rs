@@ -179,6 +179,8 @@ pub enum HotkeyAction {
     ToggleMute,
     Mute,
     Unmute,
+    HoldToMute,
+    HoldToUnmute,
     OpenSettings,
 }
 
@@ -187,14 +189,18 @@ impl HotkeyAction {
         Self::ToggleMute,
         Self::Mute,
         Self::Unmute,
+        Self::HoldToMute,
+        Self::HoldToUnmute,
         Self::OpenSettings,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::ToggleMute => "Toggle microphone",
+            Self::ToggleMute => "Toggle mic state",
             Self::Mute => "Mute microphone",
             Self::Unmute => "Unmute microphone",
+            Self::HoldToMute => "Hold to mute",
+            Self::HoldToUnmute => "Hold to unmute",
             Self::OpenSettings => "Open settings",
         }
     }
@@ -204,6 +210,8 @@ impl HotkeyAction {
             Self::ToggleMute => "ToggleMute",
             Self::Mute => "Mute",
             Self::Unmute => "Unmute",
+            Self::HoldToMute => "HoldToMute",
+            Self::HoldToUnmute => "HoldToUnmute",
             Self::OpenSettings => "OpenSettings",
         }
     }
@@ -212,13 +220,22 @@ impl HotkeyAction {
         match id {
             "Mute" => Self::Mute,
             "Unmute" => Self::Unmute,
+            "HoldToMute" => Self::HoldToMute,
+            "HoldToUnmute" => Self::HoldToUnmute,
             "OpenSettings" => Self::OpenSettings,
             _ => Self::ToggleMute,
         }
     }
 
     pub fn needs_target(self) -> bool {
-        matches!(self, Self::ToggleMute | Self::Mute | Self::Unmute)
+        matches!(
+            self,
+            Self::ToggleMute | Self::Mute | Self::Unmute | Self::HoldToMute | Self::HoldToUnmute
+        )
+    }
+
+    pub fn is_hold(self) -> bool {
+        matches!(self, Self::HoldToMute | Self::HoldToUnmute)
     }
 }
 
@@ -275,6 +292,8 @@ struct Config {
     #[serde(default)]
     sound_settings: SoundSettings,
     #[serde(default)]
+    hold_to_mute: HoldToMuteSettings,
+    #[serde(default)]
     overlay: OverlayConfig,
 }
 
@@ -286,6 +305,7 @@ impl Default for Config {
             hotkeys_paused: false,
             startup: StartupSettings::default(),
             sound_settings: SoundSettings::default(),
+            hold_to_mute: HoldToMuteSettings::default(),
             overlay: OverlayConfig::default(),
         }
     }
@@ -304,11 +324,19 @@ struct AppState {
     hotkeys: Vec<HotkeyBinding>,
     hotkeys_paused: bool,
     sound_settings: SoundSettings,
+    hold_to_mute: HoldToMuteSettings,
     overlay: OverlayConfig,
     muted: bool,
     shortcut_down: bool,
     hotkeys_down: HashSet<String>,
+    active_hold_hotkeys: HashMap<String, ActiveHoldHotkey>,
     config_modified: Option<SystemTime>,
+}
+
+#[derive(Clone, Debug)]
+struct ActiveHoldHotkey {
+    target: Option<String>,
+    previous_muted: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -450,6 +478,40 @@ fn default_sound_theme() -> String {
     "8bit".to_string()
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct HoldToMuteSettings {
+    #[serde(default = "default_hold_to_mute_play_sounds")]
+    pub play_sounds: bool,
+    #[serde(default = "default_hold_to_mute_show_overlay")]
+    pub show_overlay: bool,
+    #[serde(default)]
+    pub volume_override: Option<u8>,
+    #[serde(default)]
+    pub mute_theme_override: Option<String>,
+    #[serde(default)]
+    pub unmute_theme_override: Option<String>,
+}
+
+impl Default for HoldToMuteSettings {
+    fn default() -> Self {
+        Self {
+            play_sounds: default_hold_to_mute_play_sounds(),
+            show_overlay: default_hold_to_mute_show_overlay(),
+            volume_override: None,
+            mute_theme_override: None,
+            unmute_theme_override: None,
+        }
+    }
+}
+
+fn default_hold_to_mute_play_sounds() -> bool {
+    true
+}
+
+fn default_hold_to_mute_show_overlay() -> bool {
+    true
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SoundTheme {
     pub id: &'static str,
@@ -545,10 +607,12 @@ impl Default for AppState {
             hotkeys: config.hotkeys,
             hotkeys_paused: config.hotkeys_paused,
             sound_settings: config.sound_settings,
+            hold_to_mute: config.hold_to_mute,
             overlay: config.overlay,
             muted: false,
             shortcut_down: false,
             hotkeys_down: HashSet::new(),
+            active_hold_hotkeys: HashMap::new(),
             config_modified: config_modified_time(),
         }
     }
@@ -1103,8 +1167,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     }
 
     if is_up {
+        let mut actions = Vec::new();
         let mut state = STATE.lock().unwrap();
-        let released: Vec<String> = state
+        let released: Vec<HotkeyBinding> = state
             .hotkeys
             .iter()
             .filter(|hotkey| {
@@ -1113,13 +1178,23 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                         && is_modifier(vk)
                         && !hotkey.shortcut.is_pressed(vk, hotkey.ignore_modifiers))
             })
-            .map(|hotkey| hotkey.id.clone())
+            .cloned()
             .collect();
-        for id in released {
-            state.hotkeys_down.remove(&id);
+        for hotkey in released {
+            state.hotkeys_down.remove(&hotkey.id);
+            if hotkey.action.is_hold() {
+                actions.push(HotkeyRequest::ReleaseHold {
+                    id: hotkey.id.clone(),
+                });
+            }
         }
         if state.shortcut.vk == vk {
             state.shortcut_down = false;
+        }
+        drop(state);
+
+        for action in actions {
+            run_hotkey_action(action);
         }
     }
 
@@ -1127,8 +1202,21 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 }
 
 enum HotkeyRequest {
-    ToggleMute { target: Option<String> },
-    SetMute { target: Option<String>, muted: bool },
+    ToggleMute {
+        target: Option<String>,
+    },
+    SetMute {
+        target: Option<String>,
+        muted: bool,
+    },
+    StartHold {
+        id: String,
+        target: Option<String>,
+        muted: bool,
+    },
+    ReleaseHold {
+        id: String,
+    },
     OpenSettings,
 }
 
@@ -1145,6 +1233,16 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
             target: hotkey.target.clone(),
             muted: false,
         },
+        HotkeyAction::HoldToMute => HotkeyRequest::StartHold {
+            id: hotkey.id.clone(),
+            target: hotkey.target.clone(),
+            muted: true,
+        },
+        HotkeyAction::HoldToUnmute => HotkeyRequest::StartHold {
+            id: hotkey.id.clone(),
+            target: hotkey.target.clone(),
+            muted: false,
+        },
         HotkeyAction::OpenSettings => HotkeyRequest::OpenSettings,
     }
 }
@@ -1153,6 +1251,10 @@ fn run_hotkey_action(action: HotkeyRequest) {
     match action {
         HotkeyRequest::ToggleMute { target } => toggle_mute_target(target.as_deref()),
         HotkeyRequest::SetMute { target, muted } => set_mute_target(target.as_deref(), muted),
+        HotkeyRequest::StartHold { id, target, muted } => {
+            start_hold_hotkey(&id, target, muted);
+        }
+        HotkeyRequest::ReleaseHold { id } => release_hold_hotkey(&id),
         HotkeyRequest::OpenSettings => open_settings_window(),
     }
 }
@@ -1180,6 +1282,65 @@ fn set_mute_target(device_id: Option<&str>, muted: bool) {
             set_global_mute_state(global_muted, true);
         }
         Err(err) => eprintln!("failed to set microphone mute: {err:?}"),
+    }
+}
+
+fn start_hold_hotkey(id: &str, target: Option<String>, muted: bool) {
+    let previous_muted = match target_mute_state(target.as_deref()) {
+        Ok(previous_muted) => previous_muted,
+        Err(err) => {
+            eprintln!("failed to read hold hotkey state: {err:?}");
+            return;
+        }
+    };
+
+    match set_mute(target.as_deref(), muted) {
+        Ok(target_muted) => {
+            {
+                let mut state = STATE.lock().unwrap();
+                state.active_hold_hotkeys.insert(
+                    id.to_string(),
+                    ActiveHoldHotkey {
+                        target,
+                        previous_muted,
+                    },
+                );
+            }
+
+            let changed = previous_muted != target_muted;
+            if changed {
+                play_hold_to_mute_sound(target_muted);
+            }
+            let show_overlay = STATE.lock().unwrap().hold_to_mute.show_overlay;
+            let global_muted = current_mute_state().unwrap_or(target_muted);
+            set_global_mute_state(global_muted, changed && show_overlay);
+        }
+        Err(err) => eprintln!("failed to apply hold hotkey mute state: {err:?}"),
+    }
+}
+
+fn release_hold_hotkey(id: &str) {
+    let active_hold = {
+        let mut state = STATE.lock().unwrap();
+        state.active_hold_hotkeys.remove(id)
+    };
+    let Some(active_hold) = active_hold else {
+        return;
+    };
+
+    let current_muted =
+        target_mute_state(active_hold.target.as_deref()).unwrap_or(active_hold.previous_muted);
+    match set_mute(active_hold.target.as_deref(), active_hold.previous_muted) {
+        Ok(target_muted) => {
+            let changed = current_muted != target_muted;
+            if changed {
+                play_hold_to_mute_sound(target_muted);
+            }
+            let show_overlay = STATE.lock().unwrap().hold_to_mute.show_overlay;
+            let global_muted = current_mute_state().unwrap_or(target_muted);
+            set_global_mute_state(global_muted, changed && show_overlay);
+        }
+        Err(err) => eprintln!("failed to restore hold hotkey mute state: {err:?}"),
     }
 }
 
@@ -1300,6 +1461,13 @@ pub fn mic_mute_state(device_id: Option<&str>) -> Result<bool> {
     Ok(muted.as_bool())
 }
 
+fn target_mute_state(device_id: Option<&str>) -> Result<bool> {
+    if is_all_microphones_target(device_id) {
+        return current_mute_state();
+    }
+    mic_mute_state(device_id.filter(|id| !id.is_empty()))
+}
+
 fn set_mute_to_inverse(device_id: Option<&str>) -> Result<bool> {
     if is_all_microphones_target(device_id) {
         let next = !current_mute_state()?;
@@ -1339,6 +1507,36 @@ fn play_mute_sound(muted: bool) {
     };
     if let Err(err) = play_sound(theme, muted, settings.volume) {
         eprintln!("failed to play mute sound: {err:?}");
+    }
+}
+
+fn play_hold_to_mute_sound(muted: bool) {
+    let (sound_settings, hold_settings) = {
+        let state = STATE.lock().unwrap();
+        (state.sound_settings.clone(), state.hold_to_mute.clone())
+    };
+    if !sound_settings.enabled || !hold_settings.play_sounds {
+        return;
+    }
+
+    let theme = if muted {
+        hold_settings
+            .mute_theme_override
+            .as_deref()
+            .unwrap_or(sound_settings.mute_theme.as_str())
+    } else {
+        hold_settings
+            .unmute_theme_override
+            .as_deref()
+            .unwrap_or(sound_settings.unmute_theme.as_str())
+    };
+    let volume = hold_settings
+        .volume_override
+        .unwrap_or(sound_settings.volume)
+        .min(100);
+
+    if let Err(err) = play_sound(theme, muted, volume) {
+        eprintln!("failed to play hold-to-mute sound: {err:?}");
     }
 }
 
@@ -1613,6 +1811,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.hotkeys = config.hotkeys.clone();
     state.hotkeys_paused = config.hotkeys_paused;
     state.sound_settings = config.sound_settings.clone();
+    state.hold_to_mute = config.hold_to_mute.clone();
     state.overlay = config.overlay.clone();
     state.config_modified = modified;
     state.shortcut_down = false;

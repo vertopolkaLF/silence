@@ -168,6 +168,15 @@
   overflow: auto;
 }
 
+.ui-select-group {
+  padding: 8px 10px 2px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .ui-select-item {
   width: 100%;
   min-height: 46px;

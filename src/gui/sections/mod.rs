@@ -15,11 +15,21 @@ pub fn render(
     tab: SettingsTab,
     settings: Signal<super::SettingsSnapshot>,
     recording: Signal<bool>,
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    hotkey_modal_request: Signal<Option<super::HotkeyModalRequest>>,
 ) -> Element {
     match tab {
         SettingsTab::General => rsx! { GeneralSection { settings, recording } },
-        SettingsTab::HoldToMute => rsx! { HoldToMuteSection {} },
-        SettingsTab::Hotkeys => rsx! { HotkeysSection { settings } },
+        SettingsTab::HoldToMute => rsx! {
+            HoldToMuteSection {
+                settings,
+                active_tab,
+                active_section,
+                hotkey_modal_request,
+            }
+        },
+        SettingsTab::Hotkeys => rsx! { HotkeysSection { settings, hotkey_modal_request } },
         SettingsTab::Sounds => rsx! { SoundsSection { settings } },
         SettingsTab::Overlay => rsx! { OverlaySection { settings } },
         SettingsTab::TrayIcon => rsx! { TrayIconSection {} },
@@ -34,13 +44,21 @@ fn GeneralSection(settings: Signal<super::SettingsSnapshot>, recording: Signal<b
 }
 
 #[component]
-fn HoldToMuteSection() -> Element {
-    hold_to_mute::render()
+fn HoldToMuteSection(
+    settings: Signal<super::SettingsSnapshot>,
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    hotkey_modal_request: Signal<Option<super::HotkeyModalRequest>>,
+) -> Element {
+    hold_to_mute::render(settings, active_tab, active_section, hotkey_modal_request)
 }
 
 #[component]
-fn HotkeysSection(settings: Signal<super::SettingsSnapshot>) -> Element {
-    hotkeys::render(settings)
+fn HotkeysSection(
+    settings: Signal<super::SettingsSnapshot>,
+    hotkey_modal_request: Signal<Option<super::HotkeyModalRequest>>,
+) -> Element {
+    hotkeys::render(settings, hotkey_modal_request)
 }
 
 #[component]

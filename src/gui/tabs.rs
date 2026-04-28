@@ -177,7 +177,7 @@ pub fn render(mut active_tab: Signal<SettingsTab>, mut active_section: Signal<St
     }
 }
 
-fn scroll_to_section(id: &str) {
+pub(crate) fn scroll_to_section(id: &str) {
     let script = format!(
         r#"
         requestAnimationFrame(() => requestAnimationFrame(() => {{

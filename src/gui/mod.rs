@@ -37,6 +37,11 @@ pub struct SettingsSnapshot {
     pub muted: bool,
 }
 
+#[derive(Clone, PartialEq)]
+pub(crate) struct HotkeyModalRequest {
+    pub action: crate::HotkeyAction,
+}
+
 impl SettingsSnapshot {
     fn load() -> Self {
         Self::from_config(crate::load_config().unwrap_or_default())
@@ -76,6 +81,7 @@ pub fn settings_app() -> Element {
     let mut settings = use_signal(SettingsSnapshot::load);
     let active_tab = use_signal(|| SettingsTab::General);
     let active_section = use_signal(|| SettingsTab::General.first_section_id().to_string());
+    let hotkey_modal_request = use_signal(|| None::<HotkeyModalRequest>);
     let recording = use_signal(|| false);
     use_future(move || async move {
         loop {
@@ -163,7 +169,14 @@ pub fn settings_app() -> Element {
                     onscroll: move |_| {
                         update_active_section(active_section);
                     },
-                    {sections::render(active_tab(), settings, recording)}
+                    {sections::render(
+                        active_tab(),
+                        settings,
+                        recording,
+                        active_tab,
+                        active_section,
+                        hotkey_modal_request,
+                    )}
                 }
             }
         }

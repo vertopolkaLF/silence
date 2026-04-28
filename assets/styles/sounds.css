@@ -10,6 +10,13 @@
   margin-bottom: 4px;
 }
 
+.section-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
 .sound-card {
   display: grid;
   gap: 16px;
@@ -114,6 +121,41 @@
   gap: 10px;
 }
 
+.hold-to-mute-panel {
+  max-width: 720px;
+}
+
+.hold-option-list {
+  display: grid;
+  gap: 14px;
+}
+
+.sound-settings-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.22s ease,
+    opacity 0.18s ease,
+    visibility 0s linear 0.22s;
+}
+
+.sound-settings-collapse.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 0.22s ease,
+    opacity 0.18s ease,
+    visibility 0s linear;
+}
+
+.sound-settings-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .sound-select-row {
   align-items: stretch;
 }
@@ -121,6 +163,22 @@
 .sound-select-wrap {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.sound-meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.small-button {
+  height: 42px;
+  padding: 0 14px;
+}
+
+.configure-hotkey-button,
+.sound-meta-row .small-button {
+  flex: 0 0 auto;
 }
 
 .preview-button {
@@ -135,9 +193,21 @@
 }
 
 @media (max-width: 680px) {
+  .section-head-row,
   .sound-card-title,
-  .sound-row-head {
+  .sound-row-head,
+  .sound-select-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .sound-meta-row {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .preview-button,
+  .small-button {
+    width: 100%;
   }
 }

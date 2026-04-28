@@ -7,6 +7,7 @@ static NEXT_SELECT_ID: AtomicUsize = AtomicUsize::new(1);
 pub struct SelectOption {
     pub value: String,
     pub label: String,
+    pub group_label: Option<String>,
     pub detail: Option<String>,
     pub icon_class: Option<String>,
     pub end_icon_class: Option<String>,
@@ -17,10 +18,16 @@ impl SelectOption {
         Self {
             value: value.into(),
             label: label.into(),
+            group_label: None,
             detail: None,
             icon_class: None,
             end_icon_class: None,
         }
+    }
+
+    pub fn group(mut self, group_label: impl Into<String>) -> Self {
+        self.group_label = Some(group_label.into());
+        self
     }
 
     pub fn detail(mut self, detail: impl Into<String>) -> Self {
@@ -116,7 +123,22 @@ pub fn Select(
     } else {
         "ui-select-menu ready"
     };
-    let rendered_options = options.into_iter().map(|option| {
+    let mut rendered_options = Vec::new();
+    let mut current_group = None::<String>;
+    for option in options {
+        if option.group_label != current_group {
+            current_group = option.group_label.clone();
+            if let Some(group_label) = current_group.clone() {
+                rendered_options.push(rsx! {
+                    div {
+                        key: "select-group-{group_label}",
+                        class: "ui-select-group",
+                        "{group_label}"
+                    }
+                });
+            }
+        }
+
         let is_selected = option.value == value;
         let next_value = option.value.clone();
         let item_class = if is_selected {
@@ -126,7 +148,7 @@ pub fn Select(
         };
         let action_value = option.value.clone();
 
-        rsx! {
+        rendered_options.push(rsx! {
             div {
                 key: "select-option-{option.value}",
                 class: "{item_class}",
@@ -168,8 +190,8 @@ pub fn Select(
                     }
                 }
             }
-        }
-    });
+        });
+    }
 
     let position_select_id = select_id.clone();
     use_effect(move || {

@@ -8,7 +8,10 @@ const MODIFIER_HOLD_DURATION: Duration = Duration::from_millis(1000);
 const DEFAULT_TARGET_LABEL: &str = "Default";
 const ALL_MICROPHONES_LABEL: &str = "All microphones";
 
-pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
+pub fn render(
+    settings: Signal<super::super::SettingsSnapshot>,
+    mut modal_request: Signal<Option<super::super::HotkeyModalRequest>>,
+) -> Element {
     let mut modal = use_signal(|| None::<ModalMode>);
     let mut recording = use_signal(|| false);
     let mut modifier_hold_started = use_signal(|| None::<Instant>);
@@ -50,6 +53,31 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
         }
     });
 
+    use_effect(move || {
+        let Some(request) = modal_request() else {
+            return;
+        };
+
+        start_modal(
+            None,
+            None,
+            Some(request.action),
+            settings,
+            modal,
+            recording,
+            modifier_hold_started,
+            hold_progress,
+            pending_exiting,
+            live_modifier_shortcut,
+            recording_shortcut,
+            draft_shortcut,
+            draft_action,
+            draft_target,
+            draft_ignore_modifiers,
+        );
+        modal_request.set(None);
+    });
+
     let snapshot = settings();
     let hotkeys = snapshot.config.hotkeys.clone();
     let devices = snapshot.devices.clone();
@@ -89,6 +117,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                             start_modal(
                                 Some(binding.id.clone()),
                                 Some(binding),
+                                None,
                                 settings,
                                 modal,
                                 recording,
@@ -111,6 +140,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 class: "secondary add-hotkey-button",
                 onclick: move |_| {
                     start_modal(
+                        None,
                         None,
                         None,
                         settings,
@@ -216,6 +246,7 @@ enum ModalMode {
 fn start_modal(
     edit_id: Option<String>,
     binding: Option<crate::HotkeyBinding>,
+    preset_action: Option<crate::HotkeyAction>,
     settings: Signal<super::super::SettingsSnapshot>,
     mut modal: Signal<Option<ModalMode>>,
     mut recording: Signal<bool>,
@@ -237,7 +268,7 @@ fn start_modal(
         modal.set(Some(ModalMode::Edit(binding.id)));
     } else {
         draft_shortcut.set(None);
-        draft_action.set(crate::HotkeyAction::ToggleMute);
+        draft_action.set(preset_action.unwrap_or(crate::HotkeyAction::ToggleMute));
         draft_target.set(String::new());
         draft_ignore_modifiers.set(false);
         modal.set(Some(ModalMode::Add));
@@ -631,18 +662,12 @@ fn action_options() -> Vec<SelectOption> {
         .map(|action| {
             let option = SelectOption::new(action.id(), action.label());
             match action {
-                crate::HotkeyAction::ToggleMute => option
-                    .detail("Flip the mute state for the chosen microphone")
-                    .icon("icon-mic"),
-                crate::HotkeyAction::Mute => option
-                    .detail("Force the microphone into the muted state")
-                    .icon("icon-mic"),
-                crate::HotkeyAction::Unmute => option
-                    .detail("Force the microphone into the live state")
-                    .icon("icon-mic"),
-                crate::HotkeyAction::OpenSettings => option
-                    .detail("Bring the settings window to the front")
-                    .icon("icon-settings"),
+                crate::HotkeyAction::ToggleMute => option.group("Mute").icon("icon-mic"),
+                crate::HotkeyAction::Mute => option.group("Mute").icon("icon-mic"),
+                crate::HotkeyAction::Unmute => option.group("Mute").icon("icon-mic"),
+                crate::HotkeyAction::HoldToMute => option.group("Hold to mute").icon("icon-mic"),
+                crate::HotkeyAction::HoldToUnmute => option.group("Hold to mute").icon("icon-mic"),
+                crate::HotkeyAction::OpenSettings => option.group("Other").icon("icon-settings"),
             }
         })
         .collect()
