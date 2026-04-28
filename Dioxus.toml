@@ -1,0 +1,10 @@
+[application]
+name = "silence!"
+asset_dir = "assets"
+
+[bundle]
+identifier = "fun.silencemute"
+publisher = "vertopolkaLF"
+
+[bundle.windows]
+icon_path = "assets/app.ico"

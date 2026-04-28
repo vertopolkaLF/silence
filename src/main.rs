@@ -10,13 +10,13 @@ use std::{
     process::Command,
     ptr::{null, null_mut},
     sync::Mutex,
-    time::SystemTime,
+    time::{Duration, Instant, SystemTime},
 };
 
 use anyhow::{Context, Result};
 use dioxus::desktop::{Config as DesktopConfig, LogicalSize, WindowBuilder};
 use once_cell::sync::Lazy;
-use rodio::{buffer::SamplesBuffer, Decoder, DeviceSinkBuilder, MixerDeviceSink, Source};
+use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Source, buffer::SamplesBuffer};
 use serde::{Deserialize, Serialize};
 use windows::{
     Win32::{
@@ -560,15 +560,20 @@ static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState::default(
 static AUDIO_ENGINE: Lazy<Mutex<Option<AudioEngine>>> = Lazy::new(|| Mutex::new(None));
 
 struct AudioEngine {
-    sink: MixerDeviceSink,
     cached_sounds: HashMap<String, SamplesBuffer>,
+    active_sinks: Vec<ActiveSink>,
+}
+
+struct ActiveSink {
+    sink: MixerDeviceSink,
+    finishes_at: Instant,
 }
 
 impl AudioEngine {
     fn new() -> Result<Self> {
         Ok(Self {
-            sink: DeviceSinkBuilder::open_default_sink().context("open default audio stream")?,
             cached_sounds: HashMap::new(),
+            active_sinks: Vec::new(),
         })
     }
 
@@ -583,6 +588,27 @@ impl AudioEngine {
         let sound = decoder.record();
         self.cached_sounds.insert(file.to_string(), sound.clone());
         Ok(sound)
+    }
+
+    fn play_sound(&mut self, sound: SamplesBuffer, volume: f32) -> Result<()> {
+        self.prune_finished_sinks();
+
+        let mut sink =
+            DeviceSinkBuilder::open_default_sink().context("open default audio stream")?;
+        sink.log_on_drop(false);
+
+        let clip_duration = sound.total_duration().unwrap_or(Duration::from_secs(1));
+        sink.mixer().add(sound.amplify(volume));
+        self.active_sinks.push(ActiveSink {
+            sink,
+            finishes_at: Instant::now() + clip_duration + Duration::from_millis(250),
+        });
+        Ok(())
+    }
+
+    fn prune_finished_sinks(&mut self) {
+        let now = Instant::now();
+        self.active_sinks.retain(|sink| sink.finishes_at > now);
     }
 }
 
@@ -760,7 +786,7 @@ fn add_tray_icon(hwnd: HWND) -> Result<()> {
         hIcon: icon,
         ..Default::default()
     };
-    write_wide_buf(&mut nid.szTip, "Silence");
+    write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), "Silence");
     unsafe {
         Shell_NotifyIconW(NIM_ADD, &nid).ok()?;
     }
@@ -848,7 +874,7 @@ fn refresh_tray_tip() {
     } else {
         format!("Silence: microphone on ({primary_shortcut})")
     };
-    write_wide_buf(&mut nid.szTip, &tip);
+    write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), &tip);
     unsafe {
         let _ = Shell_NotifyIconW(NIM_MODIFY, &nid);
     }
@@ -1365,8 +1391,7 @@ fn play_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
     let sound = load_decoded_sound(theme, muted)?;
     let mut audio = AUDIO_ENGINE.lock().unwrap();
     let engine = audio.as_mut().expect("audio engine initialized");
-    engine.sink.mixer().add(sound.amplify(volume));
-    Ok(())
+    engine.play_sound(sound, volume)
 }
 
 fn sound_file_name(theme: &str, muted: bool) -> String {
@@ -1708,6 +1733,19 @@ fn write_wide_buf<const N: usize>(buf: &mut [u16; N], text: &str) {
     let len = (wide.len() - 1).min(N - 1);
     buf[..len].copy_from_slice(&wide[..len]);
     buf[len] = 0;
+}
+
+fn write_packed_wide_buf<const N: usize>(buf: *mut [u16; N], text: &str) {
+    let wide = wide(text);
+    let len = (wide.len() - 1).min(N - 1);
+    let ptr = buf.cast::<u16>();
+
+    unsafe {
+        for (index, value) in wide.iter().take(len).copied().enumerate() {
+            std::ptr::write_unaligned(ptr.add(index), value);
+        }
+        std::ptr::write_unaligned(ptr.add(len), 0);
+    }
 }
 
 fn wide(text: &str) -> Vec<u16> {
