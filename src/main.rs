@@ -39,11 +39,12 @@ use windows::{
                 HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_DWORD, RegDeleteKeyValueW, RegGetValueW,
                 RegSetKeyValueW,
             },
+            SystemInformation::GetTickCount,
             Threading::CreateMutexW,
         },
         UI::{
             HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
-            Input::KeyboardAndMouse::GetAsyncKeyState,
+            Input::KeyboardAndMouse::{GetAsyncKeyState, GetLastInputInfo, LASTINPUTINFO},
             Shell::{
                 NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
                 Shell_NotifyIconW,
@@ -303,6 +304,8 @@ struct Config {
     #[serde(default)]
     hold_to_mute: HoldToMuteSettings,
     #[serde(default)]
+    auto_mute: AutoMuteSettings,
+    #[serde(default)]
     overlay: OverlayConfig,
 }
 
@@ -315,6 +318,7 @@ impl Default for Config {
             startup: StartupSettings::default(),
             sound_settings: SoundSettings::default(),
             hold_to_mute: HoldToMuteSettings::default(),
+            auto_mute: AutoMuteSettings::default(),
             overlay: OverlayConfig::default(),
         }
     }
@@ -334,12 +338,16 @@ struct AppState {
     hotkeys_paused: bool,
     sound_settings: SoundSettings,
     hold_to_mute: HoldToMuteSettings,
+    auto_mute: AutoMuteSettings,
     overlay: OverlayConfig,
     modifiers: ModifierState,
     muted: bool,
     shortcut_down: bool,
     hotkeys_down: HashSet<String>,
     active_hold_hotkeys: HashMap<String, ActiveHoldHotkey>,
+    last_auto_mute_input_tick: u32,
+    auto_muted_by_inactivity: bool,
+    auto_mute_cursor_position: POINT,
     config_modified: Option<SystemTime>,
 }
 
@@ -530,6 +538,40 @@ fn default_hold_to_mute_show_overlay() -> bool {
     true
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct AutoMuteSettings {
+    #[serde(default)]
+    pub mute_on_startup: bool,
+    #[serde(default)]
+    pub after_inactivity_enabled: bool,
+    #[serde(default = "default_auto_mute_after_inactivity_minutes")]
+    pub after_inactivity_minutes: u16,
+    #[serde(default)]
+    pub unmute_on_activity: bool,
+    #[serde(default = "default_auto_mute_play_sounds")]
+    pub play_sounds: bool,
+}
+
+impl Default for AutoMuteSettings {
+    fn default() -> Self {
+        Self {
+            mute_on_startup: false,
+            after_inactivity_enabled: false,
+            after_inactivity_minutes: default_auto_mute_after_inactivity_minutes(),
+            unmute_on_activity: false,
+            play_sounds: default_auto_mute_play_sounds(),
+        }
+    }
+}
+
+fn default_auto_mute_after_inactivity_minutes() -> u16 {
+    5
+}
+
+fn default_auto_mute_play_sounds() -> bool {
+    true
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SoundTheme {
     pub id: &'static str,
@@ -626,12 +668,16 @@ impl Default for AppState {
             hotkeys_paused: config.hotkeys_paused,
             sound_settings: config.sound_settings,
             hold_to_mute: config.hold_to_mute,
+            auto_mute: config.auto_mute,
             overlay: config.overlay,
             modifiers: ModifierState::default(),
             muted: false,
             shortcut_down: false,
             hotkeys_down: HashSet::new(),
             active_hold_hotkeys: HashMap::new(),
+            last_auto_mute_input_tick: 0,
+            auto_muted_by_inactivity: false,
+            auto_mute_cursor_position: POINT::default(),
             config_modified: config_modified_time(),
         }
     }
@@ -796,6 +842,7 @@ fn run_background_app() -> Result<()> {
 
     install_keyboard_hook(instance.into())?;
     add_tray_icon(hwnd)?;
+    apply_startup_auto_mute();
     unsafe {
         let _ = SetTimer(hwnd, ID_STATE_TIMER, 250, None);
     }
@@ -1315,6 +1362,17 @@ fn set_mute_target(device_id: Option<&str>, muted: bool) {
     }
 }
 
+fn apply_startup_auto_mute() {
+    let settings = STATE.lock().unwrap().auto_mute.clone();
+    if !settings.mute_on_startup {
+        return;
+    }
+
+    if let Err(err) = apply_auto_mute(settings.play_sounds, false) {
+        eprintln!("failed to apply startup auto-mute: {err:?}");
+    }
+}
+
 fn start_hold_hotkey(id: &str, target: Option<String>, muted: bool) {
     let previous_muted = match target_mute_state(target.as_deref()) {
         Ok(previous_muted) => previous_muted,
@@ -1581,6 +1639,20 @@ fn play_hold_to_mute_sound(muted: bool) {
     }
 }
 
+fn play_auto_mute_sound() {
+    let (sound_settings, auto_mute) = {
+        let state = STATE.lock().unwrap();
+        (state.sound_settings.clone(), state.auto_mute.clone())
+    };
+    if !sound_settings.enabled || !auto_mute.play_sounds {
+        return;
+    }
+
+    if let Err(err) = play_sound(&sound_settings.mute_theme, true, sound_settings.volume) {
+        eprintln!("failed to play auto-mute sound: {err:?}");
+    }
+}
+
 pub fn preview_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
     play_sound(theme, muted, volume)
 }
@@ -1787,6 +1859,7 @@ unsafe fn capture_device_name(device: &IMMDevice) -> Option<String> {
 
 fn refresh_runtime_state() {
     reload_config_if_changed();
+    evaluate_auto_mute_inactivity();
     refresh_mute_state();
 }
 
@@ -1794,9 +1867,145 @@ fn refresh_mute_state() {
     let Ok(muted) = current_mute_state() else {
         return;
     };
+    if !muted && STATE.lock().unwrap().auto_muted_by_inactivity {
+        clear_inactivity_auto_mute_flag();
+    }
     let changed = STATE.lock().unwrap().muted != muted;
     if changed {
         set_global_mute_state(muted, true);
+    }
+}
+
+fn evaluate_auto_mute_inactivity() {
+    let settings = STATE.lock().unwrap().auto_mute.clone();
+    if !auto_mute_monitoring_enabled(&settings) {
+        reset_auto_mute_monitoring_state();
+        return;
+    }
+
+    if STATE.lock().unwrap().auto_muted_by_inactivity && !current_mute_state().unwrap_or(true) {
+        clear_inactivity_auto_mute_flag();
+    }
+
+    if STATE.lock().unwrap().auto_muted_by_inactivity
+        && settings.unmute_on_activity
+        && try_auto_unmute_from_mouse_movement()
+    {
+        return;
+    }
+
+    let last_input_tick = get_last_input_tick();
+    if last_input_tick == 0 {
+        return;
+    }
+
+    let threshold = Duration::from_secs(u64::from(settings.after_inactivity_minutes) * 60);
+    if get_idle_time(last_input_tick) < threshold {
+        return;
+    }
+
+    {
+        let state = STATE.lock().unwrap();
+        if state.last_auto_mute_input_tick == last_input_tick {
+            return;
+        }
+    }
+
+    STATE.lock().unwrap().last_auto_mute_input_tick = last_input_tick;
+    if let Err(err) = apply_auto_mute(settings.play_sounds, true) {
+        eprintln!("failed to apply inactivity auto-mute: {err:?}");
+    }
+}
+
+fn apply_auto_mute(play_sound: bool, from_inactivity: bool) -> Result<()> {
+    if current_mute_state()? {
+        return Ok(());
+    }
+
+    let target_muted = set_mute(None, true)?;
+    {
+        let mut state = STATE.lock().unwrap();
+        if from_inactivity {
+            state.auto_muted_by_inactivity = true;
+            state.auto_mute_cursor_position = get_cursor_position_or_default();
+        } else {
+            state.auto_muted_by_inactivity = false;
+            state.auto_mute_cursor_position = POINT::default();
+        }
+    }
+    set_global_mute_state(target_muted, true);
+
+    if play_sound {
+        play_auto_mute_sound();
+    }
+
+    Ok(())
+}
+
+fn try_auto_unmute_from_mouse_movement() -> bool {
+    let current_position = get_cursor_position_or_default();
+    let initial_position = STATE.lock().unwrap().auto_mute_cursor_position;
+    if current_position.x == initial_position.x && current_position.y == initial_position.y {
+        return false;
+    }
+
+    match set_mute(None, false) {
+        Ok(target_muted) if !target_muted => {
+            clear_inactivity_auto_mute_flag();
+            set_global_mute_state(false, true);
+            true
+        }
+        Ok(_) => false,
+        Err(err) => {
+            eprintln!("failed to auto-unmute after activity: {err:?}");
+            false
+        }
+    }
+}
+
+fn clear_inactivity_auto_mute_flag() {
+    let mut state = STATE.lock().unwrap();
+    state.auto_muted_by_inactivity = false;
+    state.auto_mute_cursor_position = POINT::default();
+}
+
+fn reset_auto_mute_monitoring_state() {
+    let mut state = STATE.lock().unwrap();
+    if !state.auto_muted_by_inactivity && state.last_auto_mute_input_tick == 0 {
+        return;
+    }
+    state.auto_muted_by_inactivity = false;
+    state.last_auto_mute_input_tick = 0;
+    state.auto_mute_cursor_position = POINT::default();
+}
+
+fn auto_mute_monitoring_enabled(settings: &AutoMuteSettings) -> bool {
+    settings.after_inactivity_enabled && settings.after_inactivity_minutes > 0
+}
+
+fn get_cursor_position_or_default() -> POINT {
+    let mut point = POINT::default();
+    if unsafe { GetCursorPos(&mut point) }.is_ok() {
+        point
+    } else {
+        POINT::default()
+    }
+}
+
+fn get_idle_time(last_input_tick: u32) -> Duration {
+    let current_tick = unsafe { GetTickCount() };
+    Duration::from_millis(u64::from(current_tick.wrapping_sub(last_input_tick)))
+}
+
+fn get_last_input_tick() -> u32 {
+    let mut info = LASTINPUTINFO {
+        cbSize: size_of::<LASTINPUTINFO>() as u32,
+        ..Default::default()
+    };
+    if unsafe { GetLastInputInfo(&mut info) }.as_bool() {
+        info.dwTime
+    } else {
+        0
     }
 }
 
@@ -1834,6 +2043,8 @@ fn load_config() -> Result<Config> {
         }];
     }
     normalize_hotkeys(&mut config.hotkeys);
+    config.auto_mute.after_inactivity_minutes =
+        config.auto_mute.after_inactivity_minutes.clamp(1, 1440);
     Ok(config)
 }
 
@@ -1861,11 +2072,17 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.hotkeys_paused = config.hotkeys_paused;
     state.sound_settings = config.sound_settings.clone();
     state.hold_to_mute = config.hold_to_mute.clone();
+    state.auto_mute = config.auto_mute.clone();
     state.overlay = config.overlay.clone();
     state.modifiers = ModifierState::default();
     state.config_modified = modified;
     state.shortcut_down = false;
     state.hotkeys_down.clear();
+    if !auto_mute_monitoring_enabled(&state.auto_mute) {
+        state.last_auto_mute_input_tick = 0;
+        state.auto_muted_by_inactivity = false;
+        state.auto_mute_cursor_position = POINT::default();
+    }
     drop(state);
     refresh_tray_tip();
     apply_overlay_visibility();

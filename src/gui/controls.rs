@@ -51,13 +51,21 @@ pub fn Checkbox(
     checked: bool,
     label: String,
     onchange: EventHandler<bool>,
+    #[props(default = false)] disabled: bool,
     #[props(default)] class: String,
 ) -> Element {
+    let root_class = if disabled {
+        merged_class("ui-checkbox disabled", &class)
+    } else {
+        merged_class("ui-checkbox", &class)
+    };
+
     rsx! {
-        label { class: merged_class("ui-checkbox", &class),
+        label { class: root_class,
             input {
                 r#type: "checkbox",
                 checked,
+                disabled,
                 onchange: move |evt| onchange.call(evt.checked())
             }
             span { class: "ui-checkbox-box",

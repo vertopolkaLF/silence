@@ -279,6 +279,11 @@
   cursor: pointer;
 }
 
+.ui-checkbox.disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
 .ui-checkbox input {
   position: absolute;
   inset: 0;
@@ -332,6 +337,12 @@
 .ui-checkbox input:focus-visible + .ui-checkbox-box {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+.ui-checkbox.disabled .ui-checkbox-box {
+  background: color-mix(in oklch, var(--surface-3) 88%, transparent);
+  border-color: color-mix(in oklch, var(--border-strong) 64%, transparent);
+  box-shadow: none;
 }
 
 .ui-checkbox-label {

@@ -33,7 +33,7 @@ pub fn render(
         SettingsTab::Sounds => rsx! { SoundsSection { settings } },
         SettingsTab::Overlay => rsx! { OverlaySection { settings } },
         SettingsTab::TrayIcon => rsx! { TrayIconSection {} },
-        SettingsTab::AutoMute => rsx! { AutoMuteSection {} },
+        SettingsTab::AutoMute => rsx! { AutoMuteSection { settings } },
         SettingsTab::About => rsx! { AboutSection {} },
     }
 }
@@ -77,8 +77,8 @@ fn TrayIconSection() -> Element {
 }
 
 #[component]
-fn AutoMuteSection() -> Element {
-    auto_mute::render()
+fn AutoMuteSection(settings: Signal<super::SettingsSnapshot>) -> Element {
+    auto_mute::render(settings)
 }
 
 #[component]
