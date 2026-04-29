@@ -116,22 +116,18 @@ impl Default for Shortcut {
 }
 
 impl Shortcut {
-    fn is_pressed(&self, vk: u32, ignore_modifiers: bool) -> bool {
+    fn is_pressed(&self, vk: u32, ignore_modifiers: bool, modifiers: &ModifierState) -> bool {
         if self.vk == 0 {
-            let current_ctrl = key_down(VK_CONTROL);
-            let current_alt = key_down(VK_MENU);
-            let current_shift = key_down(VK_SHIFT);
-            let current_win = key_down(VK_LWIN) || key_down(VK_RWIN);
             if ignore_modifiers {
-                return (!self.ctrl || current_ctrl)
-                    && (!self.alt || current_alt)
-                    && (!self.shift || current_shift)
-                    && (!self.win || current_win);
+                return (!self.ctrl || modifiers.ctrl)
+                    && (!self.alt || modifiers.alt)
+                    && (!self.shift || modifiers.shift)
+                    && (!self.win || modifiers.win);
             }
-            return self.ctrl == current_ctrl
-                && self.alt == current_alt
-                && self.shift == current_shift
-                && self.win == current_win;
+            return self.ctrl == modifiers.ctrl
+                && self.alt == modifiers.alt
+                && self.shift == modifiers.shift
+                && self.win == modifiers.win;
         }
 
         if ignore_modifiers {
@@ -139,10 +135,10 @@ impl Shortcut {
         }
 
         self.vk == vk
-            && self.ctrl == key_down(VK_CONTROL)
-            && self.alt == key_down(VK_MENU)
-            && self.shift == key_down(VK_SHIFT)
-            && self.win == (key_down(VK_LWIN) || key_down(VK_RWIN))
+            && self.ctrl == modifiers.ctrl
+            && self.alt == modifiers.alt
+            && self.shift == modifiers.shift
+            && self.win == modifiers.win
     }
 
     fn display(self) -> String {
@@ -339,6 +335,7 @@ struct AppState {
     sound_settings: SoundSettings,
     hold_to_mute: HoldToMuteSettings,
     overlay: OverlayConfig,
+    modifiers: ModifierState,
     muted: bool,
     shortcut_down: bool,
     hotkeys_down: HashSet<String>,
@@ -350,6 +347,14 @@ struct AppState {
 struct ActiveHoldHotkey {
     target: Option<String>,
     previous_muted: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct ModifierState {
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    win: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -622,6 +627,7 @@ impl Default for AppState {
             sound_settings: config.sound_settings,
             hold_to_mute: config.hold_to_mute,
             overlay: config.overlay,
+            modifiers: ModifierState::default(),
             muted: false,
             shortcut_down: false,
             hotkeys_down: HashSet::new(),
@@ -1137,9 +1143,10 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 
     if is_down {
         let mut actions = Vec::new();
-        let mut consumed = false;
         {
             let mut state = STATE.lock().unwrap();
+            update_modifier_state(&mut state.modifiers, vk, true);
+            let modifiers = state.modifiers;
             let matching_hotkeys: Vec<HotkeyBinding> = state
                 .hotkeys
                 .iter()
@@ -1147,7 +1154,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                     if hotkey.shortcut.vk == 0 && !is_modifier(vk) {
                         return false;
                     }
-                    hotkey.shortcut.is_pressed(vk, hotkey.ignore_modifiers)
+                    hotkey
+                        .shortcut
+                        .is_pressed(vk, hotkey.ignore_modifiers, &modifiers)
                 })
                 .cloned()
                 .collect();
@@ -1167,21 +1176,19 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 if !state.hotkeys_down.contains(&hotkey.id) {
                     state.hotkeys_down.insert(hotkey.id.clone());
                     actions.push(hotkey_action_request(&hotkey));
-                    consumed = true;
                 }
             }
         }
         for action in actions {
             run_hotkey_action(action);
         }
-        if consumed {
-            return LRESULT(1);
-        }
     }
 
     if is_up {
         let mut actions = Vec::new();
         let mut state = STATE.lock().unwrap();
+        update_modifier_state(&mut state.modifiers, vk, false);
+        let modifiers = state.modifiers;
         let released: Vec<HotkeyBinding> = state
             .hotkeys
             .iter()
@@ -1189,7 +1196,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 hotkey.shortcut.vk == vk
                     || (hotkey.shortcut.vk == 0
                         && is_modifier(vk)
-                        && !hotkey.shortcut.is_pressed(vk, hotkey.ignore_modifiers))
+                        && !hotkey
+                            .shortcut
+                            .is_pressed(vk, hotkey.ignore_modifiers, &modifiers))
             })
             .cloned()
             .collect();
@@ -1846,6 +1855,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.sound_settings = config.sound_settings.clone();
     state.hold_to_mute = config.hold_to_mute.clone();
     state.overlay = config.overlay.clone();
+    state.modifiers = ModifierState::default();
     state.config_modified = modified;
     state.shortcut_down = false;
     state.hotkeys_down.clear();
@@ -1935,7 +1945,35 @@ fn key_down(vk: u32) -> bool {
 }
 
 fn is_modifier(vk: u32) -> bool {
-    matches!(vk, VK_SHIFT | VK_CONTROL | VK_MENU | VK_LWIN | VK_RWIN)
+    modifier_kind(vk).is_some()
+}
+
+fn update_modifier_state(modifiers: &mut ModifierState, vk: u32, pressed: bool) {
+    match modifier_kind(vk) {
+        Some(ModifierKind::Ctrl) => modifiers.ctrl = pressed,
+        Some(ModifierKind::Alt) => modifiers.alt = pressed,
+        Some(ModifierKind::Shift) => modifiers.shift = pressed,
+        Some(ModifierKind::Win) => modifiers.win = pressed,
+        None => {}
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ModifierKind {
+    Ctrl,
+    Alt,
+    Shift,
+    Win,
+}
+
+fn modifier_kind(vk: u32) -> Option<ModifierKind> {
+    match vk {
+        VK_SHIFT | 0xA0 | 0xA1 => Some(ModifierKind::Shift),
+        VK_CONTROL | 0xA2 | 0xA3 => Some(ModifierKind::Ctrl),
+        VK_MENU | 0xA4 | 0xA5 => Some(ModifierKind::Alt),
+        VK_LWIN | VK_RWIN => Some(ModifierKind::Win),
+        _ => None,
+    }
 }
 
 fn vk_name(vk: u32) -> String {
