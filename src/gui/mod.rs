@@ -14,9 +14,11 @@ const INFO_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/info-circle-bold.svg"
 const KEYBOARD_BOLD_ICON: Asset = asset!("/assets/icons/keyboard-bold.svg");
 const KEYBOARD_LINEAR_ICON: Asset = asset!("/assets/icons/keyboard-linear.svg");
 const MAGIC_STICK_3_BOLD_ICON: Asset = asset!("/assets/icons/magic-stick-3-bold.svg");
+const BRICOLAGE_GROTESQUE_FONT: Asset = asset!("/assets/fonts/BricolageGrotesque-latin.woff2");
+const PLUS_JAKARTA_SANS_FONT: Asset = asset!("/assets/fonts/PlusJakartaSans-latin.woff2");
 const CONTROLS_CSS: Asset = asset!("/assets/styles/controls.css", AssetOptions::css());
 const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::css());
-const GEIST_FONT: Asset = asset!("/assets/fonts/Geist-VariableFont_wght.ttf");
+const INTER_FONT: Asset = asset!("/assets/fonts/InterVariable.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
@@ -107,11 +109,27 @@ html, body, #main {{
 fn settings_font_face() -> String {
     format!(
         r#"@font-face {{
-  font-family: "Geist";
-  src: url("{GEIST_FONT}") format("truetype");
-  font-weight: 400;
+  font-family: "Bricolage Grotesque";
+  src: url("{BRICOLAGE_GROTESQUE_FONT}") format("woff2");
+  font-weight: 400 800;
   font-style: normal;
-  font-display: optional;
+  font-display: block;
+}}
+
+@font-face {{
+  font-family: "Plus Jakarta Sans";
+  src: url("{PLUS_JAKARTA_SANS_FONT}") format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: block;
+}}
+
+@font-face {{
+  font-family: "Inter";
+  src: url("{INTER_FONT}") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }}"#
     )
 }
@@ -190,6 +208,7 @@ pub fn settings_app() -> Element {
     });
 
     rsx! {
+        style { {settings_font_face()} }
         div {
             class: if closing() { "window closing" } else { "window" },
             div {

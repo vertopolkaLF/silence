@@ -14,8 +14,10 @@
   height: 34px;
   margin: 6px 12px 12px;
   color: var(--text);
+  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
   font-size: 14px;
   font-weight: 620;
+  letter-spacing: 0;
 }
 
 .sidebar-brand-icon {
@@ -39,7 +41,7 @@
   text-align: left;
   font: inherit;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
   transition: background var(--ui-transition), color var(--ui-transition);
 }
 
@@ -96,7 +98,7 @@
   border-radius: 0;
   padding: 0;
   background: transparent;
-  color: var(--faint);
+  color: var(--muted);
   text-align: left;
   font: inherit;
   font-size: 13px;
@@ -110,7 +112,7 @@
 }
 
 .nav-subitem.active {
-  color: var(--accent-text);
+  color: var(--accent);
   background: transparent;
   font-weight: 620;
 }

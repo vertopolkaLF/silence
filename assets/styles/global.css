@@ -2,7 +2,7 @@
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: oklch(44.95% 0 0) transparent;
-  font-family: "Geist", "Aptos", sans-serif;
+  font-family: "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
   user-select: none;
 }
 
@@ -60,6 +60,7 @@ body {
 
 h1 {
   margin: 0;
+  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
   font-size: 24px;
   line-height: 1.2;
   font-weight: 650;
@@ -68,19 +69,33 @@ h1 {
 
 h2 {
   margin: 0;
+  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
   font-size: 17px;
   line-height: 1.25;
   font-weight: 650;
   letter-spacing: 0;
 }
 
-h3,
+h3 {
+  margin: 0;
+  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+h4,
 label {
   margin: 0;
   font-size: 14px;
   line-height: 1.35;
   font-weight: 600;
   letter-spacing: 0;
+}
+
+h4 {
+  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
 }
 
 p {
