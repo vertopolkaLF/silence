@@ -95,7 +95,7 @@ input {
 }
 
 button {
-  cursor: default;
+  cursor: pointer;
 }
 
 .solar-icon {

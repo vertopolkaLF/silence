@@ -1846,6 +1846,14 @@ fn save_config(config: &Config) -> Result<()> {
     Ok(())
 }
 
+pub fn open_external(target: &str) -> Result<()> {
+    Command::new("explorer")
+        .arg(target)
+        .spawn()
+        .with_context(|| format!("open external target {target}"))?;
+    Ok(())
+}
+
 pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     let mut state = STATE.lock().unwrap();
     state.shortcut = config.shortcut;

@@ -8,6 +8,7 @@ mod tabs;
 use tabs::SettingsTab;
 
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
+const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
 const INFO_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/info-circle-bold.svg");
 const KEYBOARD_BOLD_ICON: Asset = asset!("/assets/icons/keyboard-bold.svg");
@@ -93,6 +94,7 @@ html, body, #main {{
 <link rel="stylesheet" href="{TITLEBAR_CSS}">
 <link rel="stylesheet" href="{TABS_CSS}">
 <link rel="stylesheet" href="{GENERAL_CSS}">
+<link rel="stylesheet" href="{ABOUT_CSS}">
 <link rel="stylesheet" href="{SOUNDS_CSS}">
 <link rel="stylesheet" href="{OVERLAY_CSS}">
 <link rel="stylesheet" href="{HOTKEYS_CSS}">

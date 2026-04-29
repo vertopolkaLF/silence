@@ -1,0 +1,156 @@
+.about-panel {
+  width: min(760px, 100%);
+  display: grid;
+  gap: 18px;
+}
+
+.about-hero,
+.about-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--surface-2) 88%, var(--accent) 12%),
+      var(--surface-2)
+    );
+  box-shadow: 0 8px 26px var(--shadow-faint);
+}
+
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+}
+
+.about-app-icon {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  border-radius: 18px;
+  box-shadow: 0 8px 18px color-mix(in oklch, var(--shadow-medium) 65%, transparent);
+}
+
+.about-hero-copy {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.about-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+.about-version-pill {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid color-mix(in oklch, var(--border-strong) 78%, var(--accent));
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface));
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.about-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.about-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.about-card-icon {
+  color: var(--accent-text);
+}
+
+.about-update-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.about-update-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.about-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.about-signoff-card {
+  justify-items: center;
+  text-align: center;
+}
+
+.about-made-by {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.about-credits-card {
+  gap: 14px;
+}
+
+.about-credits-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.about-credits-list li {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .about-hero {
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .about-app-icon {
+    width: 64px;
+    height: 64px;
+    flex-basis: 64px;
+  }
+
+  .about-card {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .about-hero {
+    flex-direction: column;
+  }
+
+  .about-update-status,
+  .about-actions {
+    width: 100%;
+  }
+
+  .about-actions .secondary {
+    flex: 1 1 180px;
+  }
+}
