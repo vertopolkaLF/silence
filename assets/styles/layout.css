@@ -17,11 +17,12 @@
 .content {
   overflow-y: auto;
   min-height: 0;
-  padding: 50px 48px 50px;
+  padding: 50px 34px 50px 38px;
   background: var(--surface);
   border-top-left-radius: 16px;
   border-bottom-left-radius: 16px;
   box-shadow: -1px -1px 0 var(--highlight-line);
+  scrollbar-gutter: stable;
 }
 
 [data-settings-section] {

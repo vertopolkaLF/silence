@@ -665,6 +665,7 @@ fn action_options() -> Vec<SelectOption> {
                 crate::HotkeyAction::ToggleMute => option.group("Mute").icon("icon-mic"),
                 crate::HotkeyAction::Mute => option.group("Mute").icon("icon-mic"),
                 crate::HotkeyAction::Unmute => option.group("Mute").icon("icon-mic"),
+                crate::HotkeyAction::HoldToToggle => option.group("Hold to mute").icon("icon-mic"),
                 crate::HotkeyAction::HoldToMute => option.group("Hold to mute").icon("icon-mic"),
                 crate::HotkeyAction::HoldToUnmute => option.group("Hold to mute").icon("icon-mic"),
                 crate::HotkeyAction::OpenSettings => option.group("Other").icon("icon-settings"),

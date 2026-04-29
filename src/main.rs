@@ -179,6 +179,7 @@ pub enum HotkeyAction {
     ToggleMute,
     Mute,
     Unmute,
+    HoldToToggle,
     HoldToMute,
     HoldToUnmute,
     OpenSettings,
@@ -189,6 +190,7 @@ impl HotkeyAction {
         Self::ToggleMute,
         Self::Mute,
         Self::Unmute,
+        Self::HoldToToggle,
         Self::HoldToMute,
         Self::HoldToUnmute,
         Self::OpenSettings,
@@ -199,6 +201,7 @@ impl HotkeyAction {
             Self::ToggleMute => "Toggle mic state",
             Self::Mute => "Mute microphone",
             Self::Unmute => "Unmute microphone",
+            Self::HoldToToggle => "Hold to toggle state",
             Self::HoldToMute => "Hold to mute",
             Self::HoldToUnmute => "Hold to unmute",
             Self::OpenSettings => "Open settings",
@@ -210,6 +213,7 @@ impl HotkeyAction {
             Self::ToggleMute => "ToggleMute",
             Self::Mute => "Mute",
             Self::Unmute => "Unmute",
+            Self::HoldToToggle => "HoldToToggle",
             Self::HoldToMute => "HoldToMute",
             Self::HoldToUnmute => "HoldToUnmute",
             Self::OpenSettings => "OpenSettings",
@@ -220,6 +224,7 @@ impl HotkeyAction {
         match id {
             "Mute" => Self::Mute,
             "Unmute" => Self::Unmute,
+            "HoldToToggle" => Self::HoldToToggle,
             "HoldToMute" => Self::HoldToMute,
             "HoldToUnmute" => Self::HoldToUnmute,
             "OpenSettings" => Self::OpenSettings,
@@ -230,12 +235,20 @@ impl HotkeyAction {
     pub fn needs_target(self) -> bool {
         matches!(
             self,
-            Self::ToggleMute | Self::Mute | Self::Unmute | Self::HoldToMute | Self::HoldToUnmute
+            Self::ToggleMute
+                | Self::Mute
+                | Self::Unmute
+                | Self::HoldToToggle
+                | Self::HoldToMute
+                | Self::HoldToUnmute
         )
     }
 
     pub fn is_hold(self) -> bool {
-        matches!(self, Self::HoldToMute | Self::HoldToUnmute)
+        matches!(
+            self,
+            Self::HoldToToggle | Self::HoldToMute | Self::HoldToUnmute
+        )
     }
 }
 
@@ -1214,6 +1227,10 @@ enum HotkeyRequest {
         target: Option<String>,
         muted: bool,
     },
+    StartHoldToggle {
+        id: String,
+        target: Option<String>,
+    },
     ReleaseHold {
         id: String,
     },
@@ -1232,6 +1249,10 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
         HotkeyAction::Unmute => HotkeyRequest::SetMute {
             target: hotkey.target.clone(),
             muted: false,
+        },
+        HotkeyAction::HoldToToggle => HotkeyRequest::StartHoldToggle {
+            id: hotkey.id.clone(),
+            target: hotkey.target.clone(),
         },
         HotkeyAction::HoldToMute => HotkeyRequest::StartHold {
             id: hotkey.id.clone(),
@@ -1254,6 +1275,7 @@ fn run_hotkey_action(action: HotkeyRequest) {
         HotkeyRequest::StartHold { id, target, muted } => {
             start_hold_hotkey(&id, target, muted);
         }
+        HotkeyRequest::StartHoldToggle { id, target } => start_hold_toggle_hotkey(&id, target),
         HotkeyRequest::ReleaseHold { id } => release_hold_hotkey(&id),
         HotkeyRequest::OpenSettings => open_settings_window(),
     }
@@ -1317,6 +1339,17 @@ fn start_hold_hotkey(id: &str, target: Option<String>, muted: bool) {
         }
         Err(err) => eprintln!("failed to apply hold hotkey mute state: {err:?}"),
     }
+}
+
+fn start_hold_toggle_hotkey(id: &str, target: Option<String>) {
+    let previous_muted = match target_mute_state(target.as_deref()) {
+        Ok(previous_muted) => previous_muted,
+        Err(err) => {
+            eprintln!("failed to read hold toggle hotkey state: {err:?}");
+            return;
+        }
+    };
+    start_hold_hotkey(id, target, !previous_muted);
 }
 
 fn release_hold_hotkey(id: &str) {
