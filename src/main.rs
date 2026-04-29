@@ -749,15 +749,14 @@ fn main() -> Result<()> {
                     .with_title(SETTINGS_WINDOW_TITLE)
                     .with_decorations(false)
                     .with_resizable(true)
+                    .with_visible(false)
                     .with_inner_size(LogicalSize::new(760.0, 590.0)),
             )
             .with_icon(
                 dioxus::desktop::icon_from_memory(include_bytes!("../assets/app.png"))
                     .expect("load app icon"),
             )
-            .with_custom_head(
-                r#"<link rel="icon" href="/assets/app.ico" type="image/x-icon">"#.to_string(),
-            )
+            .with_custom_head(gui::settings_startup_head())
             .with_background_color((18, 18, 18, 255));
         dioxus::LaunchBuilder::desktop()
             .with_cfg(cfg)

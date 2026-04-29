@@ -4,6 +4,15 @@
   height: 100vh;
   overflow: hidden;
   background: var(--bg);
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.window.closing {
+  opacity: 0;
+  transform: scale(0.985);
+  pointer-events: none;
 }
 
 .body {
