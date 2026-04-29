@@ -19,7 +19,7 @@ pub fn render() -> Element {
                     alt: "silence! app icon"
                 }
                 div { class: "about-hero-copy",
-                    div { class: "about-title-row",
+                    div { class: "about-title-row section-head-row",
                         h1 { "silence!" }
                         span { class: "about-version-pill", "{version}" }
                     }

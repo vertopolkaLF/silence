@@ -13,7 +13,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
 
     rsx! {
         section { class: "sounds-panel",
-            div { class: "sounds-header",
+            div { class: "sounds-header section-head-row",
                 id: "sounds-overview",
                 "data-settings-section": "true",
                 h1 { "Sounds" }

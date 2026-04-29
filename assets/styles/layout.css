@@ -26,7 +26,7 @@
 .content {
   overflow-y: auto;
   min-height: 0;
-  padding: 50px 34px 50px 38px;
+  padding: 44px 34px 44px 38px;
   background: var(--surface);
   border-top-left-radius: 16px;
   border-bottom-left-radius: 16px;

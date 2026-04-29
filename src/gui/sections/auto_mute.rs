@@ -20,7 +20,9 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
             "data-settings-section": "true",
 
             div { class: "auto-mute-header",
-                h1 { "Auto-Mute" }
+                div { class: "section-head-row",
+                    h1 { "Auto-Mute" }
+                }
                 p { "Automatically mute the microphone on startup or after inactivity." }
             }
 

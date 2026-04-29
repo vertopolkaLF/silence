@@ -1,27 +1,17 @@
 .about-panel {
   width: min(760px, 100%);
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 .about-hero,
-.about-card {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--surface-2) 88%, var(--accent) 12%),
-      var(--surface-2)
-    );
-  box-shadow: 0 8px 26px var(--shadow-faint);
-}
+.about-card {}
 
 .about-hero {
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 24px;
+  margin-bottom: 18px;
 }
 
 .about-app-icon {
@@ -35,7 +25,6 @@
 .about-hero-copy {
   min-width: 0;
   display: grid;
-  gap: 10px;
 }
 
 .about-title-row {
@@ -50,9 +39,8 @@
   display: inline-flex;
   align-items: center;
   padding: 0 10px;
-  border: 1px solid color-mix(in oklch, var(--border-strong) 78%, var(--accent));
   border-radius: 999px;
-  background: color-mix(in oklch, var(--accent) 10%, var(--surface));
+  background: var(--surface-color-5);
   color: var(--accent-text);
   font-size: 13px;
   font-weight: 600;
@@ -62,6 +50,9 @@
   display: grid;
   gap: 16px;
   padding: 18px 20px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: 0 8px 26px var(--shadow-faint);
 }
 
 .about-card-head {

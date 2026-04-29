@@ -62,7 +62,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
             class: "overlay-panel",
             id: "overlay-overview",
             "data-settings-section": "true",
-            div { class: "overlay-header",
+            div { class: "overlay-header section-head-row",
                 h1 { "Overlay" }
             }
 
@@ -186,7 +186,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
             section { class: "sound-card overlay-appearance",
                 id: "overlay-appearance",
                 "data-settings-section": "true",
-                div { class: "section-head", h1 { "Appearance" } }
+                div { class: "section-head section-head-row", h1 { "Appearance" } }
 
                 div { class: "overlay-field",
                     label { "Overlay style" }

@@ -7,11 +7,11 @@
 .sounds-header {
   display: grid;
   gap: 8px;
-  margin-bottom: 4px;
 }
 
 .section-head-row {
   display: flex;
+  height: 40px;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
@@ -78,15 +78,15 @@
   transition: transform var(--ui-transition);
 }
 
-.toggle input:checked + .toggle-track {
+.toggle input:checked+.toggle-track {
   background: var(--accent);
 }
 
-.toggle input:checked + .toggle-track::after {
+.toggle input:checked+.toggle-track::after {
   transform: translateX(20px);
 }
 
-.toggle input:focus-visible + .toggle-track {
+.toggle input:focus-visible+.toggle-track {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -193,10 +193,12 @@
 }
 
 @media (max-width: 680px) {
+
   .section-head-row,
   .sound-card-title,
   .sound-row-head,
   .sound-select-row {
+    height: auto;
     align-items: flex-start;
     flex-direction: column;
   }

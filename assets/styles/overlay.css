@@ -4,6 +4,10 @@
   margin-bottom: 4px;
 }
 
+.overlay-header.section-head-row {
+  display: flex;
+}
+
 .overlay-panel {
   display: grid;
   gap: 18px;

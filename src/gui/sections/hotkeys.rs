@@ -89,7 +89,7 @@ pub fn render(
             class: "hotkeys-panel",
             id: "hotkeys-overview",
             "data-settings-section": "true",
-            div { class: "sounds-header",
+            div { class: "sounds-header section-head-row",
                 h1 { "Hotkeys" }
             }
 

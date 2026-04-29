@@ -96,7 +96,9 @@ fn empty_section(tab: SettingsTab) -> Element {
             div {
                 class: "empty-card",
                 span { class: "solar-icon empty-icon icon-settings" }
-                h1 { "{tab.label()}" }
+                div { class: "section-head-row",
+                    h1 { "{tab.label()}" }
+                }
                 p { "This section is reserved for future settings." }
             }
         }
