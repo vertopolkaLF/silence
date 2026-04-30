@@ -5,7 +5,6 @@
   overflow: hidden;
   background: var(--bg);
   opacity: 1;
-  transform: scale(1);
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
@@ -41,8 +40,6 @@
   position: absolute;
   inset: 0;
   backface-visibility: hidden;
-  transform: translate3d(0, 0, 0);
-  will-change: transform, opacity;
 }
 
 .content-panel.resting,
@@ -81,18 +78,22 @@
 }
 
 .content-panel.enter-from-right {
+  will-change: transform;
   animation: content-enter-from-right var(--tab-transition-duration) var(--tab-transition-ease) both;
 }
 
 .content-panel.enter-from-left {
+  will-change: transform;
   animation: content-enter-from-left var(--tab-transition-duration) var(--tab-transition-ease) both;
 }
 
 .content-panel.exit-to-left {
+  will-change: transform;
   animation: content-exit-to-left var(--tab-transition-duration) var(--tab-transition-ease) both;
 }
 
 .content-panel.exit-to-right {
+  will-change: transform;
   animation: content-exit-to-right var(--tab-transition-duration) var(--tab-transition-ease) both;
 }
 

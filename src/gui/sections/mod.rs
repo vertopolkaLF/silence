@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use super::tabs::SettingsTab;
+use super::tabs::{SettingsTab, TabTransition};
 
 mod about;
 mod auto_mute;
@@ -17,7 +17,12 @@ pub fn render(
     recording: Signal<bool>,
     active_tab: Signal<SettingsTab>,
     active_section: Signal<String>,
+    displayed_tab: Signal<SettingsTab>,
+    transition: Signal<Option<TabTransition>>,
+    transition_id: Signal<u64>,
+    pending_tab: Signal<Option<SettingsTab>>,
     hotkey_modal_request: Signal<Option<super::HotkeyModalRequest>>,
+    pending_hotkey_modal_after_nav: Signal<Option<super::HotkeyModalRequest>>,
 ) -> Element {
     match tab {
         SettingsTab::General => rsx! { GeneralSection { settings, recording } },
@@ -26,7 +31,11 @@ pub fn render(
                 settings,
                 active_tab,
                 active_section,
-                hotkey_modal_request,
+                displayed_tab,
+                transition,
+                transition_id,
+                pending_tab,
+                pending_hotkey_modal_after_nav,
             }
         },
         SettingsTab::Hotkeys => rsx! { HotkeysSection { settings, hotkey_modal_request } },
@@ -48,9 +57,29 @@ fn HoldToMuteSection(
     settings: Signal<super::SettingsSnapshot>,
     active_tab: Signal<SettingsTab>,
     active_section: Signal<String>,
+    displayed_tab: Signal<SettingsTab>,
+    transition: Signal<Option<TabTransition>>,
+    transition_id: Signal<u64>,
+    pending_tab: Signal<Option<SettingsTab>>,
+    pending_hotkey_modal_after_nav: Signal<Option<super::HotkeyModalRequest>>,
+) -> Element {
+    hold_to_mute::render(
+        settings,
+        active_tab,
+        active_section,
+        displayed_tab,
+        transition,
+        transition_id,
+        pending_tab,
+        pending_hotkey_modal_after_nav,
+    )
+}
+
+pub fn hotkey_modal_host(
+    settings: Signal<super::SettingsSnapshot>,
     hotkey_modal_request: Signal<Option<super::HotkeyModalRequest>>,
 ) -> Element {
-    hold_to_mute::render(settings, active_tab, active_section, hotkey_modal_request)
+    hotkeys::modal_host(settings, hotkey_modal_request)
 }
 
 #[component]

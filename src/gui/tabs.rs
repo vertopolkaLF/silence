@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const APP_ICON: Asset = asset!("/assets/app.png");
 const TAB_TRANSITION_DURATION: Duration = Duration::from_millis(300);
@@ -35,6 +35,7 @@ pub(crate) struct TabTransition {
     pub from: SettingsTab,
     pub to: SettingsTab,
     pub direction: TabSlideDirection,
+    pub started_at: Instant,
 }
 
 impl SettingsTab {
@@ -220,6 +221,26 @@ pub fn render(
     }
 }
 
+pub(crate) fn navigate_to_tab(
+    next_tab: SettingsTab,
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    displayed_tab: Signal<SettingsTab>,
+    transition: Signal<Option<TabTransition>>,
+    transition_id: Signal<u64>,
+    pending_tab: Signal<Option<SettingsTab>>,
+) {
+    select_tab(
+        next_tab,
+        active_tab,
+        active_section,
+        displayed_tab,
+        transition,
+        transition_id,
+        pending_tab,
+    );
+}
+
 fn select_tab(
     next_tab: SettingsTab,
     active_tab: Signal<SettingsTab>,
@@ -287,30 +308,39 @@ fn start_transition(
         from: previous_tab,
         to: next_tab,
         direction,
+        started_at: Instant::now(),
     }));
+}
 
-    spawn(async move {
-        tokio::time::sleep(TAB_TRANSITION_DURATION).await;
-        if transition_id() != next_transition_id {
-            return;
-        }
-        if let Some(current) = transition() {
-            if current.id != next_transition_id {
-                return;
-            }
-        } else {
-            return;
-        }
-        finish_transition(
-            next_tab,
-            active_tab,
-            active_section,
-            displayed_tab,
-            transition,
-            transition_id,
-            pending_tab,
-        );
-    });
+pub(crate) fn process_transition_tick(
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    displayed_tab: Signal<SettingsTab>,
+    transition: Signal<Option<TabTransition>>,
+    transition_id: Signal<u64>,
+    pending_tab: Signal<Option<SettingsTab>>,
+) {
+    let Some(current) = transition() else {
+        return;
+    };
+
+    if current.started_at.elapsed() < TAB_TRANSITION_DURATION {
+        return;
+    }
+
+    if transition_id() != current.id {
+        return;
+    }
+
+    finish_transition(
+        current.to,
+        active_tab,
+        active_section,
+        displayed_tab,
+        transition,
+        transition_id,
+        pending_tab,
+    );
 }
 
 fn finish_transition(

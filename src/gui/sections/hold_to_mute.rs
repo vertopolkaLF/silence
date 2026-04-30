@@ -8,9 +8,13 @@ const DEFAULT_SOUND_OPTION: &str = "__default__";
 
 pub fn render(
     settings: Signal<super::super::SettingsSnapshot>,
-    mut active_tab: Signal<SettingsTab>,
-    mut active_section: Signal<String>,
-    mut hotkey_modal_request: Signal<Option<super::super::HotkeyModalRequest>>,
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    displayed_tab: Signal<SettingsTab>,
+    transition: Signal<Option<super::super::tabs::TabTransition>>,
+    transition_id: Signal<u64>,
+    pending_tab: Signal<Option<SettingsTab>>,
+    mut pending_hotkey_modal_after_nav: Signal<Option<super::super::HotkeyModalRequest>>,
 ) -> Element {
     let snapshot = settings();
     let sound_settings = snapshot.config.sound_settings.clone();
@@ -49,13 +53,20 @@ pub fn render(
                 button {
                     class: "secondary configure-hotkey-button",
                     onclick: move |_| {
-                        let section_id = SettingsTab::Hotkeys.first_section_id().to_string();
-                        hotkey_modal_request.set(Some(super::super::HotkeyModalRequest {
-                            action: crate::HotkeyAction::HoldToMute,
-                        }));
-                        active_tab.set(SettingsTab::Hotkeys);
-                        active_section.set(section_id.clone());
-                        super::super::tabs::scroll_to_section(&section_id);
+                        pending_hotkey_modal_after_nav.set(Some(
+                            super::super::HotkeyModalRequest::Add {
+                                preset_action: Some(crate::HotkeyAction::HoldToMute),
+                            },
+                        ));
+                        super::super::tabs::navigate_to_tab(
+                            SettingsTab::Hotkeys,
+                            active_tab,
+                            active_section,
+                            displayed_tab,
+                            transition,
+                            transition_id,
+                            pending_tab,
+                        );
                     },
                     span { class: "solar-icon button-icon icon-keyboard" }
                     "Configure hotkeys"

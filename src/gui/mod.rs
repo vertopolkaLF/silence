@@ -42,8 +42,13 @@ pub struct SettingsSnapshot {
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct HotkeyModalRequest {
-    pub action: crate::HotkeyAction,
+pub(crate) enum HotkeyModalRequest {
+    Add {
+        preset_action: Option<crate::HotkeyAction>,
+    },
+    Edit {
+        binding: crate::HotkeyBinding,
+    },
 }
 
 impl SettingsSnapshot {
@@ -184,7 +189,8 @@ pub fn settings_app() -> Element {
     let tab_transition = use_signal(|| None::<TabTransition>);
     let tab_transition_id = use_signal(|| 0_u64);
     let pending_tab = use_signal(|| None::<SettingsTab>);
-    let hotkey_modal_request = use_signal(|| None::<HotkeyModalRequest>);
+    let mut hotkey_modal_request = use_signal(|| None::<HotkeyModalRequest>);
+    let mut pending_hotkey_modal_after_nav = use_signal(|| None::<HotkeyModalRequest>);
     let recording = use_signal(|| false);
     let mut closing = use_signal(|| false);
     use_future(move || {
@@ -208,6 +214,27 @@ pub fn settings_app() -> Element {
                 settings.set(next);
             }
             tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    });
+    use_future(move || async move {
+        loop {
+            tabs::process_transition_tick(
+                active_tab,
+                active_section,
+                displayed_tab,
+                tab_transition,
+                tab_transition_id,
+                pending_tab,
+            );
+
+            if tab_transition().is_none() && displayed_tab() == SettingsTab::Hotkeys {
+                if let Some(request) = pending_hotkey_modal_after_nav() {
+                    hotkey_modal_request.set(Some(request));
+                    pending_hotkey_modal_after_nav.set(None);
+                }
+            }
+
+            tokio::time::sleep(Duration::from_millis(16)).await;
         }
     });
 
@@ -278,7 +305,12 @@ pub fn settings_app() -> Element {
                             recording,
                             active_tab,
                             active_section,
+                            displayed_tab,
+                            tab_transition,
+                            tab_transition_id,
+                            pending_tab,
                             hotkey_modal_request,
+                            pending_hotkey_modal_after_nav,
                         }
                         ContentPanel {
                             instance_key: format!(
@@ -293,7 +325,12 @@ pub fn settings_app() -> Element {
                             recording,
                             active_tab,
                             active_section,
+                            displayed_tab,
+                            tab_transition,
+                            tab_transition_id,
+                            pending_tab,
                             hotkey_modal_request,
+                            pending_hotkey_modal_after_nav,
                         }
                     } else {
                         ContentPanel {
@@ -305,11 +342,17 @@ pub fn settings_app() -> Element {
                             recording,
                             active_tab,
                             active_section,
+                            displayed_tab,
+                            tab_transition,
+                            tab_transition_id,
+                            pending_tab,
                             hotkey_modal_request,
+                            pending_hotkey_modal_after_nav,
                         }
                     }
                 }
             }
+            {sections::hotkey_modal_host(settings, hotkey_modal_request)}
         }
     }
 }
@@ -324,7 +367,12 @@ fn ContentPanel(
     recording: Signal<bool>,
     active_tab: Signal<SettingsTab>,
     active_section: Signal<String>,
+    displayed_tab: Signal<SettingsTab>,
+    tab_transition: Signal<Option<TabTransition>>,
+    tab_transition_id: Signal<u64>,
+    pending_tab: Signal<Option<SettingsTab>>,
     hotkey_modal_request: Signal<Option<HotkeyModalRequest>>,
+    pending_hotkey_modal_after_nav: Signal<Option<HotkeyModalRequest>>,
 ) -> Element {
     rsx! {
         div { key: "{instance_key}", class: "{panel_class}",
@@ -343,7 +391,12 @@ fn ContentPanel(
                         recording,
                         active_tab,
                         active_section,
+                        displayed_tab,
+                        tab_transition,
+                        tab_transition_id,
+                        pending_tab,
                         hotkey_modal_request,
+                        pending_hotkey_modal_after_nav,
                     )}
                 }
             }

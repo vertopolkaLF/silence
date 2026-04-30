@@ -12,6 +12,66 @@ pub fn render(
     settings: Signal<super::super::SettingsSnapshot>,
     mut modal_request: Signal<Option<super::super::HotkeyModalRequest>>,
 ) -> Element {
+    let snapshot = settings();
+    let hotkeys = snapshot.config.hotkeys.clone();
+    let devices = snapshot.devices.clone();
+
+    rsx! {
+        section {
+            class: "hotkeys-panel",
+            id: "hotkeys-overview",
+            "data-settings-section": "true",
+            div { class: "sounds-header section-head-row",
+                h1 { "Hotkeys" }
+            }
+
+            div { class: "hotkey-table",
+                div { class: "hotkey-table-head",
+                    span { "Action" }
+                    span { "Hotkey" }
+                    span { "Options" }
+                }
+
+                if hotkeys.is_empty() {
+                    div { class: "hotkey-empty",
+                        span { class: "solar-icon icon-keyboard-bold" }
+                        p { "No hotkeys configured." }
+                    }
+                }
+
+                for hotkey in hotkeys {
+                    HotkeyRow {
+                        key: "{hotkey.id}",
+                        hotkey: hotkey.clone(),
+                        devices: devices.clone(),
+                        settings,
+                        onedit: move |binding: crate::HotkeyBinding| {
+                            modal_request.set(Some(super::super::HotkeyModalRequest::Edit {
+                                binding,
+                            }));
+                        }
+                    }
+                }
+            }
+
+            button {
+                class: "secondary add-hotkey-button",
+                onclick: move |_| {
+                    modal_request.set(Some(super::super::HotkeyModalRequest::Add {
+                        preset_action: None,
+                    }));
+                },
+                span { class: "solar-icon button-icon icon-record" }
+                "Add hotkey"
+            }
+        }
+    }
+}
+
+pub fn modal_host(
+    settings: Signal<super::super::SettingsSnapshot>,
+    mut modal_request: Signal<Option<super::super::HotkeyModalRequest>>,
+) -> Element {
     let mut modal = use_signal(|| None::<ModalMode>);
     let mut recording = use_signal(|| false);
     let mut modifier_hold_started = use_signal(|| None::<Instant>);
@@ -58,110 +118,51 @@ pub fn render(
             return;
         };
 
-        start_modal(
-            None,
-            None,
-            Some(request.action),
-            settings,
-            modal,
-            recording,
-            modifier_hold_started,
-            hold_progress,
-            pending_exiting,
-            live_modifier_shortcut,
-            recording_shortcut,
-            draft_shortcut,
-            draft_action,
-            draft_target,
-            draft_ignore_modifiers,
-        );
+        match request {
+            super::super::HotkeyModalRequest::Add { preset_action } => start_modal(
+                None,
+                None,
+                preset_action,
+                settings,
+                modal,
+                recording,
+                modifier_hold_started,
+                hold_progress,
+                pending_exiting,
+                live_modifier_shortcut,
+                recording_shortcut,
+                draft_shortcut,
+                draft_action,
+                draft_target,
+                draft_ignore_modifiers,
+            ),
+            super::super::HotkeyModalRequest::Edit { binding } => start_modal(
+                Some(binding.id.clone()),
+                Some(binding),
+                None,
+                settings,
+                modal,
+                recording,
+                modifier_hold_started,
+                hold_progress,
+                pending_exiting,
+                live_modifier_shortcut,
+                recording_shortcut,
+                draft_shortcut,
+                draft_action,
+                draft_target,
+                draft_ignore_modifiers,
+            ),
+        };
         modal_request.set(None);
     });
 
     let snapshot = settings();
-    let hotkeys = snapshot.config.hotkeys.clone();
     let devices = snapshot.devices.clone();
     let modal_mode = modal();
     let can_save = draft_shortcut().is_some();
 
     rsx! {
-        section {
-            class: "hotkeys-panel",
-            id: "hotkeys-overview",
-            "data-settings-section": "true",
-            div { class: "sounds-header section-head-row",
-                h1 { "Hotkeys" }
-            }
-
-            div { class: "hotkey-table",
-                div { class: "hotkey-table-head",
-                    span { "Action" }
-                    span { "Hotkey" }
-                    span { "Options" }
-                }
-
-                if hotkeys.is_empty() {
-                    div { class: "hotkey-empty",
-                        span { class: "solar-icon icon-keyboard-bold" }
-                        p { "No hotkeys configured." }
-                    }
-                }
-
-                for hotkey in hotkeys {
-                    HotkeyRow {
-                        key: "{hotkey.id}",
-                        hotkey: hotkey.clone(),
-                        devices: devices.clone(),
-                        settings,
-                        onedit: move |binding: crate::HotkeyBinding| {
-                            start_modal(
-                                Some(binding.id.clone()),
-                                Some(binding),
-                                None,
-                                settings,
-                                modal,
-                                recording,
-                                modifier_hold_started,
-                                hold_progress,
-                                pending_exiting,
-                                live_modifier_shortcut,
-                                recording_shortcut,
-                                draft_shortcut,
-                                draft_action,
-                                draft_target,
-                                draft_ignore_modifiers,
-                            );
-                        }
-                    }
-                }
-            }
-
-            button {
-                class: "secondary add-hotkey-button",
-                onclick: move |_| {
-                    start_modal(
-                        None,
-                        None,
-                        None,
-                        settings,
-                        modal,
-                        recording,
-                        modifier_hold_started,
-                        hold_progress,
-                        pending_exiting,
-                        live_modifier_shortcut,
-                        recording_shortcut,
-                        draft_shortcut,
-                        draft_action,
-                        draft_target,
-                        draft_ignore_modifiers,
-                    );
-                },
-                span { class: "solar-icon button-icon icon-record" }
-                "Add hotkey"
-            }
-        }
-
         if let Some(mode) = modal_mode {
             HotkeyModal {
                 mode: mode.clone(),
