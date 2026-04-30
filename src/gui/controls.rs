@@ -1,5 +1,8 @@
 use dioxus::prelude::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    sync::atomic::{AtomicUsize, Ordering},
+    time::Duration,
+};
 
 static NEXT_SELECT_ID: AtomicUsize = AtomicUsize::new(1);
 
@@ -110,6 +113,7 @@ pub fn Select(
 ) -> Element {
     let mut open = use_signal(|| false);
     let mut menu_style = use_signal(String::new);
+    let mut animate_value = use_signal(|| false);
     let select_id = use_hook(|| {
         format!(
             "ui-select-{}",
@@ -155,6 +159,7 @@ pub fn Select(
             "ui-select-item"
         };
         let action_value = option.value.clone();
+        let should_animate = next_value != value;
 
         rendered_options.push(rsx! {
             div {
@@ -165,6 +170,7 @@ pub fn Select(
                     class: "ui-select-item-button",
                     onclick: move |_| {
                         open.set(false);
+                        animate_value.set(should_animate);
                         onchange.call(next_value.clone());
                     },
                     div { class: "ui-select-item-main",
@@ -278,6 +284,17 @@ return `left:${{left}}px;top:${{top}}px;width:${{width}}px;--ui-select-max-heigh
         });
     });
 
+    use_effect(move || {
+        if !animate_value() {
+            return;
+        }
+
+        spawn(async move {
+            tokio::time::sleep(Duration::from_millis(220)).await;
+            animate_value.set(false);
+        });
+    });
+
     rsx! {
         div { class: "{root_class}", "data-ui-select-id": "{select_id}",
             if open() {
@@ -303,13 +320,13 @@ return `left:${{left}}px;top:${{top}}px;width:${{width}}px;--ui-select-max-heigh
                         if let Some(option) = current.as_ref() {
                             span {
                                 key: "current-label-{option.value}",
-                                class: "ui-select-current-label",
+                                class: if animate_value() { "ui-select-current-label anim" } else { "ui-select-current-label" },
                                 "{option.label}"
                             }
                             if let Some(detail) = option.detail.as_deref() {
                                 span {
                                     key: "current-detail-{option.value}",
-                                    class: "ui-select-current-detail",
+                                    class: if animate_value() { "ui-select-current-detail anim" } else { "ui-select-current-detail" },
                                     "{detail}"
                                 }
                             }

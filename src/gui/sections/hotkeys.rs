@@ -419,6 +419,7 @@ fn HotkeyModal(
                                         },
                                         recording: recording(),
                                         boxed: true,
+                                        animate: true,
                                         modifier_hold_active: modifier_hold_started().is_some(),
                                         pending_exiting: pending_exiting(),
                                         hold_progress: hold_progress()
@@ -505,6 +506,7 @@ fn KeyDisplay(
     shortcut: Option<crate::Shortcut>,
     recording: bool,
     boxed: bool,
+    animate: bool,
     modifier_hold_active: bool,
     pending_exiting: bool,
     hold_progress: f64,
@@ -520,7 +522,7 @@ fn KeyDisplay(
             class: display_class(boxed, recording),
             style: "--hold-progress: {progress}; --pending-offset: {pending_offset};",
             for part in parts {
-                span { class: "keycap", "{part}" }
+                span { class: keycap_class(animate), "{part}" }
             }
             if modifier_hold_active || pending_exiting {
                 span {
@@ -562,6 +564,7 @@ fn HotkeyRow(
                     shortcut: Some(hotkey.shortcut),
                     recording: false,
                     boxed: false,
+                    animate: false,
                     modifier_hold_active: false,
                     pending_exiting: false,
                     hold_progress: 0.0
@@ -618,6 +621,14 @@ fn display_class(boxed: bool, recording: bool) -> &'static str {
         (true, false) => "shortcut-display fake-input",
         (false, true) => "shortcut-display recording",
         (false, false) => "shortcut-display",
+    }
+}
+
+fn keycap_class(animate: bool) -> &'static str {
+    if animate {
+        "keycap anim"
+    } else {
+        "keycap noanim"
     }
 }
 

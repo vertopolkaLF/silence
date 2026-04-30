@@ -228,8 +228,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  animation: keycap-rise 200ms ease both;
   transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.keycap.anim {
+  animation: keycap-rise 200ms ease both;
+}
+
+.keycap.noanim {
+  animation: none;
 }
 
 .shortcut-pending {

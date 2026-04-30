@@ -95,7 +95,6 @@
 .ui-select-current-label {
   font-size: 14px;
   font-weight: 560;
-  animation: select-value-swap 0.2s ease;
 }
 
 .ui-select-current-detail,
@@ -109,7 +108,8 @@
   line-height: 1.2;
 }
 
-.ui-select-current-detail {
+.ui-select-current-label.anim,
+.ui-select-current-detail.anim {
   animation: select-value-swap 0.2s ease;
 }
 
