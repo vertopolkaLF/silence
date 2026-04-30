@@ -1,6 +1,9 @@
 use dioxus::prelude::*;
+use std::time::Duration;
 
 const APP_ICON: Asset = asset!("/assets/app.png");
+const TAB_TRANSITION_DURATION: Duration = Duration::from_millis(300);
+const TAB_TRANSITION_HANDOFF_DELAY: Duration = Duration::from_millis(16);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SettingsSection {
@@ -18,6 +21,20 @@ pub enum SettingsTab {
     TrayIcon,
     AutoMute,
     About,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TabSlideDirection {
+    Left,
+    Right,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct TabTransition {
+    pub id: u64,
+    pub from: SettingsTab,
+    pub to: SettingsTab,
+    pub direction: TabSlideDirection,
 }
 
 impl SettingsTab {
@@ -128,9 +145,29 @@ impl SettingsTab {
             .map(|section| section.id)
             .unwrap_or("")
     }
+
+    fn order(self) -> usize {
+        match self {
+            Self::General => 0,
+            Self::Hotkeys => 1,
+            Self::HoldToMute => 2,
+            Self::Sounds => 3,
+            Self::Overlay => 4,
+            Self::TrayIcon => 5,
+            Self::AutoMute => 6,
+            Self::About => 7,
+        }
+    }
 }
 
-pub fn render(mut active_tab: Signal<SettingsTab>, mut active_section: Signal<String>) -> Element {
+pub fn render(
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    displayed_tab: Signal<SettingsTab>,
+    transition: Signal<Option<TabTransition>>,
+    transition_id: Signal<u64>,
+    pending_tab: Signal<Option<SettingsTab>>,
+) -> Element {
     rsx! {
         nav {
             class: "sidebar",
@@ -147,9 +184,15 @@ pub fn render(mut active_tab: Signal<SettingsTab>, mut active_section: Signal<St
                 button {
                     class: if active_tab() == tab { "nav-item active" } else { "nav-item" },
                     onclick: move |_| {
-                        active_tab.set(tab);
-                        active_section.set(tab.first_section_id().to_string());
-                        scroll_to_section(tab.first_section_id());
+                        select_tab(
+                            tab,
+                            active_tab,
+                            active_section,
+                            displayed_tab,
+                            transition,
+                            transition_id,
+                            pending_tab,
+                        );
                     },
                     span { class: "solar-icon nav-icon {tab.icon_for_state(active_tab() == tab)}" }
                     span { "{tab.label()}" }
@@ -175,6 +218,153 @@ pub fn render(mut active_tab: Signal<SettingsTab>, mut active_section: Signal<St
             }
         }
     }
+}
+
+fn select_tab(
+    next_tab: SettingsTab,
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    displayed_tab: Signal<SettingsTab>,
+    transition: Signal<Option<TabTransition>>,
+    transition_id: Signal<u64>,
+    mut pending_tab: Signal<Option<SettingsTab>>,
+) {
+    if let Some(current) = transition() {
+        if current.to == next_tab {
+            return;
+        }
+        // While a swipe is active, we keep only one queued destination:
+        // the latest user intent always replaces any older queued tab.
+        pending_tab.set(Some(next_tab));
+        return;
+    }
+
+    if active_tab() == next_tab {
+        return;
+    }
+
+    start_transition(
+        next_tab,
+        active_tab,
+        active_section,
+        displayed_tab,
+        transition,
+        transition_id,
+        pending_tab,
+    );
+}
+
+fn start_transition(
+    next_tab: SettingsTab,
+    mut active_tab: Signal<SettingsTab>,
+    mut active_section: Signal<String>,
+    mut displayed_tab: Signal<SettingsTab>,
+    mut transition: Signal<Option<TabTransition>>,
+    mut transition_id: Signal<u64>,
+    mut pending_tab: Signal<Option<SettingsTab>>,
+) {
+    let previous_tab = displayed_tab();
+    active_tab.set(next_tab);
+    active_section.set(next_tab.first_section_id().to_string());
+    pending_tab.set(None);
+
+    if previous_tab == next_tab {
+        displayed_tab.set(next_tab);
+        transition.set(None);
+        return;
+    }
+
+    let direction = if next_tab.order() > previous_tab.order() {
+        TabSlideDirection::Left
+    } else {
+        TabSlideDirection::Right
+    };
+
+    let next_transition_id = transition_id().wrapping_add(1);
+    transition_id.set(next_transition_id);
+    transition.set(Some(TabTransition {
+        id: next_transition_id,
+        from: previous_tab,
+        to: next_tab,
+        direction,
+    }));
+
+    spawn(async move {
+        tokio::time::sleep(TAB_TRANSITION_DURATION).await;
+        if transition_id() != next_transition_id {
+            return;
+        }
+        if let Some(current) = transition() {
+            if current.id != next_transition_id {
+                return;
+            }
+        } else {
+            return;
+        }
+        finish_transition(
+            next_tab,
+            active_tab,
+            active_section,
+            displayed_tab,
+            transition,
+            transition_id,
+            pending_tab,
+        );
+    });
+}
+
+fn finish_transition(
+    completed_tab: SettingsTab,
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    mut displayed_tab: Signal<SettingsTab>,
+    mut transition: Signal<Option<TabTransition>>,
+    transition_id: Signal<u64>,
+    mut pending_tab: Signal<Option<SettingsTab>>,
+) {
+    displayed_tab.set(completed_tab);
+    transition.set(None);
+
+    let Some(next_tab) = pending_tab() else {
+        return;
+    };
+
+    if next_tab == completed_tab {
+        pending_tab.set(None);
+        return;
+    }
+
+    spawn(async move {
+        tokio::time::sleep(TAB_TRANSITION_HANDOFF_DELAY).await;
+
+        if transition().is_some() {
+            return;
+        }
+
+        if displayed_tab() != completed_tab {
+            return;
+        }
+
+        let Some(queued_tab) = pending_tab() else {
+            return;
+        };
+
+        // If the user clicked again during the handoff frame, use only the
+        // newest queued tab and discard the older intermediate destination.
+        if queued_tab != next_tab || queued_tab == completed_tab {
+            return;
+        }
+
+        start_transition(
+            queued_tab,
+            active_tab,
+            active_section,
+            displayed_tab,
+            transition,
+            transition_id,
+            pending_tab,
+        );
+    });
 }
 
 pub(crate) fn scroll_to_section(id: &str) {

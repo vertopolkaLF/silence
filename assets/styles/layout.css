@@ -24,16 +24,114 @@
 }
 
 .content {
-  overflow-y: auto;
+  --tab-transition-duration: 300ms;
+  --tab-transition-ease: cubic-bezier(1, 0.1, 0, 1);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-height: 0;
-  padding: 44px 34px 44px 38px;
+  padding: 0;
   background: var(--surface);
   border-top-left-radius: 16px;
   border-bottom-left-radius: 16px;
   box-shadow: -1px -1px 0 var(--highlight-line);
+}
+
+.content-panel {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
+}
+
+.content-panel.resting,
+.content-panel.current {
+  z-index: 1;
+}
+
+.content-panel.outgoing {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.content-panel.incoming {
+  z-index: 2;
+}
+
+.content-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  height: 100%;
   scrollbar-gutter: stable;
+}
+
+.content-inner {
+  min-height: 100%;
+}
+
+.content-inner>* {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 44px 38px;
 }
 
 [data-settings-section] {
   scroll-margin-top: 50px;
+}
+
+.content-panel.enter-from-right {
+  animation: content-enter-from-right var(--tab-transition-duration) var(--tab-transition-ease) both;
+}
+
+.content-panel.enter-from-left {
+  animation: content-enter-from-left var(--tab-transition-duration) var(--tab-transition-ease) both;
+}
+
+.content-panel.exit-to-left {
+  animation: content-exit-to-left var(--tab-transition-duration) var(--tab-transition-ease) both;
+}
+
+.content-panel.exit-to-right {
+  animation: content-exit-to-right var(--tab-transition-duration) var(--tab-transition-ease) both;
+}
+
+@keyframes content-enter-from-right {
+  0% {
+    transform: translate3d(100%, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes content-enter-from-left {
+  0% {
+    transform: translate3d(-100%, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes content-exit-to-left {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+@keyframes content-exit-to-right {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(100%, 0, 0);
+  }
 }

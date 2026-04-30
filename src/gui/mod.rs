@@ -5,7 +5,7 @@ mod controls;
 mod sections;
 mod tabs;
 
-use tabs::SettingsTab;
+use tabs::{SettingsTab, TabSlideDirection, TabTransition};
 
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
 const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
@@ -179,7 +179,11 @@ pub fn settings_app() -> Element {
     let reveal_desktop = desktop.clone();
     let mut settings = use_signal(SettingsSnapshot::load);
     let active_tab = use_signal(|| SettingsTab::General);
+    let displayed_tab = use_signal(|| SettingsTab::General);
     let active_section = use_signal(|| SettingsTab::General.first_section_id().to_string());
+    let tab_transition = use_signal(|| None::<TabTransition>);
+    let tab_transition_id = use_signal(|| 0_u64);
+    let pending_tab = use_signal(|| None::<SettingsTab>);
     let hotkey_modal_request = use_signal(|| None::<HotkeyModalRequest>);
     let recording = use_signal(|| false);
     let mut closing = use_signal(|| false);
@@ -250,14 +254,91 @@ pub fn settings_app() -> Element {
 
             div {
                 class: "body",
-                {tabs::render(active_tab, active_section)}
+                {tabs::render(
+                    active_tab,
+                    active_section,
+                    displayed_tab,
+                    tab_transition,
+                    tab_transition_id,
+                    pending_tab,
+                )}
                 main {
                     class: "content",
-                    onscroll: move |_| {
+                    if let Some(transition) = tab_transition() {
+                        ContentPanel {
+                            instance_key: format!(
+                                "tab-outgoing-{}-{}",
+                                transition.id,
+                                transition.from.label()
+                            ),
+                            tab: transition.from,
+                            panel_class: transition_panel_class("outgoing", transition.direction),
+                            active_panel: false,
+                            settings,
+                            recording,
+                            active_tab,
+                            active_section,
+                            hotkey_modal_request,
+                        }
+                        ContentPanel {
+                            instance_key: format!(
+                                "tab-incoming-{}-{}",
+                                transition.id,
+                                transition.to.label()
+                            ),
+                            tab: transition.to,
+                            panel_class: transition_panel_class("incoming current", transition.direction),
+                            active_panel: true,
+                            settings,
+                            recording,
+                            active_tab,
+                            active_section,
+                            hotkey_modal_request,
+                        }
+                    } else {
+                        ContentPanel {
+                            instance_key: format!("tab-current-{}", displayed_tab().label()),
+                            tab: displayed_tab(),
+                            panel_class: "content-panel current resting".to_string(),
+                            active_panel: true,
+                            settings,
+                            recording,
+                            active_tab,
+                            active_section,
+                            hotkey_modal_request,
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ContentPanel(
+    instance_key: String,
+    tab: SettingsTab,
+    panel_class: String,
+    active_panel: bool,
+    settings: Signal<SettingsSnapshot>,
+    recording: Signal<bool>,
+    active_tab: Signal<SettingsTab>,
+    active_section: Signal<String>,
+    hotkey_modal_request: Signal<Option<HotkeyModalRequest>>,
+) -> Element {
+    rsx! {
+        div { key: "{instance_key}", class: "{panel_class}",
+            div {
+                class: "content-scroll",
+                "data-active-panel": if active_panel { "true" } else { "false" },
+                onscroll: move |_| {
+                    if active_panel {
                         update_active_section(active_section);
-                    },
+                    }
+                },
+                div { class: "content-inner",
                     {sections::render(
-                        active_tab(),
+                        tab,
                         settings,
                         recording,
                         active_tab,
@@ -270,11 +351,21 @@ pub fn settings_app() -> Element {
     }
 }
 
+fn transition_panel_class(role: &str, direction: TabSlideDirection) -> String {
+    let movement = match (role, direction) {
+        ("outgoing", TabSlideDirection::Left) => "exit-to-left",
+        ("outgoing", TabSlideDirection::Right) => "exit-to-right",
+        (_, TabSlideDirection::Left) => "enter-from-right",
+        (_, TabSlideDirection::Right) => "enter-from-left",
+    };
+    format!("content-panel {role} {movement}")
+}
+
 fn update_active_section(mut active_section: Signal<String>) {
     spawn(async move {
         let script = r#"
-        const content = document.querySelector('.content');
-        const sections = [...document.querySelectorAll('[data-settings-section]')];
+        const content = document.querySelector('.content-scroll[data-active-panel="true"]');
+        const sections = [...content?.querySelectorAll('[data-settings-section]') ?? []];
         if (!content || sections.length === 0) {
           return '';
         }
