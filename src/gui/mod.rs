@@ -327,11 +327,7 @@ pub fn settings_app() -> Element {
                     class: "content",
                     if let Some(transition) = tab_transition() {
                         ContentPanel {
-                            instance_key: format!(
-                                "tab-outgoing-{}-{}",
-                                transition.id,
-                                transition.from.label()
-                            ),
+                            key: "tab-outgoing-{transition.id}-{transition.from.label()}",
                             tab: transition.from,
                             panel_class: transition_panel_class("outgoing", transition.direction),
                             active_panel: false,
@@ -347,11 +343,7 @@ pub fn settings_app() -> Element {
                             pending_hotkey_modal_after_nav,
                         }
                         ContentPanel {
-                            instance_key: format!(
-                                "tab-incoming-{}-{}",
-                                transition.id,
-                                transition.to.label()
-                            ),
+                            key: "tab-{transition.to.label()}",
                             tab: transition.to,
                             panel_class: transition_panel_class("incoming current", transition.direction),
                             active_panel: true,
@@ -368,7 +360,7 @@ pub fn settings_app() -> Element {
                         }
                     } else {
                         ContentPanel {
-                            instance_key: format!("tab-current-{}", displayed_tab().label()),
+                            key: "tab-{displayed_tab().label()}",
                             tab: displayed_tab(),
                             panel_class: "content-panel current resting".to_string(),
                             active_panel: true,
@@ -393,7 +385,6 @@ pub fn settings_app() -> Element {
 
 #[component]
 fn ContentPanel(
-    instance_key: String,
     tab: SettingsTab,
     panel_class: String,
     active_panel: bool,
@@ -409,7 +400,7 @@ fn ContentPanel(
     pending_hotkey_modal_after_nav: Signal<Option<HotkeyModalRequest>>,
 ) -> Element {
     rsx! {
-        div { key: "{instance_key}", class: "{panel_class}",
+        div { class: "{panel_class}",
             div {
                 class: "content-scroll",
                 "data-active-panel": if active_panel { "true" } else { "false" },

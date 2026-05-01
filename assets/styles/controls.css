@@ -85,7 +85,7 @@
 .ui-select-current-label,
 .ui-select-item-label {
   min-width: 0;
-  overflow: hidden;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);

@@ -61,6 +61,13 @@
   min-height: 0;
   height: 100%;
   scrollbar-gutter: stable;
+  scrollbar-color: #73737300 transparent;
+  transition: scrollbar-color var(--ui-transition);
+  will-change: scrollbar-color;
+}
+
+.content-panel.current.resting .content-scroll {
+  scrollbar-color: #737373ff transparent;
 }
 
 .content-inner {
