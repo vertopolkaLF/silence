@@ -9,6 +9,7 @@ dioxus = { version = "0.7", features = ["desktop", "asset"] }
 once_cell = "1.21"
 resvg = "0.47"
 rodio = "0.22.2"
+rfd = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.52", features = ["time"] }

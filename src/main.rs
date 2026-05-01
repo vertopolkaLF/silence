@@ -6,7 +6,7 @@ use std::{
     fs,
     io::Cursor,
     mem::size_of,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     ptr::{null, null_mut},
     sync::{
@@ -58,17 +58,18 @@ use windows::{
                 Shell_NotifyIconW,
             },
             WindowsAndMessaging::{
-                AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIconFromResourceEx, CreatePopupMenu,
-                CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow, DispatchMessageW,
-                FindWindowW, GWL_WNDPROC, GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK,
-                HICON, IDC_ARROW, IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer,
-                LR_DEFAULTSIZE, LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG, PostQuitMessage,
-                RegisterClassW, SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SendMessageW,
-                SetForegroundWindow, SetTimer, SetWindowLongPtrW, SetWindowsHookExW, ShowWindow,
-                TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage,
-                UnhookWindowsHookEx, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND,
-                WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
-                WM_RBUTTONUP, WM_SYSCOMMAND, WM_TIMER, WNDCLASSW, WNDPROC, WS_OVERLAPPED,
+                AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIconFromResourceEx,
+                CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
+                DispatchMessageW, FindWindowW, GWL_WNDPROC, GetCursorPos, GetMessageW,
+                GetSystemMetrics, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION, IsIconic,
+                KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW,
+                MENU_ITEM_FLAGS, MSG, PostQuitMessage, RegisterClassW, SC_KEYMENU, SM_CXSCREEN,
+                SM_CYSCREEN, SW_RESTORE, SendMessageW, SetForegroundWindow, SetTimer,
+                SetWindowLongPtrW, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
+                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL,
+                WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN,
+                WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_SYSCOMMAND, WM_TIMER, WNDCLASSW,
+                WNDPROC, WS_OVERLAPPED,
             },
         },
     },
@@ -488,6 +489,12 @@ pub struct SoundSettings {
     pub mute_theme: String,
     #[serde(default = "default_sound_theme")]
     pub unmute_theme: String,
+    #[serde(default)]
+    pub custom_sounds: Vec<CustomSound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_mute_sound: Option<CustomSound>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_unmute_sound: Option<CustomSound>,
 }
 
 impl Default for SoundSettings {
@@ -497,8 +504,27 @@ impl Default for SoundSettings {
             volume: default_sound_volume(),
             mute_theme: default_sound_theme(),
             unmute_theme: default_sound_theme(),
+            custom_sounds: Vec::new(),
+            custom_mute_sound: None,
+            custom_unmute_sound: None,
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct CustomSound {
+    #[serde(default = "default_custom_sound_id")]
+    pub id: String,
+    pub path: PathBuf,
+    pub original_file_name: String,
+}
+
+fn default_custom_sound_id() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    format!("custom-{nanos}")
 }
 
 fn default_sounds_enabled() -> bool {
@@ -766,6 +792,7 @@ unsafe extern "system" fn settings_window_proc(
 struct AudioEngine {
     cached_sounds: HashMap<String, SamplesBuffer>,
     active_sinks: Vec<ActiveSink>,
+    preview_sink: Option<ActiveSink>,
 }
 
 struct ActiveSink {
@@ -778,11 +805,12 @@ impl AudioEngine {
         Ok(Self {
             cached_sounds: HashMap::new(),
             active_sinks: Vec::new(),
+            preview_sink: None,
         })
     }
 
-    fn decoded_sound(&mut self, file: &str, path: &PathBuf) -> Result<SamplesBuffer> {
-        if let Some(sound) = self.cached_sounds.get(file) {
+    fn decoded_sound(&mut self, cache_key: &str, path: &Path) -> Result<SamplesBuffer> {
+        if let Some(sound) = self.cached_sounds.get(cache_key) {
             return Ok(sound.clone());
         }
 
@@ -790,11 +818,12 @@ impl AudioEngine {
             fs::read(path).with_context(|| format!("read sound asset {}", path.display()))?;
         let decoder = Decoder::try_from(Cursor::new(bytes)).context("decode sound asset")?;
         let sound = decoder.record();
-        self.cached_sounds.insert(file.to_string(), sound.clone());
+        self.cached_sounds
+            .insert(cache_key.to_string(), sound.clone());
         Ok(sound)
     }
 
-    fn play_sound(&mut self, sound: SamplesBuffer, volume: f32) -> Result<()> {
+    fn play_sound(&mut self, sound: SamplesBuffer, volume: f32) -> Result<Duration> {
         self.prune_finished_sinks();
 
         let mut sink =
@@ -807,12 +836,39 @@ impl AudioEngine {
             sink,
             finishes_at: Instant::now() + clip_duration + Duration::from_millis(250),
         });
-        Ok(())
+        Ok(clip_duration)
+    }
+
+    fn play_preview_sound(&mut self, sound: SamplesBuffer, volume: f32) -> Result<Duration> {
+        self.stop_preview_sound();
+
+        let mut sink =
+            DeviceSinkBuilder::open_default_sink().context("open default audio stream")?;
+        sink.log_on_drop(false);
+
+        let clip_duration = sound.total_duration().unwrap_or(Duration::from_secs(1));
+        sink.mixer().add(sound.amplify(volume));
+        self.preview_sink = Some(ActiveSink {
+            sink,
+            finishes_at: Instant::now() + clip_duration + Duration::from_millis(250),
+        });
+        Ok(clip_duration)
+    }
+
+    fn stop_preview_sound(&mut self) {
+        self.preview_sink = None;
     }
 
     fn prune_finished_sinks(&mut self) {
         let now = Instant::now();
         self.active_sinks.retain(|sink| sink.finishes_at > now);
+        if self
+            .preview_sink
+            .as_ref()
+            .is_some_and(|sink| sink.finishes_at <= now)
+        {
+            self.preview_sink = None;
+        }
     }
 }
 
@@ -1705,12 +1761,7 @@ fn play_mute_sound(muted: bool) {
     if !settings.enabled {
         return;
     }
-    let theme = if muted {
-        settings.mute_theme.as_str()
-    } else {
-        settings.unmute_theme.as_str()
-    };
-    if let Err(err) = play_sound(theme, muted, settings.volume) {
+    if let Err(err) = play_configured_sound(&settings, muted, settings.volume) {
         eprintln!("failed to play mute sound: {err:?}");
     }
 }
@@ -1724,23 +1775,23 @@ fn play_hold_to_mute_sound(muted: bool) {
         return;
     }
 
-    let theme = if muted {
-        hold_settings
-            .mute_theme_override
-            .as_deref()
-            .unwrap_or(sound_settings.mute_theme.as_str())
-    } else {
-        hold_settings
-            .unmute_theme_override
-            .as_deref()
-            .unwrap_or(sound_settings.unmute_theme.as_str())
-    };
     let volume = hold_settings
         .volume_override
         .unwrap_or(sound_settings.volume)
         .min(100);
+    let result = if muted {
+        if let Some(theme) = hold_settings.mute_theme_override.as_deref() {
+            play_theme_sound(theme, muted, volume)
+        } else {
+            play_configured_sound(&sound_settings, muted, volume)
+        }
+    } else if let Some(theme) = hold_settings.unmute_theme_override.as_deref() {
+        play_theme_sound(theme, muted, volume)
+    } else {
+        play_configured_sound(&sound_settings, muted, volume)
+    };
 
-    if let Err(err) = play_sound(theme, muted, volume) {
+    if let Err(err) = result {
         eprintln!("failed to play hold-to-mute sound: {err:?}");
     }
 }
@@ -1754,13 +1805,68 @@ fn play_auto_mute_sound() {
         return;
     }
 
-    if let Err(err) = play_sound(&sound_settings.mute_theme, true, sound_settings.volume) {
+    if let Err(err) = play_configured_sound(&sound_settings, true, sound_settings.volume) {
         eprintln!("failed to play auto-mute sound: {err:?}");
     }
 }
 
-pub fn preview_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
-    play_sound(theme, muted, volume)
+pub fn preview_sound(selection: &str, muted: bool, volume: u8) -> Result<u64> {
+    let settings = STATE.lock().unwrap().sound_settings.clone();
+    play_preview_sound_selection(selection, &settings, muted, volume)
+}
+
+pub fn stop_preview_sound() {
+    if let Ok(mut audio) = AUDIO_ENGINE.lock()
+        && let Some(engine) = audio.as_mut()
+    {
+        engine.stop_preview_sound();
+    }
+}
+
+pub fn choose_custom_sounds() -> Result<Vec<CustomSound>> {
+    let Some(sources) = rfd::FileDialog::new()
+        .set_title("Add custom sound")
+        .add_filter("Audio", &["mp3", "wav", "ogg", "flac"])
+        .pick_files()
+    else {
+        return Ok(Vec::new());
+    };
+
+    sources
+        .iter()
+        .map(|source| import_custom_sound(source))
+        .collect()
+}
+
+fn import_custom_sound(source: &Path) -> Result<CustomSound> {
+    let extension = source
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase())
+        .filter(|extension| matches!(extension.as_str(), "mp3" | "wav" | "ogg" | "flac"))
+        .context("selected file is not a supported audio format")?;
+    let original_file_name = source
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("custom sound")
+        .to_string();
+    let id = default_custom_sound_id();
+    let destination_dir = custom_sounds_dir()?;
+    fs::create_dir_all(&destination_dir)?;
+    let destination = destination_dir.join(format!("{id}.{extension}"));
+    fs::copy(source, &destination).with_context(|| {
+        format!(
+            "copy custom sound from {} to {}",
+            source.display(),
+            destination.display()
+        )
+    })?;
+
+    Ok(CustomSound {
+        id,
+        path: destination,
+        original_file_name,
+    })
 }
 
 pub fn sound_themes() -> &'static [SoundTheme] {
@@ -1775,40 +1881,152 @@ pub fn sound_theme_label(theme_id: &str) -> &'static str {
         .unwrap_or(SOUND_THEMES[0].label)
 }
 
+pub fn sound_selection_label<'a>(selection: &str, settings: &'a SoundSettings) -> &'a str {
+    custom_sound_from_selection(selection, settings)
+        .map(|sound| sound.original_file_name.as_str())
+        .or_else(|| {
+            SOUND_THEMES
+                .iter()
+                .find(|theme| theme.id == selection)
+                .map(|theme| theme.label)
+        })
+        .unwrap_or(SOUND_THEMES[0].label)
+}
+
 fn prime_sound_assets(settings: &SoundSettings) {
     if !settings.enabled {
         return;
     }
 
-    for (theme, muted) in [
-        (settings.mute_theme.as_str(), true),
-        (settings.unmute_theme.as_str(), false),
-    ] {
-        if let Err(err) = load_decoded_sound(theme, muted) {
+    for muted in [true, false] {
+        if let Err(err) = load_configured_sound(settings, muted) {
             eprintln!("failed to preload sound asset: {err:?}");
         }
     }
 }
 
-fn load_decoded_sound(theme: &str, muted: bool) -> Result<SamplesBuffer> {
+fn load_configured_sound(settings: &SoundSettings, muted: bool) -> Result<SamplesBuffer> {
+    load_sound_selection(sound_selection_for(settings, muted), settings, muted)
+}
+
+fn play_configured_sound(settings: &SoundSettings, muted: bool, volume: u8) -> Result<()> {
+    play_sound_selection(
+        sound_selection_for(settings, muted),
+        settings,
+        muted,
+        volume,
+    )
+}
+
+fn sound_selection_for(settings: &SoundSettings, muted: bool) -> &str {
+    if muted {
+        settings.mute_theme.as_str()
+    } else {
+        settings.unmute_theme.as_str()
+    }
+}
+
+fn play_sound_selection(
+    selection: &str,
+    settings: &SoundSettings,
+    muted: bool,
+    volume: u8,
+) -> Result<()> {
+    let volume = f32::from(volume.min(100)) / 100.0;
+    let sound = load_sound_selection(selection, settings, muted)?;
+    let mut audio = AUDIO_ENGINE.lock().unwrap();
+    let engine = audio.as_mut().expect("audio engine initialized");
+    engine.play_sound(sound, volume).map(|_| ())
+}
+
+fn play_preview_sound_selection(
+    selection: &str,
+    settings: &SoundSettings,
+    muted: bool,
+    volume: u8,
+) -> Result<u64> {
+    let volume = f32::from(volume.min(100)) / 100.0;
+    let sound = load_sound_selection(selection, settings, muted)?;
+    let mut audio = AUDIO_ENGINE.lock().unwrap();
+    if audio.is_none() {
+        *audio = Some(AudioEngine::new()?);
+    }
+    let engine = audio.as_mut().expect("audio engine initialized");
+    let duration = engine.play_preview_sound(sound, volume)?;
+    Ok(duration.as_millis().max(1) as u64)
+}
+
+fn load_sound_selection(
+    selection: &str,
+    settings: &SoundSettings,
+    muted: bool,
+) -> Result<SamplesBuffer> {
+    if let Some(custom_sound) = custom_sound_from_selection(selection, settings) {
+        match load_custom_sound(custom_sound) {
+            Ok(sound) => return Ok(sound),
+            Err(err) => {
+                eprintln!(
+                    "failed to load custom {} sound, falling back to theme: {err:?}",
+                    if muted { "mute" } else { "unmute" }
+                );
+            }
+        }
+    }
+
+    load_theme_sound(theme_from_selection(selection), muted)
+}
+
+fn custom_sound_from_selection<'a>(
+    selection: &str,
+    settings: &'a SoundSettings,
+) -> Option<&'a CustomSound> {
+    let id = custom_sound_id(selection)?;
+    settings.custom_sounds.iter().find(|sound| sound.id == id)
+}
+
+fn custom_sound_id(selection: &str) -> Option<&str> {
+    selection.strip_prefix("custom:")
+}
+
+fn custom_sound_value(id: &str) -> String {
+    format!("custom:{id}")
+}
+
+fn theme_from_selection(selection: &str) -> &str {
+    if custom_sound_id(selection).is_some() {
+        SOUND_THEMES[0].id
+    } else {
+        selection
+    }
+}
+
+fn load_theme_sound(theme: &str, muted: bool) -> Result<SamplesBuffer> {
     let file = sound_file_name(theme, muted);
     let path = sound_asset_path(&file).with_context(|| format!("find sound asset {file}"))?;
+    load_decoded_sound(file, &path)
+}
 
+fn load_custom_sound(custom_sound: &CustomSound) -> Result<SamplesBuffer> {
+    let cache_key = custom_sound_cache_key(&custom_sound.path)?;
+    load_decoded_sound(cache_key, &custom_sound.path)
+}
+
+fn load_decoded_sound(cache_key: String, path: &Path) -> Result<SamplesBuffer> {
     let mut audio = AUDIO_ENGINE.lock().unwrap();
     if audio.is_none() {
         *audio = Some(AudioEngine::new()?);
     }
 
     let engine = audio.as_mut().expect("audio engine initialized");
-    engine.decoded_sound(&file, &path)
+    engine.decoded_sound(&cache_key, path)
 }
 
-fn play_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
+fn play_theme_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
     let volume = f32::from(volume.min(100)) / 100.0;
-    let sound = load_decoded_sound(theme, muted)?;
+    let sound = load_theme_sound(theme, muted)?;
     let mut audio = AUDIO_ENGINE.lock().unwrap();
     let engine = audio.as_mut().expect("audio engine initialized");
-    engine.play_sound(sound, volume)
+    engine.play_sound(sound, volume).map(|_| ())
 }
 
 fn sound_file_name(theme: &str, muted: bool) -> String {
@@ -1837,6 +2055,27 @@ fn sound_asset_path(file: &str) -> Option<PathBuf> {
         .into_iter()
         .map(|root| root.join("assets").join("sounds").join(file))
         .find(|path| path.exists())
+}
+
+fn custom_sound_cache_key(path: &Path) -> Result<String> {
+    let metadata = path
+        .metadata()
+        .with_context(|| format!("read custom sound metadata {}", path.display()))?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    Ok(format!(
+        "custom:{}:{}:{modified}",
+        path.display(),
+        metadata.len()
+    ))
+}
+
+fn custom_sounds_dir() -> Result<PathBuf> {
+    Ok(app_config_dir()?.join("custom_sounds"))
 }
 
 fn is_all_microphones_target(device_id: Option<&str>) -> bool {
@@ -2149,9 +2388,42 @@ fn load_config() -> Result<Config> {
         }];
     }
     normalize_hotkeys(&mut config.hotkeys);
+    migrate_custom_sound_settings(&mut config.sound_settings);
     config.auto_mute.after_inactivity_minutes =
         config.auto_mute.after_inactivity_minutes.clamp(1, 1440);
     Ok(config)
+}
+
+fn migrate_custom_sound_settings(settings: &mut SoundSettings) {
+    if let Some(custom_sound) = settings.custom_mute_sound.take() {
+        let id = add_migrated_custom_sound(settings, custom_sound, "mute");
+        settings.mute_theme = custom_sound_value(&id);
+    }
+    if let Some(custom_sound) = settings.custom_unmute_sound.take() {
+        let id = add_migrated_custom_sound(settings, custom_sound, "unmute");
+        settings.unmute_theme = custom_sound_value(&id);
+    }
+}
+
+fn add_migrated_custom_sound(
+    settings: &mut SoundSettings,
+    mut custom_sound: CustomSound,
+    fallback_stem: &str,
+) -> String {
+    if custom_sound.id.is_empty() {
+        custom_sound.id = fallback_stem.to_string();
+    }
+    let mut id = custom_sound.id.clone();
+    if settings
+        .custom_sounds
+        .iter()
+        .any(|existing| existing.id == id)
+    {
+        id = default_custom_sound_id();
+        custom_sound.id = id.clone();
+    }
+    settings.custom_sounds.push(custom_sound);
+    id
 }
 
 fn save_config(config: &Config) -> Result<()> {
@@ -2208,8 +2480,12 @@ fn normalize_hotkeys(hotkeys: &mut [HotkeyBinding]) {
 }
 
 fn config_path() -> Result<PathBuf> {
+    Ok(app_config_dir()?.join("config.json"))
+}
+
+fn app_config_dir() -> Result<PathBuf> {
     let appdata = std::env::var_os("APPDATA").context("APPDATA is not set")?;
-    Ok(PathBuf::from(appdata).join("SilenceV2").join("config.json"))
+    Ok(PathBuf::from(appdata).join("SilenceV2"))
 }
 
 fn config_modified_time() -> Option<SystemTime> {

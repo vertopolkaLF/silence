@@ -95,6 +95,13 @@
   color: var(--muted);
 }
 
+.sound-card-copy {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .volume-row {
   display: grid;
   grid-template-columns: 22px minmax(180px, 1fr) 22px;
@@ -119,6 +126,104 @@
 .sound-picker {
   display: grid;
   gap: 10px;
+}
+
+.sound-files-card {
+  gap: 14px;
+  padding-bottom: 0;
+}
+
+.custom-sound-library {
+  display: grid;
+}
+
+.custom-sound-file,
+.custom-sound-empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  transition:
+    background var(--ui-transition),
+    border-color var(--ui-transition),
+    transform var(--ui-transition);
+}
+
+.custom-sound-file:last-child {
+  border-bottom: 0;
+}
+
+.custom-sound-empty {
+  display: block;
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.custom-sound-copy {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  min-height: 42px;
+}
+
+.custom-sound-kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.custom-sound-name {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.custom-sound-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.custom-sound-actions .icon-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+}
+
+.custom-sound-actions .preview-button .icon-play,
+.custom-sound-actions .preview-button .icon-pause {
+  width: 15px;
+  height: 15px;
+  transform: none;
+}
+
+.custom-sound-remove {
+  color: var(--muted);
+}
+
+.custom-sound-remove:hover {
+  color: oklch(67% 0.22 29);
+}
+
+.custom-sound-remove .solar-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .hold-to-mute-panel {
@@ -206,6 +311,19 @@
   .sound-meta-row {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .custom-sound-file {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-sound-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .custom-sound-actions .small-button {
+    width: 100%;
   }
 
   .preview-button,

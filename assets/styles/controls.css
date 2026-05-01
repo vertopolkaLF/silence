@@ -85,9 +85,14 @@
 .ui-select-current-label,
 .ui-select-item-label {
   min-width: 0;
-  line-height: 1;
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.18;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--text);
 }
 
@@ -217,12 +222,12 @@
 
 .ui-select-item {
   width: auto;
-  min-height: 46px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0 6px;
-  padding: 9px 10px;
+  padding: 8px 10px;
   border-radius: 10px;
   color: var(--muted);
   transition:
@@ -234,7 +239,7 @@
 .ui-select-item-button {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 28px;
+  min-height: 26px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -249,6 +254,7 @@
 
 .ui-select-item-main {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 12px;

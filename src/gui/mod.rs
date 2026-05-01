@@ -11,6 +11,7 @@ use tabs::{SettingsTab, TabSlideDirection, TabTransition};
 
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
 const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
+const ADD_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/add-circle-linear.svg");
 const CLOCK_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/clock-circle-bold.svg");
 const CLOCK_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/clock-circle-linear.svg");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
@@ -31,11 +32,14 @@ const MONITOR_BOLD_ICON: Asset = asset!("/assets/icons/monitor-bold.svg");
 const OVEN_MITTS_BOLD_ICON: Asset = asset!("/assets/icons/oven-mitts-bold.svg");
 const OVEN_MITTS_LINEAR_ICON: Asset = asset!("/assets/icons/oven-mitts-linear.svg");
 const OVERLAY_CSS: Asset = asset!("/assets/styles/overlay.css", AssetOptions::css());
+const PAUSE_BOLD_ICON: Asset = asset!("/assets/icons/pause-bold.svg");
+const PLAY_BOLD_ICON: Asset = asset!("/assets/icons/play-bold.svg");
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const SETTINGS_BOLD_ICON: Asset = asset!("/assets/icons/settings-bold.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
+const TRASH_BIN_TRASH_LINEAR_ICON: Asset = asset!("/assets/icons/trash-bin-trash-linear.svg");
 const VOLUME_LOUD_BOLD_ICON: Asset = asset!("/assets/icons/volume-loud-bold.svg");
 const WIDGET_BOLD_ICON: Asset = asset!("/assets/icons/widget-bold.svg");
 const DEVICE_REFRESH_INTERVAL: Duration = Duration::from_secs(2);
@@ -179,7 +183,11 @@ fn settings_icon_style() -> String {
 .icon-widget-bold {{ --icon: url("{WIDGET_BOLD_ICON}"); }}
 .icon-magic-stick-3-bold {{ --icon: url("{MAGIC_STICK_3_BOLD_ICON}"); }}
 .icon-info-circle-bold {{ --icon: url("{INFO_CIRCLE_BOLD_ICON}"); }}
-.icon-keyboard-bold {{ --icon: url("{KEYBOARD_BOLD_ICON}"); }}"#
+.icon-keyboard-bold {{ --icon: url("{KEYBOARD_BOLD_ICON}"); }}
+.icon-add-circle {{ --icon: url("{ADD_CIRCLE_LINEAR_ICON}"); }}
+.icon-pause {{ --icon: url("{PAUSE_BOLD_ICON}"); }}
+.icon-play {{ --icon: url("{PLAY_BOLD_ICON}"); }}
+.icon-trash {{ --icon: url("{TRASH_BIN_TRASH_LINEAR_ICON}"); }}"#
     )
 }
 

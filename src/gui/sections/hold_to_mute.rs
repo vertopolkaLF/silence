@@ -19,6 +19,8 @@ pub fn render(
     let snapshot = settings();
     let sound_settings = snapshot.config.sound_settings.clone();
     let hold_settings = snapshot.config.hold_to_mute.clone();
+    let custom_sounds = sound_settings.custom_sounds.clone();
+    let playing_preview = use_signal(|| None::<String>);
 
     let volume = hold_settings
         .volume_override
@@ -153,12 +155,14 @@ pub fn render(
                             value: mute_value,
                             default_label: format!(
                                 "Default ({})",
-                                crate::sound_theme_label(&sound_settings.mute_theme)
+                                crate::sound_selection_label(&sound_settings.mute_theme, &sound_settings)
                             ),
                             preview_theme: mute_preview_theme,
+                            custom_sounds: custom_sounds.clone(),
                             muted: true,
                             volume,
                             has_override: hold_settings.mute_theme_override.is_some(),
+                            playing_preview,
                             settings,
                         }
 
@@ -167,12 +171,14 @@ pub fn render(
                             value: unmute_value,
                             default_label: format!(
                                 "Default ({})",
-                                crate::sound_theme_label(&sound_settings.unmute_theme)
+                                crate::sound_selection_label(&sound_settings.unmute_theme, &sound_settings)
                             ),
                             preview_theme: unmute_preview_theme,
+                            custom_sounds: custom_sounds.clone(),
                             muted: false,
                             volume,
                             has_override: hold_settings.unmute_theme_override.is_some(),
+                            playing_preview,
                             settings,
                         }
                     }
@@ -188,17 +194,15 @@ fn SoundPicker(
     value: String,
     default_label: String,
     preview_theme: String,
+    custom_sounds: Vec<crate::CustomSound>,
     muted: bool,
     volume: u8,
     has_override: bool,
+    playing_preview: Signal<Option<String>>,
     settings: Signal<super::super::SettingsSnapshot>,
 ) -> Element {
     let theme_options = std::iter::once(SelectOption::new(DEFAULT_SOUND_OPTION, default_label))
-        .chain(
-            crate::sound_themes()
-                .iter()
-                .map(|theme| SelectOption::new(theme.id, theme.label).icon("icon-volume")),
-        )
+        .chain(super::sounds::sound_options(&custom_sounds))
         .collect::<Vec<_>>();
 
     rsx! {
@@ -224,13 +228,13 @@ fn SoundPicker(
                         });
                     }
                 }
-                button {
-                    class: "icon-button preview-button",
-                    title: "Preview {title}",
-                    onclick: move |_| {
-                        let _ = crate::preview_sound(&preview_theme, muted, volume);
-                    },
-                    span { class: "solar-icon icon-play" }
+                super::sounds::PreviewButton {
+                    title: format!("Preview {title}"),
+                    preview_key: super::sounds::preview_key(&preview_theme, muted),
+                    selection: preview_theme,
+                    muted,
+                    volume,
+                    playing_preview
                 }
                 button {
                     class: "secondary small-button",
