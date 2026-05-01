@@ -200,7 +200,9 @@ pub fn settings_app() -> Element {
     let mut hotkey_modal_request = use_signal(|| None::<HotkeyModalRequest>);
     let mut pending_hotkey_modal_after_nav = use_signal(|| None::<HotkeyModalRequest>);
     let recording = use_signal(|| false);
+    let open_select = use_signal(|| None::<String>);
     let mut closing = use_signal(|| false);
+    use_context_provider(|| open_select);
     use_future(move || {
         let reveal_desktop = reveal_desktop.clone();
         async move {

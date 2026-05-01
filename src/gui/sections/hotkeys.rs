@@ -72,11 +72,12 @@ pub fn modal_host(
     settings: Signal<super::super::SettingsSnapshot>,
     mut modal_request: Signal<Option<super::super::HotkeyModalRequest>>,
 ) -> Element {
-    let mut modal = use_signal(|| None::<ModalMode>);
+    let modal = use_signal(|| None::<ModalMode>);
     let mut recording = use_signal(|| false);
     let mut modifier_hold_started = use_signal(|| None::<Instant>);
     let mut hold_progress = use_signal(|| 0.0);
-    let mut pending_exiting = use_signal(|| false);
+    let pending_exiting = use_signal(|| false);
+    let panel_closing = use_signal(|| false);
     let mut live_modifier_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut draft_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut recording_shortcut = use_signal(|| None::<crate::Shortcut>);
@@ -129,6 +130,7 @@ pub fn modal_host(
                 modifier_hold_started,
                 hold_progress,
                 pending_exiting,
+                panel_closing,
                 live_modifier_shortcut,
                 recording_shortcut,
                 draft_shortcut,
@@ -146,6 +148,7 @@ pub fn modal_host(
                 modifier_hold_started,
                 hold_progress,
                 pending_exiting,
+                panel_closing,
                 live_modifier_shortcut,
                 recording_shortcut,
                 draft_shortcut,
@@ -160,24 +163,25 @@ pub fn modal_host(
     let snapshot = settings();
     let devices = snapshot.devices.clone();
     let modal_mode = modal();
-    let can_save = draft_shortcut().is_some();
+    let can_create = draft_shortcut().is_some();
 
     rsx! {
         if let Some(mode) = modal_mode {
-            HotkeyModal {
+            HotkeyPanel {
                 mode: mode.clone(),
                 devices,
                 recording,
                 modifier_hold_started,
                 hold_progress,
                 pending_exiting,
+                panel_closing,
                 live_modifier_shortcut,
                 recording_shortcut,
                 draft_shortcut,
                 draft_action,
                 draft_target,
                 draft_ignore_modifiers,
-                can_save,
+                can_create,
                 settings,
                 onclose: move |_| {
                     close_modal(
@@ -187,50 +191,43 @@ pub fn modal_host(
                         modifier_hold_started,
                         hold_progress,
                         pending_exiting,
+                        panel_closing,
                         live_modifier_shortcut,
                         recording_shortcut,
                     );
                 },
-                onsave: {
+                oncreate: {
                     let save_mode = mode.clone();
                     move |_| {
-                    if let Some(shortcut) = draft_shortcut() {
-                        let action = draft_action();
-                        let target = if action.needs_target() && !draft_target().is_empty() {
-                            Some(draft_target())
-                        } else {
-                            None
-                        };
-                        let mode = save_mode.clone();
-                        super::super::update_settings(settings, |config| {
-                            config.hotkeys_paused = false;
-                            match mode {
-                                ModalMode::Add => config.hotkeys.push(crate::HotkeyBinding {
+                        if !matches!(save_mode, ModalMode::Add) {
+                            return;
+                        }
+                        if let Some(shortcut) = draft_shortcut() {
+                            let action = draft_action();
+                            let target = draft_target_for(action, draft_target());
+                            super::super::update_settings(settings, |config| {
+                                config.hotkeys_paused = false;
+                                config.hotkeys.push(crate::HotkeyBinding {
                                     shortcut,
                                     action,
                                     target,
                                     ignore_modifiers: draft_ignore_modifiers(),
                                     ..crate::HotkeyBinding::default()
-                                }),
-                                ModalMode::Edit(id) => {
-                                    if let Some(binding) = config.hotkeys.iter_mut().find(|binding| binding.id == id) {
-                                        binding.shortcut = shortcut;
-                                        binding.action = action;
-                                        binding.target = target;
-                                        binding.ignore_modifiers = draft_ignore_modifiers();
-                                    }
-                                }
-                            }
-                            sync_legacy_shortcut(config);
-                        });
-                        modal.set(None);
-                        recording.set(false);
-                        modifier_hold_started.set(None);
-                        hold_progress.set(0.0);
-                        pending_exiting.set(false);
-                        live_modifier_shortcut.set(None);
-                        recording_shortcut.set(None);
-                    }
+                                });
+                                sync_legacy_shortcut(config);
+                            });
+                            close_modal(
+                                settings,
+                                modal,
+                                recording,
+                                modifier_hold_started,
+                                hold_progress,
+                                pending_exiting,
+                                panel_closing,
+                                live_modifier_shortcut,
+                                recording_shortcut,
+                            );
+                        }
                     }
                 }
             }
@@ -254,6 +251,7 @@ fn start_modal(
     mut modifier_hold_started: Signal<Option<Instant>>,
     mut hold_progress: Signal<f64>,
     mut pending_exiting: Signal<bool>,
+    mut panel_closing: Signal<bool>,
     mut live_modifier_shortcut: Signal<Option<crate::Shortcut>>,
     mut recording_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_shortcut: Signal<Option<crate::Shortcut>>,
@@ -281,6 +279,7 @@ fn start_modal(
     modifier_hold_started.set(None);
     hold_progress.set(0.0);
     pending_exiting.set(false);
+    panel_closing.set(false);
     live_modifier_shortcut.set(None);
     recording_shortcut.set(None);
     super::super::update_settings(settings, |config| {
@@ -295,19 +294,28 @@ fn close_modal(
     mut modifier_hold_started: Signal<Option<Instant>>,
     mut hold_progress: Signal<f64>,
     mut pending_exiting: Signal<bool>,
+    mut panel_closing: Signal<bool>,
     mut live_modifier_shortcut: Signal<Option<crate::Shortcut>>,
     mut recording_shortcut: Signal<Option<crate::Shortcut>>,
 ) {
     super::super::update_settings(settings, |config| {
         config.hotkeys_paused = false;
     });
-    modal.set(None);
+    if panel_closing() {
+        return;
+    }
+    panel_closing.set(true);
     recording.set(false);
     modifier_hold_started.set(None);
     hold_progress.set(0.0);
     pending_exiting.set(false);
     live_modifier_shortcut.set(None);
     recording_shortcut.set(None);
+    spawn(async move {
+        tokio::time::sleep(Duration::from_millis(190)).await;
+        modal.set(None);
+        panel_closing.set(false);
+    });
 }
 
 fn animate_pending_out(mut pending_exiting: Signal<bool>) {
@@ -319,40 +327,59 @@ fn animate_pending_out(mut pending_exiting: Signal<bool>) {
 }
 
 #[component]
-fn HotkeyModal(
+fn HotkeyPanel(
     mode: ModalMode,
     devices: Vec<crate::MicDevice>,
     mut recording: Signal<bool>,
     mut modifier_hold_started: Signal<Option<Instant>>,
     mut hold_progress: Signal<f64>,
     mut pending_exiting: Signal<bool>,
+    panel_closing: Signal<bool>,
     mut live_modifier_shortcut: Signal<Option<crate::Shortcut>>,
     mut recording_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_action: Signal<crate::HotkeyAction>,
     mut draft_target: Signal<String>,
     mut draft_ignore_modifiers: Signal<bool>,
-    can_save: bool,
+    can_create: bool,
     settings: Signal<super::super::SettingsSnapshot>,
     onclose: EventHandler<()>,
-    onsave: EventHandler<()>,
+    oncreate: EventHandler<()>,
 ) -> Element {
-    let title = match mode {
+    let title = match &mode {
         ModalMode::Add => "Add hotkey",
         ModalMode::Edit(_) => "Edit hotkey",
     };
-    let save_label = match mode {
-        ModalMode::Add => "Add",
-        ModalMode::Edit(_) => "Save",
+    let subtitle = match &mode {
+        ModalMode::Add => "Choose the action, then record the shortcut.",
+        ModalMode::Edit(_) => "Changes apply as soon as you make them.",
     };
     let action = draft_action();
+    let editing_id = match &mode {
+        ModalMode::Edit(id) => Some(id.clone()),
+        ModalMode::Add => None,
+    };
+    let keydown_editing_id = editing_id.clone();
+    let ignore_editing_id = editing_id.clone();
+    let action_editing_id = editing_id.clone();
+    let target_editing_id = editing_id.clone();
+    let backdrop_class = if panel_closing() {
+        "hotkey-panel-backdrop exiting"
+    } else {
+        "hotkey-panel-backdrop"
+    };
+    let panel_class = if panel_closing() {
+        "hotkey-editor-panel exiting"
+    } else {
+        "hotkey-editor-panel"
+    };
 
     rsx! {
         div {
-            class: "modal-backdrop",
+            class: "{backdrop_class}",
             onclick: move |_| onclose.call(()),
             div {
-                class: "mini-modal",
+                class: "{panel_class}",
                 tabindex: "0",
                 onclick: move |evt| evt.stop_propagation(),
                 onkeydown: move |evt| {
@@ -371,6 +398,16 @@ fn HotkeyModal(
                         } else {
                             draft_shortcut.set(Some(shortcut));
                             recording_shortcut.set(Some(shortcut));
+                            if let Some(id) = keydown_editing_id.clone() {
+                                apply_draft_to_binding(
+                                    settings,
+                                    id,
+                                    shortcut,
+                                    draft_action(),
+                                    draft_target(),
+                                    draft_ignore_modifiers(),
+                                );
+                            }
                             if modifier_hold_started().is_some() {
                                 animate_pending_out(pending_exiting);
                             }
@@ -396,8 +433,11 @@ fn HotkeyModal(
                         hold_progress.set(0.0);
                     }
                 },
-                div { class: "mini-modal-head",
-                    h2 { "{title}" }
+                div { class: "hotkey-panel-head",
+                    div { class: "hotkey-panel-title",
+                        h2 { "{title}" }
+                        p { "{subtitle}" }
+                    }
                     button {
                         class: "icon-button",
                         title: "Close",
@@ -406,7 +446,7 @@ fn HotkeyModal(
                     }
                 }
 
-                div { class: "hotkey-modal-grid",
+                div { class: "hotkey-panel-body",
                     div { class: "field-group modal-field",
                         label { "Shortcut" }
                             div { class: "shortcut-record-stack",
@@ -445,9 +485,7 @@ fn HotkeyModal(
                                         }
                                     }
                                 }
-                                if recording() {
-                                    p { class: "shortcut-record-hint", "Hold to bind only modifier keys" }
-                                }
+                                p { class: "shortcut-record-hint", "Hold to bind only modifier keys" }
                             }
 
                     }
@@ -456,48 +494,115 @@ fn HotkeyModal(
                         class: "modal-check".to_string(),
                         checked: draft_ignore_modifiers(),
                         label: "Ignore modifiers".to_string(),
-                        onchange: move |checked: bool| draft_ignore_modifiers.set(checked)
-                    }
-
-                    div { class: "field-group modal-field",
-                        label { "Action" }
-                        Select {
-                            value: action.id().to_string(),
-                            options: action_options(),
-                            onchange: move |value: String| {
-                                let action = crate::HotkeyAction::from_id(&value);
-                                draft_action.set(action);
-                                if !action.needs_target() {
-                                    draft_target.set(String::new());
-                                }
+                        onchange: move |checked: bool| {
+                            draft_ignore_modifiers.set(checked);
+                            if let (Some(id), Some(shortcut)) = (ignore_editing_id.clone(), draft_shortcut()) {
+                                apply_draft_to_binding(settings, id, shortcut, draft_action(), draft_target(), checked);
                             }
                         }
                     }
 
-                    if action.needs_target() {
-                        TargetSelect {
-                            value: draft_target(),
-                            devices,
-                            onchange: move |value: String| draft_target.set(value)
+                    div { class: "hotkey-action-target-row",
+                        div { class: "field-group modal-field",
+                            label { "Action" }
+                            Select {
+                                value: action.id().to_string(),
+                                options: action_options(),
+                                onchange: move |value: String| {
+                                    let action = crate::HotkeyAction::from_id(&value);
+                                    draft_action.set(action);
+                                    let mut target = draft_target();
+                                    if !action.needs_target() {
+                                        draft_target.set(String::new());
+                                        target = String::new();
+                                    }
+                                    if let (Some(id), Some(shortcut)) = (action_editing_id.clone(), draft_shortcut()) {
+                                        apply_draft_to_binding(
+                                            settings,
+                                            id,
+                                            shortcut,
+                                            action,
+                                            target,
+                                            draft_ignore_modifiers(),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        if action.needs_target() {
+                            TargetSelect {
+                                value: draft_target(),
+                                devices,
+                                onchange: move |value: String| {
+                                    draft_target.set(value.clone());
+                                    if let (Some(id), Some(shortcut)) = (target_editing_id.clone(), draft_shortcut()) {
+                                        apply_draft_to_binding(
+                                            settings,
+                                            id,
+                                            shortcut,
+                                            draft_action(),
+                                            value,
+                                            draft_ignore_modifiers(),
+                                        );
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
-                div { class: "mini-modal-actions",
-                    button {
-                        class: "secondary",
-                        onclick: move |_| onclose.call(()),
-                        "Cancel"
-                    }
-                    button {
-                        class: "save",
-                        disabled: !can_save,
-                        onclick: move |_| onsave.call(()),
-                        "{save_label}"
+                div { class: "hotkey-panel-actions",
+                    if matches!(mode, ModalMode::Add) {
+                        button {
+                            class: "save",
+                            disabled: !can_create,
+                            onclick: move |_| oncreate.call(()),
+                            span { class: "solar-icon button-icon icon-record" }
+                            "Add hotkey"
+                        }
+                    } else {
+                        button {
+                            class: "secondary",
+                            onclick: move |_| onclose.call(()),
+                            "Cancel"
+                        }
+                        button {
+                            class: "save",
+                            onclick: move |_| onclose.call(()),
+                            "Done"
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+fn apply_draft_to_binding(
+    settings: Signal<super::super::SettingsSnapshot>,
+    id: String,
+    shortcut: crate::Shortcut,
+    action: crate::HotkeyAction,
+    target: String,
+    ignore_modifiers: bool,
+) {
+    super::super::update_settings(settings, |config| {
+        if let Some(binding) = config.hotkeys.iter_mut().find(|binding| binding.id == id) {
+            binding.shortcut = shortcut;
+            binding.action = action;
+            binding.target = draft_target_for(action, target);
+            binding.ignore_modifiers = ignore_modifiers;
+        }
+        sync_legacy_shortcut(config);
+    });
+}
+
+fn draft_target_for(action: crate::HotkeyAction, target: String) -> Option<String> {
+    if action.needs_target() && !target.is_empty() {
+        Some(target)
+    } else {
+        None
     }
 }
 

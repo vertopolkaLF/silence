@@ -99,7 +99,6 @@
 .ui-select-current-detail,
 .ui-select-item-detail {
   min-width: 0;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);

@@ -114,6 +114,7 @@ pub fn Select(
     let mut open = use_signal(|| false);
     let mut menu_style = use_signal(String::new);
     let mut animate_value = use_signal(|| false);
+    let mut open_select = use_context::<Signal<Option<String>>>();
     let select_id = use_hook(|| {
         format!(
             "ui-select-{}",
@@ -135,6 +136,14 @@ pub fn Select(
     } else {
         "ui-select-menu ready"
     };
+
+    let sync_select_id = select_id.clone();
+    use_effect(move || {
+        if open() && open_select().as_deref() != Some(sync_select_id.as_str()) {
+            open.set(false);
+        }
+    });
+
     let mut rendered_options = Vec::new();
     let mut current_group = None::<String>;
     for option in options {
@@ -159,6 +168,7 @@ pub fn Select(
             "ui-select-item"
         };
         let action_value = option.value.clone();
+        let close_select_id = select_id.clone();
         let should_animate = next_value != value;
 
         rendered_options.push(rsx! {
@@ -170,6 +180,9 @@ pub fn Select(
                     class: "ui-select-item-button",
                     onclick: move |_| {
                         open.set(false);
+                        if open_select().as_deref() == Some(close_select_id.as_str()) {
+                            open_select.set(None);
+                        }
                         animate_value.set(should_animate);
                         onchange.call(next_value.clone());
                     },
@@ -343,6 +356,9 @@ requestAnimationFrame(updateShadows);
         });
     });
 
+    let trigger_select_id = select_id.clone();
+    let dismiss_select_id = select_id.clone();
+
     rsx! {
         div { class: "{root_class}", "data-ui-select-id": "{select_id}",
             if open() {
@@ -351,7 +367,12 @@ requestAnimationFrame(updateShadows);
                     class: "ui-select-dismiss",
                     tabindex: "-1",
                     aria_hidden: "true",
-                    onclick: move |_| open.set(false)
+                    onclick: move |_| {
+                        open.set(false);
+                        if open_select().as_deref() == Some(dismiss_select_id.as_str()) {
+                            open_select.set(None);
+                        }
+                    }
                 }
             }
 
@@ -359,7 +380,15 @@ requestAnimationFrame(updateShadows);
                 r#type: "button",
                 class: "ui-select-trigger",
                 aria_expanded: if open() { "true" } else { "false" },
-                onclick: move |_| open.set(!open()),
+                onclick: move |_| {
+                    if open() {
+                        open.set(false);
+                        open_select.set(None);
+                    } else {
+                        open_select.set(Some(trigger_select_id.clone()));
+                        open.set(true);
+                    }
+                },
                 div { class: "ui-select-current",
                     if let Some(icon_class) = current.as_ref().and_then(|option| option.icon_class.as_deref()) {
                         span { class: "solar-icon ui-select-current-icon {icon_class}" }

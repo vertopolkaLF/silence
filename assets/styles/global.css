@@ -116,6 +116,10 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: default;
+}
+
 .solar-icon {
   display: inline-block;
   width: 20px;
