@@ -9,7 +9,10 @@ use std::{
     path::PathBuf,
     process::Command,
     ptr::{null, null_mut},
-    sync::Mutex,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, AtomicIsize, Ordering},
+    },
     time::{Duration, Instant, SystemTime},
 };
 
@@ -55,16 +58,17 @@ use windows::{
                 Shell_NotifyIconW,
             },
             WindowsAndMessaging::{
-                AppendMenuW, CallNextHookEx, CreateIconFromResourceEx, CreatePopupMenu,
+                AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIconFromResourceEx, CreatePopupMenu,
                 CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow, DispatchMessageW,
-                FindWindowW, GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON, IDC_ARROW,
-                IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW,
-                LoadIconW, MENU_ITEM_FLAGS, MSG, PostQuitMessage, RegisterClassW, SM_CXSCREEN,
-                SM_CYSCREEN, SW_RESTORE, SendMessageW, SetForegroundWindow, SetTimer,
-                SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu,
-                TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP,
-                WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
-                WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
+                FindWindowW, GWL_WNDPROC, GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK,
+                HICON, IDC_ARROW, IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer,
+                LR_DEFAULTSIZE, LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG, PostQuitMessage,
+                RegisterClassW, SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SendMessageW,
+                SetForegroundWindow, SetTimer, SetWindowLongPtrW, SetWindowsHookExW, ShowWindow,
+                TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage,
+                UnhookWindowsHookEx, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND,
+                WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
+                WM_RBUTTONUP, WM_SYSCOMMAND, WM_TIMER, WNDCLASSW, WNDPROC, WS_OVERLAPPED,
             },
         },
     },
@@ -692,6 +696,72 @@ unsafe impl Send for AppState {}
 
 static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState::default()));
 static AUDIO_ENGINE: Lazy<Mutex<Option<AudioEngine>>> = Lazy::new(|| Mutex::new(None));
+static SETTINGS_HOTKEY_RECORDING: AtomicBool = AtomicBool::new(false);
+static SETTINGS_ALT_SPACE_RECORDED: AtomicBool = AtomicBool::new(false);
+static SETTINGS_ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
+
+pub(crate) fn set_settings_hotkey_recording(recording: bool) {
+    SETTINGS_HOTKEY_RECORDING.store(recording, Ordering::Relaxed);
+}
+
+pub(crate) fn take_settings_alt_space_recorded() -> bool {
+    SETTINGS_ALT_SPACE_RECORDED.swap(false, Ordering::Relaxed)
+}
+
+fn has_alt_space_hotkey() -> bool {
+    STATE
+        .lock()
+        .unwrap()
+        .hotkeys
+        .iter()
+        .any(|hotkey| shortcut_is_alt_space(&hotkey.shortcut))
+}
+
+fn shortcut_is_alt_space(shortcut: &Shortcut) -> bool {
+    shortcut.alt && !shortcut.ctrl && !shortcut.shift && !shortcut.win && shortcut.vk == 0x20
+}
+
+pub(crate) fn install_settings_window_guard(hwnd: isize) {
+    if hwnd == 0 || SETTINGS_ORIGINAL_WNDPROC.load(Ordering::Relaxed) != 0 {
+        return;
+    }
+
+    let previous = unsafe {
+        SetWindowLongPtrW(
+            HWND(hwnd as *mut c_void),
+            GWL_WNDPROC,
+            settings_window_proc as *const () as isize,
+        )
+    };
+    if previous != 0 {
+        SETTINGS_ORIGINAL_WNDPROC.store(previous, Ordering::Relaxed);
+    }
+}
+
+unsafe extern "system" fn settings_window_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if msg == WM_SYSCOMMAND && (wparam.0 & 0xfff0) == SC_KEYMENU as usize {
+        if SETTINGS_HOTKEY_RECORDING.load(Ordering::Relaxed) {
+            SETTINGS_ALT_SPACE_RECORDED.store(true, Ordering::Relaxed);
+            return LRESULT(0);
+        }
+        if has_alt_space_hotkey() {
+            return LRESULT(0);
+        }
+    }
+
+    let previous = SETTINGS_ORIGINAL_WNDPROC.load(Ordering::Relaxed);
+    if previous == 0 {
+        return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+    }
+
+    let previous: WNDPROC = unsafe { std::mem::transmute(previous) };
+    unsafe { CallWindowProcW(previous, hwnd, msg, wparam, lparam) }
+}
 
 struct AudioEngine {
     cached_sounds: HashMap<String, SamplesBuffer>,
@@ -1211,6 +1281,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 
     if is_down {
         let mut actions = Vec::new();
+        let mut suppress_key = false;
         {
             let mut state = STATE.lock().unwrap();
             update_modifier_state(&mut state.modifiers, vk, true);
@@ -1241,6 +1312,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 if hotkey.ignore_modifiers && exact_keys.contains(&hotkey.shortcut.vk) {
                     continue;
                 }
+                if shortcut_is_alt_space(&hotkey.shortcut) {
+                    suppress_key = true;
+                }
                 if !state.hotkeys_down.contains(&hotkey.id) {
                     state.hotkeys_down.insert(hotkey.id.clone());
                     actions.push(hotkey_action_request(&hotkey));
@@ -1250,10 +1324,14 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         for action in actions {
             run_hotkey_action(action);
         }
+        if suppress_key {
+            return LRESULT(1);
+        }
     }
 
     if is_up {
         let mut actions = Vec::new();
+        let mut suppress_key = false;
         let mut state = STATE.lock().unwrap();
         update_modifier_state(&mut state.modifiers, vk, false);
         let modifiers = state.modifiers;
@@ -1271,6 +1349,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
             .cloned()
             .collect();
         for hotkey in released {
+            if shortcut_is_alt_space(&hotkey.shortcut) {
+                suppress_key = true;
+            }
             state.hotkeys_down.remove(&hotkey.id);
             if hotkey.action.is_hold() {
                 actions.push(HotkeyRequest::ReleaseHold {
@@ -1285,6 +1366,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 
         for action in actions {
             run_hotkey_action(action);
+        }
+        if suppress_key {
+            return LRESULT(1);
         }
     }
 

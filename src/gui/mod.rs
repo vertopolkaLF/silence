@@ -1,4 +1,6 @@
 use dioxus::prelude::*;
+#[cfg(target_os = "windows")]
+use dioxus::desktop::tao::platform::windows::WindowExtWindows;
 use std::time::{Duration, Instant};
 
 mod controls;
@@ -110,7 +112,24 @@ html, body, #main {{
 <link rel="stylesheet" href="{OVERLAY_CSS}">
 <link rel="stylesheet" href="{HOTKEYS_CSS}">
 <style>{theme_style}</style>
-<style>{icon_style}</style>"#,
+<style>{icon_style}</style>
+<script>
+(() => {{
+  const isHotkeyRecording = () =>
+    Boolean(document.querySelector('.hotkey-editor-panel .shortcut-display.recording'));
+
+  const suppressRecordedShortcutDefaults = (event) => {{
+    if (!isHotkeyRecording()) {{
+      return;
+    }}
+    event.preventDefault();
+  }};
+
+  window.addEventListener('keydown', suppressRecordedShortcutDefaults, true);
+  window.addEventListener('keyup', suppressRecordedShortcutDefaults, true);
+  window.addEventListener('keypress', suppressRecordedShortcutDefaults, true);
+}})();
+</script>"#,
         settings_font_face()
     )
 }
@@ -186,6 +205,11 @@ pub fn update_settings(
 
 pub fn settings_app() -> Element {
     let desktop = dioxus::desktop::use_window();
+    #[cfg(target_os = "windows")]
+    use_hook({
+        let desktop = desktop.clone();
+        move || crate::install_settings_window_guard(desktop.hwnd())
+    });
     let drag_desktop = desktop.clone();
     let devtools_desktop = desktop.clone();
     let close_desktop = desktop.clone();

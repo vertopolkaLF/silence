@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    sync::atomic::{AtomicUsize, Ordering},
+    time::{Duration, Instant},
+};
 
 use dioxus::prelude::*;
 
@@ -7,6 +10,7 @@ use crate::gui::controls::{Checkbox, Select, SelectOption};
 const MODIFIER_HOLD_DURATION: Duration = Duration::from_millis(1000);
 const DEFAULT_TARGET_LABEL: &str = "Default";
 const ALL_MICROPHONES_LABEL: &str = "All microphones";
+static NEXT_SHORTCUT_DISPLAY_ID: AtomicUsize = AtomicUsize::new(1);
 
 pub fn render(
     settings: Signal<super::super::SettingsSnapshot>,
@@ -84,6 +88,10 @@ pub fn modal_host(
     let draft_action = use_signal(|| crate::HotkeyAction::ToggleMute);
     let draft_target = use_signal(String::new);
     let draft_ignore_modifiers = use_signal(|| false);
+
+    use_effect(move || {
+        crate::set_settings_hotkey_recording(recording());
+    });
 
     use_future(move || async move {
         loop {
@@ -363,6 +371,7 @@ fn HotkeyPanel(
     let ignore_editing_id = editing_id.clone();
     let action_editing_id = editing_id.clone();
     let target_editing_id = editing_id.clone();
+    let alt_space_editing_id = editing_id.clone();
     let backdrop_class = if panel_closing() {
         "hotkey-panel-backdrop exiting"
     } else {
@@ -373,6 +382,43 @@ fn HotkeyPanel(
     } else {
         "hotkey-editor-panel"
     };
+
+    use_future(move || {
+        let alt_space_editing_id = alt_space_editing_id.clone();
+        async move {
+            loop {
+                if recording() && crate::take_settings_alt_space_recorded() {
+                    let shortcut = crate::Shortcut {
+                        ctrl: false,
+                        alt: true,
+                        shift: false,
+                        win: false,
+                        vk: 0x20,
+                    };
+                    draft_shortcut.set(Some(shortcut));
+                    recording_shortcut.set(Some(shortcut));
+                    if let Some(id) = alt_space_editing_id.clone() {
+                        apply_draft_to_binding(
+                            settings,
+                            id,
+                            shortcut,
+                            draft_action(),
+                            draft_target(),
+                            draft_ignore_modifiers(),
+                        );
+                    }
+                    if modifier_hold_started().is_some() {
+                        animate_pending_out(pending_exiting);
+                    }
+                    recording.set(false);
+                    modifier_hold_started.set(None);
+                    hold_progress.set(0.0);
+                    live_modifier_shortcut.set(None);
+                }
+                tokio::time::sleep(Duration::from_millis(16)).await;
+            }
+        }
+    });
 
     rsx! {
         div {
@@ -452,6 +498,7 @@ fn HotkeyPanel(
                             div { class: "shortcut-record-stack",
                                 div { class: "shortcut-record-row",
                                     KeyDisplay {
+                                        display_id: Some("hotkey-editor-shortcut".to_string()),
                                         shortcut: if recording() {
                                             live_modifier_shortcut().or_else(|| recording_shortcut())
                                         } else {
@@ -608,6 +655,7 @@ fn draft_target_for(action: crate::HotkeyAction, target: String) -> Option<Strin
 
 #[component]
 fn KeyDisplay(
+    #[props(default)] display_id: Option<String>,
     shortcut: Option<crate::Shortcut>,
     recording: bool,
     boxed: bool,
@@ -620,14 +668,76 @@ fn KeyDisplay(
         .map(|shortcut| shortcut.parts())
         .unwrap_or_default();
     let progress = format!("{:.0}%", hold_progress * 100.0);
-    let pending_offset = format!("{}px", pending_offset_px(&parts));
+    let generated_display_id = use_hook(|| {
+        format!(
+            "shortcut-display-{}",
+            NEXT_SHORTCUT_DISPLAY_ID.fetch_add(1, Ordering::Relaxed)
+        )
+    });
+    let display_id = display_id.unwrap_or(generated_display_id);
+    let measure_key = parts.join("|");
+    use_effect(use_reactive!(
+        |display_id, measure_key, modifier_hold_active, pending_exiting| {
+        let has_pending = modifier_hold_active || pending_exiting;
+        if !has_pending {
+            return;
+        }
+        let _ = measure_key.as_str();
+        spawn(async move {
+            let script = format!(
+                r#"
+const updatePending = () => {{
+  const root = document.querySelector('[data-shortcut-display-id="{display_id}"]');
+  const keycapList = root?.querySelector('.keycap-list');
+  const pending = root?.querySelector('.shortcut-pending');
+  if (!root || !keycapList || !pending) {{
+    console.log('[hotkey pending]', 'missing nodes', {{
+      displayId: '{display_id}',
+      hasRoot: !!root,
+      hasKeycapList: !!keycapList,
+      hasPending: !!pending
+    }});
+    return;
+  }}
+
+  const styles = getComputedStyle(root);
+  const gap = Number.parseFloat(styles.getPropertyValue('--shortcut-gap')) || 0;
+  const nextOffset = keycapList.offsetLeft + keycapList.getBoundingClientRect().width + gap;
+  window.__hotkeyPendingOffsets ??= new Map();
+  const previousOffset = window.__hotkeyPendingOffsets.get('{display_id}') ?? nextOffset;
+  window.__hotkeyPendingOffsets.set('{display_id}', nextOffset);
+
+  root.style.setProperty('--pending-offset', `${{nextOffset}}px`);
+  console.log('[hotkey pending]', 'measured', {{
+    displayId: '{display_id}',
+    keycapWidth: keycapList.getBoundingClientRect().width,
+    gap,
+    previousOffset,
+    nextOffset,
+    applied: root.style.getPropertyValue('--pending-offset')
+  }});
+
+  // The CSS left transition handles the movement. Avoid a transform FLIP here:
+  // combining both makes the pending text visually jump back toward the input edge.
+}};
+
+requestAnimationFrame(() => requestAnimationFrame(updatePending));
+setTimeout(updatePending, 80);
+"#
+            );
+            let _ = dioxus::document::eval(&script).await;
+        });
+    }));
 
     rsx! {
         div {
             class: display_class(boxed, recording),
-            style: "--hold-progress: {progress}; --pending-offset: {pending_offset};",
-            for part in parts {
-                span { class: keycap_class(animate), "{part}" }
+            style: "--hold-progress: {progress};",
+            "data-shortcut-display-id": "{display_id}",
+            span { class: "keycap-list",
+                for part in parts {
+                    span { class: keycap_class(animate), "{part}" }
+                }
             }
             if modifier_hold_active || pending_exiting {
                 span {
@@ -703,21 +813,6 @@ fn HotkeyRow(
             }
         }
     }
-}
-
-fn pending_offset_px(parts: &[String]) -> usize {
-    if parts.is_empty() {
-        return 0;
-    }
-
-    let key_widths: usize = parts
-        .iter()
-        .map(|part| {
-            let text_width = part.chars().count() * 7 + 18;
-            text_width.clamp(28, 92)
-        })
-        .sum();
-    key_widths + (parts.len() - 1) * 6 + 8
 }
 
 fn display_class(boxed: bool, recording: bool) -> &'static str {

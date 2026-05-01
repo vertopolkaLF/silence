@@ -226,17 +226,25 @@
 }
 
 .shortcut-display {
+  --shortcut-gap: 6px;
   position: relative;
   min-height: 28px;
   min-width: 0;
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--shortcut-gap);
   padding: 4px 0 6px;
   overflow: hidden;
   --pending-offset: 0px;
   transition: gap 200ms ease;
+}
+
+.keycap-list {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
 }
 
 .shortcut-display.fake-input {
@@ -272,10 +280,6 @@
 
 .shortcut-display.fake-input.recording .shortcut-pending {
   color: var(--text);
-}
-
-.shortcut-display.fake-input .shortcut-pending {
-  left: calc(5px + var(--pending-offset));
 }
 
 .shortcut-display::after {
