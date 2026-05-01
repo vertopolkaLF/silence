@@ -42,9 +42,9 @@ impl SettingsTab {
     const ALL: &'static [Self] = &[
         Self::General,
         Self::Hotkeys,
-        Self::HoldToMute,
         Self::Sounds,
         Self::Overlay,
+        Self::HoldToMute,
         Self::TrayIcon,
         Self::AutoMute,
         Self::About,
@@ -143,9 +143,9 @@ impl SettingsTab {
         match self {
             Self::General => 0,
             Self::Hotkeys => 1,
-            Self::HoldToMute => 2,
-            Self::Sounds => 3,
-            Self::Overlay => 4,
+            Self::Sounds => 2,
+            Self::Overlay => 3,
+            Self::HoldToMute => 4,
             Self::TrayIcon => 5,
             Self::AutoMute => 6,
             Self::About => 7,

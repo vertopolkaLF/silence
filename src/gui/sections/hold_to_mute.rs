@@ -28,7 +28,7 @@ pub fn render(
     let volume_label = if hold_settings.volume_override.is_some() {
         format!("{volume}%")
     } else {
-        "Default".to_string()
+        format!("Default ({}%)", sound_settings.volume.min(100))
     };
     let mute_value = select_theme_value(hold_settings.mute_theme_override.as_deref());
     let unmute_value = select_theme_value(hold_settings.unmute_theme_override.as_deref());
@@ -151,6 +151,10 @@ pub fn render(
                         SoundPicker {
                             title: "Mute Sound",
                             value: mute_value,
+                            default_label: format!(
+                                "Default ({})",
+                                crate::sound_theme_label(&sound_settings.mute_theme)
+                            ),
                             preview_theme: mute_preview_theme,
                             muted: true,
                             volume,
@@ -161,6 +165,10 @@ pub fn render(
                         SoundPicker {
                             title: "Unmute Sound",
                             value: unmute_value,
+                            default_label: format!(
+                                "Default ({})",
+                                crate::sound_theme_label(&sound_settings.unmute_theme)
+                            ),
                             preview_theme: unmute_preview_theme,
                             muted: false,
                             volume,
@@ -178,22 +186,20 @@ pub fn render(
 fn SoundPicker(
     title: &'static str,
     value: String,
+    default_label: String,
     preview_theme: String,
     muted: bool,
     volume: u8,
     has_override: bool,
     settings: Signal<super::super::SettingsSnapshot>,
 ) -> Element {
-    let theme_options = std::iter::once(SelectOption::new(
-        DEFAULT_SOUND_OPTION,
-        "Default (from Sounds tab)",
-    ))
-    .chain(
-        crate::sound_themes()
-            .iter()
-            .map(|theme| SelectOption::new(theme.id, theme.label).icon("icon-volume")),
-    )
-    .collect::<Vec<_>>();
+    let theme_options = std::iter::once(SelectOption::new(DEFAULT_SOUND_OPTION, default_label))
+        .chain(
+            crate::sound_themes()
+                .iter()
+                .map(|theme| SelectOption::new(theme.id, theme.label).icon("icon-volume")),
+        )
+        .collect::<Vec<_>>();
 
     rsx! {
         div { class: "sound-picker",

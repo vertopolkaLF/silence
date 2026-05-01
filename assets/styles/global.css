@@ -2,7 +2,7 @@
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: oklch(44.95% 0 0) transparent;
-  font-family: "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
+  font-family: inherit;
   user-select: none;
 }
 
@@ -14,6 +14,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
+  font-family: "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
 }
 
 #main {
