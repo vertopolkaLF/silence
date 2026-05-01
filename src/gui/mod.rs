@@ -11,7 +11,6 @@ use tabs::{SettingsTab, TabSlideDirection, TabTransition};
 
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
 const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
-const ADD_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/add-circle-linear.svg");
 const CLOCK_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/clock-circle-bold.svg");
 const CLOCK_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/clock-circle-linear.svg");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
@@ -34,6 +33,7 @@ const OVEN_MITTS_LINEAR_ICON: Asset = asset!("/assets/icons/oven-mitts-linear.sv
 const OVERLAY_CSS: Asset = asset!("/assets/styles/overlay.css", AssetOptions::css());
 const PAUSE_BOLD_ICON: Asset = asset!("/assets/icons/pause-bold.svg");
 const PLAY_BOLD_ICON: Asset = asset!("/assets/icons/play-bold.svg");
+const PLUS_LINEAR_ICON: Asset = asset!("/assets/icons/plus-linear.svg");
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const SETTINGS_BOLD_ICON: Asset = asset!("/assets/icons/settings-bold.svg");
@@ -184,9 +184,9 @@ fn settings_icon_style() -> String {
 .icon-magic-stick-3-bold {{ --icon: url("{MAGIC_STICK_3_BOLD_ICON}"); }}
 .icon-info-circle-bold {{ --icon: url("{INFO_CIRCLE_BOLD_ICON}"); }}
 .icon-keyboard-bold {{ --icon: url("{KEYBOARD_BOLD_ICON}"); }}
-.icon-add-circle {{ --icon: url("{ADD_CIRCLE_LINEAR_ICON}"); }}
 .icon-pause {{ --icon: url("{PAUSE_BOLD_ICON}"); }}
 .icon-play {{ --icon: url("{PLAY_BOLD_ICON}"); }}
+.icon-plus {{ --icon: url("{PLUS_LINEAR_ICON}"); }}
 .icon-trash {{ --icon: url("{TRASH_BIN_TRASH_LINEAR_ICON}"); }}"#
     )
 }

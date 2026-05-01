@@ -53,6 +53,9 @@ body {
   --accent-soft: color-mix(in oklch, var(--windows-accent), var(--bg) 78%);
   --success: oklch(69.59% 0.1491 162.48);
   --danger: oklch(63.68% 0.2078 25.33);
+  --danger-hover: oklch(67% 0.22 29);
+  --surface-danger: color-mix(in oklch, var(--danger) 10%, var(--surface-2));
+  --surface-danger-hover: color-mix(in oklch, var(--danger) 18%, var(--surface-3));
   --focus: var(--windows-accent);
   --shadow-soft: oklch(0% 0 0 / 10%);
   --shadow-medium: oklch(0% 0 0 / 20%);

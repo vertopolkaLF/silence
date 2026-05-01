@@ -218,7 +218,8 @@
 }
 
 .custom-sound-remove:hover {
-  color: oklch(67% 0.22 29);
+  background: var(--surface-danger-hover);
+  color: var(--danger-hover);
 }
 
 .custom-sound-remove .solar-icon {

@@ -102,7 +102,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 Err(err) => eprintln!("failed to add custom sounds: {err:?}"),
                             }
                         },
-                        span { class: "solar-icon button-icon icon-add-circle" }
+                        span { class: "solar-icon button-icon icon-plus" }
                         "Add sounds"
                     }
                 }
