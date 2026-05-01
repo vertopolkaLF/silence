@@ -17,38 +17,38 @@ pub fn render(
 
     rsx! {
         section {
-            class: "status-row",
+            class: "general-panel",
             id: "general-status",
             "data-settings-section": "true",
             div {
-                class: if mic_muted { "mic-dot muted" } else { "mic-dot" },
-                span {
-                    class: "solar-icon",
-                    style: "--icon: url('{status_icon}');"
+                class: "status-row",
+                div {
+                    class: if mic_muted { "mic-dot muted" } else { "mic-dot" },
+                    span {
+                        class: "solar-icon",
+                        style: "--icon: url('{status_icon}');"
+                    }
+                }
+                div {
+                    class: "status-copy",
+                    h1 { "{mic_status}" }
+                    p { "{mic_label}" }
                 }
             }
-            div {
-                class: "status-copy",
-                h1 { "{mic_status}" }
-                p { "{mic_label}" }
-            }
-        }
 
-        section { class: "sound-card startup-card",
-            div { class: "section-head",
-                h1 { "Startup options" }
-            }
-            div { class: "sound-card-title startup-row",
-                div { class: "startup-copy",
-                    h2 { "Launch at Windows startup" }
-                    p { "Start silence! in the tray as soon as you sign in." }
-                }
-                super::Toggle {
-                    checked: snapshot.config.startup.launch_on_startup,
-                    onchange: move |checked| {
-                        super::super::update_settings(settings, |config| {
-                            config.startup.launch_on_startup = checked;
-                        });
+            section { class: "sound-card startup-card",
+                div { class: "sound-card-title startup-row",
+                    div { class: "startup-copy",
+                        h2 { "Launch at Windows startup" }
+                        p { "Start silence! in the tray as soon as you sign in." }
+                    }
+                    super::Toggle {
+                        checked: snapshot.config.startup.launch_on_startup,
+                        onchange: move |checked| {
+                            super::super::update_settings(settings, |config| {
+                                config.startup.launch_on_startup = checked;
+                            });
+                        }
                     }
                 }
             }
