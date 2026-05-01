@@ -66,12 +66,12 @@ impl SettingsTab {
     fn icon(self) -> &'static str {
         match self {
             Self::General => "icon-settings",
-            Self::HoldToMute => "icon-mic",
+            Self::HoldToMute => "icon-oven-mitts",
             Self::Hotkeys => "icon-keyboard",
             Self::Sounds => "icon-volume",
             Self::Overlay => "icon-monitor",
             Self::TrayIcon => "icon-widget",
-            Self::AutoMute => "icon-magic",
+            Self::AutoMute => "icon-clock-circle",
             Self::About => "icon-info",
         }
     }
@@ -79,21 +79,13 @@ impl SettingsTab {
     fn active_icon(self) -> &'static str {
         match self {
             Self::General => "icon-settings-bold",
-            Self::HoldToMute => "icon-microphone-3-bold",
+            Self::HoldToMute => "icon-oven-mitts-bold",
             Self::Hotkeys => "icon-keyboard-bold",
             Self::Sounds => "icon-volume-loud-bold",
             Self::Overlay => "icon-monitor-bold",
             Self::TrayIcon => "icon-widget-bold",
-            Self::AutoMute => "icon-magic-stick-3-bold",
+            Self::AutoMute => "icon-clock-circle-bold",
             Self::About => "icon-info-circle-bold",
-        }
-    }
-
-    fn icon_for_state(self, active: bool) -> &'static str {
-        if active {
-            self.active_icon()
-        } else {
-            self.icon()
         }
     }
 
@@ -195,7 +187,10 @@ pub fn render(
                             pending_tab,
                         );
                     },
-                    span { class: "solar-icon nav-icon {tab.icon_for_state(active_tab() == tab)}" }
+                    span { class: "nav-icon-stack",
+                        span { class: "solar-icon nav-icon nav-icon-line {tab.icon()}" }
+                        span { class: "solar-icon nav-icon nav-icon-filled {tab.active_icon()}" }
+                    }
                     span { "{tab.label()}" }
                 }
 

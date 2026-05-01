@@ -74,7 +74,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 }
                             }
                         }
-                        p { class: "auto-mute-note", "If no keyboard or mouse activity is detected for this long, the microphone will be muted." }
+                        p { class: "auto-mute-note", "Keyboard or mouse activity" }
                         Checkbox {
                             checked: auto_mute.unmute_on_activity,
                             label: "Unmute on activity".to_string(),

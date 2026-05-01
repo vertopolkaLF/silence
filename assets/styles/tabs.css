@@ -56,10 +56,39 @@
   color: var(--accent-text);
 }
 
+.nav-icon-stack {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+}
+
 .nav-icon {
+  grid-area: 1 / 1;
   width: 21px;
   height: 21px;
   color: currentColor;
+  transition: var(--ui-transition);
+  scale: 1;
+}
+
+.nav-icon-filled {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  scale: 0.5;
+}
+
+.nav-item.active .nav-icon-filled {
+  opacity: 1;
+  scale: 1.1;
+}
+
+.nav-item.active .nav-icon-line {
+  opacity: 0;
+  scale: 0.5;
 }
 
 .nav-subsections-shell {

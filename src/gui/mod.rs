@@ -9,6 +9,8 @@ use tabs::{SettingsTab, TabSlideDirection, TabTransition};
 
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
 const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
+const CLOCK_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/clock-circle-bold.svg");
+const CLOCK_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/clock-circle-linear.svg");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
 const INFO_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/info-circle-bold.svg");
 const KEYBOARD_BOLD_ICON: Asset = asset!("/assets/icons/keyboard-bold.svg");
@@ -24,6 +26,8 @@ const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::cs
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
 const MICROPHONE_3_BOLD_ICON: Asset = asset!("/assets/icons/microphone-3-bold.svg");
 const MONITOR_BOLD_ICON: Asset = asset!("/assets/icons/monitor-bold.svg");
+const OVEN_MITTS_BOLD_ICON: Asset = asset!("/assets/icons/oven-mitts-bold.svg");
+const OVEN_MITTS_LINEAR_ICON: Asset = asset!("/assets/icons/oven-mitts-linear.svg");
 const OVERLAY_CSS: Asset = asset!("/assets/styles/overlay.css", AssetOptions::css());
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
@@ -143,10 +147,14 @@ fn settings_icon_style() -> String {
     format!(
         r#".titlebar-settings {{ --titlebar-icon: url("{SETTINGS_ICON}"); }}
 .titlebar-close {{ --titlebar-icon: url("{CLOSE_ICON}"); }}
+.icon-clock-circle {{ --icon: url("{CLOCK_CIRCLE_LINEAR_ICON}"); }}
 .icon-close {{ --icon: url("{CLOSE_ICON}"); }}
 .icon-keyboard {{ --icon: url("{KEYBOARD_LINEAR_ICON}"); }}
+.icon-oven-mitts {{ --icon: url("{OVEN_MITTS_LINEAR_ICON}"); }}
+.icon-clock-circle-bold {{ --icon: url("{CLOCK_CIRCLE_BOLD_ICON}"); }}
 .icon-settings-bold {{ --icon: url("{SETTINGS_BOLD_ICON}"); }}
 .icon-microphone-3-bold {{ --icon: url("{MICROPHONE_3_BOLD_ICON}"); }}
+.icon-oven-mitts-bold {{ --icon: url("{OVEN_MITTS_BOLD_ICON}"); }}
 .icon-volume-loud-bold {{ --icon: url("{VOLUME_LOUD_BOLD_ICON}"); }}
 .icon-monitor-bold {{ --icon: url("{MONITOR_BOLD_ICON}"); }}
 .icon-widget-bold {{ --icon: url("{WIDGET_BOLD_ICON}"); }}
