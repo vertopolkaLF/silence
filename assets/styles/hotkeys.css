@@ -78,7 +78,7 @@
 
 .danger-button:hover {
   color: var(--danger);
-  border-color: color-mix(in oklch, var(--danger), transparent 35%);
+  border-color: var(--control-border);
 }
 
 .hotkey-empty {
@@ -113,7 +113,7 @@
   display: grid;
   gap: 18px;
   padding: 18px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   background: var(--surface);
   box-shadow: 0 18px 60px var(--shadow-medium);
@@ -157,7 +157,7 @@
 .shortcut-record-row .secondary:focus-visible,
 .shortcut-record-row .secondary:active {
   outline: 0;
-  border-color: var(--border-strong);
+  border-color: var(--control-border);
   background: var(--surface-2);
 }
 
@@ -184,7 +184,7 @@
 .shortcut-display.fake-input {
   height: 38px;
   padding: 5px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   background: var(--surface-2);
   box-shadow: inset 0 1px 2px var(--shadow-soft);

@@ -134,7 +134,7 @@
 
 .auto-mute-number:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: var(--focus-outline-offset);
 }
 
 .auto-mute-number:disabled {
@@ -178,7 +178,7 @@ footer {
 .recorder:focus,
 .recorder.recording {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: var(--focus-outline-offset);
   border-color: transparent;
 }
 

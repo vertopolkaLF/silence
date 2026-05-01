@@ -28,7 +28,7 @@
   justify-content: space-between;
   gap: 14px;
   padding: 10px 12px 10px 14px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: 12px;
   background: var(--surface-2);
   color: var(--text);
@@ -44,13 +44,13 @@
 }
 
 .ui-select-trigger:hover {
-  background: var(--surface-color-2);
-  border-color: color-mix(in oklch, var(--border-strong) 80%, var(--accent-text));
+  background: var(--surface-3);
+  border-color: var(--control-border);
 }
 
 .ui-select.open .ui-select-trigger {
-  background: var(--surface);
-  border-color: color-mix(in oklch, var(--accent) 68%, var(--border-strong));
+  background: var(--surface-3);
+  border-color: var(--control-border);
   box-shadow:
     inset 0 1px 0 var(--highlight-line),
     0 0 0 1px color-mix(in oklch, var(--accent) 20%, transparent),
@@ -59,7 +59,7 @@
 
 .ui-select-trigger:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: var(--focus-outline-offset);
 }
 
 .ui-select-current {
@@ -132,9 +132,9 @@
   z-index: 24;
   display: grid;
   padding: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: 14px;
-  background: color-mix(in oklch, var(--surface) 92%, var(--chrome));
+  background: var(--surface-2);
   box-shadow: 0 18px 36px var(--shadow-medium);
   opacity: 0;
   visibility: hidden;
@@ -259,7 +259,7 @@
 .ui-select-item-button:focus-visible,
 .ui-select-item-action:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 1px;
+  outline-offset: var(--focus-outline-offset);
 }
 
 .ui-select-item-action:hover {
@@ -337,7 +337,7 @@
 
 .ui-checkbox input:focus-visible+.ui-checkbox-box {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: var(--focus-outline-offset);
 }
 
 .ui-checkbox.disabled .ui-checkbox-box {
@@ -395,7 +395,7 @@
 
 .ui-range:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 8px;
+  outline-offset: var(--focus-outline-offset);
 }
 
 @keyframes select-value-swap {

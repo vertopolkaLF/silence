@@ -41,6 +41,8 @@ body {
   --surface-color-5: oklch(from var(--windows-accent) 31.5% calc(c * 0.5) h);
   --border: oklch(27.39% 0.0055 286.03);
   --border-strong: oklch(37.03% 0.0119 285.81);
+  --control-border: #0000;
+  --focus-outline-offset: -1px;
   --text: oklch(98.51% 0 0);
   --muted: oklch(71.18% 0.0129 286.07);
   --faint: oklch(44.19% 0.0146 285.79);
@@ -175,7 +177,7 @@ button {
 .icon-button,
 .save {
   height: 38px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   background: var(--surface-2);
   color: var(--text);
@@ -197,7 +199,7 @@ button {
 .secondary:hover,
 .icon-button:hover {
   background: var(--surface-hover);
-  border-color: color-mix(in oklch, var(--border-strong) 74%, var(--accent-text));
+  border-color: var(--control-border);
 }
 
 .secondary:focus-visible,
@@ -206,7 +208,7 @@ button {
 .recorder:focus-visible,
 .nav-item:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: var(--focus-outline-offset);
 }
 
 .icon-button {
@@ -224,7 +226,7 @@ button {
 
 .save {
   min-width: 104px;
-  border-color: var(--accent);
+  border-color: var(--control-border);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
@@ -233,11 +235,11 @@ button {
 
 .save:hover {
   background: var(--accent-strong);
-  border-color: var(--accent-strong);
+  border-color: var(--control-border);
 }
 
 .save:disabled {
-  border-color: var(--border-strong);
+  border-color: var(--control-border);
   background: var(--surface-3);
   color: var(--faint);
   box-shadow: none;

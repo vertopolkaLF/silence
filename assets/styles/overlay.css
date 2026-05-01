@@ -17,7 +17,6 @@
 .overlay-field {
   display: grid;
   gap: 10px;
-  max-width: 420px;
 }
 
 .overlay-icon-field {
@@ -29,7 +28,7 @@
   gap: 10px;
 }
 
-.overlay-range-row > div {
+.overlay-range-row>div {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -72,10 +71,8 @@
   --overlay-variant-tile-size: 56px;
   display: grid;
   width: 100%;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(var(--overlay-variant-tile-size), var(--overlay-variant-tile-size))
-  );
+  grid-template-columns: repeat(auto-fit,
+      minmax(var(--overlay-variant-tile-size), var(--overlay-variant-tile-size)));
   column-gap: 12px;
   row-gap: 12px;
   justify-content: start;
@@ -85,10 +82,8 @@
   --overlay-icon-tile-size: 56px;
   display: grid;
   width: 100%;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(var(--overlay-icon-tile-size), var(--overlay-icon-tile-size))
-  );
+  grid-template-columns: repeat(auto-fit,
+      minmax(var(--overlay-icon-tile-size), var(--overlay-icon-tile-size)));
   column-gap: 8px;
   row-gap: 10px;
   justify-content: space-between;
