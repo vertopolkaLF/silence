@@ -109,7 +109,6 @@ pub fn render(
                     section { class: "sound-card sound-picker-card",
                         div { class: "section-head",
                             h2 { "Sound Settings" }
-                            p { "Configure separate sounds for hold-to-mute or use defaults from the Sounds tab." }
                         }
 
                         div { class: "sound-picker",

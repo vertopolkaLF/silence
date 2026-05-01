@@ -35,7 +35,6 @@
   cursor: pointer;
   text-align: left;
   font: inherit;
-  box-shadow: inset 0 1px 0 var(--highlight-line);
   transition:
     background var(--ui-transition),
     border-color var(--ui-transition),
@@ -131,7 +130,7 @@
   left: 0;
   z-index: 24;
   display: grid;
-  padding: 6px;
+  isolation: isolate;
   border: 1px solid var(--control-border);
   border-radius: 14px;
   background: var(--surface-2);
@@ -163,12 +162,52 @@
 .ui-select-list {
   width: 100%;
   display: grid;
+  padding: 6px 0;
   gap: 4px;
-  max-height: calc(var(--ui-select-max-height, 280px) - 12px);
+  max-height: var(--ui-select-max-height, 280px);
   overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ui-select-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.ui-select-scroll-shadow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  z-index: 1;
+}
+
+.ui-select-scroll-shadow.top {
+  top: 0;
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--shadow-medium) 70%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in oklch, var(--surface-2) 96%, transparent), transparent 88%);
+}
+
+.ui-select-scroll-shadow.bottom {
+  bottom: 0;
+  background:
+    linear-gradient(0deg, color-mix(in oklch, var(--shadow-medium) 70%, transparent), transparent 72%),
+    linear-gradient(0deg, color-mix(in oklch, var(--surface-2) 96%, transparent), transparent 88%);
+}
+
+.ui-select-menu[data-scroll-top="true"] .ui-select-scroll-shadow.top,
+.ui-select-menu[data-scroll-bottom="true"] .ui-select-scroll-shadow.bottom {
+  opacity: 1;
 }
 
 .ui-select-group {
+  margin: 0 6px;
   padding: 8px 10px 2px;
   color: var(--faint);
   font-size: 11px;
@@ -178,11 +217,12 @@
 }
 
 .ui-select-item {
-  width: 100%;
+  width: auto;
   min-height: 46px;
   display: flex;
   align-items: center;
   gap: 12px;
+  margin: 0 6px;
   padding: 9px 10px;
   border-radius: 10px;
   color: var(--muted);
@@ -244,7 +284,7 @@
 
 .ui-select-item:hover,
 .ui-select-item:focus-within {
-  background: var(--surface-color-2);
+  background: var(--surface-3);
   color: var(--text);
 }
 
@@ -318,16 +358,13 @@
   -webkit-mask: var(--icon-check) center / contain no-repeat;
   mask: var(--icon-check) center / contain no-repeat;
   opacity: 0;
-  transform: scale(0.72);
+  transform: scale(0.2);
   transition: opacity var(--ui-transition), transform var(--ui-transition);
 }
 
 .ui-checkbox input:checked+.ui-checkbox-box {
   background: var(--accent);
   border-color: color-mix(in oklch, var(--accent) 74%, var(--border-strong));
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklch, var(--text) 24%, transparent),
-    0 0 0 1px color-mix(in oklch, var(--accent) 15%, transparent);
 }
 
 .ui-checkbox input:checked+.ui-checkbox-box .ui-checkbox-mark {

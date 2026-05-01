@@ -235,7 +235,7 @@ const left = Math.min(
   Math.max(gutter, rect.left),
   viewportWidth - gutter - width
 );
-const desiredHeight = Math.min(list.scrollHeight + 12, 320);
+const desiredHeight = Math.min(list.scrollHeight, 320);
 const spaceAbove = Math.max(0, rect.top - gutter);
 const spaceBelow = Math.max(0, viewportHeight - rect.bottom - gutter);
 const minComfortHeight = Math.min(desiredHeight, 140);
@@ -281,6 +281,54 @@ return `left:${{left}}px;top:${{top}}px;width:${{width}}px;--ui-select-max-heigh
                     menu_style.set(style.to_string());
                 }
             }
+        });
+    });
+
+    let shadow_select_id = select_id.clone();
+    use_effect(move || {
+        let select_id = shadow_select_id.clone();
+        if !open() || menu_style().is_empty() {
+            return;
+        }
+
+        spawn(async move {
+            let script = format!(
+                r#"
+const root = document.querySelector('[data-ui-select-id="{select_id}"]');
+const menu = root?.querySelector('.ui-select-menu');
+const list = root?.querySelector('.ui-select-list');
+if (!menu || !list) {{
+  return;
+}}
+
+const updateShadows = () => {{
+  const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
+  const canScroll = maxScroll > 1;
+  const showTop = canScroll && list.scrollTop > 1;
+  const showBottom = canScroll && list.scrollTop < maxScroll - 1;
+
+  menu.setAttribute('data-scroll-top', showTop ? 'true' : 'false');
+  menu.setAttribute('data-scroll-bottom', showBottom ? 'true' : 'false');
+}};
+
+if (!list.__uiSelectShadowHandler) {{
+  const handler = () => updateShadows();
+  list.addEventListener('scroll', handler, {{ passive: true }});
+  list.__uiSelectShadowHandler = handler;
+}}
+
+if (!list.__uiSelectShadowResizeObserver) {{
+  const resizeObserver = new ResizeObserver(() => updateShadows());
+  resizeObserver.observe(list);
+  list.__uiSelectShadowResizeObserver = resizeObserver;
+}}
+
+updateShadows();
+requestAnimationFrame(updateShadows);
+"#
+            );
+
+            let _ = dioxus::document::eval(&script).await;
         });
     });
 
@@ -337,6 +385,8 @@ return `left:${{left}}px;top:${{top}}px;width:${{width}}px;--ui-select-max-heigh
             }
 
             div { class: "{menu_class}", style: "{menu_style}",
+                div { class: "ui-select-scroll-shadow top", aria_hidden: "true" }
+                div { class: "ui-select-scroll-shadow bottom", aria_hidden: "true" }
                 div { class: "ui-select-list",
                     for item in rendered_options {
                         {item}

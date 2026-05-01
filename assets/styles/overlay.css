@@ -62,7 +62,6 @@
 
 .overlay-collapse-inner {
   min-height: 0;
-  overflow: hidden;
   display: grid;
   gap: 16px;
 }
@@ -117,7 +116,7 @@
   height: 56px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: 12px;
   background: var(--surface-2);
   transition:
@@ -125,6 +124,14 @@
     background var(--ui-transition),
     box-shadow var(--ui-transition);
   overflow: hidden;
+}
+
+.overlay-icon-option:focus {
+  outline: none;
+
+  .overlay-icon-preview {
+    outline: 1px solid var(--accent);
+  }
 }
 
 .overlay-icon-option.active .overlay-icon-preview {

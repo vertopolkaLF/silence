@@ -14,7 +14,9 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use dioxus::desktop::{Config as DesktopConfig, LogicalSize, WindowBuilder};
+use dioxus::desktop::{
+    Config as DesktopConfig, LogicalSize, WindowBuilder, tao::dpi::PhysicalPosition,
+};
 use once_cell::sync::Lazy;
 use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Source, buffer::SamplesBuffer};
 use serde::{Deserialize, Serialize};
@@ -43,7 +45,10 @@ use windows::{
             Threading::CreateMutexW,
         },
         UI::{
-            HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
+            HiDpi::{
+                DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForSystem,
+                SetProcessDpiAwarenessContext,
+            },
             Input::KeyboardAndMouse::{GetAsyncKeyState, GetLastInputInfo, LASTINPUTINFO},
             Shell::{
                 NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
@@ -52,14 +57,14 @@ use windows::{
             WindowsAndMessaging::{
                 AppendMenuW, CallNextHookEx, CreateIconFromResourceEx, CreatePopupMenu,
                 CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow, DispatchMessageW,
-                FindWindowW, GetCursorPos, GetMessageW, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION,
-                IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW,
-                MENU_ITEM_FLAGS, MSG, PostQuitMessage, RegisterClassW, SW_RESTORE, SendMessageW,
-                SetForegroundWindow, SetTimer, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN,
-                TPM_LEFTALIGN, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx,
-                WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
-                WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
-                WS_OVERLAPPED,
+                FindWindowW, GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON,
+                IDC_ARROW, IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE,
+                LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG, PostQuitMessage, RegisterClassW,
+                SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SendMessageW, SetForegroundWindow, SetTimer,
+                SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu,
+                TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WM_APP,
+                WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
+                WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
             },
         },
     },
@@ -789,6 +794,8 @@ fn main() -> Result<()> {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
         }
+        let settings_window_size = LogicalSize::new(760.0, 590.0);
+        let settings_window_position = centered_window_position(settings_window_size);
         let cfg = DesktopConfig::new()
             .with_window(
                 WindowBuilder::new()
@@ -796,7 +803,9 @@ fn main() -> Result<()> {
                     .with_decorations(false)
                     .with_resizable(true)
                     .with_visible(false)
-                    .with_inner_size(LogicalSize::new(760.0, 590.0)),
+                    .with_inner_size(settings_window_size)
+                    .with_min_inner_size(settings_window_size)
+                    .with_position(settings_window_position),
             )
             .with_icon(
                 dioxus::desktop::icon_from_memory(include_bytes!("../assets/app.png"))
@@ -812,6 +821,19 @@ fn main() -> Result<()> {
     }
 
     run_background_app()
+}
+
+fn centered_window_position(size: LogicalSize<f64>) -> PhysicalPosition<i32> {
+    let dpi_scale = unsafe { GetDpiForSystem() }.max(96) as f64 / 96.0;
+    let screen_width = unsafe { GetSystemMetrics(SM_CXSCREEN) };
+    let screen_height = unsafe { GetSystemMetrics(SM_CYSCREEN) };
+    let window_width = (size.width * dpi_scale).round() as i32;
+    let window_height = (size.height * dpi_scale).round() as i32;
+
+    PhysicalPosition::new(
+        ((screen_width - window_width) / 2).max(0),
+        ((screen_height - window_height) / 2).max(0),
+    )
 }
 
 fn set_dpi_awareness() {
