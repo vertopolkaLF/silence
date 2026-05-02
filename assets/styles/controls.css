@@ -110,7 +110,6 @@
 .ui-select-item-label {
   min-width: 0;
   display: -webkit-box;
-  overflow: hidden;
   line-height: 1.18;
   text-overflow: ellipsis;
   white-space: normal;
@@ -118,6 +117,10 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   color: var(--text);
+}
+
+.ui-select-current-label {
+  overflow: hidden;
 }
 
 .ui-select-current-label {

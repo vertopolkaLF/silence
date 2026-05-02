@@ -41,7 +41,6 @@ use windows::{
                 CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
                 CoTaskMemFree, STGM_READ,
             },
-            Console::AllocConsole,
             LibraryLoader::GetModuleHandleW,
             Registry::{
                 HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_DWORD, RegDeleteKeyValueW, RegGetValueW,
@@ -1340,14 +1339,6 @@ fn set_dpi_awareness() {
     }
 }
 
-fn show_temp_gamepad_debug_console() {
-    unsafe {
-        let _ = AllocConsole();
-    }
-    eprintln!("silence! temporary gamepad debug console");
-    eprintln!("Press gamepad buttons or move axes; gilrs and XInput events will print here.");
-}
-
 fn start_xinput_monitor(enable_hotkeys: bool) {
     if XINPUT_MONITOR_STARTED.swap(true, Ordering::Relaxed) {
         return;
@@ -1559,8 +1550,6 @@ fn run_background_app() -> Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
     }
-    show_temp_gamepad_debug_console();
-
     let instance = unsafe { GetModuleHandleW(None)? };
     register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
