@@ -91,21 +91,10 @@ pub fn Range(
     progress: String,
     oninput: EventHandler<FormEvent>,
     #[props(default)] class: String,
-    #[props(default)] start_icon: Option<String>,
-    #[props(default)] end_icon: Option<String>,
+    #[props(default)] label_icon: Option<String>,
 ) -> Element {
-    let icon_class = match (start_icon.is_some(), end_icon.is_some()) {
-        (true, true) => "ui-range-control has-start-icon has-end-icon",
-        (true, false) => "ui-range-control has-start-icon",
-        (false, true) => "ui-range-control has-end-icon",
-        (false, false) => "ui-range-control",
-    };
-
     rsx! {
-        div { class: merged_class(icon_class, &class),
-            if let Some(icon) = start_icon {
-                span { class: "solar-icon ui-range-icon {icon}" }
-            }
+        div { class: merged_class("ui-range-control", &class),
             label { class: "ui-range-shell",
                 span {
                     class: "ui-range-fill",
@@ -125,12 +114,14 @@ pub fn Range(
                     style: "--range-progress: {progress};"
                 }
                 span { class: "ui-range-copy",
-                    span { class: "ui-range-label", "{label}" }
+                    span { class: "ui-range-label",
+                        if let Some(icon) = label_icon {
+                            span { class: "solar-icon ui-range-label-icon {icon}" }
+                        }
+                        span { "{label}" }
+                    }
                     span { class: "ui-range-value", "{value_label}" }
                 }
-            }
-            if let Some(icon) = end_icon {
-                span { class: "solar-icon ui-range-icon {icon}" }
             }
         }
     }
@@ -142,6 +133,7 @@ pub fn Select(
     options: Vec<SelectOption>,
     onchange: EventHandler<String>,
     #[props(default)] on_option_action: Option<EventHandler<String>>,
+    #[props(default = true)] show_current_detail: bool,
     #[props(default)] class: String,
 ) -> Element {
     let mut open = use_signal(|| false);
@@ -489,8 +481,10 @@ requestAnimationFrame(() => {{
                                     key: "current-exit-{option.value}",
                                     class: "ui-select-current-text ui-select-current-text-exit",
                                     span { class: "ui-select-current-label", "{option.label}" }
-                                    if let Some(detail) = option.detail.as_deref() {
-                                        span { class: "ui-select-current-detail", "{detail}" }
+                                    if show_current_detail {
+                                        if let Some(detail) = option.detail.as_deref() {
+                                            span { class: "ui-select-current-detail", "{detail}" }
+                                        }
                                     }
                                 }
                             }
@@ -503,10 +497,9 @@ requestAnimationFrame(() => {{
                                     class: "ui-select-current-label",
                                     "{option.label}"
                                 }
-                                if let Some(detail) = option.detail.as_deref() {
-                                    span {
-                                        class: "ui-select-current-detail",
-                                        "{detail}"
+                                if show_current_detail {
+                                    if let Some(detail) = option.detail.as_deref() {
+                                        span { class: "ui-select-current-detail", "{detail}" }
                                     }
                                 }
                             }

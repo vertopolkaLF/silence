@@ -26,6 +26,7 @@ pub fn render(mut settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     empty: "No active input devices found",
                     value: selected_input,
                     options: input_options(input_devices),
+                    show_current_detail: false,
                     onchange: move |device_id: String| {
                         if device_id.is_empty() {
                             return;
@@ -42,6 +43,7 @@ pub fn render(mut settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     empty: "No active output devices found",
                     value: selected_output,
                     options: output_options(output_devices),
+                    show_current_detail: false,
                     onchange: move |device_id: String| {
                         if device_id.is_empty() {
                             return;
@@ -63,6 +65,7 @@ fn DeviceCard(
     empty: &'static str,
     value: String,
     options: Vec<SelectOption>,
+    #[props(default = true)] show_current_detail: bool,
     onchange: EventHandler<String>,
 ) -> Element {
     rsx! {
@@ -81,6 +84,7 @@ fn DeviceCard(
                     value,
                     options,
                     onchange: move |device_id| onchange.call(device_id),
+                    show_current_detail,
                     class: "device-select"
                 }
             }

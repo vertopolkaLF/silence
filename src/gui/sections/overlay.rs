@@ -7,7 +7,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let mut icons_expanded = use_signal(|| false);
     let snapshot = settings();
     let overlay = snapshot.config.overlay.clone();
-    let duration = format!("{:.1}", overlay.duration_secs.clamp(0.1, 10.0));
+    let duration = format!("{:.1}", overlay.duration_secs.clamp(0.5, 10.0));
     let x = format!("{:.0}", overlay.position_x.clamp(0.0, 100.0));
     let y = format!("{:.0}", overlay.position_y.clamp(0.0, 100.0));
     let scale = overlay.scale.clamp(10, 400);
@@ -18,7 +18,10 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let duration_controls_open = overlay.visibility == "AfterToggle";
     let preview_muted = snapshot.muted;
     let preview_tone_class = if preview_muted { "muted" } else { "live" };
-    let duration_progress = format!("{:.0}%", overlay.duration_secs.clamp(0.1, 10.0) * 10.0);
+    let duration_progress = format!(
+        "{:.0}%",
+        (overlay.duration_secs.clamp(0.5, 10.0) - 0.5) / 9.5 * 100.0
+    );
     let x_progress = format!("{:.0}%", overlay.position_x.clamp(0.0, 100.0));
     let y_progress = format!("{:.0}%", overlay.position_y.clamp(0.0, 100.0));
     let scale_progress = format!("{:.0}%", (scale as f64 - 10.0) / 390.0 * 100.0);
@@ -85,14 +88,14 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                             label: "Duration".to_string(),
                             value_label: format!("{duration}s"),
                             value: duration.clone(),
-                            min: "0.1".to_string(),
+                            min: "0.5".to_string(),
                             max: "10".to_string(),
-                            step: "0.1".to_string(),
+                            step: "0.5".to_string(),
                             progress: duration_progress.clone(),
                             oninput: move |evt: FormEvent| {
                                 if let Ok(value) = evt.value().parse::<f64>() {
                                     super::super::update_settings(settings, |config| {
-                                        config.overlay.duration_secs = value.clamp(0.1, 10.0);
+                                        config.overlay.duration_secs = value.clamp(0.5, 10.0);
                                     });
                                 }
                             }

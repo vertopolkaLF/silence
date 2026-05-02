@@ -38,8 +38,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     max: "100".to_string(),
                     step: "1".to_string(),
                     progress: format!("{volume}%"),
-                    start_icon: Some("icon-volume".to_string()),
-                    end_icon: Some("icon-volume".to_string()),
+                    label_icon: Some("icon-volume".to_string()),
                     oninput: move |evt: FormEvent| {
                         if let Ok(value) = evt.value().parse::<u8>() {
                             super::super::update_settings(settings, |config| {

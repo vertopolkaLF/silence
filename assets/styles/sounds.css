@@ -259,10 +259,20 @@
   min-width: 0;
 }
 
-.sound-meta-row {
-  display: inline-flex;
+.range-action-row {
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.range-action-row .ui-range-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.range-action-slot {
+  flex: 0 0 auto;
+  display: flex;
 }
 
 .sound-select-row .small-button {
@@ -271,7 +281,7 @@
 }
 
 .configure-hotkey-button,
-.sound-meta-row .small-button {
+.range-action-slot .small-button {
   flex: 0 0 auto;
 }
 
@@ -297,9 +307,8 @@
     flex-direction: column;
   }
 
-  .sound-meta-row {
+  .range-action-row {
     width: 100%;
-    justify-content: space-between;
   }
 
   .custom-sound-file {

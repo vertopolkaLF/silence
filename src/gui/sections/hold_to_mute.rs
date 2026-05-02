@@ -114,8 +114,25 @@ pub fn render(
                         }
 
                         div { class: "sound-picker",
-                            div { class: "sound-row-head",
-                                div { class: "sound-meta-row",
+                            div { class: "range-action-row",
+                                Range {
+                                    label: "Volume".to_string(),
+                                    value_label: volume_label.clone(),
+                                    value: volume.to_string(),
+                                    min: "0".to_string(),
+                                    max: "100".to_string(),
+                                    step: "1".to_string(),
+                                    progress: format!("{volume}%"),
+                                    label_icon: Some("icon-volume".to_string()),
+                                    oninput: move |evt: FormEvent| {
+                                        if let Ok(value) = evt.value().parse::<u8>() {
+                                            super::super::update_settings(settings, |config| {
+                                                config.hold_to_mute.volume_override = Some(value.min(100));
+                                            });
+                                        }
+                                    }
+                                }
+                                div { class: "range-action-slot",
                                     button {
                                         class: "secondary small-button",
                                         disabled: hold_settings.volume_override.is_none(),
@@ -125,24 +142,6 @@ pub fn render(
                                             });
                                         },
                                         "Reset"
-                                    }
-                                }
-                            }
-                            Range {
-                                label: "Volume".to_string(),
-                                value_label: volume_label.clone(),
-                                value: volume.to_string(),
-                                min: "0".to_string(),
-                                max: "100".to_string(),
-                                step: "1".to_string(),
-                                progress: format!("{volume}%"),
-                                start_icon: Some("icon-volume".to_string()),
-                                end_icon: Some("icon-volume".to_string()),
-                                oninput: move |evt: FormEvent| {
-                                    if let Ok(value) = evt.value().parse::<u8>() {
-                                        super::super::update_settings(settings, |config| {
-                                            config.hold_to_mute.volume_override = Some(value.min(100));
-                                        });
                                     }
                                 }
                             }

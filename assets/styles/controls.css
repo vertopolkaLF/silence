@@ -457,39 +457,12 @@
 }
 
 .ui-range-control {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  display: block;
   width: 100%;
 }
 
 .ui-range-control~.ui-range-control {
   margin-top: -10px;
-}
-
-.ui-range-control.has-start-icon {
-  grid-template-columns: 22px minmax(0, 1fr);
-}
-
-.ui-range-control.has-end-icon {
-  grid-template-columns: minmax(0, 1fr) 22px;
-}
-
-.ui-range-control.has-start-icon.has-end-icon {
-  grid-template-columns: 22px minmax(0, 1fr) 22px;
-}
-
-.ui-range-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--muted);
-  justify-self: center;
-}
-
-.ui-range-icon:last-child {
-  width: 20px;
-  height: 20px;
 }
 
 .ui-range-shell {
@@ -606,11 +579,20 @@
 .ui-range-label {
   min-width: 0;
   overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--text);
   font-weight: 650;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ui-range-label-icon {
+  width: 18px;
+  height: 18px;
+  color: currentColor;
 }
 
 .ui-range-value {
