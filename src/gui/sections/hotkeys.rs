@@ -70,6 +70,7 @@ pub fn render(
     let snapshot = settings();
     let hotkeys = snapshot.config.hotkeys.clone();
     let devices = snapshot.devices.clone();
+    let output_devices = snapshot.output_devices.clone();
 
     rsx! {
         section {
@@ -99,6 +100,7 @@ pub fn render(
                         key: "{hotkey.id}",
                         hotkey: hotkey.clone(),
                         devices: devices.clone(),
+                        output_devices: output_devices.clone(),
                         settings,
                         onedit: move |binding: crate::HotkeyBinding| {
                             modal_request.set(Some(super::super::HotkeyModalRequest::Edit {
@@ -143,6 +145,7 @@ pub fn modal_host(
     let draft_source = use_signal(|| HotkeySource::Keyboard);
     let draft_action = use_signal(|| crate::HotkeyAction::ToggleMute);
     let draft_target = use_signal(String::new);
+    let draft_target_2 = use_signal(String::new);
     let draft_ignore_modifiers = use_signal(|| false);
 
     use_effect(move || {
@@ -174,6 +177,7 @@ pub fn modal_host(
                                 Some(shortcut.clone()),
                                 draft_action(),
                                 draft_target(),
+                                draft_target_2(),
                                 false,
                             );
                         }
@@ -208,6 +212,7 @@ pub fn modal_host(
                                     Some(shortcut),
                                     draft_action(),
                                     draft_target(),
+                                    draft_target_2(),
                                     false,
                                 );
                             }
@@ -249,6 +254,7 @@ pub fn modal_host(
                                 None,
                                 draft_action(),
                                 draft_target(),
+                                draft_target_2(),
                                 draft_ignore_modifiers(),
                             );
                         }
@@ -279,6 +285,7 @@ pub fn modal_host(
                                     None,
                                     draft_action(),
                                     draft_target(),
+                                    draft_target_2(),
                                     draft_ignore_modifiers(),
                                 );
                             }
@@ -311,6 +318,7 @@ pub fn modal_host(
                             None,
                             draft_action(),
                             draft_target(),
+                            draft_target_2(),
                             draft_ignore_modifiers(),
                         );
                     }
@@ -370,6 +378,7 @@ pub fn modal_host(
                 draft_source,
                 draft_action,
                 draft_target,
+                draft_target_2,
                 draft_ignore_modifiers,
             ),
             super::super::HotkeyModalRequest::Edit { binding } => start_modal(
@@ -392,6 +401,7 @@ pub fn modal_host(
                 draft_source,
                 draft_action,
                 draft_target,
+                draft_target_2,
                 draft_ignore_modifiers,
             ),
         };
@@ -400,6 +410,7 @@ pub fn modal_host(
 
     let snapshot = settings();
     let devices = snapshot.devices.clone();
+    let output_devices = snapshot.output_devices.clone();
     let modal_mode = modal();
     let can_create = match draft_source() {
         HotkeySource::Keyboard => draft_shortcut().is_some(),
@@ -411,6 +422,7 @@ pub fn modal_host(
             HotkeyPanel {
                 mode: mode.clone(),
                 devices,
+                output_devices,
                 recording,
                 modifier_hold_started,
                 hold_progress,
@@ -425,6 +437,7 @@ pub fn modal_host(
                 draft_source,
                 draft_action,
                 draft_target,
+                draft_target_2,
                 draft_ignore_modifiers,
                 can_create,
                 settings,
@@ -453,6 +466,7 @@ pub fn modal_host(
                         if let Some(shortcut) = draft_shortcut() {
                             let action = draft_action();
                             let target = draft_target_for(action, draft_target());
+                            let target_2 = draft_second_target_for(action, draft_target_2());
                             super::super::update_settings(settings, |config| {
                                 config.hotkeys_paused = false;
                                 config.hotkeys.push(crate::HotkeyBinding {
@@ -460,6 +474,7 @@ pub fn modal_host(
                                     gamepad: None,
                                     action,
                                     target,
+                                    target_2,
                                     ignore_modifiers: draft_ignore_modifiers(),
                                     ..crate::HotkeyBinding::default()
                                 });
@@ -483,12 +498,14 @@ pub fn modal_host(
                         if let Some(gamepad) = draft_gamepad() {
                             let action = draft_action();
                             let target = draft_target_for(action, draft_target());
+                            let target_2 = draft_second_target_for(action, draft_target_2());
                             super::super::update_settings(settings, |config| {
                                 config.hotkeys_paused = false;
                                 config.hotkeys.push(crate::HotkeyBinding {
                                     gamepad: Some(gamepad),
                                     action,
                                     target,
+                                    target_2,
                                     ignore_modifiers: false,
                                     ..crate::HotkeyBinding::default()
                                 });
@@ -542,6 +559,7 @@ fn start_modal(
     mut draft_source: Signal<HotkeySource>,
     mut draft_action: Signal<crate::HotkeyAction>,
     mut draft_target: Signal<String>,
+    mut draft_target_2: Signal<String>,
     mut draft_ignore_modifiers: Signal<bool>,
 ) {
     if let Some(binding) = binding {
@@ -554,6 +572,7 @@ fn start_modal(
         });
         draft_action.set(binding.action);
         draft_target.set(binding.target.unwrap_or_default());
+        draft_target_2.set(binding.target_2.unwrap_or_default());
         draft_ignore_modifiers.set(binding.ignore_modifiers);
         modal.set(Some(ModalMode::Edit(binding.id)));
     } else {
@@ -562,6 +581,7 @@ fn start_modal(
         draft_source.set(HotkeySource::Keyboard);
         draft_action.set(preset_action.unwrap_or(crate::HotkeyAction::ToggleMute));
         draft_target.set(String::new());
+        draft_target_2.set(String::new());
         draft_ignore_modifiers.set(false);
         modal.set(Some(ModalMode::Add));
     }
@@ -627,6 +647,7 @@ fn animate_pending_out(mut pending_exiting: Signal<bool>) {
 fn HotkeyPanel(
     mode: ModalMode,
     devices: Vec<crate::MicDevice>,
+    output_devices: Vec<crate::AudioDevice>,
     mut recording: Signal<bool>,
     mut modifier_hold_started: Signal<Option<Instant>>,
     mut hold_progress: Signal<f64>,
@@ -641,6 +662,7 @@ fn HotkeyPanel(
     mut draft_source: Signal<HotkeySource>,
     mut draft_action: Signal<crate::HotkeyAction>,
     mut draft_target: Signal<String>,
+    mut draft_target_2: Signal<String>,
     mut draft_ignore_modifiers: Signal<bool>,
     can_create: bool,
     settings: Signal<super::super::SettingsSnapshot>,
@@ -655,7 +677,6 @@ fn HotkeyPanel(
         ModalMode::Add => "Choose the action, then record the shortcut.",
         ModalMode::Edit(_) => "Changes apply as soon as you make them.",
     };
-    let action = draft_action();
     let editing_id = match &mode {
         ModalMode::Edit(id) => Some(id.clone()),
         ModalMode::Add => None,
@@ -664,8 +685,14 @@ fn HotkeyPanel(
     let ignore_editing_id = editing_id.clone();
     let action_editing_id = editing_id.clone();
     let target_editing_id = editing_id.clone();
+    let target_2_editing_id = editing_id.clone();
     let alt_space_editing_id = editing_id.clone();
     let source = draft_source();
+    let action = draft_action();
+    let target_is_missing = action.requires_explicit_target()
+        && (draft_target().is_empty() || (action.needs_second_target() && draft_target_2().is_empty()));
+    let action_devices = devices.clone();
+    let action_output_devices = output_devices.clone();
     let backdrop_class = if panel_closing() {
         "hotkey-panel-backdrop exiting"
     } else {
@@ -753,6 +780,7 @@ if (viewport && pane) {{
                             None,
                             draft_action(),
                             draft_target(),
+                            draft_target_2(),
                             draft_ignore_modifiers(),
                         );
                     }
@@ -798,6 +826,7 @@ if (viewport && pane) {{
                                         None,
                                         draft_action(),
                                         draft_target(),
+                                        draft_target_2(),
                                         draft_ignore_modifiers(),
                                     );
                                 }
@@ -827,6 +856,7 @@ if (viewport && pane) {{
                                     None,
                                     draft_action(),
                                     draft_target(),
+                                    draft_target_2(),
                                     draft_ignore_modifiers(),
                                 );
                             }
@@ -871,6 +901,7 @@ if (viewport && pane) {{
                 }
 
                 div { class: "hotkey-panel-body",
+                    div { class: "hotkey-panel-body-inner",
                     div { class: "hotkey-source-toggle",
                         button {
                             class: if source == HotkeySource::Keyboard { "source-option active" } else { "source-option" },
@@ -1015,7 +1046,7 @@ if (viewport && pane) {{
                             onchange: move |checked: bool| {
                                 draft_ignore_modifiers.set(checked);
                                 if let (Some(id), Some(shortcut)) = (ignore_editing_id.clone(), draft_shortcut()) {
-                                    apply_draft_to_binding(settings, id, shortcut, None, draft_action(), draft_target(), checked);
+                                    apply_draft_to_binding(settings, id, shortcut, None, draft_action(), draft_target(), draft_target_2(), checked);
                                 }
                             }
                         }
@@ -1031,9 +1062,14 @@ if (viewport && pane) {{
                                     let action = crate::HotkeyAction::from_id(&value);
                                     draft_action.set(action);
                                     let mut target = draft_target();
-                                    if !action.needs_target() {
-                                        draft_target.set(String::new());
-                                        target = String::new();
+                                    if !action.needs_target() || !target_is_valid_for_action(action, &target, &action_devices, &action_output_devices) {
+                                        target = default_target_for_action(action, &action_devices, &action_output_devices);
+                                        draft_target.set(target.clone());
+                                    }
+                                    let mut target_2 = draft_target_2();
+                                    if !action.needs_second_target() || !target_is_valid_for_action(action, &target_2, &action_devices, &action_output_devices) {
+                                        target_2 = default_second_target_for_action(action, &target, &action_devices, &action_output_devices);
+                                        draft_target_2.set(target_2.clone());
                                     }
                                     if let Some(id) = action_editing_id.clone() {
                                         apply_draft_to_binding(
@@ -1043,6 +1079,7 @@ if (viewport && pane) {{
                                             draft_gamepad(),
                                             action,
                                             target,
+                                            target_2,
                                             if draft_source() == HotkeySource::Keyboard { draft_ignore_modifiers() } else { false },
                                         );
                                     }
@@ -1052,8 +1089,11 @@ if (viewport && pane) {{
 
                         if action.needs_target() {
                             TargetSelect {
+                                action,
+                                label: "Target 1",
                                 value: draft_target(),
-                                devices,
+                                devices: devices.clone(),
+                                output_devices: output_devices.clone(),
                                 onchange: move |value: String| {
                                     draft_target.set(value.clone());
                                     if let Some(id) = target_editing_id.clone() {
@@ -1064,35 +1104,61 @@ if (viewport && pane) {{
                                             draft_gamepad(),
                                             draft_action(),
                                             value,
+                                            draft_target_2(),
                                             if draft_source() == HotkeySource::Keyboard { draft_ignore_modifiers() } else { false },
                                         );
                                     }
                                 }
                             }
+                            if action.needs_second_target() {
+                                TargetSelect {
+                                    action,
+                                    label: "Target 2",
+                                    value: draft_target_2(),
+                                    devices: devices.clone(),
+                                    output_devices: output_devices.clone(),
+                                    onchange: move |value: String| {
+                                        draft_target_2.set(value.clone());
+                                        if let Some(id) = target_2_editing_id.clone() {
+                                            apply_draft_to_binding(
+                                                settings,
+                                                id,
+                                                draft_shortcut().unwrap_or_default(),
+                                                draft_gamepad(),
+                                                draft_action(),
+                                                draft_target(),
+                                                value,
+                                                if draft_source() == HotkeySource::Keyboard { draft_ignore_modifiers() } else { false },
+                                            );
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                }
 
-                div { class: "hotkey-panel-actions",
-                    if matches!(mode, ModalMode::Add) {
-                        button {
-                            class: "save",
-                            disabled: !can_create,
-                            onclick: move |_| oncreate.call(()),
-                            span { class: "solar-icon button-icon icon-plus" }
-                            "Add hotkey"
+                    div { class: "hotkey-panel-actions",
+                        if matches!(mode, ModalMode::Add) {
+                            button {
+                                class: "save",
+                                disabled: !can_create || target_is_missing,
+                                onclick: move |_| oncreate.call(()),
+                                span { class: "solar-icon button-icon icon-plus" }
+                                "Add hotkey"
+                            }
+                        } else {
+                            button {
+                                class: "secondary",
+                                onclick: move |_| onclose.call(()),
+                                "Cancel"
+                            }
+                            button {
+                                class: "save",
+                                onclick: move |_| onclose.call(()),
+                                "Done"
+                            }
                         }
-                    } else {
-                        button {
-                            class: "secondary",
-                            onclick: move |_| onclose.call(()),
-                            "Cancel"
-                        }
-                        button {
-                            class: "save",
-                            onclick: move |_| onclose.call(()),
-                            "Done"
-                        }
+                    }
                     }
                 }
             }
@@ -1107,6 +1173,7 @@ fn apply_draft_to_binding(
     gamepad: Option<crate::GamepadShortcut>,
     action: crate::HotkeyAction,
     target: String,
+    target_2: String,
     ignore_modifiers: bool,
 ) {
     super::super::update_settings(settings, |config| {
@@ -1115,10 +1182,19 @@ fn apply_draft_to_binding(
             binding.gamepad = gamepad;
             binding.action = action;
             binding.target = draft_target_for(action, target);
+            binding.target_2 = draft_second_target_for(action, target_2);
             binding.ignore_modifiers = ignore_modifiers;
         }
         sync_legacy_shortcut(config);
     });
+}
+
+fn draft_second_target_for(action: crate::HotkeyAction, target: String) -> Option<String> {
+    if action.needs_second_target() && !target.is_empty() {
+        Some(target)
+    } else {
+        None
+    }
 }
 
 fn draft_target_for(action: crate::HotkeyAction, target: String) -> Option<String> {
@@ -1249,12 +1325,19 @@ setTimeout(updatePending, 80);
 fn HotkeyRow(
     hotkey: crate::HotkeyBinding,
     devices: Vec<crate::MicDevice>,
+    output_devices: Vec<crate::AudioDevice>,
     settings: Signal<super::super::SettingsSnapshot>,
     onedit: EventHandler<crate::HotkeyBinding>,
 ) -> Element {
     let id = hotkey.id.clone();
     let action = hotkey.action;
-    let target_label = target_label(hotkey.target.as_deref(), &devices);
+    let target_label = target_label(
+        action,
+        hotkey.target.as_deref(),
+        hotkey.target_2.as_deref(),
+        &devices,
+        &output_devices,
+    );
     rsx! {
         div { class: "hotkey-entry",
             div { class: "hotkey-main-row",
@@ -1376,36 +1459,61 @@ fn gamepad_keycap_class(animate: bool) -> &'static str {
 
 #[component]
 fn TargetSelect(
+    action: crate::HotkeyAction,
+    #[props(default = "Target".to_string())] label: String,
     value: String,
     devices: Vec<crate::MicDevice>,
+    output_devices: Vec<crate::AudioDevice>,
     onchange: EventHandler<String>,
 ) -> Element {
-    let default_detail = default_target_detail(&devices);
-    let options = std::iter::once(
-        SelectOption::new("", DEFAULT_TARGET_LABEL)
-            .detail(default_detail)
-            .icon("icon-mic"),
-    )
-    .chain(std::iter::once(
-        SelectOption::new(crate::HOTKEY_TARGET_ALL_MICROPHONES, ALL_MICROPHONES_LABEL)
-            .detail("Apply the action to every active microphone")
-            .icon("icon-mic"),
-    ))
-    .chain(
-        devices
-            .into_iter()
-            .map(|device| SelectOption::new(device.id, device.name).icon("icon-mic")),
-    )
-    .collect::<Vec<_>>();
+    let options = target_options(action, devices, output_devices);
 
     rsx! {
         div { class: "field-group modal-field target-field",
-            label { "Target" }
+            label { "{label}" }
             Select {
                 value: value.clone(),
                 options,
                 onchange: move |value: String| onchange.call(value)
             }
+        }
+    }
+}
+
+fn target_options(
+    action: crate::HotkeyAction,
+    devices: Vec<crate::MicDevice>,
+    output_devices: Vec<crate::AudioDevice>,
+) -> Vec<SelectOption> {
+    match action {
+        crate::HotkeyAction::SetDefaultInputDevice
+        | crate::HotkeyAction::ToggleDefaultInputDevice => devices
+            .into_iter()
+            .map(|device| SelectOption::new(device.id, device.name).icon("icon-mic"))
+            .collect(),
+        crate::HotkeyAction::SetDefaultOutputDevice
+        | crate::HotkeyAction::ToggleDefaultOutputDevice => output_devices
+            .into_iter()
+            .map(|device| SelectOption::new(device.id, device.name).icon("icon-volume"))
+            .collect(),
+        _ => {
+            let default_detail = default_target_detail(&devices);
+            std::iter::once(
+                SelectOption::new("", DEFAULT_TARGET_LABEL)
+                    .detail(default_detail)
+                    .icon("icon-mic"),
+            )
+            .chain(std::iter::once(
+                SelectOption::new(crate::HOTKEY_TARGET_ALL_MICROPHONES, ALL_MICROPHONES_LABEL)
+                    .detail("Apply the action to every active microphone")
+                    .icon("icon-mic"),
+            ))
+            .chain(
+                devices
+                    .into_iter()
+                    .map(|device| SelectOption::new(device.id, device.name).icon("icon-mic")),
+            )
+            .collect()
         }
     }
 }
@@ -1428,13 +1536,66 @@ fn action_options() -> Vec<SelectOption> {
                 crate::HotkeyAction::HoldToUnmute => {
                     option.group("Hold to mute").icon("icon-oven-mitts")
                 }
-                crate::HotkeyAction::OpenSettings => option.group("Other").icon("icon-settings"),
+                crate::HotkeyAction::SetDefaultInputDevice => {
+                    option.group("System").icon("icon-mic")
+                }
+                crate::HotkeyAction::SetDefaultOutputDevice => {
+                    option.group("System").icon("icon-volume")
+                }
+                crate::HotkeyAction::ToggleDefaultInputDevice => {
+                    option.group("System").icon("icon-mic")
+                }
+                crate::HotkeyAction::ToggleDefaultOutputDevice => {
+                    option.group("System").icon("icon-volume")
+                }
+                crate::HotkeyAction::OpenSettings => option.group("System").icon("icon-settings"),
             }
         })
         .collect()
 }
 
-fn target_label(target: Option<&str>, devices: &[crate::MicDevice]) -> String {
+fn target_label(
+    action: crate::HotkeyAction,
+    target: Option<&str>,
+    target_2: Option<&str>,
+    devices: &[crate::MicDevice],
+    output_devices: &[crate::AudioDevice],
+) -> String {
+    if action.needs_second_target() {
+        let first = device_target_label(action, target, devices, output_devices);
+        let second = device_target_label(action, target_2, devices, output_devices);
+        return format!("{first} / {second}");
+    }
+
+    device_target_label(action, target, devices, output_devices)
+}
+
+fn device_target_label(
+    action: crate::HotkeyAction,
+    target: Option<&str>,
+    devices: &[crate::MicDevice],
+    output_devices: &[crate::AudioDevice],
+) -> String {
+    if matches!(
+        action,
+        crate::HotkeyAction::SetDefaultInputDevice | crate::HotkeyAction::ToggleDefaultInputDevice
+    ) {
+        return target
+            .and_then(|target| devices.iter().find(|device| device.id == target))
+            .map(|device| device.name.clone())
+            .unwrap_or_else(|| "Choose an input device".to_string());
+    }
+
+    if matches!(
+        action,
+        crate::HotkeyAction::SetDefaultOutputDevice | crate::HotkeyAction::ToggleDefaultOutputDevice
+    ) {
+        return target
+            .and_then(|target| output_devices.iter().find(|device| device.id == target))
+            .map(|device| device.name.clone())
+            .unwrap_or_else(|| "Choose an output device".to_string());
+    }
+
     if matches!(target, Some(crate::HOTKEY_TARGET_ALL_MICROPHONES)) {
         return ALL_MICROPHONES_LABEL.to_string();
     }
@@ -1444,6 +1605,68 @@ fn target_label(target: Option<&str>, devices: &[crate::MicDevice]) -> String {
         .and_then(|target| devices.iter().find(|device| device.id == target))
         .map(|device| device.name.clone())
         .unwrap_or_else(|| DEFAULT_TARGET_LABEL.to_string())
+}
+
+fn target_is_valid_for_action(
+    action: crate::HotkeyAction,
+    target: &str,
+    devices: &[crate::MicDevice],
+    output_devices: &[crate::AudioDevice],
+) -> bool {
+    match action {
+        crate::HotkeyAction::SetDefaultInputDevice
+        | crate::HotkeyAction::ToggleDefaultInputDevice => {
+            devices.iter().any(|device| device.id == target)
+        }
+        crate::HotkeyAction::SetDefaultOutputDevice
+        | crate::HotkeyAction::ToggleDefaultOutputDevice => {
+            output_devices.iter().any(|device| device.id == target)
+        }
+        _ => true,
+    }
+}
+
+fn default_target_for_action(
+    action: crate::HotkeyAction,
+    devices: &[crate::MicDevice],
+    output_devices: &[crate::AudioDevice],
+) -> String {
+    match action {
+        crate::HotkeyAction::SetDefaultInputDevice
+        | crate::HotkeyAction::ToggleDefaultInputDevice => devices
+            .first()
+            .map(|device| device.id.clone())
+            .unwrap_or_default(),
+        crate::HotkeyAction::SetDefaultOutputDevice
+        | crate::HotkeyAction::ToggleDefaultOutputDevice => output_devices
+            .first()
+            .map(|device| device.id.clone())
+            .unwrap_or_default(),
+        _ => String::new(),
+    }
+}
+
+fn default_second_target_for_action(
+    action: crate::HotkeyAction,
+    target_1: &str,
+    devices: &[crate::MicDevice],
+    output_devices: &[crate::AudioDevice],
+) -> String {
+    match action {
+        crate::HotkeyAction::ToggleDefaultInputDevice => devices
+            .iter()
+            .find(|device| device.id != target_1)
+            .or_else(|| devices.first())
+            .map(|device| device.id.clone())
+            .unwrap_or_default(),
+        crate::HotkeyAction::ToggleDefaultOutputDevice => output_devices
+            .iter()
+            .find(|device| device.id != target_1)
+            .or_else(|| output_devices.first())
+            .map(|device| device.id.clone())
+            .unwrap_or_default(),
+        _ => String::new(),
+    }
 }
 
 fn default_target_detail(devices: &[crate::MicDevice]) -> String {

@@ -132,9 +132,9 @@
   width: 480px;
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 24px;
-  padding: 32px;
+  padding: 32px 0 0 0;
   border-radius: 24px 0 0 24px;
   background: var(--surface);
   box-shadow: -18px 0 44px var(--shadow-medium);
@@ -154,6 +154,11 @@
   gap: 14px;
 }
 
+.hotkey-panel-head {
+  padding-right: 40px;
+  padding-left: 40px;
+}
+
 .hotkey-panel-title {
   min-width: 0;
   display: grid;
@@ -171,13 +176,38 @@
 
 .hotkey-panel-body {
   min-height: 0;
+  overflow: auto;
+  padding-right: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--accent) 38%, transparent) transparent;
+}
+
+.hotkey-panel-body-inner {
   display: grid;
   align-content: start;
   gap: 14px;
+  padding-right: 40px;
+  padding-left: 40px;
+  padding-bottom: 32px;
 }
 
 .hotkey-panel-actions {
   justify-content: flex-end;
+  padding-top: 10px;
+  padding-bottom: 2px;
+}
+
+.hotkey-panel-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hotkey-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hotkey-panel-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 38%, transparent);
 }
 
 .modal-field {

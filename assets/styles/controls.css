@@ -155,8 +155,6 @@
   font-size: 14px;
   font-weight: 560;
   display: block;
-  white-space: nowrap;
-  -webkit-line-clamp: unset;
   overflow: visible;
 }
 
@@ -277,7 +275,7 @@
   align-items: center;
   gap: 12px;
   margin: 0 6px;
-  padding: 8px 10px;
+  padding: 0;
   border-radius: 10px;
   color: var(--muted);
   transition:
@@ -289,12 +287,13 @@
 .ui-select-item-button {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 26px;
+  align-self: stretch;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 12px;
   border: 0;
-  padding: 0;
+  padding: 8px 10px;
   background: transparent;
   color: inherit;
   cursor: pointer;

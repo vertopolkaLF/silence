@@ -78,13 +78,13 @@ use windows::{
                 AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIcon, CreateIconFromResourceEx,
                 CreatePopupMenu, CreateWindowExW, DI_NORMAL, DefWindowProcW, DestroyMenu,
                 DestroyWindow, DispatchMessageW, DrawIconEx, FindWindowW, GWL_WNDPROC,
-                GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON, IDC_ARROW,
+                GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON, HMENU, IDC_ARROW,
                 IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW,
                 LoadIconW, MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostQuitMessage, RegisterClassW,
                 SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SendMessageW,
                 SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
-                SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu,
-                TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
+                SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
+                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
                 WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN,
                 WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
                 WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND,
@@ -112,6 +112,10 @@ const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
 const ID_MENU_TITLE: usize = 1004;
+const ID_MENU_INPUT_DEVICE_BASE: usize = 2000;
+const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
+const MENU_POS_DEFAULT_INPUT: u32 = 2;
+const MENU_POS_DEFAULT_OUTPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
 const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
@@ -472,6 +476,10 @@ pub enum HotkeyAction {
     HoldToToggle,
     HoldToMute,
     HoldToUnmute,
+    SetDefaultInputDevice,
+    SetDefaultOutputDevice,
+    ToggleDefaultInputDevice,
+    ToggleDefaultOutputDevice,
     OpenSettings,
 }
 
@@ -483,6 +491,10 @@ impl HotkeyAction {
         Self::HoldToToggle,
         Self::HoldToMute,
         Self::HoldToUnmute,
+        Self::SetDefaultInputDevice,
+        Self::ToggleDefaultInputDevice,
+        Self::SetDefaultOutputDevice,
+        Self::ToggleDefaultOutputDevice,
         Self::OpenSettings,
     ];
 
@@ -494,6 +506,10 @@ impl HotkeyAction {
             Self::HoldToToggle => "Hold to toggle state",
             Self::HoldToMute => "Hold to mute",
             Self::HoldToUnmute => "Hold to unmute",
+            Self::SetDefaultInputDevice => "Set default input device",
+            Self::SetDefaultOutputDevice => "Set default output device",
+            Self::ToggleDefaultInputDevice => "Toggle default input device",
+            Self::ToggleDefaultOutputDevice => "Toggle default output device",
             Self::OpenSettings => "Open settings",
         }
     }
@@ -506,6 +522,10 @@ impl HotkeyAction {
             Self::HoldToToggle => "HoldToToggle",
             Self::HoldToMute => "HoldToMute",
             Self::HoldToUnmute => "HoldToUnmute",
+            Self::SetDefaultInputDevice => "SetDefaultInputDevice",
+            Self::SetDefaultOutputDevice => "SetDefaultOutputDevice",
+            Self::ToggleDefaultInputDevice => "ToggleDefaultInputDevice",
+            Self::ToggleDefaultOutputDevice => "ToggleDefaultOutputDevice",
             Self::OpenSettings => "OpenSettings",
         }
     }
@@ -517,6 +537,10 @@ impl HotkeyAction {
             "HoldToToggle" => Self::HoldToToggle,
             "HoldToMute" => Self::HoldToMute,
             "HoldToUnmute" => Self::HoldToUnmute,
+            "SetDefaultInputDevice" => Self::SetDefaultInputDevice,
+            "SetDefaultOutputDevice" => Self::SetDefaultOutputDevice,
+            "ToggleDefaultInputDevice" => Self::ToggleDefaultInputDevice,
+            "ToggleDefaultOutputDevice" => Self::ToggleDefaultOutputDevice,
             "OpenSettings" => Self::OpenSettings,
             _ => Self::ToggleMute,
         }
@@ -531,6 +555,27 @@ impl HotkeyAction {
                 | Self::HoldToToggle
                 | Self::HoldToMute
                 | Self::HoldToUnmute
+                | Self::SetDefaultInputDevice
+                | Self::SetDefaultOutputDevice
+                | Self::ToggleDefaultInputDevice
+                | Self::ToggleDefaultOutputDevice
+        )
+    }
+
+    pub fn requires_explicit_target(self) -> bool {
+        matches!(
+            self,
+            Self::SetDefaultInputDevice
+                | Self::SetDefaultOutputDevice
+                | Self::ToggleDefaultInputDevice
+                | Self::ToggleDefaultOutputDevice
+        )
+    }
+
+    pub fn needs_second_target(self) -> bool {
+        matches!(
+            self,
+            Self::ToggleDefaultInputDevice | Self::ToggleDefaultOutputDevice
         )
     }
 
@@ -556,6 +601,8 @@ pub struct HotkeyBinding {
     pub ignore_modifiers: bool,
     #[serde(default)]
     pub target: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_2: Option<String>,
 }
 
 impl Default for HotkeyAction {
@@ -573,6 +620,7 @@ impl Default for HotkeyBinding {
             gamepad: None,
             ignore_modifiers: false,
             target: None,
+            target_2: None,
         }
     }
 }
@@ -1090,6 +1138,8 @@ static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
 static SETTINGS_MOUSE_HELD: Lazy<Mutex<Vec<u32>>> = Lazy::new(|| Mutex::new(Vec::new()));
 static SETTINGS_MOUSE_PRESSED_SHORTCUT: Lazy<Mutex<Option<Shortcut>>> =
     Lazy::new(|| Mutex::new(None));
+static TRAY_DEVICE_COMMANDS: Lazy<Mutex<HashMap<usize, TrayDeviceCommand>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 static SETTINGS_ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
 static GILRS_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
 static XINPUT_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
@@ -1142,6 +1192,12 @@ struct IPolicyConfigVtbl {
 }
 
 const CLSID_POLICY_CONFIG_CLIENT: GUID = GUID::from_u128(0x870af99c_171d_4f9e_af0d_e63df40c2bc9);
+
+#[derive(Clone, Debug)]
+enum TrayDeviceCommand {
+    Input(String),
+    Output(String),
+}
 
 pub(crate) fn set_settings_hotkey_recording(recording: bool) {
     let was_recording = SETTINGS_HOTKEY_RECORDING.swap(recording, Ordering::Relaxed);
@@ -2341,14 +2397,7 @@ unsafe extern "system" fn main_wnd_proc(
             LRESULT(0)
         }
         WM_COMMAND => {
-            match wparam.0 & 0xffff {
-                ID_MENU_TOGGLE => toggle_mute(),
-                ID_MENU_SETTINGS => open_settings_window(),
-                ID_MENU_EXIT => {
-                    let _ = unsafe { DestroyWindow(hwnd) };
-                }
-                _ => {}
-            }
+            handle_tray_menu_command(wparam.0 & 0xffff);
             LRESULT(0)
         }
         WM_TIMER => {
@@ -2406,6 +2455,8 @@ unsafe extern "system" fn main_wnd_proc(
 fn show_tray_menu(hwnd: HWND) {
     unsafe {
         let menu = CreatePopupMenu().unwrap_or_default();
+        let input_menu = CreatePopupMenu().unwrap_or_default();
+        let output_menu = CreatePopupMenu().unwrap_or_default();
         let muted = STATE.lock().unwrap().muted;
         let status = if muted {
             "Unmute Microphone"
@@ -2414,14 +2465,38 @@ fn show_tray_menu(hwnd: HWND) {
         };
         let title_w = wide(&format!("silence! - v{}", env!("CARGO_PKG_VERSION")));
         let status_w = wide(status);
+        let input_w = wide("Default Input");
+        let output_w = wide("Default Output");
         let settings_w = wide("Open Settings");
         let exit_w = wide("Exit");
+        let input_devices = capture_devices().unwrap_or_default();
+        let output_devices = render_devices().unwrap_or_default();
+
+        {
+            let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
+            commands.clear();
+            append_input_device_menu(input_menu, &input_devices, &mut commands);
+            append_output_device_menu(output_menu, &output_devices, &mut commands);
+        }
 
         let _ = AppendMenuW(
             menu,
             MENU_ITEM_FLAGS(0x0000_0001),
             ID_MENU_TITLE,
             PCWSTR(title_w.as_ptr()),
+        );
+        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0x0000_0010),
+            input_menu.0 as usize,
+            PCWSTR(input_w.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0x0000_0010),
+            output_menu.0 as usize,
+            PCWSTR(output_w.as_ptr()),
         );
         let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         let _ = AppendMenuW(
@@ -2474,6 +2549,32 @@ fn show_tray_menu(hwnd: HWND) {
             bitmaps.push(bitmap);
         }
         if let Some(bitmap) = create_menu_svg_bitmap(
+            include_str!("../assets/icons/microphone-3-linear.svg"),
+            icon_color,
+        ) {
+            let _ = SetMenuItemBitmaps(
+                menu,
+                MENU_POS_DEFAULT_INPUT,
+                MENU_ITEM_FLAGS(0x0000_0400),
+                bitmap,
+                bitmap,
+            );
+            bitmaps.push(bitmap);
+        }
+        if let Some(bitmap) = create_menu_svg_bitmap(
+            include_str!("../assets/icons/volume-loud-linear.svg"),
+            icon_color,
+        ) {
+            let _ = SetMenuItemBitmaps(
+                menu,
+                MENU_POS_DEFAULT_OUTPUT,
+                MENU_ITEM_FLAGS(0x0000_0400),
+                bitmap,
+                bitmap,
+            );
+            bitmaps.push(bitmap);
+        }
+        if let Some(bitmap) = create_menu_svg_bitmap(
             include_str!("../assets/icons/settings-bold.svg"),
             icon_color,
         ) {
@@ -2502,19 +2603,112 @@ fn show_tray_menu(hwnd: HWND) {
         let mut pt = POINT::default();
         let _ = GetCursorPos(&mut pt);
         let _ = SetForegroundWindow(hwnd);
-        let _ = TrackPopupMenu(
+        let command_id = TrackPopupMenu(
             menu,
-            TPM_LEFTALIGN | TPM_BOTTOMALIGN,
+            TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_RETURNCMD,
             pt.x,
             pt.y,
             0,
             hwnd,
             None,
         );
+        if command_id.0 != 0 {
+            handle_tray_menu_command(command_id.0 as usize);
+        }
         let _ = DestroyMenu(menu);
+        TRAY_DEVICE_COMMANDS.lock().unwrap().clear();
         for bitmap in bitmaps {
             let _ = DeleteObject(bitmap);
         }
+    }
+}
+
+fn append_input_device_menu(
+    menu: HMENU,
+    devices: &[MicDevice],
+    commands: &mut HashMap<usize, TrayDeviceCommand>,
+) {
+    if devices.is_empty() {
+        append_disabled_menu_item(menu, "No active input devices");
+        return;
+    }
+
+    for (index, device) in devices.iter().enumerate() {
+        let command_id = ID_MENU_INPUT_DEVICE_BASE + index;
+        commands.insert(command_id, TrayDeviceCommand::Input(device.id.clone()));
+        append_device_menu_item(menu, command_id, &device.name, device.is_default);
+    }
+}
+
+fn append_output_device_menu(
+    menu: HMENU,
+    devices: &[AudioDevice],
+    commands: &mut HashMap<usize, TrayDeviceCommand>,
+) {
+    if devices.is_empty() {
+        append_disabled_menu_item(menu, "No active output devices");
+        return;
+    }
+
+    for (index, device) in devices.iter().enumerate() {
+        let command_id = ID_MENU_OUTPUT_DEVICE_BASE + index;
+        commands.insert(command_id, TrayDeviceCommand::Output(device.id.clone()));
+        append_device_menu_item(menu, command_id, &device.name, device.is_default);
+    }
+}
+
+fn append_device_menu_item(menu: HMENU, command_id: usize, label: &str, checked: bool) {
+    let label_w = wide(label);
+    let flags = if checked {
+        MENU_ITEM_FLAGS(0x0000_0008)
+    } else {
+        MENU_ITEM_FLAGS(0)
+    };
+    unsafe {
+        let _ = AppendMenuW(menu, flags, command_id, PCWSTR(label_w.as_ptr()));
+    }
+}
+
+fn append_disabled_menu_item(menu: HMENU, label: &str) {
+    let label_w = wide(label);
+    unsafe {
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0x0000_0002 | 0x0000_0001),
+            0,
+            PCWSTR(label_w.as_ptr()),
+        );
+    }
+}
+
+fn handle_tray_device_command(command_id: usize) {
+    let command = TRAY_DEVICE_COMMANDS.lock().unwrap().get(&command_id).cloned();
+    match command {
+        Some(TrayDeviceCommand::Input(device_id)) => {
+            if let Err(err) = set_default_capture_device(&device_id) {
+                eprintln!("failed to set default input device: {err:?}");
+            }
+        }
+        Some(TrayDeviceCommand::Output(device_id)) => {
+            if let Err(err) = set_default_render_device(&device_id) {
+                eprintln!("failed to set default output device: {err:?}");
+            }
+        }
+        None => {}
+    }
+}
+
+fn handle_tray_menu_command(command_id: usize) {
+    match command_id {
+        ID_MENU_TOGGLE => toggle_mute(),
+        ID_MENU_SETTINGS => open_settings_window(),
+        ID_MENU_EXIT => {
+            let hwnd = STATE.lock().unwrap().hwnd;
+            unsafe {
+                let _ = DestroyWindow(hwnd);
+            }
+        }
+        command_id => handle_tray_device_command(command_id),
     }
 }
 
@@ -2828,6 +3022,20 @@ enum HotkeyRequest {
     ReleaseHold {
         id: String,
     },
+    SetDefaultInput {
+        target: Option<String>,
+    },
+    SetDefaultOutput {
+        target: Option<String>,
+    },
+    ToggleDefaultInput {
+        target_1: Option<String>,
+        target_2: Option<String>,
+    },
+    ToggleDefaultOutput {
+        target_1: Option<String>,
+        target_2: Option<String>,
+    },
     OpenSettings,
 }
 
@@ -2858,6 +3066,20 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
             target: hotkey.target.clone(),
             muted: false,
         },
+        HotkeyAction::SetDefaultInputDevice => HotkeyRequest::SetDefaultInput {
+            target: hotkey.target.clone(),
+        },
+        HotkeyAction::SetDefaultOutputDevice => HotkeyRequest::SetDefaultOutput {
+            target: hotkey.target.clone(),
+        },
+        HotkeyAction::ToggleDefaultInputDevice => HotkeyRequest::ToggleDefaultInput {
+            target_1: hotkey.target.clone(),
+            target_2: hotkey.target_2.clone(),
+        },
+        HotkeyAction::ToggleDefaultOutputDevice => HotkeyRequest::ToggleDefaultOutput {
+            target_1: hotkey.target.clone(),
+            target_2: hotkey.target_2.clone(),
+        },
         HotkeyAction::OpenSettings => HotkeyRequest::OpenSettings,
     }
 }
@@ -2871,6 +3093,30 @@ fn run_hotkey_action(action: HotkeyRequest) {
         }
         HotkeyRequest::StartHoldToggle { id, target } => start_hold_toggle_hotkey(&id, target),
         HotkeyRequest::ReleaseHold { id } => release_hold_hotkey(&id),
+        HotkeyRequest::SetDefaultInput { target } => {
+            if let Some(device_id) = target {
+                if let Err(err) = set_default_capture_device(&device_id) {
+                    eprintln!("failed to set default input device from hotkey: {err:?}");
+                }
+            }
+        }
+        HotkeyRequest::SetDefaultOutput { target } => {
+            if let Some(device_id) = target {
+                if let Err(err) = set_default_render_device(&device_id) {
+                    eprintln!("failed to set default output device from hotkey: {err:?}");
+                }
+            }
+        }
+        HotkeyRequest::ToggleDefaultInput { target_1, target_2 } => {
+            if let Err(err) = toggle_default_audio_device(eCapture, target_1, target_2) {
+                eprintln!("failed to toggle default input device from hotkey: {err:?}");
+            }
+        }
+        HotkeyRequest::ToggleDefaultOutput { target_1, target_2 } => {
+            if let Err(err) = toggle_default_audio_device(eRender, target_1, target_2) {
+                eprintln!("failed to toggle default output device from hotkey: {err:?}");
+            }
+        }
         HotkeyRequest::OpenSettings => open_settings_window(),
     }
 }
@@ -3599,6 +3845,31 @@ fn set_default_audio_device(device_id: &str) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn toggle_default_audio_device(
+    flow: EDataFlow,
+    target_1: Option<String>,
+    target_2: Option<String>,
+) -> Result<()> {
+    let Some(target_1) = target_1.filter(|target| !target.is_empty()) else {
+        return Ok(());
+    };
+    let Some(target_2) = target_2.filter(|target| !target.is_empty()) else {
+        return Ok(());
+    };
+
+    let devices = endpoint_devices(flow, "Device")?;
+    let next = if devices
+        .iter()
+        .any(|device| device.is_default && device.id == target_1)
+    {
+        target_2
+    } else {
+        target_1
+    };
+
+    set_default_audio_device(&next)
 }
 
 pub fn default_mic_label(devices: &[MicDevice]) -> String {
