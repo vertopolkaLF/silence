@@ -135,6 +135,78 @@
   align-items: center;
 }
 
+.general-import-export-panel {
+  display: grid;
+  gap: 16px;
+  padding-top: 4px;
+}
+
+.general-import-export-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 720px;
+}
+
+.general-import-export-button {
+  min-width: 0;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  padding: 0 16px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 650;
+  box-shadow: 0 1px 2px var(--shadow-soft);
+  transition:
+    background var(--ui-transition),
+    color var(--ui-transition),
+    transform var(--ui-transition),
+    box-shadow var(--ui-transition);
+}
+
+.general-import-export-button:hover {
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px var(--shadow-faint);
+}
+
+.general-import-export-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px var(--shadow-soft);
+}
+
+.general-import-export-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.general-import-export-icon {
+  width: 21px;
+  height: 21px;
+  color: var(--accent-text);
+}
+
+.general-reset-card {
+  max-width: 720px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.general-reset-row {
+  align-items: center;
+}
+
+.general-reset-button:hover {
+  background: var(--surface-danger-hover);
+  color: var(--danger-hover);
+}
+
 .auto-mute-panel {
   display: grid;
   gap: 18px;
@@ -212,6 +284,10 @@
 }
 
 @media (max-width: 680px) {
+  .general-import-export-grid {
+    grid-template-columns: 1fr;
+  }
+
   .auto-mute-subgroup {
     margin-left: 0;
     padding-left: 0;

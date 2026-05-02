@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 pub fn render(
-    settings: Signal<super::super::SettingsSnapshot>,
+    mut settings: Signal<super::super::SettingsSnapshot>,
     _recording: Signal<bool>,
 ) -> Element {
     let snapshot = settings();
@@ -61,6 +61,59 @@ pub fn render(
                             super::super::update_settings(settings, |config| {
                                 config.advanced.disable_tray_double_click_settings = checked;
                             });
+                        }
+                    }
+                }
+            }
+
+            section {
+                class: "general-import-export-panel",
+                id: "general-import-export",
+                "data-settings-section": "true",
+                div { class: "auto-mute-header",
+                    h1 { "Import/Export" }
+                    p { "Backup your settings" }
+                }
+
+                div { class: "general-import-export-grid",
+                    button {
+                        class: "general-import-export-button",
+                        onclick: move |_| {
+                            if crate::export_settings().is_ok() {
+                                let next = settings.peek().clone().refresh(false);
+                                settings.set(next);
+                            }
+                        },
+                        span { class: "solar-icon general-import-export-icon icon-export" }
+                        span { "Export" }
+                    }
+                    button {
+                        class: "general-import-export-button",
+                        onclick: move |_| {
+                            if crate::import_settings().is_ok() {
+                                let next = settings.peek().clone().refresh(true);
+                                settings.set(next);
+                            }
+                        },
+                        span { class: "solar-icon general-import-export-icon icon-import" }
+                        span { "Import" }
+                    }
+                }
+
+                section { class: "sound-card general-reset-card",
+                    div { class: "sound-card-title general-reset-row",
+                        div { class: "startup-copy",
+                            h2 { "Reset settings" }
+                        }
+                        button {
+                            class: "secondary general-reset-button",
+                            onclick: move |_| {
+                                if crate::reset_settings().is_ok() {
+                                    let next = settings.peek().clone().refresh(true);
+                                    settings.set(next);
+                                }
+                            },
+                            "Reset settings"
                         }
                     }
                 }

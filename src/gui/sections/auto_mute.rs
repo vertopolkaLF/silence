@@ -28,7 +28,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
             section { class: "sound-card auto-mute-card",
                 Checkbox {
                     checked: auto_mute.mute_on_startup,
-                    label: "Mute microphone on app startup".to_string(),
+                    label: "Mute microphone on app launch".to_string(),
                     onchange: move |checked| {
                         super::super::update_settings(settings, |config| {
                             config.auto_mute.mute_on_startup = checked;

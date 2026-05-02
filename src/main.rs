@@ -34,9 +34,8 @@ use windows::{
         },
         Graphics::{
             Dwm::{
-                DWMSBT_MAINWINDOW, DWMSBT_NONE, DWMWA_SYSTEMBACKDROP_TYPE,
-                DWMWA_USE_IMMERSIVE_DARK_MODE,
-                DWMWINDOWATTRIBUTE, DWM_SYSTEMBACKDROP_TYPE, DwmSetWindowAttribute,
+                DWM_SYSTEMBACKDROP_TYPE, DWMSBT_MAINWINDOW, DWMSBT_NONE, DWMWA_SYSTEMBACKDROP_TYPE,
+                DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWINDOWATTRIBUTE, DwmSetWindowAttribute,
             },
             Gdi::{
                 BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection,
@@ -764,7 +763,7 @@ struct ModifierState {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct OverlayConfig {
-    #[serde(default)]
+    #[serde(default = "default_overlay_enabled")]
     pub enabled: bool,
     #[serde(default = "default_overlay_visibility")]
     pub visibility: String,
@@ -799,7 +798,7 @@ pub struct OverlayConfig {
 impl Default for OverlayConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: default_overlay_enabled(),
             visibility: default_overlay_visibility(),
             position_x: default_overlay_position_x(),
             position_y: default_overlay_position_y(),
@@ -816,6 +815,10 @@ impl Default for OverlayConfig {
             show_border: default_overlay_show_border(),
         }
     }
+}
+
+fn default_overlay_enabled() -> bool {
+    true
 }
 
 fn default_overlay_visibility() -> String {
@@ -887,7 +890,7 @@ impl Default for TrayIconConfig {
 }
 
 fn default_tray_icon_variant() -> String {
-    "Logo".to_string()
+    "StatusMic".to_string()
 }
 
 fn default_tray_icon_status_style() -> String {
@@ -4149,6 +4152,10 @@ fn load_config() -> Result<Config> {
         return Ok(Config::default());
     }
     let content = fs::read_to_string(path)?;
+    parse_config_content(&content)
+}
+
+fn parse_config_content(content: &str) -> Result<Config> {
     let has_hotkeys = serde_json::from_str::<serde_json::Value>(&content)
         .ok()
         .and_then(|value| {
@@ -4209,6 +4216,42 @@ fn save_config(config: &Config) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
     fs::write(path, serde_json::to_string_pretty(config)?)?;
+    Ok(())
+}
+
+pub fn export_settings() -> Result<()> {
+    let Some(target) = rfd::FileDialog::new()
+        .add_filter("JSON", &["json"])
+        .set_file_name("silence-settings.json")
+        .save_file()
+    else {
+        return Ok(());
+    };
+
+    let config = load_config()?;
+    fs::write(target, serde_json::to_string_pretty(&config)?)?;
+    Ok(())
+}
+
+pub fn import_settings() -> Result<()> {
+    let Some(source) = rfd::FileDialog::new()
+        .add_filter("JSON", &["json"])
+        .pick_file()
+    else {
+        return Ok(());
+    };
+
+    let content = fs::read_to_string(source)?;
+    let config = parse_config_content(&content)?;
+    save_config(&config)?;
+    apply_live_config(&config, config_modified_time());
+    Ok(())
+}
+
+pub fn reset_settings() -> Result<()> {
+    let config = Config::default();
+    save_config(&config)?;
+    apply_live_config(&config, config_modified_time());
     Ok(())
 }
 

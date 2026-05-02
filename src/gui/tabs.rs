@@ -42,13 +42,13 @@ pub(crate) struct TabTransition {
 impl SettingsTab {
     const ALL: &'static [Self] = &[
         Self::Hotkeys,
-        Self::General,
         Self::Devices,
         Self::Sounds,
         Self::Overlay,
         Self::HoldToMute,
         Self::TrayIcon,
         Self::AutoMute,
+        Self::General,
         Self::About,
     ];
 
@@ -96,10 +96,16 @@ impl SettingsTab {
 
     pub fn sections(self) -> &'static [SettingsSection] {
         match self {
-            Self::General => &[SettingsSection {
-                id: "general-status",
-                label: "General",
-            }],
+            Self::General => &[
+                SettingsSection {
+                    id: "general-status",
+                    label: "General",
+                },
+                SettingsSection {
+                    id: "general-import-export",
+                    label: "Import/Export",
+                },
+            ],
             Self::Devices => &[SettingsSection {
                 id: "devices-overview",
                 label: "Devices",
@@ -151,13 +157,13 @@ impl SettingsTab {
     fn order(self) -> usize {
         match self {
             Self::Hotkeys => 0,
-            Self::General => 1,
-            Self::Devices => 2,
-            Self::Sounds => 3,
-            Self::Overlay => 4,
-            Self::HoldToMute => 5,
-            Self::TrayIcon => 6,
-            Self::AutoMute => 7,
+            Self::Devices => 1,
+            Self::Sounds => 2,
+            Self::Overlay => 3,
+            Self::HoldToMute => 4,
+            Self::TrayIcon => 5,
+            Self::AutoMute => 6,
+            Self::General => 7,
             Self::About => 8,
         }
     }

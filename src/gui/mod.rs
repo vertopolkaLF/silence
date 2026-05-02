@@ -14,7 +14,9 @@ const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css())
 const CLOCK_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/clock-circle-bold.svg");
 const CLOCK_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/clock-circle-linear.svg");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
+const EXPORT_LINEAR_ICON: Asset = asset!("/assets/icons/export-linear.svg");
 const GAMEPAD_BOLD_ICON: Asset = asset!("/assets/icons/gamepad-bold.svg");
+const IMPORT_LINEAR_ICON: Asset = asset!("/assets/icons/import-linear.svg");
 const INFO_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/info-circle-bold.svg");
 const KEYBOARD_BOLD_ICON: Asset = asset!("/assets/icons/keyboard-bold.svg");
 const KEYBOARD_LINEAR_ICON: Asset = asset!("/assets/icons/keyboard-linear.svg");
@@ -184,7 +186,9 @@ fn settings_icon_style() -> String {
 .titlebar-close {{ --titlebar-icon: url("{CLOSE_ICON}"); }}
 .icon-clock-circle {{ --icon: url("{CLOCK_CIRCLE_LINEAR_ICON}"); }}
 .icon-close {{ --icon: url("{CLOSE_ICON}"); }}
+.icon-export {{ --icon: url("{EXPORT_LINEAR_ICON}"); }}
 .icon-gamepad-bold {{ --icon: url("{GAMEPAD_BOLD_ICON}"); }}
+.icon-import {{ --icon: url("{IMPORT_LINEAR_ICON}"); }}
 .icon-keyboard {{ --icon: url("{KEYBOARD_LINEAR_ICON}"); }}
 .icon-oven-mitts {{ --icon: url("{OVEN_MITTS_LINEAR_ICON}"); }}
 .icon-clock-circle-bold {{ --icon: url("{CLOCK_CIRCLE_BOLD_ICON}"); }}
