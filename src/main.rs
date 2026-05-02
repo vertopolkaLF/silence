@@ -32,6 +32,10 @@ use windows::{
             ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError, HINSTANCE,
             HWND, LPARAM, LRESULT, POINT, WPARAM,
         },
+        Graphics::Gdi::{
+            BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection,
+            DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, SelectObject,
+        },
         Media::Audio::{
             DEVICE_STATE_ACTIVE, Endpoints::IAudioEndpointVolume, IMMDevice, IMMDeviceEnumerator,
             MMDeviceEnumerator, eCapture, eConsole,
@@ -71,14 +75,15 @@ use windows::{
             },
             WindowsAndMessaging::{
                 AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIcon, CreateIconFromResourceEx,
-                CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
-                DispatchMessageW, FindWindowW, GWL_WNDPROC, GetCursorPos, GetMessageW,
-                GetSystemMetrics, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION, IsIconic,
-                KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW,
-                MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostQuitMessage, RegisterClassW, SC_KEYMENU,
-                SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SendMessageW, SetForegroundWindow, SetTimer,
-                SetWindowLongPtrW, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
+                CreatePopupMenu, CreateWindowExW, DI_NORMAL, DefWindowProcW, DestroyMenu,
+                DestroyWindow, DispatchMessageW, DrawIconEx, FindWindowW, GWL_WNDPROC,
+                GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON, IDC_ARROW,
+                IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW,
+                LoadIconW, MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostQuitMessage, RegisterClassW,
+                SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SendMessageW,
+                SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
+                SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu,
+                TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
                 WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN,
                 WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
                 WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND,
@@ -104,6 +109,7 @@ const ID_OVERLAY_DRAG_TIMER: usize = 12;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
+const ID_MENU_TITLE: usize = 1004;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -2033,6 +2039,96 @@ fn create_argb_icon(width: i32, height: i32, pixels: &[u8]) -> Option<HICON> {
     }
 }
 
+fn create_argb_bitmap(width: i32, height: i32, pixels: &[u8]) -> Option<HBITMAP> {
+    if width <= 0 || height <= 0 || pixels.len() < (width * height * 4) as usize {
+        return None;
+    }
+
+    let mut bits: *mut c_void = null_mut();
+    let mut info = BITMAPINFO::default();
+    info.bmiHeader = BITMAPINFOHEADER {
+        biSize: size_of::<BITMAPINFOHEADER>() as u32,
+        biWidth: width,
+        biHeight: -height,
+        biPlanes: 1,
+        biBitCount: 32,
+        biCompression: BI_RGB.0,
+        ..Default::default()
+    };
+
+    let bitmap = unsafe { CreateDIBSection(None, &info, DIB_RGB_COLORS, &mut bits, None, 0).ok()? };
+    if bits.is_null() {
+        unsafe {
+            let _ = DeleteObject(bitmap);
+        }
+        return None;
+    }
+
+    unsafe {
+        let target = std::slice::from_raw_parts_mut(bits as *mut u8, (width * height * 4) as usize);
+        for (source, target) in pixels.chunks_exact(4).zip(target.chunks_exact_mut(4)) {
+            let alpha = source[3] as u16;
+            target[0] = ((source[0] as u16 * alpha) / 255) as u8;
+            target[1] = ((source[1] as u16 * alpha) / 255) as u8;
+            target[2] = ((source[2] as u16 * alpha) / 255) as u8;
+            target[3] = source[3];
+        }
+    }
+    Some(bitmap)
+}
+
+fn create_menu_app_bitmap() -> Option<HBITMAP> {
+    let icon = load_app_icon()?;
+    let size = 16;
+    let mut bits: *mut c_void = null_mut();
+    let mut info = BITMAPINFO::default();
+    info.bmiHeader = BITMAPINFOHEADER {
+        biSize: size_of::<BITMAPINFOHEADER>() as u32,
+        biWidth: size,
+        biHeight: -size,
+        biPlanes: 1,
+        biBitCount: 32,
+        biCompression: BI_RGB.0,
+        ..Default::default()
+    };
+
+    unsafe {
+        let bitmap = CreateDIBSection(None, &info, DIB_RGB_COLORS, &mut bits, None, 0).ok()?;
+        if bits.is_null() {
+            let _ = DeleteObject(bitmap);
+            return None;
+        }
+
+        let hdc = CreateCompatibleDC(None);
+        if hdc.is_invalid() {
+            let _ = DeleteObject(bitmap);
+            return None;
+        }
+
+        let old_bitmap = SelectObject(hdc, bitmap);
+        std::ptr::write_bytes(bits as *mut u8, 0, (size * size * 4) as usize);
+        let _ = DrawIconEx(hdc, 0, 0, icon, size, size, 0, None, DI_NORMAL);
+        let _ = SelectObject(hdc, old_bitmap);
+        let _ = DeleteDC(hdc);
+        Some(bitmap)
+    }
+}
+
+fn create_menu_svg_bitmap(svg: &str, color: (u8, u8, u8)) -> Option<HBITMAP> {
+    let size = 16usize;
+    let mask = render_svg_alpha(svg, 64)?;
+    let mask = fit_alpha_mask(&mask, 64, 64, size, 14)?;
+    let mut pixels = vec![0u8; size * size * 4];
+    for (index, alpha) in mask.into_iter().enumerate() {
+        let offset = index * 4;
+        pixels[offset] = color.2;
+        pixels[offset + 1] = color.1;
+        pixels[offset + 2] = color.0;
+        pixels[offset + 3] = alpha;
+    }
+    create_argb_bitmap(size as i32, size as i32, &pixels)
+}
+
 fn best_ico_image(bytes: &[u8], target: u32) -> Option<&[u8]> {
     if bytes.len() < 6 || u16::from_le_bytes([bytes[2], bytes[3]]) != 1 {
         return None;
@@ -2205,14 +2301,24 @@ unsafe extern "system" fn main_wnd_proc(
 fn show_tray_menu(hwnd: HWND) {
     unsafe {
         let menu = CreatePopupMenu().unwrap_or_default();
-        let status = if STATE.lock().unwrap().muted {
-            "Unmute microphone"
+        let muted = STATE.lock().unwrap().muted;
+        let status = if muted {
+            "Unmute Microphone"
         } else {
-            "Mute microphone"
+            "Mute Microphone"
         };
+        let title_w = wide(&format!("silence! - v{}", env!("CARGO_PKG_VERSION")));
         let status_w = wide(status);
-        let settings_w = wide("Settings...");
+        let settings_w = wide("Open Settings");
         let exit_w = wide("Exit");
+
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0x0000_0001),
+            ID_MENU_TITLE,
+            PCWSTR(title_w.as_ptr()),
+        );
+        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         let _ = AppendMenuW(
             menu,
             MENU_ITEM_FLAGS(0),
@@ -2225,12 +2331,68 @@ fn show_tray_menu(hwnd: HWND) {
             ID_MENU_SETTINGS,
             PCWSTR(settings_w.as_ptr()),
         );
+        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         let _ = AppendMenuW(
             menu,
             MENU_ITEM_FLAGS(0),
             ID_MENU_EXIT,
             PCWSTR(exit_w.as_ptr()),
         );
+
+        let icon_color = if windows_uses_light_system_theme() {
+            (20, 20, 20)
+        } else {
+            (245, 245, 245)
+        };
+        let mut bitmaps = Vec::new();
+        if let Some(bitmap) = create_menu_app_bitmap() {
+            let _ = SetMenuItemBitmaps(
+                menu,
+                ID_MENU_TITLE as u32,
+                MENU_ITEM_FLAGS(0),
+                bitmap,
+                bitmap,
+            );
+            bitmaps.push(bitmap);
+        }
+        if let Some(bitmap) = create_menu_svg_bitmap(
+            include_str!("../assets/icons/microphone-3-bold.svg"),
+            state_accent(muted),
+        ) {
+            let _ = SetMenuItemBitmaps(
+                menu,
+                ID_MENU_TOGGLE as u32,
+                MENU_ITEM_FLAGS(0),
+                bitmap,
+                bitmap,
+            );
+            bitmaps.push(bitmap);
+        }
+        if let Some(bitmap) = create_menu_svg_bitmap(
+            include_str!("../assets/icons/settings-bold.svg"),
+            icon_color,
+        ) {
+            let _ = SetMenuItemBitmaps(
+                menu,
+                ID_MENU_SETTINGS as u32,
+                MENU_ITEM_FLAGS(0),
+                bitmap,
+                bitmap,
+            );
+            bitmaps.push(bitmap);
+        }
+        if let Some(bitmap) =
+            create_menu_svg_bitmap(include_str!("../assets/icons/exit-bold.svg"), icon_color)
+        {
+            let _ = SetMenuItemBitmaps(
+                menu,
+                ID_MENU_EXIT as u32,
+                MENU_ITEM_FLAGS(0),
+                bitmap,
+                bitmap,
+            );
+            bitmaps.push(bitmap);
+        }
 
         let mut pt = POINT::default();
         let _ = GetCursorPos(&mut pt);
@@ -2245,6 +2407,9 @@ fn show_tray_menu(hwnd: HWND) {
             None,
         );
         let _ = DestroyMenu(menu);
+        for bitmap in bitmaps {
+            let _ = DeleteObject(bitmap);
+        }
     }
 }
 
