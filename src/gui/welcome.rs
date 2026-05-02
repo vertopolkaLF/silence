@@ -8,6 +8,7 @@ use dioxus::prelude::*;
 use super::SettingsSnapshot;
 
 const WELCOME_CSS: Asset = asset!("/assets/styles/welcome.css", AssetOptions::css());
+const WELCOME_STARS_JS: Asset = asset!("/assets/scripts/welcome-stars.js");
 
 #[component]
 pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element {
@@ -86,6 +87,7 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
 
     rsx! {
         link { rel: "stylesheet", href: "{WELCOME_CSS}" }
+        script { src: "{WELCOME_STARS_JS}" }
         main {
             class: if capture_completed() { "welcome-shell capture-completed" } else { "welcome-shell" },
             tabindex: "0",
@@ -119,6 +121,12 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
                     capture_progress.set(0.0);
                 }
             },
+            canvas {
+                class: "welcome-stars-canvas",
+                "data-welcome-stars": "true",
+                "data-hotkey-recorded": "{capture_completed()}",
+                aria_hidden: "true",
+            }
             div {
                 class: "welcome-logo",
                 span { "silence" }
