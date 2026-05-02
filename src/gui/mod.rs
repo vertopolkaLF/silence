@@ -103,12 +103,12 @@ pub(crate) fn settings_startup_head() -> String {
     format!(
         r#"<link rel="icon" href="{APP_ICO}" type="image/x-icon">
 <style>
-html, body, #main {{
+html, body, #main, #root {{
   margin: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: rgb(18, 18, 18);
+  background: transparent !important;
   color: rgb(251, 251, 251);
 }}
 #main, .window {{
@@ -307,7 +307,14 @@ pub fn settings_app() -> Element {
     rsx! {
         style { {settings_font_face()} }
         div {
-            class: if closing() { "window closing" } else { "window" },
+            class: {
+                let mica_class = if settings().config.advanced.enable_mica { " mica-enabled" } else { "" };
+                if closing() {
+                    format!("window closing{mica_class}")
+                } else {
+                    format!("window{mica_class}")
+                }
+            },
             div {
                 class: "titlebar",
                 onmousedown: move |_| drag_desktop.drag(),

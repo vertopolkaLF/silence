@@ -7,12 +7,14 @@
 }
 
 html,
-body {
+body,
+#main,
+#root {
   margin: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--bg);
+  background: transparent !important;
   color: var(--text);
   font-family: "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
 }
@@ -26,12 +28,17 @@ body {
 :root {
   --windows-accent: oklch(71.63% 0.1778 46.3);
   --neutral-bg: oklch(14.08% 0.0044 285.82);
-  --neutral-surface: oklch(18.31% 0.004 285.99);
+  --neutral-surface: oklch(17.31% 0.004 285.99);
   --neutral-surface-2: oklch(21.03% 0.0059 285.89);
   --neutral-surface-3: oklch(27.39% 0.0055 286.03);
   --bg: color-mix(in oklch, var(--neutral-bg) 97%, var(--windows-accent));
   --chrome: color-mix(in oklch, var(--neutral-bg) 96%, var(--windows-accent));
   --surface: color-mix(in oklch, var(--neutral-surface) 96%, var(--windows-accent));
+  --window-bg: var(--bg);
+  --body-bg: transparent;
+  --content-bg: var(--surface);
+  --select-menu-bg: var(--surface-2);
+  --hotkey-panel-bg: var(--surface);
   --surface-2: color-mix(in oklch, var(--neutral-surface-2) 95%, var(--windows-accent));
   --surface-3: color-mix(in oklch, var(--neutral-surface-3) 94%, var(--windows-accent));
   --surface-hover: color-mix(in oklch, var(--surface-2) 82%, var(--accent-text));
@@ -62,6 +69,35 @@ body {
   --shadow-faint: oklch(0% 0 0 / 5%);
   --highlight-line: oklch(100% 0 0 / 3%);
   --on-accent: oklch(100% 0 0);
+}
+
+:root:has(.window.mica-enabled) {
+  --bg: color-mix(in oklch, transparent 100%, var(--windows-accent) 1%);
+  --chrome: color-mix(in oklch, var(--neutral-bg) 28%, transparent);
+  --surface: color-mix(in oklch, oklch(0% 0 0 / 20%) 98%, var(--windows-accent) 5%);
+  --window-bg: var(--bg);
+  --body-bg: transparent;
+  --content-bg: var(--surface);
+  --select-menu-bg: color-mix(in oklch, oklch(30.5% 0.006 286) 99%, var(--windows-accent));
+  --hotkey-panel-bg: color-mix(in oklch, oklch(17.5% 0.006 286) 99%, var(--windows-accent));
+  --surface-2: color-mix(in oklch, oklch(40% 0.006 286) 22%, transparent);
+  --surface-3: color-mix(in oklch, oklch(48% 0.007 286) 32%, transparent);
+  --surface-hover: color-mix(in oklch, var(--surface-2) 82%, var(--accent-text));
+  --surface-color-1: color-mix(in oklch, oklch(from var(--windows-accent) 34% calc(c * 0.18) h) 10%, transparent);
+  --surface-color-2: color-mix(in oklch, oklch(from var(--windows-accent) 39% calc(c * 0.24) h) 15%, transparent);
+  --surface-color-3: color-mix(in oklch, oklch(from var(--windows-accent) 44% calc(c * 0.3) h) 20%, transparent);
+  --surface-color-4: color-mix(in oklch, oklch(from var(--windows-accent) 49% calc(c * 0.36) h) 25%, transparent);
+  --surface-color-5: color-mix(in oklch, oklch(from var(--windows-accent) 54% calc(c * 0.42) h) 30%, transparent);
+  --border: color-mix(in oklch, oklch(58% 0.012 286) 20%, transparent);
+  --border-strong: color-mix(in oklch, oklch(70% 0.014 286) 40%, transparent);
+  --muted: oklch(80.18% 0.0129 286.07);
+  --faint: oklch(70.19% 0.0146 285.79);
+  --accent-text: color-mix(in oklch, var(--text) 40%, var(--windows-accent));
+  --accent-strong: color-mix(in oklch, var(--windows-accent), var(--neutral-bg) 18%);
+  --accent-soft: color-mix(in oklch, var(--windows-accent) 18%, transparent);
+  --surface-danger: color-mix(in oklch, var(--danger) 10%, var(--surface-2));
+  --surface-danger-hover: color-mix(in oklch, var(--danger) 18%, var(--surface-3));
+  --highlight-line: oklch(100% 0 0 / 2%);
 }
 
 h1 {

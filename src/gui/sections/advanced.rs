@@ -16,6 +16,24 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
             section { class: "sound-card advanced-card",
                 div { class: "sound-card-title advanced-row",
                     div { class: "startup-copy",
+                        h2 { "Enable Mica background" }
+                        p { "Uses Windows backdrop material behind the settings window." }
+                    }
+                    super::Toggle {
+                        checked: advanced.enable_mica,
+                        onchange: move |checked| {
+                            super::super::update_settings(settings, |config| {
+                                config.advanced.enable_mica = checked;
+                            });
+                            crate::set_settings_mica_enabled(checked);
+                        }
+                    }
+                }
+            }
+
+            section { class: "sound-card advanced-card",
+                div { class: "sound-card-title advanced-row",
+                    div { class: "startup-copy",
                         h2 { "Disable double-click to open settings" }
                         p { "this will remove delay between single click and mic toggle" }
                     }

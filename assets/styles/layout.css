@@ -3,7 +3,7 @@
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: var(--bg);
+  background: var(--window-bg);
   opacity: 1;
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
@@ -19,7 +19,7 @@
   grid-template-columns: 240px minmax(0, 1fr);
   height: 100vh;
   min-height: 0;
-  background: var(--chrome);
+  background: var(--body-bg);
 }
 
 .content {
@@ -31,10 +31,10 @@
   min-height: 0;
   padding: 0;
   height: 100dvh;
-  background: var(--surface);
+  background: var(--content-bg);
   border-top-left-radius: 16px;
   border-bottom-left-radius: 16px;
-  box-shadow: -1px -1px 0 var(--highlight-line);
+  box-shadow: -1px 0 0 var(--highlight-line);
 }
 
 .content-panel {

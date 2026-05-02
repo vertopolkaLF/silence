@@ -32,9 +32,16 @@ use windows::{
             ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError, HINSTANCE,
             HWND, LPARAM, LRESULT, POINT, WPARAM,
         },
-        Graphics::Gdi::{
-            BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection,
-            DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, SelectObject,
+        Graphics::{
+            Dwm::{
+                DWMSBT_MAINWINDOW, DWMSBT_NONE, DWMWA_SYSTEMBACKDROP_TYPE,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                DWMWINDOWATTRIBUTE, DWM_SYSTEMBACKDROP_TYPE, DwmSetWindowAttribute,
+            },
+            Gdi::{
+                BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection,
+                DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, SelectObject,
+            },
         },
         Media::Audio::{
             DEVICE_STATE_ACTIVE, EDataFlow, ERole, Endpoints::IAudioEndpointVolume, IMMDevice,
@@ -117,6 +124,7 @@ const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
 const MENU_POS_DEFAULT_INPUT: u32 = 2;
 const MENU_POS_DEFAULT_OUTPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
+const DWMWA_MICA_EFFECT: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(1029);
 const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -684,6 +692,8 @@ pub struct StartupSettings {
 pub struct AdvancedSettings {
     #[serde(default)]
     pub disable_tray_double_click_settings: bool,
+    #[serde(default)]
+    pub enable_mica: bool,
 }
 
 struct AppState {
@@ -1258,6 +1268,11 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
         return;
     }
 
+    let mica_enabled = load_config()
+        .map(|config| config.advanced.enable_mica)
+        .unwrap_or_default();
+    apply_settings_backdrop(HWND(hwnd as *mut c_void), mica_enabled);
+
     let previous = unsafe {
         SetWindowLongPtrW(
             HWND(hwnd as *mut c_void),
@@ -1267,6 +1282,45 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
     };
     if previous != 0 {
         SETTINGS_ORIGINAL_WNDPROC.store(previous as isize, Ordering::Relaxed);
+    }
+}
+
+pub(crate) fn set_settings_mica_enabled(enabled: bool) {
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    if let Ok(hwnd) = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) } {
+        apply_settings_backdrop(hwnd, enabled);
+    }
+}
+
+fn apply_settings_backdrop(hwnd: HWND, enabled: bool) {
+    unsafe {
+        let use_dark_mode = 1_i32;
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &use_dark_mode as *const _ as *const c_void,
+            size_of::<i32>() as u32,
+        );
+
+        let backdrop = if enabled {
+            DWMSBT_MAINWINDOW
+        } else {
+            DWMSBT_NONE
+        };
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            &backdrop as *const DWM_SYSTEMBACKDROP_TYPE as *const c_void,
+            size_of::<DWM_SYSTEMBACKDROP_TYPE>() as u32,
+        );
+
+        let mica_enabled = if enabled { 1_i32 } else { 0_i32 };
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_MICA_EFFECT,
+            &mica_enabled as *const _ as *const c_void,
+            size_of::<i32>() as u32,
+        );
     }
 }
 
@@ -1434,6 +1488,7 @@ fn main() -> Result<()> {
                     .with_title(SETTINGS_WINDOW_TITLE)
                     .with_decorations(false)
                     .with_resizable(true)
+                    .with_transparent(true)
                     .with_visible(false)
                     .with_inner_size(settings_window_size)
                     .with_min_inner_size(settings_window_size)
@@ -1444,7 +1499,7 @@ fn main() -> Result<()> {
                     .expect("load app icon"),
             )
             .with_custom_head(gui::settings_startup_head())
-            .with_background_color((18, 18, 18, 255));
+            .with_background_color((0, 0, 0, 0));
         MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
         install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
         dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(|| {

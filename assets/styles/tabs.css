@@ -3,7 +3,6 @@
   min-height: 0;
   overflow: hidden;
   border-right: none;
-  background: var(--chrome);
 }
 
 .sidebar-scroll {

@@ -176,28 +176,22 @@
   width: 100%;
   max-width: 560px;
   height: 42px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid transparent;
   border-radius: 12px;
+  outline: none;
   padding: 0 14px;
   background: var(--surface-2);
   color: var(--text);
-  box-shadow: inset 0 1px 0 var(--highlight-line);
   transition:
-    background var(--ui-transition),
-    border-color var(--ui-transition),
-    box-shadow var(--ui-transition),
-    color var(--ui-transition),
-    opacity var(--ui-transition);
+    var(--ui-transition);
 }
 
 .auto-mute-number:hover:not(:disabled) {
   background: var(--surface-color-2);
-  border-color: color-mix(in oklch, var(--border-strong) 80%, var(--accent-text));
 }
 
-.auto-mute-number:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: var(--focus-outline-offset);
+.auto-mute-number:focus {
+  border: 1px solid var(--focus);
 }
 
 .auto-mute-number:disabled {
