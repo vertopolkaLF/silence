@@ -228,7 +228,7 @@ button:disabled {
   font-size: 14px;
   font-weight: 500;
   transition: all var(--ui-transition);
-  box-shadow: 0 1px 2px var(--shadow-soft);
+  box-shadow: 0 1px 1px var(--shadow-soft);
 }
 
 .secondary,
@@ -274,7 +274,7 @@ button:disabled {
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
-  box-shadow: 0 2px 4px var(--shadow-medium);
+  box-shadow: 0 2px 2px var(--shadow-soft);
 }
 
 .save:hover {

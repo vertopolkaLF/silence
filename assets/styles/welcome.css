@@ -14,6 +14,12 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.secondary,
+.save {
+  min-height: 44px;
+  padding: 0 20px;
+}
+
 .welcome-shell {
   --welcome-progress: 0%;
   --welcome-progress-color: color-mix(in oklch, var(--accent) 16%, transparent);
@@ -101,10 +107,9 @@
 
 .welcome-kicker {
   color: var(--accent);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 .welcome-screen h1 {
@@ -211,6 +216,7 @@
   box-shadow:
     0 12px 24px var(--shadow-soft);
   animation: keycap-rise 200ms ease both;
+  will-change: transform;
   transition:
     background 120ms ease,
     box-shadow 120ms ease,

@@ -1,5 +1,6 @@
 use std::{
     io::ErrorKind,
+    sync::atomic::{AtomicUsize, Ordering},
     time::{Duration, Instant},
 };
 
@@ -9,6 +10,7 @@ use super::SettingsSnapshot;
 
 const WELCOME_CSS: Asset = asset!("/assets/styles/welcome.css", AssetOptions::css());
 const WELCOME_STARS_JS: Asset = asset!("/assets/scripts/welcome-stars.js");
+static NEXT_WELCOME_KEYCAPS_ID: AtomicUsize = AtomicUsize::new(1);
 
 #[component]
 pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element {
@@ -84,6 +86,112 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
         }
     };
     let welcome_progress = format!("{:.2}%", capture_progress() * 100.0);
+    let welcome_keycaps_id = use_hook(|| {
+        format!(
+            "welcome-keycaps-{}",
+            NEXT_WELCOME_KEYCAPS_ID.fetch_add(1, Ordering::Relaxed)
+        )
+    });
+    let shortcut_parts =
+        welcome_display_shortcut(modifier_hold_shortcut(), captured_shortcut()).parts();
+    let welcome_step = step();
+    let welcome_keycaps_observer_id = welcome_keycaps_id.clone();
+
+    use_effect(use_reactive!(|(
+        welcome_step,
+        welcome_keycaps_observer_id,
+    )| {
+        if welcome_step != 1 {
+            return;
+        }
+        spawn(async move {
+            let script = format!(
+                r#"
+const setupWelcomeKeycapAnimator = () => {{
+  const root = document.querySelector('[data-welcome-keycaps-id="{welcome_keycaps_observer_id}"]');
+  if (!root) {{
+    return;
+  }}
+
+  window.__welcomeKeycapRects ??= new Map();
+  window.__welcomeKeycapObservers ??= new Map();
+
+  window.__welcomeKeycapObservers.get("{welcome_keycaps_observer_id}")?.disconnect();
+
+  const readRects = () => {{
+    const rects = new Map();
+    root.querySelectorAll(".welcome-keycap").forEach((keycap) => {{
+      const id = keycap.dataset.keycapId;
+      if (!id) {{
+        return;
+      }}
+
+      const rect = keycap.getBoundingClientRect();
+      rects.set(id, {{ left: rect.left, top: rect.top }});
+    }});
+    return rects;
+  }};
+
+  const animateFrom = (previousRects) => {{
+  const nextRects = new Map();
+
+  root.querySelectorAll(".welcome-keycap").forEach((keycap) => {{
+    const id = keycap.dataset.keycapId;
+    if (!id) {{
+      return;
+    }}
+
+    const rect = keycap.getBoundingClientRect();
+    nextRects.set(id, {{ left: rect.left, top: rect.top }});
+
+    const previous = previousRects.get(id);
+    if (!previous) {{
+      return;
+    }}
+
+    const dx = previous.left - rect.left;
+    const dy = previous.top - rect.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {{
+      return;
+    }}
+
+    keycap.animate(
+      [
+        {{ transform: `translate(${{dx}}px, ${{dy}}px)` }},
+        {{ transform: "translate(0, 0)" }}
+      ],
+      {{
+        duration: 220,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)"
+      }}
+    );
+  }});
+
+    window.__welcomeKeycapRects.set("{welcome_keycaps_observer_id}", nextRects);
+  }};
+
+  window.__welcomeKeycapRects.set("{welcome_keycaps_observer_id}", readRects());
+
+  const observer = new MutationObserver(() => {{
+    const previousRects = window.__welcomeKeycapRects.get("{welcome_keycaps_observer_id}") ?? new Map();
+    animateFrom(previousRects);
+  }});
+
+  observer.observe(root, {{
+    childList: true,
+    subtree: true,
+    characterData: true
+  }});
+
+  window.__welcomeKeycapObservers.set("{welcome_keycaps_observer_id}", observer);
+}};
+
+setupWelcomeKeycapAnimator();
+"#
+            );
+            let _ = dioxus::document::eval(&script).await;
+        });
+    }));
 
     rsx! {
         link { rel: "stylesheet", href: "{WELCOME_CSS}" }
@@ -135,8 +243,8 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
             div { class: "welcome-stage",
                 if step() == 0 {
                     section { class: "welcome-screen",
-                        div { class: "welcome-kicker", "new version!" }
-                        h1 { "Welcome" }
+                        div { class: "welcome-kicker", "new version released!" }
+                        h1 { "Mute your mic!" }
                         div { class: "welcome-feature-list",
                             div { class: "welcome-feature-card",
                                 span { class: "solar-icon icon-keyboard-bold" }
@@ -158,6 +266,11 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
                             p { class: "welcome-error", "{import_error()}" }
                         }
                         div { class: "welcome-actions",
+                            button {
+                                class: "save",
+                                onclick: move |_| step.set(1),
+                                "Set hotkey"
+                            }
                             button {
                                 class: "secondary",
                                 onclick: move |_| {
@@ -181,23 +294,22 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
                                 span { class: "solar-icon button-icon icon-import" }
                                 "Import settings from old app"
                             }
-                            button {
-                                class: "save",
-                                onclick: move |_| step.set(1),
-                                "Set hotkey"
-                            }
                         }
                     }
                 } else if step() == 1 {
                     section { class: "welcome-screen welcome-hotkey-screen",
                         div { class: "welcome-kicker", "Step 2 of 3" }
                         h1 { "Choose your hotkey" }
-                        div { class: "welcome-keycaps recording",
-                            for part in welcome_display_shortcut(
-                                modifier_hold_shortcut(),
-                                captured_shortcut(),
-                            ).parts() {
-                                span { class: "welcome-keycap", "{part}" }
+                        div {
+                            class: "welcome-keycaps recording",
+                            "data-welcome-keycaps-id": "{welcome_keycaps_id}",
+                            for (index, part) in shortcut_parts.iter().enumerate() {
+                                span {
+                                    key: "{index}-{part}",
+                                    class: "welcome-keycap",
+                                    "data-keycap-id": "{index}-{part}",
+                                    "{part}"
+                                }
                             }
                         }
                         // p { class: "welcome-hint", "Hold only modifiers for one second to bind them without another key." }
