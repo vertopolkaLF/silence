@@ -20,6 +20,7 @@ pub enum SettingsTab {
     Overlay,
     TrayIcon,
     AutoMute,
+    Advanced,
     About,
 }
 
@@ -47,6 +48,7 @@ impl SettingsTab {
         Self::HoldToMute,
         Self::TrayIcon,
         Self::AutoMute,
+        Self::Advanced,
         Self::About,
     ];
 
@@ -59,6 +61,7 @@ impl SettingsTab {
             Self::Overlay => "Overlay",
             Self::TrayIcon => "Tray Icon",
             Self::AutoMute => "Auto-Mute",
+            Self::Advanced => "Advanced",
             Self::About => "About",
         }
     }
@@ -72,6 +75,7 @@ impl SettingsTab {
             Self::Overlay => "icon-monitor",
             Self::TrayIcon => "icon-widget",
             Self::AutoMute => "icon-clock-circle",
+            Self::Advanced => "icon-magic",
             Self::About => "icon-info",
         }
     }
@@ -85,6 +89,7 @@ impl SettingsTab {
             Self::Overlay => "icon-monitor-bold",
             Self::TrayIcon => "icon-widget-bold",
             Self::AutoMute => "icon-clock-circle-bold",
+            Self::Advanced => "icon-magic-stick-3-bold",
             Self::About => "icon-info-circle-bold",
         }
     }
@@ -125,6 +130,10 @@ impl SettingsTab {
                 id: "auto-mute-overview",
                 label: "Auto-Mute",
             }],
+            Self::Advanced => &[SettingsSection {
+                id: "advanced-overview",
+                label: "Advanced",
+            }],
             Self::About => &[SettingsSection {
                 id: "about-overview",
                 label: "About",
@@ -148,7 +157,8 @@ impl SettingsTab {
             Self::HoldToMute => 4,
             Self::TrayIcon => 5,
             Self::AutoMute => 6,
-            Self::About => 7,
+            Self::Advanced => 7,
+            Self::About => 8,
         }
     }
 }

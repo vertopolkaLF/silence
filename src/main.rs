@@ -106,11 +106,13 @@ const ID_TRAY: u32 = 1;
 const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
 const ID_OVERLAY_DRAG_TIMER: usize = 12;
+const ID_TRAY_CLICK_TIMER: usize = 13;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
 const ID_MENU_TITLE: usize = 1004;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
+const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const STARTUP_RUN_VALUE: &str = "SilenceV2";
@@ -602,6 +604,8 @@ struct Config {
     overlay: OverlayConfig,
     #[serde(default)]
     tray_icon: TrayIconConfig,
+    #[serde(default)]
+    advanced: AdvancedSettings,
 }
 
 impl Default for Config {
@@ -616,6 +620,7 @@ impl Default for Config {
             auto_mute: AutoMuteSettings::default(),
             overlay: OverlayConfig::default(),
             tray_icon: TrayIconConfig::default(),
+            advanced: AdvancedSettings::default(),
         }
     }
 }
@@ -624,6 +629,12 @@ impl Default for Config {
 pub struct StartupSettings {
     #[serde(default)]
     pub launch_on_startup: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+pub struct AdvancedSettings {
+    #[serde(default)]
+    pub disable_tray_double_click_settings: bool,
 }
 
 struct AppState {
@@ -638,6 +649,7 @@ struct AppState {
     auto_mute: AutoMuteSettings,
     overlay: OverlayConfig,
     tray_icon: TrayIconConfig,
+    advanced: AdvancedSettings,
     modifiers: ModifierState,
     muted: bool,
     shortcut_down: bool,
@@ -1039,6 +1051,7 @@ impl Default for AppState {
             auto_mute: config.auto_mute,
             overlay: config.overlay,
             tray_icon: config.tray_icon,
+            advanced: config.advanced,
             modifiers: ModifierState::default(),
             muted: false,
             shortcut_down: false,
@@ -1063,6 +1076,7 @@ static SETTINGS_HOTKEY_RECORDING: AtomicBool = AtomicBool::new(false);
 static SETTINGS_ALT_SPACE_RECORDED: AtomicBool = AtomicBool::new(false);
 static SETTINGS_GAMEPAD_RECORDING: AtomicBool = AtomicBool::new(false);
 static MOUSE_HOTKEYS_ENABLED: AtomicBool = AtomicBool::new(true);
+static SUPPRESS_NEXT_TRAY_LBUTTON_UP: AtomicBool = AtomicBool::new(false);
 static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
 static SETTINGS_MOUSE_HELD: Lazy<Mutex<Vec<u32>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -2223,6 +2237,41 @@ fn remove_tray_icon() {
     }
 }
 
+fn tray_double_click_disabled() -> bool {
+    STATE
+        .lock()
+        .unwrap()
+        .advanced
+        .disable_tray_double_click_settings
+}
+
+fn handle_tray_left_click(hwnd: HWND) {
+    if SUPPRESS_NEXT_TRAY_LBUTTON_UP.swap(false, Ordering::SeqCst) {
+        return;
+    }
+
+    if tray_double_click_disabled() {
+        toggle_mute();
+        return;
+    }
+
+    unsafe {
+        let _ = KillTimer(hwnd, ID_TRAY_CLICK_TIMER);
+        let _ = SetTimer(hwnd, ID_TRAY_CLICK_TIMER, TRAY_DOUBLE_CLICK_DELAY_MS, None);
+    }
+}
+
+fn handle_tray_double_click(hwnd: HWND) {
+    unsafe {
+        let _ = KillTimer(hwnd, ID_TRAY_CLICK_TIMER);
+    }
+
+    if !tray_double_click_disabled() {
+        SUPPRESS_NEXT_TRAY_LBUTTON_UP.store(true, Ordering::SeqCst);
+        open_settings_window();
+    }
+}
+
 unsafe extern "system" fn main_wnd_proc(
     hwnd: HWND,
     msg: u32,
@@ -2233,7 +2282,8 @@ unsafe extern "system" fn main_wnd_proc(
         WM_TRAY => {
             match lparam.0 as u32 {
                 WM_RBUTTONUP => show_tray_menu(hwnd),
-                WM_LBUTTONDBLCLK => open_settings_window(),
+                WM_LBUTTONUP => handle_tray_left_click(hwnd),
+                WM_LBUTTONDBLCLK => handle_tray_double_click(hwnd),
                 _ => {}
             }
             LRESULT(0)
@@ -2259,6 +2309,9 @@ unsafe extern "system" fn main_wnd_proc(
                 if let Some((x, y)) = native_overlay::process_drag() {
                     save_overlay_position(x, y);
                 }
+            } else if wparam.0 == ID_TRAY_CLICK_TIMER {
+                let _ = unsafe { KillTimer(hwnd, ID_TRAY_CLICK_TIMER) };
+                toggle_mute();
             }
             LRESULT(0)
         }
@@ -3725,6 +3778,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.auto_mute = config.auto_mute.clone();
     state.overlay = config.overlay.clone();
     state.tray_icon = config.tray_icon.clone();
+    state.advanced = config.advanced.clone();
     state.modifiers = ModifierState::default();
     state.config_modified = modified;
     state.shortcut_down = false;
