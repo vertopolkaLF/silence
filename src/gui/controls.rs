@@ -114,6 +114,7 @@ pub fn Select(
     let mut open = use_signal(|| false);
     let mut menu_style = use_signal(String::new);
     let mut animate_value = use_signal(|| false);
+    let mut exiting_value = use_signal(|| None::<SelectOption>);
     let mut open_select = use_context::<Signal<Option<String>>>();
     let select_id = use_hook(|| {
         format!(
@@ -170,6 +171,7 @@ pub fn Select(
         let action_value = option.value.clone();
         let close_select_id = select_id.clone();
         let should_animate = next_value != value;
+        let previous_value = current.clone();
 
         rendered_options.push(rsx! {
             div {
@@ -182,6 +184,9 @@ pub fn Select(
                         open.set(false);
                         if open_select().as_deref() == Some(close_select_id.as_str()) {
                             open_select.set(None);
+                        }
+                        if should_animate {
+                            exiting_value.set(previous_value.clone());
                         }
                         animate_value.set(should_animate);
                         onchange.call(next_value.clone());
@@ -314,6 +319,27 @@ if (!menu || !list) {{
   return;
 }}
 
+const scrollSelectedIntoView = () => {{
+  const selected = list.querySelector('.ui-select-item.selected');
+  if (!selected) {{
+    return;
+  }}
+
+  const listHeight = list.clientHeight;
+  const selectedTop = selected.offsetTop;
+  const selectedBottom = selectedTop + selected.offsetHeight;
+  const visibleTop = list.scrollTop;
+  const visibleBottom = visibleTop + listHeight;
+
+  if (selectedTop >= visibleTop && selectedBottom <= visibleBottom) {{
+    return;
+  }}
+
+  const centeredTop = selectedTop - (listHeight - selected.offsetHeight) / 2;
+  const maxScroll = Math.max(0, list.scrollHeight - listHeight);
+  list.scrollTop = Math.min(Math.max(0, centeredTop), maxScroll);
+}};
+
 const updateShadows = () => {{
   const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
   const canScroll = maxScroll > 1;
@@ -336,8 +362,12 @@ if (!list.__uiSelectShadowResizeObserver) {{
   list.__uiSelectShadowResizeObserver = resizeObserver;
 }}
 
+scrollSelectedIntoView();
 updateShadows();
-requestAnimationFrame(updateShadows);
+requestAnimationFrame(() => {{
+  scrollSelectedIntoView();
+  updateShadows();
+}});
 "#
             );
 
@@ -351,8 +381,9 @@ requestAnimationFrame(updateShadows);
         }
 
         spawn(async move {
-            tokio::time::sleep(Duration::from_millis(220)).await;
+            tokio::time::sleep(Duration::from_millis(310)).await;
             animate_value.set(false);
+            exiting_value.set(None);
         });
     });
 
@@ -394,17 +425,31 @@ requestAnimationFrame(updateShadows);
                         span { class: "solar-icon ui-select-current-icon {icon_class}" }
                     }
                     div { class: "ui-select-current-copy",
-                        if let Some(option) = current.as_ref() {
-                            span {
-                                key: "current-label-{option.value}",
-                                class: if animate_value() { "ui-select-current-label anim" } else { "ui-select-current-label" },
-                                "{option.label}"
+                        if animate_value() {
+                            if let Some(option) = exiting_value().as_ref() {
+                                div {
+                                    key: "current-exit-{option.value}",
+                                    class: "ui-select-current-text ui-select-current-text-exit",
+                                    span { class: "ui-select-current-label", "{option.label}" }
+                                    if let Some(detail) = option.detail.as_deref() {
+                                        span { class: "ui-select-current-detail", "{detail}" }
+                                    }
+                                }
                             }
-                            if let Some(detail) = option.detail.as_deref() {
+                        }
+                        if let Some(option) = current.as_ref() {
+                            div {
+                                key: "current-enter-{option.value}",
+                                class: if animate_value() { "ui-select-current-text ui-select-current-text-enter" } else { "ui-select-current-text" },
                                 span {
-                                    key: "current-detail-{option.value}",
-                                    class: if animate_value() { "ui-select-current-detail anim" } else { "ui-select-current-detail" },
-                                    "{detail}"
+                                    class: "ui-select-current-label",
+                                    "{option.label}"
+                                }
+                                if let Some(detail) = option.detail.as_deref() {
+                                    span {
+                                        class: "ui-select-current-detail",
+                                        "{detail}"
+                                    }
                                 }
                             }
                         }

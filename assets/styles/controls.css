@@ -63,6 +63,7 @@
 
 .ui-select-current {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -82,6 +83,29 @@
   gap: 2px;
 }
 
+.ui-select-current-copy {
+  position: relative;
+  width: 100%;
+}
+
+.ui-select-current-text {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  gap: 2px;
+}
+
+.ui-select-current-text-exit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: select-value-exit 0.22s ease forwards;
+}
+
+.ui-select-current-text-enter {
+  animation: select-value-enter 0.24s ease 0.055s both;
+}
+
 .ui-select-current-label,
 .ui-select-item-label {
   min-width: 0;
@@ -99,6 +123,9 @@
 .ui-select-current-label {
   font-size: 14px;
   font-weight: 560;
+  display: block;
+  white-space: nowrap;
+  -webkit-line-clamp: unset;
 }
 
 .ui-select-current-detail,
@@ -109,11 +136,6 @@
   color: var(--muted);
   font-size: 12px;
   line-height: 1.2;
-}
-
-.ui-select-current-label.anim,
-.ui-select-current-detail.anim {
-  animation: select-value-swap 0.2s ease;
 }
 
 .ui-select-chevron {
@@ -258,6 +280,10 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.ui-select-current-detail {
+  overflow: hidden;
 }
 
 .ui-select-item-end {
@@ -440,14 +466,26 @@
   outline-offset: var(--focus-outline-offset);
 }
 
-@keyframes select-value-swap {
+@keyframes select-value-enter {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(14px);
   }
 
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes select-value-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-14px);
   }
 }

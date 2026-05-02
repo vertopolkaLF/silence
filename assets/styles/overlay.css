@@ -81,8 +81,7 @@
   --overlay-icon-tile-size: 56px;
   display: grid;
   width: 100%;
-  grid-template-columns: repeat(auto-fit,
-      minmax(var(--overlay-icon-tile-size), var(--overlay-icon-tile-size)));
+  grid-template-columns: repeat(6, var(--overlay-icon-tile-size));
   column-gap: 8px;
   row-gap: 10px;
   justify-content: space-between;
