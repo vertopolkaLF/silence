@@ -30,27 +30,23 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 }
 
             section { class: "sound-card",
-                div { class: "sound-row-head",
-                    h2 { "Volume" }
-                    span { class: "sound-value", "{volume}%" }
-                }
-                div { class: "volume-row",
-                    span { class: "solar-icon icon-volume volume-low" }
-                    Range {
-                        value: volume.to_string(),
-                        min: "0".to_string(),
-                        max: "100".to_string(),
-                        step: "1".to_string(),
-                        progress: format!("{volume}%"),
-                        oninput: move |evt: FormEvent| {
-                            if let Ok(value) = evt.value().parse::<u8>() {
-                                super::super::update_settings(settings, |config| {
-                                    config.sound_settings.volume = value.min(100);
-                                });
-                            }
+                Range {
+                    label: "Volume".to_string(),
+                    value_label: format!("{volume}%"),
+                    value: volume.to_string(),
+                    min: "0".to_string(),
+                    max: "100".to_string(),
+                    step: "1".to_string(),
+                    progress: format!("{volume}%"),
+                    start_icon: Some("icon-volume".to_string()),
+                    end_icon: Some("icon-volume".to_string()),
+                    oninput: move |evt: FormEvent| {
+                        if let Ok(value) = evt.value().parse::<u8>() {
+                            super::super::update_settings(settings, |config| {
+                                config.sound_settings.volume = value.min(100);
+                            });
                         }
                     }
-                    span { class: "solar-icon icon-volume volume-high" }
                 }
             }
 

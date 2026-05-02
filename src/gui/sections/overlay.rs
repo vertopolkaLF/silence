@@ -81,23 +81,19 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 div {
                     class: if duration_controls_open { "overlay-collapse open" } else { "overlay-collapse" },
                     div { class: "overlay-collapse-inner",
-                        div { class: "overlay-range-row",
-                            div {
-                                label { "Duration" }
-                                span { class: "sound-value", "{duration}s" }
-                            }
-                            Range {
-                                value: duration.clone(),
-                                min: "0.1".to_string(),
-                                max: "10".to_string(),
-                                step: "0.1".to_string(),
-                                progress: duration_progress.clone(),
-                                oninput: move |evt: FormEvent| {
-                                    if let Ok(value) = evt.value().parse::<f64>() {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.duration_secs = value.clamp(0.1, 10.0);
-                                        });
-                                    }
+                        Range {
+                            label: "Duration".to_string(),
+                            value_label: format!("{duration}s"),
+                            value: duration.clone(),
+                            min: "0.1".to_string(),
+                            max: "10".to_string(),
+                            step: "0.1".to_string(),
+                            progress: duration_progress.clone(),
+                            oninput: move |evt: FormEvent| {
+                                if let Ok(value) = evt.value().parse::<f64>() {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.duration_secs = value.clamp(0.1, 10.0);
+                                    });
                                 }
                             }
                         }
@@ -106,44 +102,36 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
             }
 
             section { class: "sound-card",
-                div { class: "overlay-range-row",
-                    div {
-                        label { "Horizontal position" }
-                        span { class: "sound-value", "{x}%" }
-                    }
-                    Range {
-                        value: x.clone(),
-                        min: "0".to_string(),
-                        max: "100".to_string(),
-                        step: "1".to_string(),
-                        progress: x_progress.clone(),
-                        oninput: move |evt: FormEvent| {
-                            if let Ok(value) = evt.value().parse::<f64>() {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.position_x = value.clamp(0.0, 100.0);
-                                });
-                            }
+                Range {
+                    label: "Horizontal position".to_string(),
+                    value_label: format!("{x}%"),
+                    value: x.clone(),
+                    min: "0".to_string(),
+                    max: "100".to_string(),
+                    step: "1".to_string(),
+                    progress: x_progress.clone(),
+                    oninput: move |evt: FormEvent| {
+                        if let Ok(value) = evt.value().parse::<f64>() {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.position_x = value.clamp(0.0, 100.0);
+                            });
                         }
                     }
                 }
 
-                div { class: "overlay-range-row",
-                    div {
-                        label { "Vertical position" }
-                        span { class: "sound-value", "{y}%" }
-                    }
-                    Range {
-                        value: y.clone(),
-                        min: "0".to_string(),
-                        max: "100".to_string(),
-                        step: "1".to_string(),
-                        progress: y_progress.clone(),
-                        oninput: move |evt: FormEvent| {
-                            if let Ok(value) = evt.value().parse::<f64>() {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.position_y = value.clamp(0.0, 100.0);
-                                });
-                            }
+                Range {
+                    label: "Vertical position".to_string(),
+                    value_label: format!("{y}%"),
+                    value: y.clone(),
+                    min: "0".to_string(),
+                    max: "100".to_string(),
+                    step: "1".to_string(),
+                    progress: y_progress.clone(),
+                    oninput: move |evt: FormEvent| {
+                        if let Ok(value) = evt.value().parse::<f64>() {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.position_y = value.clamp(0.0, 100.0);
+                            });
                         }
                     }
                 }
@@ -342,43 +330,19 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 }
                             }
                         }
-                        div { class: "overlay-range-row",
-                            div {
-                                label { "Background opacity" }
-                                span { class: "sound-value", "{background_opacity}%" }
-                            }
-                            Range {
-                                value: background_opacity.to_string(),
-                                min: "0".to_string(),
-                                max: "100".to_string(),
-                                step: "5".to_string(),
-                                progress: background_opacity_progress.clone(),
-                                oninput: move |evt: FormEvent| {
-                                    if let Ok(value) = evt.value().parse::<u8>() {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.background_opacity = value.min(100);
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                        div { class: "overlay-range-row",
-                            div {
-                                label { "Border radius" }
-                                span { class: "sound-value", "{border_radius}px" }
-                            }
-                            Range {
-                                value: border_radius.to_string(),
-                                min: "0".to_string(),
-                                max: "24".to_string(),
-                                step: "1".to_string(),
-                                progress: border_radius_progress.clone(),
-                                oninput: move |evt: FormEvent| {
-                                    if let Ok(value) = evt.value().parse::<u8>() {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.border_radius = value.min(24);
-                                        });
-                                    }
+                        Range {
+                            label: "Background opacity".to_string(),
+                            value_label: format!("{background_opacity}%"),
+                            value: background_opacity.to_string(),
+                            min: "0".to_string(),
+                            max: "100".to_string(),
+                            step: "5".to_string(),
+                            progress: background_opacity_progress.clone(),
+                            oninput: move |evt: FormEvent| {
+                                if let Ok(value) = evt.value().parse::<u8>() {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.background_opacity = value.min(100);
+                                    });
                                 }
                             }
                         }
@@ -395,44 +359,53 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
 
-                div { class: "overlay-range-row",
-                    div {
-                        label { "Size scale" }
-                        span { class: "sound-value", "{scale}%" }
-                    }
-                    Range {
-                        value: scale.to_string(),
-                        min: "10".to_string(),
-                        max: "400".to_string(),
-                        step: "5".to_string(),
-                        progress: scale_progress.clone(),
-                        oninput: move |evt: FormEvent| {
-                            if let Ok(value) = evt.value().parse::<u32>() {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.scale = value.clamp(10, 400);
-                                });
-                            }
+                Range {
+                    label: "Border radius".to_string(),
+                    value_label: format!("{border_radius}px"),
+                    value: border_radius.to_string(),
+                    min: "0".to_string(),
+                    max: "24".to_string(),
+                    step: "1".to_string(),
+                    progress: border_radius_progress.clone(),
+                    oninput: move |evt: FormEvent| {
+                        if let Ok(value) = evt.value().parse::<u8>() {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.border_radius = value.min(24);
+                            });
                         }
                     }
                 }
 
-                div { class: "overlay-range-row",
-                    div {
-                        label { "Opacity" }
-                        span { class: "sound-value", "{content_opacity}%" }
+                Range {
+                    label: "Size scale".to_string(),
+                    value_label: format!("{scale}%"),
+                    value: scale.to_string(),
+                    min: "10".to_string(),
+                    max: "400".to_string(),
+                    step: "5".to_string(),
+                    progress: scale_progress.clone(),
+                    oninput: move |evt: FormEvent| {
+                        if let Ok(value) = evt.value().parse::<u32>() {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.scale = value.clamp(10, 400);
+                            });
+                        }
                     }
-                    Range {
-                        value: content_opacity.to_string(),
-                        min: "20".to_string(),
-                        max: "100".to_string(),
-                        step: "5".to_string(),
-                        progress: content_opacity_progress.clone(),
-                        oninput: move |evt: FormEvent| {
-                            if let Ok(value) = evt.value().parse::<u8>() {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.content_opacity = value.clamp(20, 100);
-                                });
-                            }
+                }
+
+                Range {
+                    label: "Opacity".to_string(),
+                    value_label: format!("{content_opacity}%"),
+                    value: content_opacity.to_string(),
+                    min: "20".to_string(),
+                    max: "100".to_string(),
+                    step: "5".to_string(),
+                    progress: content_opacity_progress.clone(),
+                    oninput: move |evt: FormEvent| {
+                        if let Ok(value) = evt.value().parse::<u8>() {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.content_opacity = value.clamp(20, 100);
+                            });
                         }
                     }
                 }

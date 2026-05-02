@@ -57,10 +57,11 @@ pub fn Checkbox(
     #[props(default = false)] disabled: bool,
     #[props(default)] class: String,
 ) -> Element {
-    let root_class = if disabled {
-        merged_class("ui-checkbox disabled", &class)
-    } else {
-        merged_class("ui-checkbox", &class)
+    let root_class = match (checked, disabled) {
+        (true, true) => merged_class("ui-checkbox checked disabled", &class),
+        (true, false) => merged_class("ui-checkbox checked", &class),
+        (false, true) => merged_class("ui-checkbox disabled", &class),
+        (false, false) => merged_class("ui-checkbox", &class),
     };
 
     rsx! {
@@ -81,6 +82,8 @@ pub fn Checkbox(
 
 #[component]
 pub fn Range(
+    label: String,
+    value_label: String,
     value: String,
     min: String,
     max: String,
@@ -88,17 +91,47 @@ pub fn Range(
     progress: String,
     oninput: EventHandler<FormEvent>,
     #[props(default)] class: String,
+    #[props(default)] start_icon: Option<String>,
+    #[props(default)] end_icon: Option<String>,
 ) -> Element {
+    let icon_class = match (start_icon.is_some(), end_icon.is_some()) {
+        (true, true) => "ui-range-control has-start-icon has-end-icon",
+        (true, false) => "ui-range-control has-start-icon",
+        (false, true) => "ui-range-control has-end-icon",
+        (false, false) => "ui-range-control",
+    };
+
     rsx! {
-        input {
-            class: merged_class("ui-range", &class),
-            r#type: "range",
-            min: "{min}",
-            max: "{max}",
-            step: "{step}",
-            value: "{value}",
-            style: "--range-progress: {progress};",
-            oninput: move |evt| oninput.call(evt)
+        div { class: merged_class(icon_class, &class),
+            if let Some(icon) = start_icon {
+                span { class: "solar-icon ui-range-icon {icon}" }
+            }
+            label { class: "ui-range-shell",
+                span {
+                    class: "ui-range-fill",
+                    style: "--range-progress: {progress};"
+                }
+                input {
+                    class: "ui-range",
+                    r#type: "range",
+                    min: "{min}",
+                    max: "{max}",
+                    step: "{step}",
+                    value: "{value}",
+                    oninput: move |evt| oninput.call(evt)
+                }
+                span {
+                    class: "ui-range-dragger",
+                    style: "--range-progress: {progress};"
+                }
+                span { class: "ui-range-copy",
+                    span { class: "ui-range-label", "{label}" }
+                    span { class: "ui-range-value", "{value_label}" }
+                }
+            }
+            if let Some(icon) = end_icon {
+                span { class: "solar-icon ui-range-icon {icon}" }
+            }
         }
     }
 }

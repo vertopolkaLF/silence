@@ -10,9 +10,9 @@ use windows::{
             AC_SRC_ALPHA, ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BLENDFUNCTION,
             CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, CreateCompatibleDC, CreateDIBSection,
             CreateFontW, CreatePen, CreateSolidBrush, DEFAULT_CHARSET, DEFAULT_PITCH,
-            DIB_RGB_COLORS, DeleteDC, DeleteObject, DrawTextW, Ellipse, FF_DONTCARE, FW_MEDIUM,
-            FW_NORMAL, GetTextExtentPoint32W, HDC, OUT_DEFAULT_PRECIS, PS_SOLID, RoundRect,
-            SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
+            DIB_RGB_COLORS, DeleteDC, DeleteObject, DrawTextW, FF_DONTCARE, FW_MEDIUM, FW_NORMAL,
+            GetTextExtentPoint32W, HDC, OUT_DEFAULT_PRECIS, PS_SOLID, RoundRect, SelectObject,
+            SetBkMode, SetTextColor, TRANSPARENT,
         },
         UI::HiDpi::GetDpiForWindow,
         UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON},
@@ -574,7 +574,19 @@ impl NativeOverlay {
                 let pen = CreatePen(PS_SOLID, 0, accent);
                 let old_brush = SelectObject(hdc, brush);
                 let old_pen = SelectObject(hdc, pen);
-                let _ = Ellipse(hdc, 0, 0, self.width, self.height);
+                let corner_radius =
+                    (self.settings.border_radius.min(24) as f64 * self.native_scale()).round()
+                        as i32;
+                let corner_diameter = (corner_radius * 2).min(self.height).max(0);
+                let _ = RoundRect(
+                    hdc,
+                    0,
+                    0,
+                    self.width,
+                    self.height,
+                    corner_diameter,
+                    corner_diameter,
+                );
                 let _ = SelectObject(hdc, old_pen);
                 let _ = SelectObject(hdc, old_brush);
                 let _ = DeleteObject(pen);

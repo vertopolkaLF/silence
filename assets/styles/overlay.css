@@ -31,18 +31,6 @@
   max-width: 100%;
 }
 
-.overlay-range-row {
-  display: grid;
-  gap: 10px;
-}
-
-.overlay-range-row>div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
 .overlay-visibility-card.duration-closed {
   gap: 0;
 }

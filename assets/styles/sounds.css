@@ -107,23 +107,6 @@
   line-height: 1.4;
 }
 
-.volume-row {
-  display: grid;
-  grid-template-columns: 22px minmax(180px, 1fr) 22px;
-  align-items: center;
-  gap: 12px;
-}
-
-.volume-low {
-  width: 18px;
-  height: 18px;
-  color: var(--muted);
-}
-
-.volume-high {
-  color: var(--muted);
-}
-
 .sound-picker-card {
   gap: 22px;
 }

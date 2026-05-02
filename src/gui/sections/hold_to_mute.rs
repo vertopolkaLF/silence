@@ -115,9 +115,7 @@ pub fn render(
 
                         div { class: "sound-picker",
                             div { class: "sound-row-head",
-                                h3 { "Volume" }
                                 div { class: "sound-meta-row",
-                                    span { class: "sound-value", "{volume_label}" }
                                     button {
                                         class: "secondary small-button",
                                         disabled: hold_settings.volume_override.is_none(),
@@ -130,23 +128,23 @@ pub fn render(
                                     }
                                 }
                             }
-                            div { class: "volume-row sound-reset-row",
-                                span { class: "solar-icon icon-volume volume-low" }
-                                Range {
-                                    value: volume.to_string(),
-                                    min: "0".to_string(),
-                                    max: "100".to_string(),
-                                    step: "1".to_string(),
-                                    progress: format!("{volume}%"),
-                                    oninput: move |evt: FormEvent| {
-                                        if let Ok(value) = evt.value().parse::<u8>() {
-                                            super::super::update_settings(settings, |config| {
-                                                config.hold_to_mute.volume_override = Some(value.min(100));
-                                            });
-                                        }
+                            Range {
+                                label: "Volume".to_string(),
+                                value_label: volume_label.clone(),
+                                value: volume.to_string(),
+                                min: "0".to_string(),
+                                max: "100".to_string(),
+                                step: "1".to_string(),
+                                progress: format!("{volume}%"),
+                                start_icon: Some("icon-volume".to_string()),
+                                end_icon: Some("icon-volume".to_string()),
+                                oninput: move |evt: FormEvent| {
+                                    if let Ok(value) = evt.value().parse::<u8>() {
+                                        super::super::update_settings(settings, |config| {
+                                            config.hold_to_mute.volume_override = Some(value.min(100));
+                                        });
                                     }
                                 }
-                                span { class: "solar-icon icon-volume volume-high" }
                             }
                         }
 
