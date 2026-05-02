@@ -13,6 +13,7 @@ use std::{
         Mutex,
         atomic::{AtomicBool, AtomicIsize, Ordering},
     },
+    thread,
     time::{Duration, Instant, SystemTime},
 };
 
@@ -20,6 +21,7 @@ use anyhow::{Context, Result};
 use dioxus::desktop::{
     Config as DesktopConfig, LogicalSize, WindowBuilder, tao::dpi::PhysicalPosition,
 };
+use gilrs::{Button, EventType, Gilrs};
 use once_cell::sync::Lazy;
 use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Source, buffer::SamplesBuffer};
 use serde::{Deserialize, Serialize};
@@ -39,6 +41,7 @@ use windows::{
                 CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
                 CoTaskMemFree, STGM_READ,
             },
+            Console::AllocConsole,
             LibraryLoader::GetModuleHandleW,
             Registry::{
                 HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_DWORD, RegDeleteKeyValueW, RegGetValueW,
@@ -52,7 +55,17 @@ use windows::{
                 DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForSystem,
                 SetProcessDpiAwarenessContext,
             },
-            Input::KeyboardAndMouse::{GetAsyncKeyState, GetLastInputInfo, LASTINPUTINFO},
+            Input::{
+                KeyboardAndMouse::{GetAsyncKeyState, GetLastInputInfo, LASTINPUTINFO},
+                XboxController::{
+                    XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_BACK,
+                    XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT,
+                    XINPUT_GAMEPAD_DPAD_UP, XINPUT_GAMEPAD_LEFT_SHOULDER,
+                    XINPUT_GAMEPAD_LEFT_THUMB, XINPUT_GAMEPAD_RIGHT_SHOULDER,
+                    XINPUT_GAMEPAD_RIGHT_THUMB, XINPUT_GAMEPAD_START, XINPUT_GAMEPAD_X,
+                    XINPUT_GAMEPAD_Y, XINPUT_STATE, XInputGetState,
+                },
+            },
             Shell::{
                 NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
                 Shell_NotifyIconW,
@@ -94,6 +107,9 @@ const SETTINGS_WINDOW_TITLE: &str = "silence!";
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const STARTUP_RUN_VALUE: &str = "SilenceV2";
+const XINPUT_TRIGGER_PRESS_THRESHOLD: u8 = 160;
+const XINPUT_TRIGGER_RELEASE_THRESHOLD: u8 = 96;
+const MAX_GAMEPAD_COMBO_INPUTS: usize = 2;
 
 pub(crate) const HOTKEY_TARGET_ALL_MICROPHONES: &str = "__all_microphones__";
 
@@ -178,6 +194,182 @@ impl Shortcut {
             parts.push(vk_name(self.vk));
         }
         parts
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub enum GamepadButton {
+    South,
+    East,
+    North,
+    West,
+    C,
+    Z,
+    LeftTrigger,
+    LeftTrigger2,
+    RightTrigger,
+    RightTrigger2,
+    Select,
+    Start,
+    Mode,
+    LeftThumb,
+    RightThumb,
+    DPadUp,
+    DPadDown,
+    DPadLeft,
+    DPadRight,
+}
+
+impl GamepadButton {
+    fn from_gilrs(button: Button) -> Option<Self> {
+        Some(match button {
+            Button::South => Self::South,
+            Button::East => Self::East,
+            Button::North => Self::North,
+            Button::West => Self::West,
+            Button::C => Self::C,
+            Button::Z => Self::Z,
+            Button::LeftTrigger => Self::LeftTrigger,
+            Button::LeftTrigger2 => Self::LeftTrigger2,
+            Button::RightTrigger => Self::RightTrigger,
+            Button::RightTrigger2 => Self::RightTrigger2,
+            Button::Select => Self::Select,
+            Button::Start => Self::Start,
+            Button::Mode => Self::Mode,
+            Button::LeftThumb => Self::LeftThumb,
+            Button::RightThumb => Self::RightThumb,
+            Button::DPadUp => Self::DPadUp,
+            Button::DPadDown => Self::DPadDown,
+            Button::DPadLeft => Self::DPadLeft,
+            Button::DPadRight => Self::DPadRight,
+            Button::Unknown => return None,
+        })
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::South => "South",
+            Self::East => "East",
+            Self::North => "North",
+            Self::West => "West",
+            Self::C => "C",
+            Self::Z => "Z",
+            Self::LeftTrigger => "LB",
+            Self::LeftTrigger2 => "LT",
+            Self::RightTrigger => "RB",
+            Self::RightTrigger2 => "RT",
+            Self::Select => "Select",
+            Self::Start => "Start",
+            Self::Mode => "Mode",
+            Self::LeftThumb => "Left Stick",
+            Self::RightThumb => "Right Stick",
+            Self::DPadUp => "D-Pad Up",
+            Self::DPadDown => "D-Pad Down",
+            Self::DPadLeft => "D-Pad Left",
+            Self::DPadRight => "D-Pad Right",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub enum GamepadAxis {
+    LeftStickX,
+    LeftStickY,
+    LeftZ,
+    RightStickX,
+    RightStickY,
+    RightZ,
+    DPadX,
+    DPadY,
+}
+
+impl GamepadAxis {
+    fn label(self) -> &'static str {
+        match self {
+            Self::LeftStickX => "Left Stick",
+            Self::LeftStickY => "Left Stick",
+            Self::LeftZ => "Left Trigger",
+            Self::RightStickX => "Right Stick",
+            Self::RightStickY => "Right Stick",
+            Self::RightZ => "Right Trigger",
+            Self::DPadX => "D-Pad",
+            Self::DPadY => "D-Pad",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub enum GamepadAxisDirection {
+    Positive,
+    Negative,
+}
+
+impl GamepadAxisDirection {}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
+#[serde(tag = "kind")]
+pub enum GamepadInput {
+    Button {
+        button: GamepadButton,
+    },
+    Axis {
+        axis: GamepadAxis,
+        direction: GamepadAxisDirection,
+    },
+}
+
+impl GamepadInput {
+    pub fn label(self) -> String {
+        match self {
+            Self::Button { button } => button.label().to_string(),
+            Self::Axis { axis, direction } => {
+                let suffix = match (axis, direction) {
+                    (
+                        GamepadAxis::LeftStickX | GamepadAxis::RightStickX | GamepadAxis::DPadX,
+                        GamepadAxisDirection::Positive,
+                    ) => "Right",
+                    (
+                        GamepadAxis::LeftStickX | GamepadAxis::RightStickX | GamepadAxis::DPadX,
+                        GamepadAxisDirection::Negative,
+                    ) => "Left",
+                    (
+                        GamepadAxis::LeftStickY | GamepadAxis::RightStickY | GamepadAxis::DPadY,
+                        GamepadAxisDirection::Positive,
+                    ) => "Up",
+                    (
+                        GamepadAxis::LeftStickY | GamepadAxis::RightStickY | GamepadAxis::DPadY,
+                        GamepadAxisDirection::Negative,
+                    ) => "Down",
+                    (_, GamepadAxisDirection::Positive) => "+",
+                    (_, GamepadAxisDirection::Negative) => "-",
+                };
+                format!("{} {suffix}", axis.label())
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct GamepadShortcut {
+    #[serde(default)]
+    pub inputs: Vec<GamepadInput>,
+}
+
+impl GamepadShortcut {
+    pub fn parts(&self) -> Vec<String> {
+        self.inputs.iter().map(|input| input.label()).collect()
+    }
+
+    fn normalized(mut self) -> Option<Self> {
+        self.inputs
+            .retain(|input| matches!(input, GamepadInput::Button { .. }));
+        self.inputs.dedup();
+        self.inputs.truncate(MAX_GAMEPAD_COMBO_INPUTS);
+        if self.inputs.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
     }
 }
 
@@ -268,6 +460,8 @@ pub struct HotkeyBinding {
     #[serde(default)]
     pub shortcut: Shortcut,
     #[serde(default)]
+    pub gamepad: Option<GamepadShortcut>,
+    #[serde(default)]
     pub ignore_modifiers: bool,
     #[serde(default)]
     pub target: Option<String>,
@@ -285,6 +479,7 @@ impl Default for HotkeyBinding {
             id: default_hotkey_id(),
             action: HotkeyAction::ToggleMute,
             shortcut: Shortcut::default(),
+            gamepad: None,
             ignore_modifiers: false,
             target: None,
         }
@@ -358,6 +553,8 @@ struct AppState {
     muted: bool,
     shortcut_down: bool,
     hotkeys_down: HashSet<String>,
+    gamepad_inputs_down: HashSet<GamepadInput>,
+    gamepad_hotkeys_down: HashSet<String>,
     active_hold_hotkeys: HashMap<String, ActiveHoldHotkey>,
     last_auto_mute_input_tick: u32,
     auto_muted_by_inactivity: bool,
@@ -746,6 +943,8 @@ impl Default for AppState {
             muted: false,
             shortcut_down: false,
             hotkeys_down: HashSet::new(),
+            gamepad_inputs_down: HashSet::new(),
+            gamepad_hotkeys_down: HashSet::new(),
             active_hold_hotkeys: HashMap::new(),
             last_auto_mute_input_tick: 0,
             auto_muted_by_inactivity: false,
@@ -761,7 +960,12 @@ static STATE: Lazy<Mutex<AppState>> = Lazy::new(|| Mutex::new(AppState::default(
 static AUDIO_ENGINE: Lazy<Mutex<Option<AudioEngine>>> = Lazy::new(|| Mutex::new(None));
 static SETTINGS_HOTKEY_RECORDING: AtomicBool = AtomicBool::new(false);
 static SETTINGS_ALT_SPACE_RECORDED: AtomicBool = AtomicBool::new(false);
+static SETTINGS_GAMEPAD_RECORDING: AtomicBool = AtomicBool::new(false);
+static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
+    Lazy::new(|| Mutex::new(HashSet::new()));
 static SETTINGS_ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
+static GILRS_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
+static XINPUT_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn set_settings_hotkey_recording(recording: bool) {
     SETTINGS_HOTKEY_RECORDING.store(recording, Ordering::Relaxed);
@@ -771,12 +975,31 @@ pub(crate) fn take_settings_alt_space_recorded() -> bool {
     SETTINGS_ALT_SPACE_RECORDED.swap(false, Ordering::Relaxed)
 }
 
+pub(crate) fn set_settings_gamepad_recording(recording: bool) {
+    let was_recording = SETTINGS_GAMEPAD_RECORDING.swap(recording, Ordering::Relaxed);
+    if recording != was_recording {
+        SETTINGS_GAMEPAD_HELD.lock().unwrap().clear();
+    }
+}
+
+pub(crate) fn settings_gamepad_held_inputs() -> Vec<GamepadInput> {
+    let mut inputs = SETTINGS_GAMEPAD_HELD
+        .lock()
+        .unwrap()
+        .iter()
+        .copied()
+        .collect::<Vec<_>>();
+    inputs.sort_by_key(|input| input.label());
+    inputs
+}
+
 fn has_alt_space_hotkey() -> bool {
     STATE
         .lock()
         .unwrap()
         .hotkeys
         .iter()
+        .filter(|hotkey| hotkey.gamepad.is_none())
         .any(|hotkey| shortcut_is_alt_space(&hotkey.shortcut))
 }
 
@@ -976,9 +1199,11 @@ fn main() -> Result<()> {
             )
             .with_custom_head(gui::settings_startup_head())
             .with_background_color((18, 18, 18, 255));
-        dioxus::LaunchBuilder::desktop()
-            .with_cfg(cfg)
-            .launch(gui::settings_app);
+        dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(|| {
+            start_gamepad_monitor(false);
+            start_xinput_monitor(false);
+            gui::settings_app()
+        });
         let _settings_mutex = settings_mutex;
         return Ok(());
     }
@@ -1005,10 +1230,226 @@ fn set_dpi_awareness() {
     }
 }
 
+fn show_temp_gamepad_debug_console() {
+    unsafe {
+        let _ = AllocConsole();
+    }
+    eprintln!("silence! temporary gamepad debug console");
+    eprintln!("Press gamepad buttons or move axes; gilrs and XInput events will print here.");
+}
+
+fn start_xinput_monitor(enable_hotkeys: bool) {
+    if XINPUT_MONITOR_STARTED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    thread::spawn(move || {
+        let mut previous_buttons = [0_u16; 4];
+        let mut previous_left_trigger = [false; 4];
+        let mut previous_right_trigger = [false; 4];
+        let mut previous_connected = [false; 4];
+        loop {
+            for user_index in 0..4 {
+                let mut state = XINPUT_STATE::default();
+                let result = unsafe { XInputGetState(user_index, &mut state) };
+                let connected = result == ERROR_SUCCESS.0;
+                if connected != previous_connected[user_index as usize] {
+                    previous_connected[user_index as usize] = connected;
+                    eprintln!(
+                        "xinput controller {} {}",
+                        user_index,
+                        if connected {
+                            "connected"
+                        } else {
+                            "disconnected"
+                        }
+                    );
+                }
+                if !connected {
+                    previous_buttons[user_index as usize] = 0;
+                    previous_left_trigger[user_index as usize] = false;
+                    previous_right_trigger[user_index as usize] = false;
+                    continue;
+                }
+
+                let buttons = state.Gamepad.wButtons.0;
+                let changed = buttons ^ previous_buttons[user_index as usize];
+                if changed != 0 {
+                    for (mask, label, input) in xinput_button_inputs() {
+                        if changed & mask != 0 {
+                            let down = buttons & mask != 0;
+                            eprintln!(
+                                "xinput controller {} button {} {}",
+                                user_index,
+                                label,
+                                if down { "pressed" } else { "released" }
+                            );
+                            handle_gamepad_input_change(input, down, enable_hotkeys);
+                        }
+                    }
+                    previous_buttons[user_index as usize] = buttons;
+                }
+
+                let left_trigger = update_xinput_trigger_state(
+                    previous_left_trigger[user_index as usize],
+                    state.Gamepad.bLeftTrigger,
+                );
+                if left_trigger != previous_left_trigger[user_index as usize] {
+                    previous_left_trigger[user_index as usize] = left_trigger;
+                    eprintln!(
+                        "xinput controller {} trigger LT {}",
+                        user_index,
+                        if left_trigger { "pressed" } else { "released" }
+                    );
+                    handle_gamepad_input_change(
+                        GamepadInput::Button {
+                            button: GamepadButton::LeftTrigger2,
+                        },
+                        left_trigger,
+                        enable_hotkeys,
+                    );
+                }
+
+                let right_trigger = update_xinput_trigger_state(
+                    previous_right_trigger[user_index as usize],
+                    state.Gamepad.bRightTrigger,
+                );
+                if right_trigger != previous_right_trigger[user_index as usize] {
+                    previous_right_trigger[user_index as usize] = right_trigger;
+                    eprintln!(
+                        "xinput controller {} trigger RT {}",
+                        user_index,
+                        if right_trigger { "pressed" } else { "released" }
+                    );
+                    handle_gamepad_input_change(
+                        GamepadInput::Button {
+                            button: GamepadButton::RightTrigger2,
+                        },
+                        right_trigger,
+                        enable_hotkeys,
+                    );
+                }
+            }
+            thread::sleep(Duration::from_millis(16));
+        }
+    });
+}
+
+fn update_xinput_trigger_state(was_down: bool, value: u8) -> bool {
+    if was_down {
+        value > XINPUT_TRIGGER_RELEASE_THRESHOLD
+    } else {
+        value >= XINPUT_TRIGGER_PRESS_THRESHOLD
+    }
+}
+
+fn xinput_button_inputs() -> [(u16, &'static str, GamepadInput); 14] {
+    [
+        (
+            XINPUT_GAMEPAD_A.0,
+            "A",
+            GamepadInput::Button {
+                button: GamepadButton::South,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_B.0,
+            "B",
+            GamepadInput::Button {
+                button: GamepadButton::East,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_X.0,
+            "X",
+            GamepadInput::Button {
+                button: GamepadButton::West,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_Y.0,
+            "Y",
+            GamepadInput::Button {
+                button: GamepadButton::North,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_LEFT_SHOULDER.0,
+            "LB",
+            GamepadInput::Button {
+                button: GamepadButton::LeftTrigger,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_RIGHT_SHOULDER.0,
+            "RB",
+            GamepadInput::Button {
+                button: GamepadButton::RightTrigger,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_LEFT_THUMB.0,
+            "LeftThumb",
+            GamepadInput::Button {
+                button: GamepadButton::LeftThumb,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_RIGHT_THUMB.0,
+            "RightThumb",
+            GamepadInput::Button {
+                button: GamepadButton::RightThumb,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_BACK.0,
+            "Back",
+            GamepadInput::Button {
+                button: GamepadButton::Select,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_START.0,
+            "Start",
+            GamepadInput::Button {
+                button: GamepadButton::Start,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_DPAD_UP.0,
+            "DPadUp",
+            GamepadInput::Button {
+                button: GamepadButton::DPadUp,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_DPAD_DOWN.0,
+            "DPadDown",
+            GamepadInput::Button {
+                button: GamepadButton::DPadDown,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_DPAD_LEFT.0,
+            "DPadLeft",
+            GamepadInput::Button {
+                button: GamepadButton::DPadLeft,
+            },
+        ),
+        (
+            XINPUT_GAMEPAD_DPAD_RIGHT.0,
+            "DPadRight",
+            GamepadInput::Button {
+                button: GamepadButton::DPadRight,
+            },
+        ),
+    ]
+}
+
 fn run_background_app() -> Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
     }
+    show_temp_gamepad_debug_console();
 
     let instance = unsafe { GetModuleHandleW(None)? };
     register_class(instance.into())?;
@@ -1026,6 +1467,8 @@ fn run_background_app() -> Result<()> {
     prime_sound_assets(&sound_settings);
 
     install_keyboard_hook(instance.into())?;
+    start_gamepad_monitor(true);
+    start_xinput_monitor(true);
     add_tray_icon(hwnd)?;
     apply_startup_auto_mute();
     unsafe {
@@ -1086,6 +1529,164 @@ fn install_keyboard_hook(instance: HINSTANCE) -> Result<()> {
         .context("install low-level keyboard hook")?;
     STATE.lock().unwrap().hook = hook;
     Ok(())
+}
+
+fn start_gamepad_monitor(enable_hotkeys: bool) {
+    if GILRS_MONITOR_STARTED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    thread::spawn(move || {
+        let Ok(mut gilrs) = Gilrs::new() else {
+            eprintln!("failed to initialize gamepad input");
+            return;
+        };
+        eprintln!(
+            "gilrs initialized; connected gamepads: {}",
+            gilrs.gamepads().count()
+        );
+        for (id, gamepad) in gilrs.gamepads() {
+            eprintln!(
+                "gamepad connected at startup: {:?} - {}",
+                id,
+                gamepad.name()
+            );
+        }
+
+        loop {
+            while let Some(event) = gilrs.next_event() {
+                eprintln!(
+                    "gilrs event: gamepad={:?}, event={:?}",
+                    event.id, event.event
+                );
+                handle_gamepad_event(event.event, enable_hotkeys);
+            }
+            thread::sleep(Duration::from_millis(8));
+        }
+    });
+}
+
+fn handle_gamepad_event(event: EventType, enable_hotkeys: bool) {
+    match event {
+        EventType::ButtonPressed(button, _) => {
+            if let Some(input) =
+                GamepadButton::from_gilrs(button).map(|button| GamepadInput::Button { button })
+            {
+                handle_gamepad_input_change(input, true, enable_hotkeys);
+            }
+        }
+        EventType::ButtonReleased(button, _) => {
+            if let Some(input) =
+                GamepadButton::from_gilrs(button).map(|button| GamepadInput::Button { button })
+            {
+                handle_gamepad_input_change(input, false, enable_hotkeys);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn handle_gamepad_input_change(input: GamepadInput, down: bool, enable_hotkeys: bool) {
+    if SETTINGS_GAMEPAD_RECORDING.load(Ordering::Relaxed) {
+        let mut held = SETTINGS_GAMEPAD_HELD.lock().unwrap();
+        if down {
+            held.insert(input);
+        } else {
+            held.remove(&input);
+        }
+    }
+
+    if !enable_hotkeys {
+        return;
+    }
+
+    let mut actions = Vec::new();
+    {
+        let mut state = STATE.lock().unwrap();
+        if state.hotkeys_paused {
+            return;
+        }
+
+        if down {
+            state.gamepad_inputs_down.insert(input);
+            actions.extend(gamepad_press_actions(&mut state, input));
+        } else {
+            state.gamepad_inputs_down.remove(&input);
+            actions.extend(gamepad_release_actions(&mut state, input));
+        }
+    }
+
+    for action in actions {
+        run_hotkey_action(action);
+    }
+}
+
+fn gamepad_press_actions(state: &mut AppState, input: GamepadInput) -> Vec<HotkeyRequest> {
+    let mut matches: Vec<HotkeyBinding> = state
+        .hotkeys
+        .iter()
+        .filter(|hotkey| {
+            hotkey.gamepad.as_ref().is_some_and(|shortcut| {
+                gamepad_shortcut_matches(shortcut, &state.gamepad_inputs_down)
+            })
+        })
+        .cloned()
+        .collect();
+
+    let has_combo_match = matches.iter().any(|hotkey| {
+        hotkey
+            .gamepad
+            .as_ref()
+            .is_some_and(|shortcut| shortcut.inputs.len() > 1 && shortcut.inputs.contains(&input))
+    });
+
+    matches.retain(|hotkey| {
+        hotkey.gamepad.as_ref().is_some_and(|shortcut| {
+            !has_combo_match || shortcut.inputs.len() > 1 || !shortcut.inputs.contains(&input)
+        })
+    });
+
+    matches
+        .into_iter()
+        .filter_map(|hotkey| {
+            if state.gamepad_hotkeys_down.insert(hotkey.id.clone()) {
+                Some(hotkey_action_request(&hotkey))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn gamepad_release_actions(state: &mut AppState, input: GamepadInput) -> Vec<HotkeyRequest> {
+    let released: Vec<HotkeyBinding> = state
+        .hotkeys
+        .iter()
+        .filter(|hotkey| {
+            state.gamepad_hotkeys_down.contains(&hotkey.id)
+                && hotkey
+                    .gamepad
+                    .as_ref()
+                    .is_some_and(|shortcut| shortcut.inputs.contains(&input))
+        })
+        .cloned()
+        .collect();
+
+    let mut actions = Vec::new();
+    for hotkey in released {
+        state.gamepad_hotkeys_down.remove(&hotkey.id);
+        if hotkey.action.is_hold() {
+            actions.push(HotkeyRequest::ReleaseHold {
+                id: hotkey.id.clone(),
+            });
+        }
+    }
+    actions
+}
+
+fn gamepad_shortcut_matches(shortcut: &GamepadShortcut, pressed: &HashSet<GamepadInput>) -> bool {
+    !shortcut.inputs.is_empty()
+        && shortcut.inputs.len() <= MAX_GAMEPAD_COMBO_INPUTS
+        && shortcut.inputs.iter().all(|input| pressed.contains(input))
 }
 
 fn add_tray_icon(hwnd: HWND) -> Result<()> {
@@ -1278,11 +1879,12 @@ fn fit_alpha_mask(
 
     for y in 0..fitted_height {
         for x in 0..fitted_width {
-            let source_x = min_x + ((x as f64 + 0.5) * bounds_width as f64 / fitted_width as f64)
-                .floor()
-                .min((bounds_width - 1) as f64) as usize;
-            let source_y =
-                min_y + ((y as f64 + 0.5) * bounds_height as f64 / fitted_height as f64)
+            let source_x = min_x
+                + ((x as f64 + 0.5) * bounds_width as f64 / fitted_width as f64)
+                    .floor()
+                    .min((bounds_width - 1) as f64) as usize;
+            let source_y = min_y
+                + ((y as f64 + 0.5) * bounds_height as f64 / fitted_height as f64)
                     .floor()
                     .min((bounds_height - 1) as f64) as usize;
             fitted[(offset_y + y) * target_size + offset_x + x] =
@@ -1575,6 +2177,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
             let matching_hotkeys: Vec<HotkeyBinding> = state
                 .hotkeys
                 .iter()
+                .filter(|hotkey| hotkey.gamepad.is_none())
                 .filter(|hotkey| {
                     if hotkey.shortcut.vk == 0 && !is_modifier(vk) {
                         return false;
@@ -1624,6 +2227,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         let released: Vec<HotkeyBinding> = state
             .hotkeys
             .iter()
+            .filter(|hotkey| hotkey.gamepad.is_none())
             .filter(|hotkey| {
                 hotkey.shortcut.vk == vk
                     || (hotkey.shortcut.vk == 0
@@ -2687,6 +3291,8 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.config_modified = modified;
     state.shortcut_down = false;
     state.hotkeys_down.clear();
+    state.gamepad_inputs_down.clear();
+    state.gamepad_hotkeys_down.clear();
     if !auto_mute_monitoring_enabled(&state.auto_mute) {
         state.last_auto_mute_input_tick = 0;
         state.auto_muted_by_inactivity = false;
@@ -2707,6 +3313,7 @@ fn normalize_hotkeys(hotkeys: &mut [HotkeyBinding]) {
                 hotkey.id = default_hotkey_id();
             }
         }
+        hotkey.gamepad = hotkey.gamepad.take().and_then(GamepadShortcut::normalized);
     }
 }
 

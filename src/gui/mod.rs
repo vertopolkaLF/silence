@@ -1,6 +1,6 @@
-use dioxus::prelude::*;
 #[cfg(target_os = "windows")]
 use dioxus::desktop::tao::platform::windows::WindowExtWindows;
+use dioxus::prelude::*;
 use std::time::{Duration, Instant};
 
 mod controls;

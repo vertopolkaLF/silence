@@ -12,6 +12,12 @@ const DEFAULT_TARGET_LABEL: &str = "Default";
 const ALL_MICROPHONES_LABEL: &str = "All microphones";
 static NEXT_SHORTCUT_DISPLAY_ID: AtomicUsize = AtomicUsize::new(1);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HotkeySource {
+    Keyboard,
+    Gamepad,
+}
+
 pub fn render(
     settings: Signal<super::super::SettingsSnapshot>,
     mut modal_request: Signal<Option<super::super::HotkeyModalRequest>>,
@@ -85,18 +91,90 @@ pub fn modal_host(
     let mut live_modifier_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut draft_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut recording_shortcut = use_signal(|| None::<crate::Shortcut>);
+    let mut draft_gamepad = use_signal(|| None::<crate::GamepadShortcut>);
+    let mut recording_gamepad = use_signal(|| None::<crate::GamepadShortcut>);
+    let draft_source = use_signal(|| HotkeySource::Keyboard);
     let draft_action = use_signal(|| crate::HotkeyAction::ToggleMute);
     let draft_target = use_signal(String::new);
     let draft_ignore_modifiers = use_signal(|| false);
 
     use_effect(move || {
         crate::set_settings_hotkey_recording(recording());
+        crate::set_settings_gamepad_recording(
+            recording() && draft_source() == HotkeySource::Gamepad,
+        );
     });
 
     use_future(move || async move {
         loop {
             if recording() {
-                if let Some(started) = modifier_hold_started() {
+                if draft_source() == HotkeySource::Gamepad {
+                    let mut inputs = crate::settings_gamepad_held_inputs();
+                    inputs.retain(|input| matches!(input, crate::GamepadInput::Button { .. }));
+                    inputs.truncate(2);
+                    if inputs.len() >= 2 {
+                        let shortcut = crate::GamepadShortcut { inputs };
+                        draft_gamepad.set(Some(shortcut.clone()));
+                        recording_gamepad.set(Some(shortcut.clone()));
+                        if let Some(id) = match modal() {
+                            Some(ModalMode::Edit(id)) => Some(id),
+                            _ => None,
+                        } {
+                            apply_draft_to_binding(
+                                settings,
+                                id,
+                                draft_shortcut().unwrap_or_default(),
+                                Some(shortcut.clone()),
+                                draft_action(),
+                                draft_target(),
+                                false,
+                            );
+                        }
+                        recording.set(false);
+                        modifier_hold_started.set(None);
+                        hold_progress.set(0.0);
+                    } else if inputs.len() == 1 {
+                        let shortcut = crate::GamepadShortcut { inputs };
+                        recording_gamepad.set(Some(shortcut.clone()));
+                        if modifier_hold_started().is_none() {
+                            modifier_hold_started.set(Some(Instant::now()));
+                            hold_progress.set(0.0);
+                        }
+                        let progress = modifier_hold_started()
+                            .map(|started| {
+                                (started.elapsed().as_secs_f64()
+                                    / MODIFIER_HOLD_DURATION.as_secs_f64())
+                                .clamp(0.0, 1.0)
+                            })
+                            .unwrap_or(0.0);
+                        hold_progress.set(progress);
+                        if progress >= 1.0 {
+                            draft_gamepad.set(Some(shortcut.clone()));
+                            if let Some(id) = match modal() {
+                                Some(ModalMode::Edit(id)) => Some(id),
+                                _ => None,
+                            } {
+                                apply_draft_to_binding(
+                                    settings,
+                                    id,
+                                    draft_shortcut().unwrap_or_default(),
+                                    Some(shortcut),
+                                    draft_action(),
+                                    draft_target(),
+                                    false,
+                                );
+                            }
+                            recording.set(false);
+                            modifier_hold_started.set(None);
+                            hold_progress.set(0.0);
+                            animate_pending_out(pending_exiting);
+                        }
+                    } else {
+                        recording_gamepad.set(None);
+                        modifier_hold_started.set(None);
+                        hold_progress.set(0.0);
+                    }
+                } else if let Some(started) = modifier_hold_started() {
                     let progress = (started.elapsed().as_secs_f64()
                         / MODIFIER_HOLD_DURATION.as_secs_f64())
                     .clamp(0.0, 1.0);
@@ -142,6 +220,9 @@ pub fn modal_host(
                 live_modifier_shortcut,
                 recording_shortcut,
                 draft_shortcut,
+                draft_gamepad,
+                recording_gamepad,
+                draft_source,
                 draft_action,
                 draft_target,
                 draft_ignore_modifiers,
@@ -160,6 +241,9 @@ pub fn modal_host(
                 live_modifier_shortcut,
                 recording_shortcut,
                 draft_shortcut,
+                draft_gamepad,
+                recording_gamepad,
+                draft_source,
                 draft_action,
                 draft_target,
                 draft_ignore_modifiers,
@@ -171,7 +255,10 @@ pub fn modal_host(
     let snapshot = settings();
     let devices = snapshot.devices.clone();
     let modal_mode = modal();
-    let can_create = draft_shortcut().is_some();
+    let can_create = match draft_source() {
+        HotkeySource::Keyboard => draft_shortcut().is_some(),
+        HotkeySource::Gamepad => draft_gamepad().is_some(),
+    };
 
     rsx! {
         if let Some(mode) = modal_mode {
@@ -186,6 +273,9 @@ pub fn modal_host(
                 live_modifier_shortcut,
                 recording_shortcut,
                 draft_shortcut,
+                draft_gamepad,
+                recording_gamepad,
+                draft_source,
                 draft_action,
                 draft_target,
                 draft_ignore_modifiers,
@@ -207,9 +297,11 @@ pub fn modal_host(
                 oncreate: {
                     let save_mode = mode.clone();
                     move |_| {
-                        if !matches!(save_mode, ModalMode::Add) {
-                            return;
-                        }
+                    if !matches!(save_mode, ModalMode::Add) {
+                        return;
+                    }
+                    match draft_source() {
+                        HotkeySource::Keyboard => {
                         if let Some(shortcut) = draft_shortcut() {
                             let action = draft_action();
                             let target = draft_target_for(action, draft_target());
@@ -217,6 +309,7 @@ pub fn modal_host(
                                 config.hotkeys_paused = false;
                                 config.hotkeys.push(crate::HotkeyBinding {
                                     shortcut,
+                                    gamepad: None,
                                     action,
                                     target,
                                     ignore_modifiers: draft_ignore_modifiers(),
@@ -236,6 +329,36 @@ pub fn modal_host(
                                 recording_shortcut,
                             );
                         }
+                        }
+                        HotkeySource::Gamepad => {
+                        if let Some(gamepad) = draft_gamepad() {
+                            let action = draft_action();
+                            let target = draft_target_for(action, draft_target());
+                            super::super::update_settings(settings, |config| {
+                                config.hotkeys_paused = false;
+                                config.hotkeys.push(crate::HotkeyBinding {
+                                    gamepad: Some(gamepad),
+                                    action,
+                                    target,
+                                    ignore_modifiers: false,
+                                    ..crate::HotkeyBinding::default()
+                                });
+                                sync_legacy_shortcut(config);
+                            });
+                            close_modal(
+                                settings,
+                                modal,
+                                recording,
+                                modifier_hold_started,
+                                hold_progress,
+                                pending_exiting,
+                                panel_closing,
+                                live_modifier_shortcut,
+                                recording_shortcut,
+                            );
+                        }
+                        }
+                    }
                     }
                 }
             }
@@ -263,18 +386,29 @@ fn start_modal(
     mut live_modifier_shortcut: Signal<Option<crate::Shortcut>>,
     mut recording_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_shortcut: Signal<Option<crate::Shortcut>>,
+    mut draft_gamepad: Signal<Option<crate::GamepadShortcut>>,
+    mut recording_gamepad: Signal<Option<crate::GamepadShortcut>>,
+    mut draft_source: Signal<HotkeySource>,
     mut draft_action: Signal<crate::HotkeyAction>,
     mut draft_target: Signal<String>,
     mut draft_ignore_modifiers: Signal<bool>,
 ) {
     if let Some(binding) = binding {
         draft_shortcut.set(Some(binding.shortcut));
+        draft_gamepad.set(binding.gamepad.clone());
+        draft_source.set(if binding.gamepad.is_some() {
+            HotkeySource::Gamepad
+        } else {
+            HotkeySource::Keyboard
+        });
         draft_action.set(binding.action);
         draft_target.set(binding.target.unwrap_or_default());
         draft_ignore_modifiers.set(binding.ignore_modifiers);
         modal.set(Some(ModalMode::Edit(binding.id)));
     } else {
         draft_shortcut.set(None);
+        draft_gamepad.set(None);
+        draft_source.set(HotkeySource::Keyboard);
         draft_action.set(preset_action.unwrap_or(crate::HotkeyAction::ToggleMute));
         draft_target.set(String::new());
         draft_ignore_modifiers.set(false);
@@ -290,6 +424,7 @@ fn start_modal(
     panel_closing.set(false);
     live_modifier_shortcut.set(None);
     recording_shortcut.set(None);
+    recording_gamepad.set(None);
     super::super::update_settings(settings, |config| {
         config.hotkeys_paused = true;
     });
@@ -346,6 +481,9 @@ fn HotkeyPanel(
     mut live_modifier_shortcut: Signal<Option<crate::Shortcut>>,
     mut recording_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_shortcut: Signal<Option<crate::Shortcut>>,
+    mut draft_gamepad: Signal<Option<crate::GamepadShortcut>>,
+    mut recording_gamepad: Signal<Option<crate::GamepadShortcut>>,
+    mut draft_source: Signal<HotkeySource>,
     mut draft_action: Signal<crate::HotkeyAction>,
     mut draft_target: Signal<String>,
     mut draft_ignore_modifiers: Signal<bool>,
@@ -372,6 +510,7 @@ fn HotkeyPanel(
     let action_editing_id = editing_id.clone();
     let target_editing_id = editing_id.clone();
     let alt_space_editing_id = editing_id.clone();
+    let source = draft_source();
     let backdrop_class = if panel_closing() {
         "hotkey-panel-backdrop exiting"
     } else {
@@ -387,7 +526,10 @@ fn HotkeyPanel(
         let alt_space_editing_id = alt_space_editing_id.clone();
         async move {
             loop {
-                if recording() && crate::take_settings_alt_space_recorded() {
+                if recording()
+                    && draft_source() == HotkeySource::Keyboard
+                    && crate::take_settings_alt_space_recorded()
+                {
                     let shortcut = crate::Shortcut {
                         ctrl: false,
                         alt: true,
@@ -402,6 +544,7 @@ fn HotkeyPanel(
                             settings,
                             id,
                             shortcut,
+                            None,
                             draft_action(),
                             draft_target(),
                             draft_ignore_modifiers(),
@@ -429,7 +572,7 @@ fn HotkeyPanel(
                 tabindex: "0",
                 onclick: move |evt| evt.stop_propagation(),
                 onkeydown: move |evt| {
-                    if !recording() {
+                    if !recording() || draft_source() != HotkeySource::Keyboard {
                         return;
                     }
                     evt.prevent_default();
@@ -449,6 +592,7 @@ fn HotkeyPanel(
                                     settings,
                                     id,
                                     shortcut,
+                                    None,
                                     draft_action(),
                                     draft_target(),
                                     draft_ignore_modifiers(),
@@ -465,7 +609,7 @@ fn HotkeyPanel(
                     }
                 },
                 onkeyup: move |evt| {
-                    if !recording() {
+                    if !recording() || draft_source() != HotkeySource::Keyboard {
                         return;
                     }
                     evt.prevent_default();
@@ -493,16 +637,45 @@ fn HotkeyPanel(
                 }
 
                 div { class: "hotkey-panel-body",
+                    div { class: "hotkey-source-toggle",
+                        button {
+                            class: if source == HotkeySource::Keyboard { "source-option active" } else { "source-option" },
+                            onclick: move |_| {
+                                draft_source.set(HotkeySource::Keyboard);
+                                recording.set(false);
+                                recording_gamepad.set(None);
+                                modifier_hold_started.set(None);
+                                hold_progress.set(0.0);
+                            },
+                            "Keyboard"
+                        }
+                        button {
+                            class: if source == HotkeySource::Gamepad { "source-option active" } else { "source-option" },
+                            onclick: move |_| {
+                                draft_source.set(HotkeySource::Gamepad);
+                                recording.set(false);
+                                modifier_hold_started.set(None);
+                                hold_progress.set(0.0);
+                                live_modifier_shortcut.set(None);
+                            },
+                            "Gamepad"
+                        }
+                    }
                     div { class: "field-group modal-field",
-                        label { "Shortcut" }
+                        label { if source == HotkeySource::Gamepad { "Gamepad input" } else { "Shortcut" } }
                             div { class: "shortcut-record-stack",
                                 div { class: "shortcut-record-row",
                                     KeyDisplay {
                                         display_id: Some("hotkey-editor-shortcut".to_string()),
-                                        shortcut: if recording() {
+                                        shortcut: if source == HotkeySource::Keyboard && recording() {
                                             live_modifier_shortcut().or_else(|| recording_shortcut())
                                         } else {
                                             draft_shortcut()
+                                        },
+                                        gamepad: if source == HotkeySource::Gamepad && recording() {
+                                            recording_gamepad().or_else(|| draft_gamepad())
+                                        } else {
+                                            draft_gamepad()
                                         },
                                         recording: recording(),
                                         boxed: true,
@@ -517,6 +690,7 @@ fn HotkeyPanel(
                                             let next = !recording();
                                             recording.set(next);
                                             recording_shortcut.set(None);
+                                            recording_gamepad.set(None);
                                             if modifier_hold_started().is_some() {
                                                 animate_pending_out(pending_exiting);
                                             }
@@ -532,19 +706,27 @@ fn HotkeyPanel(
                                         }
                                     }
                                 }
-                                p { class: "shortcut-record-hint", "Hold to bind only modifier keys" }
+                                p { class: "shortcut-record-hint",
+                                    if source == HotkeySource::Gamepad {
+                                        "Hold one control to bind it, or press a second while the first is still held"
+                                    } else {
+                                        "Hold to bind only modifier keys"
+                                    }
+                                }
                             }
 
                     }
 
-                    Checkbox {
-                        class: "modal-check".to_string(),
-                        checked: draft_ignore_modifiers(),
-                        label: "Ignore modifiers".to_string(),
-                        onchange: move |checked: bool| {
-                            draft_ignore_modifiers.set(checked);
-                            if let (Some(id), Some(shortcut)) = (ignore_editing_id.clone(), draft_shortcut()) {
-                                apply_draft_to_binding(settings, id, shortcut, draft_action(), draft_target(), checked);
+                    if source == HotkeySource::Keyboard {
+                        Checkbox {
+                            class: "modal-check".to_string(),
+                            checked: draft_ignore_modifiers(),
+                            label: "Ignore modifiers".to_string(),
+                            onchange: move |checked: bool| {
+                                draft_ignore_modifiers.set(checked);
+                                if let (Some(id), Some(shortcut)) = (ignore_editing_id.clone(), draft_shortcut()) {
+                                    apply_draft_to_binding(settings, id, shortcut, None, draft_action(), draft_target(), checked);
+                                }
                             }
                         }
                     }
@@ -563,14 +745,15 @@ fn HotkeyPanel(
                                         draft_target.set(String::new());
                                         target = String::new();
                                     }
-                                    if let (Some(id), Some(shortcut)) = (action_editing_id.clone(), draft_shortcut()) {
+                                    if let Some(id) = action_editing_id.clone() {
                                         apply_draft_to_binding(
                                             settings,
                                             id,
-                                            shortcut,
+                                            draft_shortcut().unwrap_or_default(),
+                                            draft_gamepad(),
                                             action,
                                             target,
-                                            draft_ignore_modifiers(),
+                                            if draft_source() == HotkeySource::Keyboard { draft_ignore_modifiers() } else { false },
                                         );
                                     }
                                 }
@@ -583,14 +766,15 @@ fn HotkeyPanel(
                                 devices,
                                 onchange: move |value: String| {
                                     draft_target.set(value.clone());
-                                    if let (Some(id), Some(shortcut)) = (target_editing_id.clone(), draft_shortcut()) {
+                                    if let Some(id) = target_editing_id.clone() {
                                         apply_draft_to_binding(
                                             settings,
                                             id,
-                                            shortcut,
+                                            draft_shortcut().unwrap_or_default(),
+                                            draft_gamepad(),
                                             draft_action(),
                                             value,
-                                            draft_ignore_modifiers(),
+                                            if draft_source() == HotkeySource::Keyboard { draft_ignore_modifiers() } else { false },
                                         );
                                     }
                                 }
@@ -630,6 +814,7 @@ fn apply_draft_to_binding(
     settings: Signal<super::super::SettingsSnapshot>,
     id: String,
     shortcut: crate::Shortcut,
+    gamepad: Option<crate::GamepadShortcut>,
     action: crate::HotkeyAction,
     target: String,
     ignore_modifiers: bool,
@@ -637,6 +822,7 @@ fn apply_draft_to_binding(
     super::super::update_settings(settings, |config| {
         if let Some(binding) = config.hotkeys.iter_mut().find(|binding| binding.id == id) {
             binding.shortcut = shortcut;
+            binding.gamepad = gamepad;
             binding.action = action;
             binding.target = draft_target_for(action, target);
             binding.ignore_modifiers = ignore_modifiers;
@@ -657,6 +843,7 @@ fn draft_target_for(action: crate::HotkeyAction, target: String) -> Option<Strin
 fn KeyDisplay(
     #[props(default)] display_id: Option<String>,
     shortcut: Option<crate::Shortcut>,
+    #[props(default)] gamepad: Option<crate::GamepadShortcut>,
     recording: bool,
     boxed: bool,
     animate: bool,
@@ -664,8 +851,9 @@ fn KeyDisplay(
     pending_exiting: bool,
     hold_progress: f64,
 ) -> Element {
-    let parts = shortcut
+    let parts = gamepad
         .map(|shortcut| shortcut.parts())
+        .or_else(|| shortcut.map(|shortcut| shortcut.parts()))
         .unwrap_or_default();
     let progress = format!("{:.0}%", hold_progress * 100.0);
     let generated_display_id = use_hook(|| {
@@ -678,14 +866,14 @@ fn KeyDisplay(
     let measure_key = parts.join("|");
     use_effect(use_reactive!(
         |display_id, measure_key, modifier_hold_active, pending_exiting| {
-        let has_pending = modifier_hold_active || pending_exiting;
-        if !has_pending {
-            return;
-        }
-        let _ = measure_key.as_str();
-        spawn(async move {
-            let script = format!(
-                r#"
+            let has_pending = modifier_hold_active || pending_exiting;
+            if !has_pending {
+                return;
+            }
+            let _ = measure_key.as_str();
+            spawn(async move {
+                let script = format!(
+                    r#"
 const updatePending = () => {{
   const root = document.querySelector('[data-shortcut-display-id="{display_id}"]');
   const keycapList = root?.querySelector('.keycap-list');
@@ -724,10 +912,11 @@ const updatePending = () => {{
 requestAnimationFrame(() => requestAnimationFrame(updatePending));
 setTimeout(updatePending, 80);
 "#
-            );
-            let _ = dioxus::document::eval(&script).await;
-        });
-    }));
+                );
+                let _ = dioxus::document::eval(&script).await;
+            });
+        }
+    ));
 
     rsx! {
         div {
@@ -763,7 +952,9 @@ fn HotkeyRow(
     } else {
         "No target needed".to_string()
     };
-    let modifier_label = if hotkey.ignore_modifiers {
+    let modifier_label = if hotkey.gamepad.is_some() {
+        "Any gamepad"
+    } else if hotkey.ignore_modifiers {
         "Ignores modifiers"
     } else {
         "Exact modifiers"
@@ -777,6 +968,7 @@ fn HotkeyRow(
                 }
                 KeyDisplay {
                     shortcut: Some(hotkey.shortcut),
+                    gamepad: hotkey.gamepad.clone(),
                     recording: false,
                     boxed: false,
                     animate: false,
@@ -910,7 +1102,9 @@ fn sync_legacy_shortcut(config: &mut crate::Config) {
     if let Some(shortcut) = config
         .hotkeys
         .iter()
-        .find(|binding| binding.action == crate::HotkeyAction::ToggleMute)
+        .find(|binding| {
+            binding.gamepad.is_none() && binding.action == crate::HotkeyAction::ToggleMute
+        })
         .map(|binding| binding.shortcut)
     {
         config.shortcut = shortcut;

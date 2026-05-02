@@ -178,6 +178,36 @@
   margin-top: -2px;
 }
 
+.hotkey-source-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.source-option {
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  transition:
+    background var(--ui-transition),
+    color var(--ui-transition),
+    box-shadow var(--ui-transition);
+}
+
+.source-option.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px var(--shadow-soft);
+}
+
 .hotkey-action-target-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
