@@ -644,6 +644,8 @@ fn default_hotkey_id() -> String {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 struct Config {
     #[serde(default)]
+    welcome_completed: bool,
+    #[serde(default)]
     shortcut: Shortcut,
     #[serde(default)]
     hotkeys: Vec<HotkeyBinding>,
@@ -668,6 +670,7 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            welcome_completed: false,
             shortcut: Shortcut::default(),
             hotkeys: vec![HotkeyBinding::default()],
             hotkeys_paused: false,
@@ -734,6 +737,7 @@ struct AppState {
     overlay: OverlayConfig,
     tray_icon: TrayIconConfig,
     advanced: AdvancedSettings,
+    welcome_completed: bool,
     modifiers: ModifierState,
     muted: bool,
     shortcut_down: bool,
@@ -1147,6 +1151,7 @@ impl Default for AppState {
             overlay: config.overlay,
             tray_icon: config.tray_icon,
             advanced: config.advanced,
+            welcome_completed: config.welcome_completed,
             modifiers: ModifierState::default(),
             muted: false,
             shortcut_down: false,
@@ -1793,6 +1798,9 @@ fn run_background_app() -> Result<()> {
     start_gamepad_monitor(true);
     start_xinput_monitor(true);
     add_tray_icon(hwnd)?;
+    if !STATE.lock().unwrap().welcome_completed {
+        open_settings_window();
+    }
     apply_startup_auto_mute();
     unsafe {
         let _ = SetTimer(hwnd, ID_STATE_TIMER, 250, None);
@@ -1932,7 +1940,7 @@ fn handle_gamepad_input_change(input: GamepadInput, down: bool, enable_hotkeys: 
     let mut actions = Vec::new();
     {
         let mut state = STATE.lock().unwrap();
-        if state.hotkeys_paused {
+        if hotkeys_blocked(&state) {
             return;
         }
 
@@ -2843,7 +2851,10 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     let is_down = event == WM_KEYDOWN || event == 0x0104;
     let is_up = event == WM_KEYUP || event == 0x0105;
 
-    if STATE.lock().unwrap().hotkeys_paused {
+    if {
+        let state = STATE.lock().unwrap();
+        hotkeys_blocked(&state)
+    } {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
@@ -2991,7 +3002,7 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
     let mut actions = Vec::new();
     {
         let mut state = STATE.lock().unwrap();
-        if state.hotkeys_paused {
+        if hotkeys_blocked(&state) {
             return unsafe { CallNextHookEx(None, code, wparam, lparam) };
         }
 
@@ -4254,12 +4265,12 @@ pub fn import_v1_settings() -> Result<()> {
     let settings: Value = serde_json::from_str(&content)?;
     let mut config = Config::default();
 
-    config.startup.launch_on_startup = value_bool(&settings, "AutoStartEnabled")
-        .unwrap_or(config.startup.launch_on_startup);
+    config.startup.launch_on_startup =
+        value_bool(&settings, "AutoStartEnabled").unwrap_or(config.startup.launch_on_startup);
     config.sound_settings.enabled =
         value_bool(&settings, "SoundsEnabled").unwrap_or(config.sound_settings.enabled);
-    config.sound_settings.volume = value_unit_percent(&settings, "SoundVolume")
-        .unwrap_or(config.sound_settings.volume);
+    config.sound_settings.volume =
+        value_unit_percent(&settings, "SoundVolume").unwrap_or(config.sound_settings.volume);
     config.sound_settings.mute_theme = v1_sound_selection(
         &settings,
         "MuteSoundPreloaded",
@@ -4279,8 +4290,11 @@ pub fn import_v1_settings() -> Result<()> {
     config.hold_to_mute.show_overlay =
         value_bool(&settings, "HoldShowOverlay").unwrap_or(config.hold_to_mute.show_overlay);
     config.hold_to_mute.volume_override = value_unit_percent(&settings, "HoldSoundVolume");
-    config.hold_to_mute.mute_theme_override =
-        v1_optional_sound_selection(&settings, "HoldMuteSoundPreloaded", "HoldMuteSoundCustomPath");
+    config.hold_to_mute.mute_theme_override = v1_optional_sound_selection(
+        &settings,
+        "HoldMuteSoundPreloaded",
+        "HoldMuteSoundCustomPath",
+    );
     config.hold_to_mute.unmute_theme_override = v1_optional_sound_selection(
         &settings,
         "HoldUnmuteSoundPreloaded",
@@ -4296,15 +4310,15 @@ pub fn import_v1_settings() -> Result<()> {
         value_u16(&settings, "AutoMuteAfterInactivityMinutes")
             .unwrap_or(config.auto_mute.after_inactivity_minutes)
             .clamp(1, 1440);
-    config.auto_mute.unmute_on_activity =
-        value_bool(&settings, "AutoUnmuteOnActivity").unwrap_or(config.auto_mute.unmute_on_activity);
+    config.auto_mute.unmute_on_activity = value_bool(&settings, "AutoUnmuteOnActivity")
+        .unwrap_or(config.auto_mute.unmute_on_activity);
     config.auto_mute.play_sounds =
         value_bool(&settings, "AutoMutePlaySounds").unwrap_or(config.auto_mute.play_sounds);
 
     config.overlay.enabled =
         value_bool(&settings, "OverlayEnabled").unwrap_or(config.overlay.enabled);
-    config.overlay.visibility = value_string(&settings, "OverlayVisibilityMode")
-        .unwrap_or(config.overlay.visibility);
+    config.overlay.visibility =
+        value_string(&settings, "OverlayVisibilityMode").unwrap_or(config.overlay.visibility);
     config.overlay.position_x =
         value_f64(&settings, "OverlayPositionX").unwrap_or(config.overlay.position_x);
     config.overlay.position_y =
@@ -4318,8 +4332,8 @@ pub fn import_v1_settings() -> Result<()> {
         value_string(&settings, "OverlayVariant").unwrap_or(config.overlay.variant);
     config.overlay.icon_style =
         value_string(&settings, "OverlayIconStyle").unwrap_or(config.overlay.icon_style);
-    config.overlay.background_style =
-        value_string(&settings, "OverlayBackgroundStyle").unwrap_or(config.overlay.background_style);
+    config.overlay.background_style = value_string(&settings, "OverlayBackgroundStyle")
+        .unwrap_or(config.overlay.background_style);
     config.overlay.background_opacity = value_u8(&settings, "OverlayOpacity")
         .unwrap_or(config.overlay.background_opacity)
         .min(100);
@@ -4350,6 +4364,47 @@ pub fn import_v1_settings() -> Result<()> {
 
     save_config(&config)?;
     sync_startup_registration(config.startup.launch_on_startup)?;
+    apply_live_config(&config, config_modified_time());
+    Ok(())
+}
+
+pub fn complete_welcome() -> Result<()> {
+    let mut config = load_config().unwrap_or_default();
+    config.welcome_completed = true;
+    config.hotkeys_paused = false;
+    save_config(&config)?;
+    apply_live_config(&config, config_modified_time());
+    Ok(())
+}
+
+pub fn set_welcome_toggle_shortcut(shortcut: Shortcut) -> Result<()> {
+    let mut config = load_config().unwrap_or_default();
+    let shortcut = shortcut.normalized();
+    if let Some(binding) = config
+        .hotkeys
+        .iter_mut()
+        .find(|binding| binding.action == HotkeyAction::ToggleMute && binding.gamepad.is_none())
+    {
+        binding.shortcut = shortcut.clone();
+        binding.gamepad = None;
+        binding.target = None;
+        binding.target_2 = None;
+    } else {
+        config.hotkeys.insert(
+            0,
+            HotkeyBinding {
+                action: HotkeyAction::ToggleMute,
+                shortcut: shortcut.clone(),
+                gamepad: None,
+                target: None,
+                target_2: None,
+                ..HotkeyBinding::default()
+            },
+        );
+    }
+    config.shortcut = shortcut;
+    normalize_hotkeys(&mut config.hotkeys);
+    save_config(&config)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
 }
@@ -4522,7 +4577,9 @@ fn v1_hotkey_binding(binding: &Value) -> Option<HotkeyBinding> {
 
 fn v1_base_hotkey_binding(binding: &Value, action: HotkeyAction) -> Option<HotkeyBinding> {
     let mut hotkey = HotkeyBinding {
-        id: value_string(binding, "Id").filter(|id| !id.is_empty()).unwrap_or_else(default_hotkey_id),
+        id: value_string(binding, "Id")
+            .filter(|id| !id.is_empty())
+            .unwrap_or_else(default_hotkey_id),
         action,
         shortcut: Shortcut {
             ctrl: v1_modifier_enabled(binding, "Modifiers", 2),
@@ -4648,6 +4705,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.overlay = config.overlay.clone();
     state.tray_icon = config.tray_icon.clone();
     state.advanced = config.advanced.clone();
+    state.welcome_completed = config.welcome_completed;
     state.modifiers = ModifierState::default();
     state.config_modified = modified;
     state.shortcut_down = false;
@@ -4663,6 +4721,10 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     refresh_tray_icon();
     apply_overlay_visibility();
     prime_sound_assets(&config.sound_settings);
+}
+
+fn hotkeys_blocked(state: &AppState) -> bool {
+    state.hotkeys_paused || !state.welcome_completed
 }
 
 fn normalize_hotkeys(hotkeys: &mut [HotkeyBinding]) {

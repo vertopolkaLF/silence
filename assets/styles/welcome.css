@@ -1,0 +1,205 @@
+@property --welcome-progress {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --welcome-progress-color {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+.body:has(.welcome-shell) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.welcome-shell {
+  --welcome-progress: 0%;
+  --welcome-progress-color: color-mix(in oklch, var(--accent) 16%, transparent);
+  position: relative;
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: 42px;
+  background:
+    linear-gradient(90deg,
+      var(--welcome-progress-color) 0 var(--welcome-progress),
+      transparent var(--welcome-progress) 100%),
+    radial-gradient(circle at 16% 18%, color-mix(in oklch, var(--accent) 22%, transparent), transparent 34%),
+    linear-gradient(135deg, var(--content-bg), var(--body-bg));
+  outline: none;
+  transition:
+    --welcome-progress 120ms linear,
+    --welcome-progress-color .2s ease;
+}
+
+.welcome-shell.capture-completed {
+  --welcome-progress-color: color-mix(in oklch, var(--accent) 4%, transparent);
+}
+
+.welcome-logo {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  display: inline-flex;
+  align-items: baseline;
+  color: #fff;
+  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", sans-serif;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 0.9;
+}
+
+.welcome-logo strong {
+  color: #ff922d;
+  font: inherit;
+}
+
+.welcome-stage {
+  width: min(100%, 680px);
+  min-height: 430px;
+  display: grid;
+  align-items: center;
+}
+
+.welcome-screen {
+  display: grid;
+  gap: 22px;
+  animation: welcome-screen-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.welcome-kicker {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.welcome-screen h1 {
+  margin: 0;
+  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", sans-serif;
+  font-size: 56px;
+  line-height: 0.92;
+}
+
+.welcome-subtitle,
+.welcome-hint {
+  max-width: 560px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.welcome-feature-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.welcome-feature-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: 0 12px 28px var(--shadow-soft);
+}
+
+.welcome-feature-card .solar-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--accent);
+}
+
+.welcome-feature-card h3 {
+  font-size: 19px;
+}
+
+.welcome-feature-card p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.welcome-actions.single {
+  margin-top: 8px;
+}
+
+.welcome-error {
+  width: fit-content;
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in oklch, var(--danger) 42%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.welcome-hotkey-screen {
+  justify-items: center;
+  text-align: center;
+}
+
+.welcome-keycaps {
+  width: min(100%, 560px);
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 18px;
+}
+
+.welcome-keycap {
+  min-width: 70px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 800;
+  box-shadow:
+    0 12px 24px var(--shadow-soft);
+  animation: keycap-rise 200ms ease both;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.welcome-final-screen {
+  justify-items: start;
+}
+
+@keyframes welcome-screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

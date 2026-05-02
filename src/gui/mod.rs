@@ -6,8 +6,10 @@ use std::time::{Duration, Instant};
 mod controls;
 mod sections;
 mod tabs;
+mod welcome;
 
 use tabs::{SettingsTab, TabSlideDirection, TabTransition};
+use welcome::WelcomeSequence;
 
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
 const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
@@ -340,9 +342,11 @@ pub fn settings_app() -> Element {
                             return;
                         }
                         closing.set(true);
-                        update_settings(settings, |config| {
-                            config.hotkeys_paused = false;
-                        });
+                        if settings.peek().config.welcome_completed {
+                            update_settings(settings, |config| {
+                                config.hotkeys_paused = false;
+                            });
+                        }
                         let close_desktop = close_desktop.clone();
                         spawn(async move {
                             tokio::time::sleep(Duration::from_millis(120)).await;
@@ -356,70 +360,76 @@ pub fn settings_app() -> Element {
 
             div {
                 class: "body",
-                {tabs::render(
-                    active_tab,
-                    active_section,
-                    displayed_tab,
-                    tab_transition,
-                    tab_transition_id,
-                    pending_tab,
-                )}
-                main {
-                    class: "content",
-                    if let Some(transition) = tab_transition() {
-                        ContentPanel {
-                            key: "tab-outgoing-{transition.id}-{transition.from.label()}",
-                            tab: transition.from,
-                            panel_class: transition_panel_class("outgoing", transition.direction),
-                            active_panel: false,
-                            settings,
-                            recording,
-                            active_tab,
-                            active_section,
-                            displayed_tab,
-                            tab_transition,
-                            tab_transition_id,
-                            pending_tab,
-                            hotkey_modal_request,
-                            pending_hotkey_modal_after_nav,
-                        }
-                        ContentPanel {
-                            key: "tab-{transition.to.label()}",
-                            tab: transition.to,
-                            panel_class: transition_panel_class("incoming current", transition.direction),
-                            active_panel: true,
-                            settings,
-                            recording,
-                            active_tab,
-                            active_section,
-                            displayed_tab,
-                            tab_transition,
-                            tab_transition_id,
-                            pending_tab,
-                            hotkey_modal_request,
-                            pending_hotkey_modal_after_nav,
-                        }
-                    } else {
-                        ContentPanel {
-                            key: "tab-{displayed_tab().label()}",
-                            tab: displayed_tab(),
-                            panel_class: "content-panel current resting".to_string(),
-                            active_panel: true,
-                            settings,
-                            recording,
-                            active_tab,
-                            active_section,
-                            displayed_tab,
-                            tab_transition,
-                            tab_transition_id,
-                            pending_tab,
-                            hotkey_modal_request,
-                            pending_hotkey_modal_after_nav,
+                if !settings().config.welcome_completed {
+                    WelcomeSequence { settings }
+                } else {
+                    {tabs::render(
+                        active_tab,
+                        active_section,
+                        displayed_tab,
+                        tab_transition,
+                        tab_transition_id,
+                        pending_tab,
+                    )}
+                    main {
+                        class: "content",
+                        if let Some(transition) = tab_transition() {
+                            ContentPanel {
+                                key: "tab-outgoing-{transition.id}-{transition.from.label()}",
+                                tab: transition.from,
+                                panel_class: transition_panel_class("outgoing", transition.direction),
+                                active_panel: false,
+                                settings,
+                                recording,
+                                active_tab,
+                                active_section,
+                                displayed_tab,
+                                tab_transition,
+                                tab_transition_id,
+                                pending_tab,
+                                hotkey_modal_request,
+                                pending_hotkey_modal_after_nav,
+                            }
+                            ContentPanel {
+                                key: "tab-{transition.to.label()}",
+                                tab: transition.to,
+                                panel_class: transition_panel_class("incoming current", transition.direction),
+                                active_panel: true,
+                                settings,
+                                recording,
+                                active_tab,
+                                active_section,
+                                displayed_tab,
+                                tab_transition,
+                                tab_transition_id,
+                                pending_tab,
+                                hotkey_modal_request,
+                                pending_hotkey_modal_after_nav,
+                            }
+                        } else {
+                            ContentPanel {
+                                key: "tab-{displayed_tab().label()}",
+                                tab: displayed_tab(),
+                                panel_class: "content-panel current resting".to_string(),
+                                active_panel: true,
+                                settings,
+                                recording,
+                                active_tab,
+                                active_section,
+                                displayed_tab,
+                                tab_transition,
+                                tab_transition_id,
+                                pending_tab,
+                                hotkey_modal_request,
+                                pending_hotkey_modal_after_nav,
+                            }
                         }
                     }
                 }
             }
-            {sections::hotkey_modal_host(settings, hotkey_modal_request)}
+            if settings().config.welcome_completed {
+                {sections::hotkey_modal_host(settings, hotkey_modal_request)}
+            }
         }
     }
 }
