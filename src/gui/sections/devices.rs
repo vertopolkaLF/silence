@@ -17,13 +17,12 @@ pub fn render(mut settings: Signal<super::super::SettingsSnapshot>) -> Element {
 
             div { class: "devices-header",
                 h1 { "Devices" }
-                p { "Pick Windows defaults for microphone input and speaker output." }
             }
 
             div { class: "devices-grid",
                 DeviceCard {
                     title: "Input",
-                    description: "Default microphone used by silence! and Windows apps.",
+                    description: None,
                     empty: "No active input devices found",
                     value: selected_input,
                     options: input_options(input_devices),
@@ -39,7 +38,7 @@ pub fn render(mut settings: Signal<super::super::SettingsSnapshot>) -> Element {
 
                 DeviceCard {
                     title: "Output",
-                    description: "Default speaker or headset used for app audio.",
+                    description: None,
                     empty: "No active output devices found",
                     value: selected_output,
                     options: output_options(output_devices),
@@ -60,7 +59,7 @@ pub fn render(mut settings: Signal<super::super::SettingsSnapshot>) -> Element {
 #[component]
 fn DeviceCard(
     title: &'static str,
-    description: &'static str,
+    description: Option<&'static str>,
     empty: &'static str,
     value: String,
     options: Vec<SelectOption>,
@@ -70,7 +69,9 @@ fn DeviceCard(
         section { class: "sound-card device-card",
             div { class: "device-card-copy",
                 h2 { "{title}" }
-                p { "{description}" }
+                if let Some(desc) = description {
+                    p { "{desc}" }
+                }   
             }
 
             if options.is_empty() {

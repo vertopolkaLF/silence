@@ -30,6 +30,7 @@
   overflow: hidden;
   min-height: 0;
   padding: 0;
+  height: 100dvh;
   background: var(--surface);
   border-top-left-radius: 16px;
   border-bottom-left-radius: 16px;

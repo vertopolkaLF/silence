@@ -24,6 +24,11 @@
   border-bottom: 1px solid var(--border);
 }
 
+.sound-card:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .sound-card-title,
 .sound-row-head,
 .sound-select-row {
