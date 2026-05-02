@@ -1059,7 +1059,7 @@ static SETTINGS_GAMEPAD_RECORDING: AtomicBool = AtomicBool::new(false);
 static MOUSE_HOTKEYS_ENABLED: AtomicBool = AtomicBool::new(true);
 static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
-static SETTINGS_MOUSE_HELD: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+static SETTINGS_MOUSE_HELD: Lazy<Mutex<Vec<u32>>> = Lazy::new(|| Mutex::new(Vec::new()));
 static SETTINGS_MOUSE_PRESSED_SHORTCUT: Lazy<Mutex<Option<Shortcut>>> =
     Lazy::new(|| Mutex::new(None));
 static SETTINGS_ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
@@ -1102,14 +1102,7 @@ pub(crate) fn settings_gamepad_held_inputs() -> Vec<GamepadInput> {
 }
 
 pub(crate) fn settings_mouse_held_buttons() -> Vec<u32> {
-    let mut buttons = SETTINGS_MOUSE_HELD
-        .lock()
-        .unwrap()
-        .iter()
-        .copied()
-        .collect::<Vec<_>>();
-    buttons.sort_by_key(|button| mouse_button_sort_key(*button));
-    buttons
+    SETTINGS_MOUSE_HELD.lock().unwrap().clone()
 }
 
 pub(crate) fn take_settings_mouse_pressed_shortcut() -> Option<Shortcut> {
@@ -2423,10 +2416,17 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
 
     if SETTINGS_HOTKEY_RECORDING.load(Ordering::Relaxed) {
         if down {
-            SETTINGS_MOUSE_HELD.lock().unwrap().insert(button);
+            let mut held = SETTINGS_MOUSE_HELD.lock().unwrap();
+            if !held.contains(&button) {
+                held.push(button);
+            }
+            drop(held);
             record_mouse_shortcut_with_modifiers(current_modifier_state());
         } else {
-            SETTINGS_MOUSE_HELD.lock().unwrap().remove(&button);
+            SETTINGS_MOUSE_HELD
+                .lock()
+                .unwrap()
+                .retain(|held| *held != button);
         }
     }
 
@@ -2465,17 +2465,11 @@ fn record_mouse_shortcut_with_modifiers(modifiers: ModifierState) {
         return;
     }
 
-    let mut mouse_buttons = SETTINGS_MOUSE_HELD
-        .lock()
-        .unwrap()
-        .iter()
-        .copied()
-        .collect::<Vec<_>>();
+    let mut mouse_buttons = SETTINGS_MOUSE_HELD.lock().unwrap().clone();
     if mouse_buttons.is_empty() {
         return;
     }
 
-    mouse_buttons.sort_by_key(|button| mouse_button_sort_key(*button));
     mouse_buttons.truncate(2);
     *SETTINGS_MOUSE_PRESSED_SHORTCUT.lock().unwrap() = Some(Shortcut {
         ctrl: modifiers.ctrl,
@@ -3749,7 +3743,7 @@ fn mouse_button_sort_key(button: u32) -> u32 {
     }
 }
 
-fn mouse_button_name(button: u32) -> &'static str {
+pub(crate) fn mouse_button_name(button: u32) -> &'static str {
     match button {
         VK_LBUTTON => "Left Click",
         VK_RBUTTON => "Right Click",

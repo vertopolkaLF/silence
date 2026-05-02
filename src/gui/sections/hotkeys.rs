@@ -35,6 +35,34 @@ enum HotkeySource {
     Gamepad,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ModifierKey {
+    Ctrl,
+    Alt,
+    Shift,
+    Win,
+}
+
+impl ModifierKey {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Ctrl => "Ctrl",
+            Self::Alt => "Alt",
+            Self::Shift => "Shift",
+            Self::Win => "Win",
+        }
+    }
+
+    fn is_down(self, shortcut: &crate::Shortcut) -> bool {
+        match self {
+            Self::Ctrl => shortcut.ctrl,
+            Self::Alt => shortcut.alt,
+            Self::Shift => shortcut.shift,
+            Self::Win => shortcut.win,
+        }
+    }
+}
+
 pub fn render(
     settings: Signal<super::super::SettingsSnapshot>,
     mut modal_request: Signal<Option<super::super::HotkeyModalRequest>>,
@@ -107,6 +135,7 @@ pub fn modal_host(
     let panel_closing = use_signal(|| false);
     let mut live_modifier_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut hold_timer_shortcut = use_signal(|| None::<crate::Shortcut>);
+    let modifier_press_order = use_signal(Vec::<ModifierKey>::new);
     let mut draft_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut recording_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut draft_gamepad = use_signal(|| None::<crate::GamepadShortcut>);
@@ -296,10 +325,18 @@ pub fn modal_host(
                     modifier_hold_started.set(Some(Instant::now()));
                     hold_progress.set(0.0);
                 } else if hold_progress() != 0.0 {
+                    recording_shortcut.set(None);
+                    live_modifier_shortcut.set(None);
                     hold_timer_shortcut.set(None);
                     hold_progress.set(0.0);
+                } else if live_modifier_shortcut().is_some() || recording_shortcut().is_some() {
+                    recording_shortcut.set(None);
+                    live_modifier_shortcut.set(None);
+                    hold_timer_shortcut.set(None);
                 }
             } else if hold_progress() != 0.0 {
+                recording_shortcut.set(None);
+                live_modifier_shortcut.set(None);
                 hold_timer_shortcut.set(None);
                 hold_progress.set(0.0);
             }
@@ -325,6 +362,7 @@ pub fn modal_host(
                 pending_exiting,
                 panel_closing,
                 live_modifier_shortcut,
+                modifier_press_order,
                 recording_shortcut,
                 draft_shortcut,
                 draft_gamepad,
@@ -346,6 +384,7 @@ pub fn modal_host(
                 pending_exiting,
                 panel_closing,
                 live_modifier_shortcut,
+                modifier_press_order,
                 recording_shortcut,
                 draft_shortcut,
                 draft_gamepad,
@@ -378,6 +417,7 @@ pub fn modal_host(
                 pending_exiting,
                 panel_closing,
                 live_modifier_shortcut,
+                modifier_press_order,
                 recording_shortcut,
                 draft_shortcut,
                 draft_gamepad,
@@ -398,6 +438,7 @@ pub fn modal_host(
                         pending_exiting,
                         panel_closing,
                         live_modifier_shortcut,
+                        modifier_press_order,
                         recording_shortcut,
                     );
                 },
@@ -433,6 +474,7 @@ pub fn modal_host(
                                 pending_exiting,
                                 panel_closing,
                                 live_modifier_shortcut,
+                                modifier_press_order,
                                 recording_shortcut,
                             );
                         }
@@ -461,6 +503,7 @@ pub fn modal_host(
                                 pending_exiting,
                                 panel_closing,
                                 live_modifier_shortcut,
+                                modifier_press_order,
                                 recording_shortcut,
                             );
                         }
@@ -491,6 +534,7 @@ fn start_modal(
     mut pending_exiting: Signal<bool>,
     mut panel_closing: Signal<bool>,
     mut live_modifier_shortcut: Signal<Option<crate::Shortcut>>,
+    mut modifier_press_order: Signal<Vec<ModifierKey>>,
     mut recording_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_gamepad: Signal<Option<crate::GamepadShortcut>>,
@@ -530,6 +574,7 @@ fn start_modal(
     pending_exiting.set(false);
     panel_closing.set(false);
     live_modifier_shortcut.set(None);
+    modifier_press_order.set(Vec::new());
     recording_shortcut.set(None);
     recording_gamepad.set(None);
     super::super::update_settings(settings, |config| {
@@ -546,6 +591,7 @@ fn close_modal(
     mut pending_exiting: Signal<bool>,
     mut panel_closing: Signal<bool>,
     mut live_modifier_shortcut: Signal<Option<crate::Shortcut>>,
+    mut modifier_press_order: Signal<Vec<ModifierKey>>,
     mut recording_shortcut: Signal<Option<crate::Shortcut>>,
 ) {
     super::super::update_settings(settings, |config| {
@@ -560,6 +606,7 @@ fn close_modal(
     hold_progress.set(0.0);
     pending_exiting.set(false);
     live_modifier_shortcut.set(None);
+    modifier_press_order.set(Vec::new());
     recording_shortcut.set(None);
     spawn(async move {
         tokio::time::sleep(Duration::from_millis(190)).await;
@@ -586,6 +633,7 @@ fn HotkeyPanel(
     mut pending_exiting: Signal<bool>,
     panel_closing: Signal<bool>,
     mut live_modifier_shortcut: Signal<Option<crate::Shortcut>>,
+    modifier_press_order: Signal<Vec<ModifierKey>>,
     mut recording_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_shortcut: Signal<Option<crate::Shortcut>>,
     mut draft_gamepad: Signal<Option<crate::GamepadShortcut>>,
@@ -736,6 +784,7 @@ if (viewport && pane) {{
                     evt.prevent_default();
                     if let Some(shortcut) = shortcut_from_keyboard_data(&evt.data()) {
                         if shortcut.vk == 0 {
+                            sync_modifier_press_order(modifier_press_order, Some(&shortcut));
                             if let Some(mouse_shortcut) = current_mouse_shortcut()
                                 .filter(shortcut_has_modifier)
                             {
@@ -797,11 +846,13 @@ if (viewport && pane) {{
                     }
                     evt.prevent_default();
                     let current = current_modifier_shortcut();
+                    sync_modifier_press_order(modifier_press_order, current.as_ref());
                     live_modifier_shortcut.set(current.clone());
                     if current.is_none() {
                         if modifier_hold_started().is_some() {
                             animate_pending_out(pending_exiting);
                         }
+                        recording_shortcut.set(None);
                         modifier_hold_started.set(None);
                         hold_progress.set(0.0);
                     }
@@ -861,6 +912,13 @@ if (viewport && pane) {{
                                                         live_modifier_shortcut().or_else(|| recording_shortcut())
                                                     } else {
                                                         draft_shortcut()
+                                                    },
+                                                    parts_override: if recording() && source == HotkeySource::Keyboard {
+                                                        live_modifier_shortcut()
+                                                            .or_else(|| recording_shortcut())
+                                                            .map(|shortcut| recording_shortcut_parts(&shortcut, &modifier_press_order()))
+                                                    } else {
+                                                        None
                                                     },
                                                     gamepad: None,
                                                     recording: recording() && source == HotkeySource::Keyboard,
@@ -1073,6 +1131,7 @@ fn draft_target_for(action: crate::HotkeyAction, target: String) -> Option<Strin
 fn KeyDisplay(
     #[props(default)] display_id: Option<String>,
     shortcut: Option<crate::Shortcut>,
+    #[props(default)] parts_override: Option<Vec<String>>,
     #[props(default)] gamepad: Option<crate::GamepadShortcut>,
     recording: bool,
     boxed: bool,
@@ -1081,11 +1140,13 @@ fn KeyDisplay(
     pending_exiting: bool,
     hold_progress: f64,
 ) -> Element {
-    let parts = gamepad
-        .as_ref()
-        .map(|shortcut| shortcut.parts())
-        .or_else(|| shortcut.map(|shortcut| shortcut.parts()))
-        .unwrap_or_default();
+    let parts = parts_override.unwrap_or_else(|| {
+        gamepad
+            .as_ref()
+            .map(|shortcut| shortcut.parts())
+            .or_else(|| shortcut.map(|shortcut| shortcut.parts()))
+            .unwrap_or_default()
+    });
     let gamepad_inputs = gamepad
         .as_ref()
         .map(|shortcut| shortcut.inputs.clone())
@@ -1457,6 +1518,61 @@ fn current_mouse_shortcut() -> Option<crate::Shortcut> {
 
 fn shortcut_has_modifier(shortcut: &crate::Shortcut) -> bool {
     shortcut.ctrl || shortcut.alt || shortcut.shift || shortcut.win
+}
+
+fn sync_modifier_press_order(
+    mut modifier_press_order: Signal<Vec<ModifierKey>>,
+    shortcut: Option<&crate::Shortcut>,
+) {
+    let Some(shortcut) = shortcut else {
+        modifier_press_order.set(Vec::new());
+        return;
+    };
+
+    let mut order = modifier_press_order();
+    order.retain(|modifier| modifier.is_down(shortcut));
+    for modifier in [
+        ModifierKey::Ctrl,
+        ModifierKey::Alt,
+        ModifierKey::Shift,
+        ModifierKey::Win,
+    ] {
+        if modifier.is_down(shortcut) && !order.contains(&modifier) {
+            order.push(modifier);
+        }
+    }
+    modifier_press_order.set(order);
+}
+
+fn recording_shortcut_parts(
+    shortcut: &crate::Shortcut,
+    modifier_press_order: &[ModifierKey],
+) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut used_modifiers = Vec::new();
+    for modifier in modifier_press_order {
+        if modifier.is_down(shortcut) {
+            parts.push(modifier.label().to_string());
+            used_modifiers.push(*modifier);
+        }
+    }
+    for modifier in [
+        ModifierKey::Ctrl,
+        ModifierKey::Alt,
+        ModifierKey::Shift,
+        ModifierKey::Win,
+    ] {
+        if modifier.is_down(shortcut) && !used_modifiers.contains(&modifier) {
+            parts.push(modifier.label().to_string());
+        }
+    }
+    for button in &shortcut.mouse_buttons {
+        parts.push(crate::mouse_button_name(*button).to_string());
+    }
+    if shortcut.vk != 0 {
+        parts.push(crate::vk_name(shortcut.vk));
+    }
+    parts
 }
 
 fn vk_from_code(code: &str) -> Option<u32> {
