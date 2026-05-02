@@ -682,18 +682,43 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct StartupSettings {
-    #[serde(default)]
+    #[serde(default = "default_launch_on_startup")]
     pub launch_on_startup: bool,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+impl Default for StartupSettings {
+    fn default() -> Self {
+        Self {
+            launch_on_startup: default_launch_on_startup(),
+        }
+    }
+}
+
+fn default_launch_on_startup() -> bool {
+    true
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AdvancedSettings {
     #[serde(default)]
     pub disable_tray_double_click_settings: bool,
-    #[serde(default)]
+    #[serde(default = "default_enable_mica")]
     pub enable_mica: bool,
+}
+
+impl Default for AdvancedSettings {
+    fn default() -> Self {
+        Self {
+            disable_tray_double_click_settings: false,
+            enable_mica: default_enable_mica(),
+        }
+    }
+}
+
+fn default_enable_mica() -> bool {
+    true
 }
 
 struct AppState {

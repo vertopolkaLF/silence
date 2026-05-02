@@ -18,7 +18,6 @@ const GAMEPAD_BOLD_ICON: Asset = asset!("/assets/icons/gamepad-bold.svg");
 const INFO_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/info-circle-bold.svg");
 const KEYBOARD_BOLD_ICON: Asset = asset!("/assets/icons/keyboard-bold.svg");
 const KEYBOARD_LINEAR_ICON: Asset = asset!("/assets/icons/keyboard-linear.svg");
-const MAGIC_STICK_3_BOLD_ICON: Asset = asset!("/assets/icons/magic-stick-3-bold.svg");
 const BRICOLAGE_GROTESQUE_FONT: Asset = asset!("/assets/fonts/BricolageGrotesque-latin.woff2");
 const PLUS_JAKARTA_SANS_FONT: Asset = asset!("/assets/fonts/PlusJakartaSans-latin.woff2");
 const CONTROLS_CSS: Asset = asset!("/assets/styles/controls.css", AssetOptions::css());
@@ -198,7 +197,6 @@ fn settings_icon_style() -> String {
 .icon-volume-loud-bold {{ --icon: url("{VOLUME_LOUD_BOLD_ICON}"); }}
 .icon-monitor-bold {{ --icon: url("{MONITOR_BOLD_ICON}"); }}
 .icon-widget-bold {{ --icon: url("{WIDGET_BOLD_ICON}"); }}
-.icon-magic-stick-3-bold {{ --icon: url("{MAGIC_STICK_3_BOLD_ICON}"); }}
 .icon-info-circle-bold {{ --icon: url("{INFO_CIRCLE_BOLD_ICON}"); }}
 .icon-keyboard-bold {{ --icon: url("{KEYBOARD_BOLD_ICON}"); }}
 .icon-pause {{ --icon: url("{PAUSE_BOLD_ICON}"); }}
@@ -247,9 +245,9 @@ pub fn settings_app() -> Element {
     let close_desktop = desktop.clone();
     let reveal_desktop = desktop.clone();
     let mut settings = use_signal(SettingsSnapshot::load);
-    let active_tab = use_signal(|| SettingsTab::General);
-    let displayed_tab = use_signal(|| SettingsTab::General);
-    let active_section = use_signal(|| SettingsTab::General.first_section_id().to_string());
+    let active_tab = use_signal(|| SettingsTab::Hotkeys);
+    let displayed_tab = use_signal(|| SettingsTab::Hotkeys);
+    let active_section = use_signal(|| SettingsTab::Hotkeys.first_section_id().to_string());
     let tab_transition = use_signal(|| None::<TabTransition>);
     let tab_transition_id = use_signal(|| 0_u64);
     let pending_tab = use_signal(|| None::<SettingsTab>);

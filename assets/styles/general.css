@@ -1,3 +1,10 @@
+.general-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+
 .status-row {
   display: flex;
   align-items: center;

@@ -5,48 +5,61 @@ pub fn render(
     _recording: Signal<bool>,
 ) -> Element {
     let snapshot = settings();
-    let mic_muted = snapshot.muted;
-    let mic_status = if mic_muted {
-        "Microphone is muted"
-    } else {
-        "Microphone is unmuted"
-    };
-    let status_icon =
-        crate::overlay_icons::overlay_icon_css_url(&snapshot.config.overlay.icon_pair, mic_muted);
-    let mic_label = crate::default_mic_label(&snapshot.devices);
+    let advanced = snapshot.config.advanced.clone();
 
     rsx! {
         section {
             class: "general-panel",
             id: "general-status",
             "data-settings-section": "true",
-            div {
-                class: "status-row",
-                div {
-                    class: if mic_muted { "mic-dot muted" } else { "mic-dot" },
-                    span {
-                        class: "solar-icon",
-                        style: "--icon: url('{status_icon}');"
-                    }
-                }
-                div {
-                    class: "status-copy",
-                    h1 { "{mic_status}" }
-                    p { "{mic_label}" }
-                }
+            div { class: "auto-mute-header",
+                h1 { "General" }
             }
 
             section { class: "sound-card startup-card",
                 div { class: "sound-card-title startup-row",
                     div { class: "startup-copy",
-                        h2 { "Launch at Windows startup" }
-                        p { "Start silence! in the tray as soon as you sign in." }
+                        h2 { "Launch with Windows" }
                     }
                     super::Toggle {
                         checked: snapshot.config.startup.launch_on_startup,
                         onchange: move |checked| {
                             super::super::update_settings(settings, |config| {
                                 config.startup.launch_on_startup = checked;
+                            });
+                        }
+                    }
+                }
+            }
+
+            section { class: "sound-card advanced-card",
+                div { class: "sound-card-title advanced-row",
+                    div { class: "startup-copy",
+                        h2 { "Enable Mica background" }
+                    }
+                    super::Toggle {
+                        checked: advanced.enable_mica,
+                        onchange: move |checked| {
+                            super::super::update_settings(settings, |config| {
+                                config.advanced.enable_mica = checked;
+                            });
+                            crate::set_settings_mica_enabled(checked);
+                        }
+                    }
+                }
+            }
+
+            section { class: "sound-card advanced-card",
+                div { class: "sound-card-title advanced-row",
+                    div { class: "startup-copy",
+                        h2 { "Disable Tray Icon double-click" }
+                        p { "Delay for single click will be removed" }
+                    }
+                    super::Toggle {
+                        checked: advanced.disable_tray_double_click_settings,
+                        onchange: move |checked| {
+                            super::super::update_settings(settings, |config| {
+                                config.advanced.disable_tray_double_click_settings = checked;
                             });
                         }
                     }

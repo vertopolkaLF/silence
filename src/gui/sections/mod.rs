@@ -3,7 +3,6 @@ use dioxus::prelude::*;
 use super::tabs::{SettingsTab, TabTransition};
 
 mod about;
-mod advanced;
 mod auto_mute;
 mod devices;
 mod general;
@@ -46,7 +45,6 @@ pub fn render(
         SettingsTab::Overlay => rsx! { OverlaySection { settings } },
         SettingsTab::TrayIcon => rsx! { TrayIconSection { settings } },
         SettingsTab::AutoMute => rsx! { AutoMuteSection { settings } },
-        SettingsTab::Advanced => rsx! { AdvancedSection { settings } },
         SettingsTab::About => rsx! { AboutSection {} },
     }
 }
@@ -117,11 +115,6 @@ fn TrayIconSection(settings: Signal<super::SettingsSnapshot>) -> Element {
 #[component]
 fn AutoMuteSection(settings: Signal<super::SettingsSnapshot>) -> Element {
     auto_mute::render(settings)
-}
-
-#[component]
-fn AdvancedSection(settings: Signal<super::SettingsSnapshot>) -> Element {
-    advanced::render(settings)
 }
 
 #[component]
