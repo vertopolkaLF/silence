@@ -13,6 +13,7 @@ use welcome::WelcomeSequence;
 
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
 const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
+const ARROW_RIGHT_LINEAR_ICON: Asset = asset!("/assets/icons/arrow-right-linear.svg");
 const CLOCK_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/clock-circle-bold.svg");
 const CLOCK_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/clock-circle-linear.svg");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
@@ -187,6 +188,7 @@ fn settings_icon_style() -> String {
         r#".titlebar-settings {{ --titlebar-icon: url("{SETTINGS_ICON}"); }}
 .titlebar-close {{ --titlebar-icon: url("{CLOSE_ICON}"); }}
 .icon-clock-circle {{ --icon: url("{CLOCK_CIRCLE_LINEAR_ICON}"); }}
+.icon-arrow-right {{ --icon: url("{ARROW_RIGHT_LINEAR_ICON}"); }}
 .icon-close {{ --icon: url("{CLOSE_ICON}"); }}
 .icon-export {{ --icon: url("{EXPORT_LINEAR_ICON}"); }}
 .icon-gamepad-bold {{ --icon: url("{GAMEPAD_BOLD_ICON}"); }}

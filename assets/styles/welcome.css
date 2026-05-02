@@ -20,6 +20,10 @@
   padding: 0 20px;
 }
 
+h3 {
+  line-height: 1.1;
+}
+
 .welcome-shell {
   --welcome-progress: 0%;
   --welcome-progress-color: color-mix(in oklch, var(--accent) 16%, transparent);
@@ -148,6 +152,11 @@
   width: 32px;
   height: 32px;
   color: var(--accent);
+}
+
+.welcome-heading-copy {
+  display: grid;
+  gap: 6px;
 }
 
 .welcome-feature-card h3 {

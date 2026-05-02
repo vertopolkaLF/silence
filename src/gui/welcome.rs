@@ -243,8 +243,11 @@ setupWelcomeKeycapAnimator();
             div { class: "welcome-stage",
                 if step() == 0 {
                     section { class: "welcome-screen",
-                        div { class: "welcome-kicker", "new version released!" }
-                        h1 { "Mute your mic!" }
+                        div { class: "welcome-kicker", "Now in Rust" }
+                        div { class: "welcome-heading-copy",
+                            h1 { "Hi! Welcome to silence!" }
+                            p { "Best app to mute your mic. Period." }
+                        }
                         div { class: "welcome-feature-list",
                             div { class: "welcome-feature-card",
                                 span { class: "solar-icon icon-keyboard-bold" }
@@ -267,17 +270,13 @@ setupWelcomeKeycapAnimator();
                         }
                         div { class: "welcome-actions",
                             button {
-                                class: "save",
-                                onclick: move |_| step.set(1),
-                                "Set hotkey"
-                            }
-                            button {
                                 class: "secondary",
                                 onclick: move |_| {
                                     match crate::import_v1_settings() {
                                         Ok(()) => {
                                             import_error.set(String::new());
                                             returning_user.set(true);
+                                            complete_capture_progress(capture_progress, capture_completed);
                                             let next = settings.peek().clone().refresh(true);
                                             settings.set(next);
                                             step.set(2);
@@ -292,14 +291,22 @@ setupWelcomeKeycapAnimator();
                                     }
                                 },
                                 span { class: "solar-icon button-icon icon-import" }
-                                "Import settings from old app"
+                                "Import settings from v.1.X.X app"
+                            }
+                            button {
+                                class: "save",
+                                onclick: move |_| step.set(1),
+                                "Set hotkey"
+                                span { class: "solar-icon button-icon icon-arrow-right" }
                             }
                         }
                     }
                 } else if step() == 1 {
                     section { class: "welcome-screen welcome-hotkey-screen",
                         div { class: "welcome-kicker", "Step 2 of 3" }
-                        h1 { "Choose your hotkey" }
+                        div { class: "welcome-heading-copy",
+                            h1 { "Choose your hotkey" }
+                        }
                         div {
                             class: "welcome-keycaps recording",
                             "data-welcome-keycaps-id": "{welcome_keycaps_id}",
@@ -333,41 +340,51 @@ setupWelcomeKeycapAnimator();
                                     step.set(2);
                                 },
                                 "Looks good"
+                                span { class: "solar-icon button-icon icon-arrow-right" }
                             }
                         }
                     }
                 } else if returning_user() {
                     section { class: "welcome-screen",
-                        div { class: "welcome-kicker", "Imported settings" }
+                        div { class: "welcome-kicker", "Oh, it's you!" }
                         h1 { "Welcome Back!" }
+                        p {"Have a look at new features"}
                         div { class: "welcome-feature-list returning",
                             div { class: "welcome-feature-card",
-                                span { class: "solar-icon icon-oven-mitts-bold" }
-                                h3 { "Hold actions" }
-                                p { "Hold to mute, unmute, or toggle without rebuilding your entire muscle memory. Revolutionary shit." }
+                                span { class: "solar-icon icon-microphone-3-bold" }
+                                h3 { "Managing devices" }
+                                p { "Pick exact mics or target every input." }
                             }
                             div { class: "welcome-feature-card",
                                 span { class: "solar-icon icon-monitor-bold" }
                                 h3 { "Better overlay" }
-                                p { "More styles, live positioning, and fewer reasons to squint at your own damn mic state." }
+                                p { "More styles with live positioning." }
                             }
                             div { class: "welcome-feature-card",
-                                span { class: "solar-icon icon-gamepad-bold" }
-                                h3 { "Controller support" }
-                                p { "Bind mute controls to gamepad buttons like the couch was always part of the plan." }
+                                span { class: "solar-icon icon-keyboard-bold" }
+                                h3 { "New hotkeys system" }
+                                p { "Bind keys, mouse, or controller buttons." }
                             }
                         }
                         div { class: "welcome-actions single",
-                            button { class: "save", onclick: finish, "Continue muting" }
+                            button { class: "save", onclick: finish,
+                                "Continue muting"
+                                span { class: "solar-icon button-icon icon-arrow-right" }
+                            }
                         }
                     }
                 } else {
                     section { class: "welcome-screen welcome-final-screen",
                         div { class: "welcome-kicker", "All set" }
-                        h1 { "Ready to mute" }
-                        p { class: "welcome-subtitle", "Hotkeys wake up after this. Until now they were politely restrained, which is more than can be said for most software." }
+                        div { class: "welcome-heading-copy",
+                            h1 { "Ready to mute" }
+                            p { class: "welcome-subtitle", "Explore a bunch of options to customize your experience. Multiple hotkeys, custom sounds, managing your audio devices, gamepad support and more..." }
+                        }
                         div { class: "welcome-actions single",
-                            button { class: "save", onclick: finish, "Start muting" }
+                            button { class: "save", onclick: finish,
+                                "Start muting"
+                                span { class: "solar-icon button-icon icon-arrow-right" }
+                            }
                         }
                     }
                 }
