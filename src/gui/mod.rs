@@ -23,7 +23,7 @@ const PLUS_JAKARTA_SANS_FONT: Asset = asset!("/assets/fonts/PlusJakartaSans-lati
 const CONTROLS_CSS: Asset = asset!("/assets/styles/controls.css", AssetOptions::css());
 const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::css());
 const CONTRAST_ICON: Asset = asset!("/assets/icons/ic-baseline-contrast.svg");
-const INTER_FONT: Asset = asset!("/assets/fonts/InterVariable.ttf");
+const INTER_FONT: Asset = asset!("/assets/fonts/InterVariable.woff2");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
@@ -170,7 +170,7 @@ fn settings_font_face() -> String {
 
 @font-face {{
   font-family: "Inter";
-  src: url("{INTER_FONT}") format("truetype");
+  src: url("{INTER_FONT}") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
