@@ -967,6 +967,11 @@ static SETTINGS_ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
 static GILRS_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
 static XINPUT_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
 
+#[cfg(target_pointer_width = "32")]
+type WindowLongPtrValue = i32;
+#[cfg(target_pointer_width = "64")]
+type WindowLongPtrValue = isize;
+
 pub(crate) fn set_settings_hotkey_recording(recording: bool) {
     SETTINGS_HOTKEY_RECORDING.store(recording, Ordering::Relaxed);
 }
@@ -1016,11 +1021,11 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
         SetWindowLongPtrW(
             HWND(hwnd as *mut c_void),
             GWL_WNDPROC,
-            settings_window_proc as *const () as isize,
+            settings_window_proc as *const () as WindowLongPtrValue,
         )
     };
     if previous != 0 {
-        SETTINGS_ORIGINAL_WNDPROC.store(previous, Ordering::Relaxed);
+        SETTINGS_ORIGINAL_WNDPROC.store(previous as isize, Ordering::Relaxed);
     }
 }
 
