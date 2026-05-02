@@ -43,6 +43,10 @@
   gap: 14px;
 }
 
+.overlay-visibility-card.duration-closed {
+  gap: 0;
+}
+
 .overlay-appearance {
   gap: 18px;
 }
@@ -70,6 +74,7 @@
 
 .overlay-collapse-inner {
   min-height: 0;
+  overflow: hidden;
   display: grid;
   gap: 16px;
 }

@@ -30,6 +30,8 @@ const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::cs
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
 const MICROPHONE_3_BOLD_ICON: Asset = asset!("/assets/icons/microphone-3-bold.svg");
 const MICROPHONE_3_LINEAR_ICON: Asset = asset!("/assets/icons/microphone-3-linear.svg");
+const MIC_ICON: Asset = asset!("/assets/icons/mic.svg");
+const MIC_OFF_ICON: Asset = asset!("/assets/icons/mic-off.svg");
 const MOON_LINEAR_ICON: Asset = asset!("/assets/icons/moon-linear.svg");
 const MONITOR_BOLD_ICON: Asset = asset!("/assets/icons/monitor-bold.svg");
 const OVEN_MITTS_BOLD_ICON: Asset = asset!("/assets/icons/oven-mitts-bold.svg");
@@ -190,6 +192,8 @@ fn settings_icon_style() -> String {
 .icon-settings-bold {{ --icon: url("{SETTINGS_BOLD_ICON}"); }}
 .icon-microphone {{ --icon: url("{MICROPHONE_3_LINEAR_ICON}"); }}
 .icon-microphone-3-bold {{ --icon: url("{MICROPHONE_3_BOLD_ICON}"); }}
+.icon-mic-lucide {{ --icon: url("{MIC_ICON}"); }}
+.icon-mic-muted {{ --icon: url("{MIC_OFF_ICON}"); }}
 .icon-oven-mitts-bold {{ --icon: url("{OVEN_MITTS_BOLD_ICON}"); }}
 .icon-volume-loud-bold {{ --icon: url("{VOLUME_LOUD_BOLD_ICON}"); }}
 .icon-monitor-bold {{ --icon: url("{MONITOR_BOLD_ICON}"); }}

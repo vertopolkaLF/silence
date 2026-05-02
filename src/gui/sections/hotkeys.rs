@@ -79,6 +79,16 @@ pub fn render(
             "data-settings-section": "true",
             div { class: "sounds-header section-head-row",
                 h1 { "Hotkeys" }
+                button {
+                    class: "secondary add-hotkey-button",
+                    onclick: move |_| {
+                        modal_request.set(Some(super::super::HotkeyModalRequest::Add {
+                            preset_action: None,
+                        }));
+                    },
+                    span { class: "solar-icon button-icon icon-plus" }
+                    "Add hotkey"
+                }
             }
 
             div { class: "hotkey-table",
@@ -109,17 +119,6 @@ pub fn render(
                         }
                     }
                 }
-            }
-
-            button {
-                class: "secondary add-hotkey-button",
-                onclick: move |_| {
-                    modal_request.set(Some(super::super::HotkeyModalRequest::Add {
-                        preset_action: None,
-                    }));
-                },
-                span { class: "solar-icon button-icon icon-plus" }
-                "Add hotkey"
             }
         }
     }

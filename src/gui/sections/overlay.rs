@@ -28,9 +28,9 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let border_radius_progress = format!("{:.0}%", border_radius as f64 / 24.0 * 100.0);
     let visibility_options = vec![
         SelectOption::new("Always", "Always visible").icon("icon-widget"),
-        SelectOption::new("WhenMuted", "Visible when muted").icon("icon-mic"),
-        SelectOption::new("WhenUnmuted", "Visible when unmuted").icon("icon-mic"),
-        SelectOption::new("AfterToggle", "Show after toggle").icon("icon-record"),
+        SelectOption::new("WhenMuted", "Visible when muted").icon("icon-mic-muted"),
+        SelectOption::new("WhenUnmuted", "Visible when unmuted").icon("icon-mic-lucide"),
+        SelectOption::new("AfterToggle", "Show after toggle").icon("icon-clock-circle"),
     ];
     let icon_style_options = vec![
         SelectOption::new("Colored", "Colored").icon("icon-palette"),
@@ -59,7 +59,12 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 }
             }
 
-            section { class: "sound-card",
+            section {
+                class: if duration_controls_open {
+                    "sound-card overlay-visibility-card duration-open"
+                } else {
+                    "sound-card overlay-visibility-card duration-closed"
+                },
                 div { class: "overlay-field",
                     label { "Visibility" }
                     Select {
