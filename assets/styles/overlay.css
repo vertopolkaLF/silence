@@ -152,6 +152,12 @@
   height: 26px;
 }
 
+.tray-logo-preview img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
 .overlay-variant-preview.dot span {
   width: 22px;
   height: 22px;

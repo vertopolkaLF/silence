@@ -58,7 +58,7 @@ use windows::{
                 Shell_NotifyIconW,
             },
             WindowsAndMessaging::{
-                AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIconFromResourceEx,
+                AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIcon, CreateIconFromResourceEx,
                 CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
                 DispatchMessageW, FindWindowW, GWL_WNDPROC, GetCursorPos, GetMessageW,
                 GetSystemMetrics, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION, IsIconic,
@@ -317,6 +317,8 @@ struct Config {
     auto_mute: AutoMuteSettings,
     #[serde(default)]
     overlay: OverlayConfig,
+    #[serde(default)]
+    tray_icon: TrayIconConfig,
 }
 
 impl Default for Config {
@@ -330,6 +332,7 @@ impl Default for Config {
             hold_to_mute: HoldToMuteSettings::default(),
             auto_mute: AutoMuteSettings::default(),
             overlay: OverlayConfig::default(),
+            tray_icon: TrayIconConfig::default(),
         }
     }
 }
@@ -350,6 +353,7 @@ struct AppState {
     hold_to_mute: HoldToMuteSettings,
     auto_mute: AutoMuteSettings,
     overlay: OverlayConfig,
+    tray_icon: TrayIconConfig,
     modifiers: ModifierState,
     muted: bool,
     shortcut_down: bool,
@@ -477,6 +481,34 @@ fn default_overlay_border_radius() -> u8 {
 
 fn default_overlay_show_border() -> bool {
     true
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct TrayIconConfig {
+    #[serde(default = "default_tray_icon_variant")]
+    pub variant: String,
+    #[serde(default = "crate::overlay_icons::default_overlay_icon_pair")]
+    pub icon_pair: String,
+    #[serde(default = "default_tray_icon_status_style")]
+    pub status_style: String,
+}
+
+impl Default for TrayIconConfig {
+    fn default() -> Self {
+        Self {
+            variant: default_tray_icon_variant(),
+            icon_pair: crate::overlay_icons::default_overlay_icon_pair(),
+            status_style: default_tray_icon_status_style(),
+        }
+    }
+}
+
+fn default_tray_icon_variant() -> String {
+    "Logo".to_string()
+}
+
+fn default_tray_icon_status_style() -> String {
+    "Colored".to_string()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -692,6 +724,10 @@ fn windows_accent_to_rgb(value: u32) -> (u8, u8, u8) {
     )
 }
 
+fn state_accent(muted: bool) -> (u8, u8, u8) {
+    if muted { (220, 53, 69) } else { (40, 167, 69) }
+}
+
 impl Default for AppState {
     fn default() -> Self {
         let config = load_config().unwrap_or_default();
@@ -705,6 +741,7 @@ impl Default for AppState {
             hold_to_mute: config.hold_to_mute,
             auto_mute: config.auto_mute,
             overlay: config.overlay,
+            tray_icon: config.tray_icon,
             modifiers: ModifierState::default(),
             muted: false,
             shortcut_down: false,
@@ -1052,7 +1089,11 @@ fn install_keyboard_hook(instance: HINSTANCE) -> Result<()> {
 }
 
 fn add_tray_icon(hwnd: HWND) -> Result<()> {
-    let icon = load_app_icon().or_else(|| unsafe { LoadIconW(None, IDI_APPLICATION).ok() });
+    let config = STATE.lock().unwrap().tray_icon.clone();
+    let muted = STATE.lock().unwrap().muted;
+    let icon = load_tray_icon(&config, muted)
+        .or_else(load_app_icon)
+        .or_else(|| unsafe { LoadIconW(None, IDI_APPLICATION).ok() });
     let icon = icon.context("load tray icon")?;
     let mut nid = NOTIFYICONDATAW {
         cbSize: size_of::<NOTIFYICONDATAW>() as u32,
@@ -1067,8 +1108,42 @@ fn add_tray_icon(hwnd: HWND) -> Result<()> {
     unsafe {
         Shell_NotifyIconW(NIM_ADD, &nid).ok()?;
     }
-    refresh_tray_tip();
+    refresh_tray_icon();
     Ok(())
+}
+
+fn refresh_tray_icon() {
+    let (hwnd, muted, config) = {
+        let state = STATE.lock().unwrap();
+        if state.hwnd.0.is_null() {
+            return;
+        }
+        (state.hwnd, state.muted, state.tray_icon.clone())
+    };
+    let Some(icon) = load_tray_icon(&config, muted).or_else(load_app_icon) else {
+        refresh_tray_tip();
+        return;
+    };
+    let nid = NOTIFYICONDATAW {
+        cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: ID_TRAY,
+        uFlags: NIF_ICON,
+        hIcon: icon,
+        ..Default::default()
+    };
+    unsafe {
+        let _ = Shell_NotifyIconW(NIM_MODIFY, &nid);
+    }
+    refresh_tray_tip();
+}
+
+fn load_tray_icon(config: &TrayIconConfig, muted: bool) -> Option<HICON> {
+    match config.variant.as_str() {
+        "StatusMic" => create_status_mic_icon(config, muted),
+        "ColorDot" => create_color_dot_icon(muted),
+        _ => load_app_icon(),
+    }
 }
 
 fn load_app_icon() -> Option<HICON> {
@@ -1076,6 +1151,161 @@ fn load_app_icon() -> Option<HICON> {
     let image = best_ico_image(icon_bytes, 16)?;
     unsafe {
         CreateIconFromResourceEx(image, true, ICON_RESOURCE_VERSION, 0, 0, LR_DEFAULTSIZE).ok()
+    }
+}
+
+fn create_status_mic_icon(config: &TrayIconConfig, muted: bool) -> Option<HICON> {
+    let color = match config.status_style.as_str() {
+        "Monochrome" => (245, 245, 245),
+        "SystemColor" => WindowsAccent::load().accent,
+        _ => state_accent(muted),
+    };
+    let mask = fit_alpha_mask(
+        &render_svg_alpha(
+            crate::overlay_icons::overlay_icon_svg(&config.icon_pair, muted),
+            64,
+        )?,
+        64,
+        64,
+        32,
+        30,
+    )?;
+    let mut pixels = vec![0u8; 32 * 32 * 4];
+    for (index, alpha) in mask.into_iter().enumerate() {
+        let offset = index * 4;
+        pixels[offset] = color.2;
+        pixels[offset + 1] = color.1;
+        pixels[offset + 2] = color.0;
+        pixels[offset + 3] = alpha;
+    }
+    create_argb_icon(32, 32, &pixels)
+}
+
+fn create_color_dot_icon(muted: bool) -> Option<HICON> {
+    let color = state_accent(muted);
+    let size = 32usize;
+    let center = (size as f64 - 1.0) / 2.0;
+    let radius = 13.25;
+    let feather = 1.25;
+    let mut pixels = vec![0u8; size * size * 4];
+    for y in 0..size {
+        for x in 0..size {
+            let distance = ((x as f64 - center).powi(2) + (y as f64 - center).powi(2)).sqrt();
+            let alpha = ((radius + feather - distance) / feather).clamp(0.0, 1.0);
+            let offset = (y * size + x) * 4;
+            pixels[offset] = color.2;
+            pixels[offset + 1] = color.1;
+            pixels[offset + 2] = color.0;
+            pixels[offset + 3] = (alpha * 255.0).round() as u8;
+        }
+    }
+    create_argb_icon(size as i32, size as i32, &pixels)
+}
+
+fn render_svg_alpha(svg: &str, size: u32) -> Option<Vec<u8>> {
+    let tree = resvg::usvg::Tree::from_str(svg, &resvg::usvg::Options::default()).ok()?;
+    let svg_size = tree.size().to_int_size();
+    let scale = (size as f32 / svg_size.width() as f32).min(size as f32 / svg_size.height() as f32);
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(size, size)?;
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    Some(
+        pixmap
+            .take_demultiplied()
+            .chunks_exact(4)
+            .map(|pixel| pixel[3])
+            .collect(),
+    )
+}
+
+fn fit_alpha_mask(
+    mask: &[u8],
+    source_width: usize,
+    source_height: usize,
+    target_size: usize,
+    content_size: usize,
+) -> Option<Vec<u8>> {
+    if source_width == 0
+        || source_height == 0
+        || target_size == 0
+        || content_size == 0
+        || mask.len() < source_width * source_height
+    {
+        return None;
+    }
+
+    let mut min_x = source_width;
+    let mut min_y = source_height;
+    let mut max_x = 0usize;
+    let mut max_y = 0usize;
+    for y in 0..source_height {
+        for x in 0..source_width {
+            if mask[y * source_width + x] == 0 {
+                continue;
+            }
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+    }
+    if min_x > max_x || min_y > max_y {
+        return Some(vec![0; target_size * target_size]);
+    }
+
+    let bounds_width = max_x - min_x + 1;
+    let bounds_height = max_y - min_y + 1;
+    let fitted_width = if bounds_width >= bounds_height {
+        content_size
+    } else {
+        ((bounds_width as f64 / bounds_height as f64) * content_size as f64)
+            .round()
+            .max(1.0) as usize
+    };
+    let fitted_height = if bounds_height >= bounds_width {
+        content_size
+    } else {
+        ((bounds_height as f64 / bounds_width as f64) * content_size as f64)
+            .round()
+            .max(1.0) as usize
+    };
+    let offset_x = (target_size.saturating_sub(fitted_width)) / 2;
+    let offset_y = (target_size.saturating_sub(fitted_height)) / 2;
+    let mut fitted = vec![0; target_size * target_size];
+
+    for y in 0..fitted_height {
+        for x in 0..fitted_width {
+            let source_x = min_x + ((x as f64 + 0.5) * bounds_width as f64 / fitted_width as f64)
+                .floor()
+                .min((bounds_width - 1) as f64) as usize;
+            let source_y =
+                min_y + ((y as f64 + 0.5) * bounds_height as f64 / fitted_height as f64)
+                    .floor()
+                    .min((bounds_height - 1) as f64) as usize;
+            fitted[(offset_y + y) * target_size + offset_x + x] =
+                mask[source_y * source_width + source_x];
+        }
+    }
+
+    Some(fitted)
+}
+
+fn create_argb_icon(width: i32, height: i32, pixels: &[u8]) -> Option<HICON> {
+    let and_mask = vec![0u8; ((width * height) / 8).max(1) as usize];
+    unsafe {
+        CreateIcon(
+            None,
+            width,
+            height,
+            1,
+            32,
+            and_mask.as_ptr(),
+            pixels.as_ptr(),
+        )
+        .ok()
     }
 }
 
@@ -1617,7 +1847,7 @@ fn set_global_mute_state(muted: bool, trigger_overlay: bool) {
         return;
     }
 
-    refresh_tray_tip();
+    refresh_tray_icon();
     let overlay = STATE.lock().unwrap().overlay.clone();
     if trigger_overlay && overlay.enabled && overlay.visibility == "AfterToggle" {
         let millis = (overlay.duration_secs.clamp(0.1, 10.0) * 1000.0) as u32;
@@ -2452,6 +2682,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.hold_to_mute = config.hold_to_mute.clone();
     state.auto_mute = config.auto_mute.clone();
     state.overlay = config.overlay.clone();
+    state.tray_icon = config.tray_icon.clone();
     state.modifiers = ModifierState::default();
     state.config_modified = modified;
     state.shortcut_down = false;
@@ -2462,7 +2693,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
         state.auto_mute_cursor_position = POINT::default();
     }
     drop(state);
-    refresh_tray_tip();
+    refresh_tray_icon();
     apply_overlay_visibility();
     prime_sound_assets(&config.sound_settings);
 }

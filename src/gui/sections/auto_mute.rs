@@ -23,13 +23,9 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 div { class: "section-head-row",
                     h1 { "Auto-Mute" }
                 }
-                p { "Automatically mute the microphone on startup or after inactivity." }
             }
 
             section { class: "sound-card auto-mute-card",
-                div { class: "section-head",
-                    h2 { "Startup" }
-                }
                 Checkbox {
                     checked: auto_mute.mute_on_startup,
                     label: "Mute microphone on app startup".to_string(),
@@ -74,7 +70,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 }
                             }
                         }
-                        p { class: "auto-mute-note", "Keyboard or mouse activity" }
                         Checkbox {
                             checked: auto_mute.unmute_on_activity,
                             label: "Unmute on activity".to_string(),
@@ -103,7 +98,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                             });
                         }
                     }
-                    p { class: "auto-mute-note", "If disabled, auto-mute stays silent. Overlay behavior still follows your overlay settings." }
                 }
             }
         }

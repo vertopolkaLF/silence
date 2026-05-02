@@ -41,7 +41,7 @@ pub fn render(
         SettingsTab::Hotkeys => rsx! { HotkeysSection { settings, hotkey_modal_request } },
         SettingsTab::Sounds => rsx! { SoundsSection { settings } },
         SettingsTab::Overlay => rsx! { OverlaySection { settings } },
-        SettingsTab::TrayIcon => rsx! { TrayIconSection {} },
+        SettingsTab::TrayIcon => rsx! { TrayIconSection { settings } },
         SettingsTab::AutoMute => rsx! { AutoMuteSection { settings } },
         SettingsTab::About => rsx! { AboutSection {} },
     }
@@ -101,8 +101,8 @@ fn OverlaySection(settings: Signal<super::SettingsSnapshot>) -> Element {
 }
 
 #[component]
-fn TrayIconSection() -> Element {
-    tray_icon::render()
+fn TrayIconSection(settings: Signal<super::SettingsSnapshot>) -> Element {
+    tray_icon::render(settings)
 }
 
 #[component]
@@ -113,25 +113,6 @@ fn AutoMuteSection(settings: Signal<super::SettingsSnapshot>) -> Element {
 #[component]
 fn AboutSection() -> Element {
     about::render()
-}
-
-fn empty_section(tab: SettingsTab) -> Element {
-    let section_id = tab.first_section_id();
-    rsx! {
-        section {
-            class: "empty-section",
-            id: "{section_id}",
-            "data-settings-section": "true",
-            div {
-                class: "empty-card",
-                span { class: "solar-icon empty-icon icon-settings" }
-                div { class: "section-head-row",
-                    h1 { "{tab.label()}" }
-                }
-                p { "This section is reserved for future settings." }
-            }
-        }
-    }
 }
 
 #[component]
