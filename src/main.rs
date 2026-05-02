@@ -82,8 +82,8 @@ use windows::{
                 WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY,
                 WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN,
                 WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP,
-                WM_SYSCOMMAND, WM_TIMER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
-                WS_OVERLAPPED,
+                WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED, WM_TIMER, WM_XBUTTONDOWN,
+                WM_XBUTTONUP, WNDCLASSW, WNDPROC, WS_OVERLAPPED,
             },
         },
     },
@@ -1001,6 +1001,15 @@ fn windows_accent_to_rgb(value: u32) -> (u8, u8, u8) {
     )
 }
 
+fn windows_uses_light_system_theme() -> bool {
+    read_registry_dword(
+        w!(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"),
+        w!("SystemUsesLightTheme"),
+    )
+    .unwrap_or(0)
+        != 0
+}
+
 fn state_accent(muted: bool) -> (u8, u8, u8) {
     if muted { (220, 53, 69) } else { (40, 167, 69) }
 }
@@ -1864,7 +1873,13 @@ fn load_app_icon() -> Option<HICON> {
 
 fn create_status_mic_icon(config: &TrayIconConfig, muted: bool) -> Option<HICON> {
     let color = match config.status_style.as_str() {
-        "Monochrome" => (245, 245, 245),
+        "Monochrome" => {
+            if windows_uses_light_system_theme() {
+                (0, 0, 0)
+            } else {
+                (245, 245, 245)
+            }
+        }
         "SystemColor" => WindowsAccent::load().accent,
         _ => state_accent(muted),
     };
@@ -2173,6 +2188,10 @@ unsafe extern "system" fn main_wnd_proc(
         }
         WM_DISPLAYCHANGE => {
             native_overlay::reposition();
+            LRESULT(0)
+        }
+        WM_SETTINGCHANGE | WM_THEMECHANGED => {
+            refresh_tray_icon();
             LRESULT(0)
         }
         WM_DESTROY => {

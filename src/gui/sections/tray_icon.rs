@@ -12,8 +12,8 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let preview_tone_class = if muted { "muted" } else { "live" };
     let status_controls_open = tray_icon.variant == "StatusMic";
     let status_style_options = vec![
-        SelectOption::new("Colored", "Colored").icon("icon-mic"),
-        SelectOption::new("Monochrome", "Monochrome").icon("icon-mic"),
+        SelectOption::new("Colored", "Colored").icon("icon-palette"),
+        SelectOption::new("Monochrome", "Monochrome").icon("icon-contrast"),
         SelectOption::new("SystemColor", "System color").icon("icon-widget"),
     ];
 

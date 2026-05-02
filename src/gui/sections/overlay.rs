@@ -33,13 +33,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
         SelectOption::new("AfterToggle", "Show after toggle").icon("icon-record"),
     ];
     let icon_style_options = vec![
-        SelectOption::new("Colored", "Colored").icon("icon-mic"),
-        SelectOption::new("Monochrome", "Monochrome").icon("icon-mic"),
+        SelectOption::new("Colored", "Colored").icon("icon-palette"),
+        SelectOption::new("Monochrome", "Monochrome").icon("icon-contrast"),
         SelectOption::new("SystemColor", "System color").icon("icon-widget"),
     ];
     let background_options = vec![
-        SelectOption::new("Dark", "Dark").icon("icon-widget"),
-        SelectOption::new("Light", "Light").icon("icon-widget"),
+        SelectOption::new("Dark", "Dark").icon("icon-moon"),
+        SelectOption::new("Light", "Light").icon("icon-sun"),
     ];
 
     rsx! {

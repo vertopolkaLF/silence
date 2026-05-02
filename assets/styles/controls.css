@@ -76,6 +76,28 @@
   color: var(--accent-text);
 }
 
+.ui-select-current-icon-stack {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.ui-select-current-icon-stack .ui-select-current-icon {
+  grid-area: 1 / 1;
+  transition: opacity var(--ui-transition), scale var(--ui-transition);
+}
+
+.ui-select-current-icon-exit {
+  animation: select-icon-exit 0.2s ease forwards;
+}
+
+.ui-select-current-icon-enter {
+  animation: select-icon-enter 0.22s ease 0.055s both;
+}
+
 .ui-select-current-copy,
 .ui-select-item-copy {
   min-width: 0;
@@ -116,7 +138,13 @@
   word-break: break-word;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  text-wrap: balance;
   color: var(--text);
+  transform: translateY(-1px);
+}
+
+.ui-select-item-copy:has(.ui-select-item-detail) .ui-select-item-label {
+  transform: translateY(0px);
 }
 
 .ui-select-current-label {
@@ -129,6 +157,7 @@
   display: block;
   white-space: nowrap;
   -webkit-line-clamp: unset;
+  overflow: visible;
 }
 
 .ui-select-current-detail,
@@ -490,5 +519,29 @@
   to {
     opacity: 0;
     transform: translateY(-14px);
+  }
+}
+
+@keyframes select-icon-enter {
+  from {
+    opacity: 0;
+    scale: 0.5;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes select-icon-exit {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+
+  to {
+    opacity: 0;
+    scale: 0.5;
   }
 }

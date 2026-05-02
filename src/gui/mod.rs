@@ -22,21 +22,26 @@ const BRICOLAGE_GROTESQUE_FONT: Asset = asset!("/assets/fonts/BricolageGrotesque
 const PLUS_JAKARTA_SANS_FONT: Asset = asset!("/assets/fonts/PlusJakartaSans-latin.woff2");
 const CONTROLS_CSS: Asset = asset!("/assets/styles/controls.css", AssetOptions::css());
 const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::css());
+const CONTRAST_ICON: Asset = asset!("/assets/icons/ic-baseline-contrast.svg");
 const INTER_FONT: Asset = asset!("/assets/fonts/InterVariable.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
 const MICROPHONE_3_BOLD_ICON: Asset = asset!("/assets/icons/microphone-3-bold.svg");
+const MOON_LINEAR_ICON: Asset = asset!("/assets/icons/moon-linear.svg");
 const MONITOR_BOLD_ICON: Asset = asset!("/assets/icons/monitor-bold.svg");
 const OVEN_MITTS_BOLD_ICON: Asset = asset!("/assets/icons/oven-mitts-bold.svg");
 const OVEN_MITTS_LINEAR_ICON: Asset = asset!("/assets/icons/oven-mitts-linear.svg");
 const OVERLAY_CSS: Asset = asset!("/assets/styles/overlay.css", AssetOptions::css());
+const PALLETE_2_LINEAR_ICON: Asset = asset!("/assets/icons/pallete-2-linear.svg");
 const PAUSE_BOLD_ICON: Asset = asset!("/assets/icons/pause-bold.svg");
 const PLAY_BOLD_ICON: Asset = asset!("/assets/icons/play-bold.svg");
 const PLUS_LINEAR_ICON: Asset = asset!("/assets/icons/plus-linear.svg");
+const RECORD_BOLD_ICON: Asset = asset!("/assets/icons/record-bold.svg");
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const SETTINGS_BOLD_ICON: Asset = asset!("/assets/icons/settings-bold.svg");
+const SUN_2_LINEAR_ICON: Asset = asset!("/assets/icons/sun-2-linear.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
 const TRASH_BIN_TRASH_LINEAR_ICON: Asset = asset!("/assets/icons/trash-bin-trash-linear.svg");
@@ -187,6 +192,11 @@ fn settings_icon_style() -> String {
 .icon-pause {{ --icon: url("{PAUSE_BOLD_ICON}"); }}
 .icon-play {{ --icon: url("{PLAY_BOLD_ICON}"); }}
 .icon-plus {{ --icon: url("{PLUS_LINEAR_ICON}"); }}
+.icon-record {{ --icon: url("{RECORD_BOLD_ICON}"); }}
+.icon-palette {{ --icon: url("{PALLETE_2_LINEAR_ICON}"); }}
+.icon-contrast {{ --icon: url("{CONTRAST_ICON}"); }}
+.icon-moon {{ --icon: url("{MOON_LINEAR_ICON}"); }}
+.icon-sun {{ --icon: url("{SUN_2_LINEAR_ICON}"); }}
 .icon-trash {{ --icon: url("{TRASH_BIN_TRASH_LINEAR_ICON}"); }}"#
     )
 }

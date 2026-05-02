@@ -88,7 +88,7 @@ pub fn render(
                         preset_action: None,
                     }));
                 },
-                span { class: "solar-icon button-icon icon-record" }
+                span { class: "solar-icon button-icon icon-plus" }
                 "Add hotkey"
             }
         }
@@ -954,7 +954,7 @@ if (viewport && pane) {{
                             class: "save",
                             disabled: !can_create,
                             onclick: move |_| oncreate.call(()),
-                            span { class: "solar-icon button-icon icon-record" }
+                            span { class: "solar-icon button-icon icon-plus" }
                             "Add hotkey"
                         }
                     } else {

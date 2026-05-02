@@ -421,8 +421,33 @@ requestAnimationFrame(() => {{
                     }
                 },
                 div { class: "ui-select-current",
-                    if let Some(icon_class) = current.as_ref().and_then(|option| option.icon_class.as_deref()) {
-                        span { class: "solar-icon ui-select-current-icon {icon_class}" }
+                    if current.as_ref().and_then(|option| option.icon_class.as_deref()).is_some()
+                        || exiting_value().as_ref().and_then(|option| option.icon_class.as_deref()).is_some()
+                    {
+                        span { class: "ui-select-current-icon-stack",
+                            if animate_value() {
+                                if let Some(option) = exiting_value().as_ref() {
+                                    if let Some(icon_class) = option.icon_class.as_deref() {
+                                        span {
+                                            key: "current-icon-exit-{option.value}",
+                                            class: "solar-icon ui-select-current-icon ui-select-current-icon-exit {icon_class}"
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some(option) = current.as_ref() {
+                                if let Some(icon_class) = option.icon_class.as_deref() {
+                                    span {
+                                        key: "current-icon-enter-{option.value}",
+                                        class: if animate_value() {
+                                            "solar-icon ui-select-current-icon ui-select-current-icon-enter {icon_class}"
+                                        } else {
+                                            "solar-icon ui-select-current-icon {icon_class}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     div { class: "ui-select-current-copy",
                         if animate_value() {
