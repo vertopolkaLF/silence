@@ -200,6 +200,10 @@
 }
 
 .source-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   height: 34px;
   border: 0;
   border-radius: 6px;
@@ -211,6 +215,11 @@
     background var(--ui-transition),
     color var(--ui-transition),
     box-shadow var(--ui-transition);
+}
+
+.source-option-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .source-option.active {

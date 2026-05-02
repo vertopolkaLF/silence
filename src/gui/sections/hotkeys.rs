@@ -881,6 +881,7 @@ if (viewport && pane) {{
                                 modifier_hold_started.set(None);
                                 hold_progress.set(0.0);
                             },
+                            span { class: "solar-icon source-option-icon icon-keyboard-bold" }
                             "Keyboard"
                         }
                         button {
@@ -892,6 +893,7 @@ if (viewport && pane) {{
                                 hold_progress.set(0.0);
                                 live_modifier_shortcut.set(None);
                             },
+                            span { class: "solar-icon source-option-icon icon-gamepad-bold" }
                             "Gamepad"
                         }
                     }
