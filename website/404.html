@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Not Found | silence!</title>
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #0c0a09;
+            --surface: #1c1917;
+            --text: #fafaf9;
+            --text-dim: #a8a29e;
+
+            --pop-purple: #c084fc;
+            --pop-green: #4ade80;
+            --pop-orange: #fb923c;
+            --pop-pink: #f472b6;
+            --pop-blue: #60a5fa;
+            --pop-yellow: #fde047;
+
+            --radius-btn: 100px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            padding: 2px;
+            background: linear-gradient(45deg, var(--pop-blue), var(--pop-purple), var(--pop-pink), var(--pop-orange), var(--pop-yellow), var(--pop-green));
+            background-size: 400% 400%;
+            animation: gradient-border 8s linear infinite;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            -webkit-mask-composite: xor;
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        @keyframes gradient-border {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .cta-background {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at top center, #1f1225 0%, #000000 100%);
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        .brand {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .brand {
+            font-size: 1.5rem;
+            text-decoration: none;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+
+        .brand span {
+            color: var(--pop-orange);
+        }
+
+        #stars-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .title-404 {
+            font-size: clamp(6rem, 20vw, 18rem);
+            line-height: 1;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, var(--pop-orange), var(--pop-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 40px rgba(251, 146, 60, 0.2);
+        }
+
+        .back-link {
+            color: var(--text);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            border-radius: var(--radius-btn);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: var(--radius-btn);
+            padding: 4px;
+            z-index: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .pill-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 16px;
+            border-radius: var(--radius-btn);
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .pill-btn:hover {
+            color: var(--text);
+        }
+
+        .pill-btn.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--text);
+        }
+
+        .pill-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 0 4px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 12px;
+        }
+
+        .speed-slider {
+            -webkit-appearance: none;
+            width: 100px;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            transition: background 0.3s;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--text);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .speed-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .speed-slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--text);
+            cursor: pointer;
+            border: none;
+            transition: transform 0.1s;
+        }
+
+        .speed-slider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .pill-icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            border-radius: 50%;
+            color: var(--text-dim);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .pill-icon-btn:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Hide elements when fullscreen */
+        body.is-fullscreen .content,
+        body.is-fullscreen .controls,
+        body.is-fullscreen .brand {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="cta-background">
+        <canvas id="stars-canvas"></canvas>
+    </div>
+
+    <a href="/" class="brand">
+        silence<span>!</span>
+    </a>
+
+    <div class="content">
+        <h1 class="title-404">404</h1>
+        <a href="/" class="back-link">
+            <iconify-icon icon="solar:arrow-left-linear"></iconify-icon>
+            Back to silence!
+        </a>
+    </div>
+
+    <div class="controls">
+        <button id="ftl-default-btn" class="pill-btn active">Default</button>
+        <button id="ftl-active-btn" class="pill-btn">Active</button>
+        <div class="pill-divider"></div>
+        <div class="slider-container" title="Speed Multiplier">
+            <iconify-icon icon="solar:stopwatch-linear" style="color: var(--text-dim);"></iconify-icon>
+            <input type="range" id="speed-slider" class="speed-slider" min="0.1" max="3" step="0.1" value="1">
+        </div>
+        <div class="pill-divider"></div>
+        <button id="fullscreen-btn" class="pill-icon-btn" title="Fullscreen">
+            <iconify-icon icon="solar:full-screen-bold-duotone" width="20" height="20"></iconify-icon>
+        </button>
+    </div>
+
+    <script>
+        (function () {
+            const canvas = document.getElementById('stars-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            let width, height;
+            const colors = [
+                '#c084fc', // pop-purple
+                '#4ade80', // pop-green
+                '#fb923c', // pop-orange
+                '#f472b6', // pop-pink
+                '#60a5fa', // pop-blue
+                '#fde047', // pop-yellow
+                '#ffffff'  // white
+            ];
+
+            let stars = [];
+            const STAR_COUNT = 150; // slightly more for full screen
+
+            let currentFtl = 1;
+            let targetFtl = 1;
+            let isFtlActive = false;
+            let speedMultiplier = 1;
+
+            function resize() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width * window.devicePixelRatio;
+                canvas.height = height * window.devicePixelRatio;
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+
+            class Star {
+                constructor(randomY = true) {
+                    this.reset(randomY);
+                }
+
+                reset(randomY = false) {
+                    this.x = Math.random() * width;
+                    this.y = randomY ? Math.random() * height : height + 10 + (Math.random() * currentFtl * 5);
+                    this.baseSize = Math.random() * 3 + 1.5;
+                    this.color = colors[Math.floor(Math.random() * colors.length)];
+
+                    const duration = Math.random() * 15 + 5;
+                    const distance = window.innerHeight * 1.2;
+                    this.speed = distance / (duration * 60);
+
+                    this.progress = randomY ? Math.random() : 0;
+                    this.progressSpeed = 1 / (duration * 60);
+                }
+
+                update() {
+                    this.y -= this.speed * currentFtl * speedMultiplier;
+                    this.progress += this.progressSpeed * (1 + (currentFtl - 1) * 0.1) * speedMultiplier;
+
+                    if (this.progress >= 1 || this.y < -200) {
+                        this.reset();
+                    }
+                }
+
+                draw() {
+                    let opacity = 0;
+                    if (this.progress < 0.2) {
+                        opacity = this.progress / 0.2 * 0.8;
+                    } else if (this.progress < 0.8) {
+                        opacity = 0.8;
+                    } else {
+                        opacity = (1 - this.progress) / 0.2 * 0.8;
+                    }
+
+                    if (currentFtl > 2) {
+                        opacity = Math.min(1, opacity * 1.5);
+                    }
+
+                    const ftlScale = 1 + Math.min(1.5, (currentFtl - 1) / 15);
+                    const scale = (0.5 + this.progress) * ftlScale;
+                    const size = this.baseSize * scale;
+
+                    ctx.save();
+                    ctx.globalAlpha = opacity;
+
+                    ctx.shadowBlur = Math.max(0, size * 2 * (1 - (currentFtl - 1) / 2));
+                    ctx.shadowColor = this.color;
+
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+
+                    const stretch = Math.max(0.1, (currentFtl - 1) * this.speed * 2);
+                    ctx.lineTo(this.x, this.y + stretch);
+
+                    ctx.lineWidth = size;
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = this.color;
+                    ctx.stroke();
+
+                    ctx.restore();
+                }
+            }
+
+            for (let i = 0; i < STAR_COUNT; i++) {
+                stars.push(new Star(true));
+            }
+
+            function animate() {
+                currentFtl += (targetFtl - currentFtl) * 0.05;
+
+                ctx.clearRect(0, 0, width, height);
+                for (let star of stars) {
+                    star.update();
+                    star.draw();
+                }
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+
+            // Toggle FTL logic
+            const defaultBtn = document.getElementById('ftl-default-btn');
+            const activeBtn = document.getElementById('ftl-active-btn');
+
+            defaultBtn.addEventListener('click', () => {
+                isFtlActive = false;
+                targetFtl = 1;
+                defaultBtn.classList.add('active');
+                activeBtn.classList.remove('active');
+            });
+
+            activeBtn.addEventListener('click', () => {
+                isFtlActive = true;
+                targetFtl = 40;
+                activeBtn.classList.add('active');
+                defaultBtn.classList.remove('active');
+            });
+
+            // Speed slider handling
+            const speedSlider = document.getElementById('speed-slider');
+            speedSlider.addEventListener('input', (e) => {
+                speedMultiplier = parseFloat(e.target.value);
+            });
+
+            // Fullscreen handling
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            }
+
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+            document.addEventListener('fullscreenchange', () => {
+                if (document.fullscreenElement) {
+                    document.body.classList.add('is-fullscreen');
+                } else {
+                    document.body.classList.remove('is-fullscreen');
+                }
+            });
+
+            // Also allow exiting via Escape key (handled automatically by browser, but we can sync state)
+        })();
+    </script>
+</body>
+
+</html>
