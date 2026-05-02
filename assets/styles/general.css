@@ -150,18 +150,21 @@
 
 .general-import-export-button {
   min-width: 0;
-  min-height: 72px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 12px;
   border: 1px solid var(--control-border);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 0 16px;
   background: var(--surface-2);
   color: var(--text);
   font-size: 15px;
   font-weight: 650;
+  line-height: 1.2;
+  text-align: center;
   box-shadow: 0 1px 2px var(--shadow-soft);
   transition:
     background var(--ui-transition),
@@ -203,6 +206,67 @@
 }
 
 .general-reset-button:hover {
+  background: var(--surface-danger-hover);
+  color: var(--danger-hover);
+}
+
+.general-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: oklch(0% 0 0 / 58%);
+  animation: confirm-backdrop-in 160ms ease both;
+}
+
+.general-confirm-backdrop.exiting {
+  animation: confirm-backdrop-out 160ms ease both;
+}
+
+.general-confirm-modal {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 22px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px;
+  background: var(--hotkey-panel-bg);
+  box-shadow: 0 18px 48px var(--shadow-medium);
+  animation: confirm-modal-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.general-confirm-modal.exiting {
+  animation: confirm-modal-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.general-confirm-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.general-confirm-copy h2 {
+  font-size: 20px;
+}
+
+.general-confirm-copy p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.general-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.general-confirm-danger {
+  background: var(--surface-danger);
+  color: var(--danger);
+}
+
+.general-confirm-danger:hover {
   background: var(--surface-danger-hover);
   color: var(--danger-hover);
 }
@@ -292,6 +356,41 @@
     margin-left: 0;
     padding-left: 0;
     border-left: 0;
+  }
+}
+
+@keyframes confirm-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes confirm-backdrop-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes confirm-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes confirm-modal-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
   }
 }
 

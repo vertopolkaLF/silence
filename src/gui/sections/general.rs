@@ -1,4 +1,11 @@
 use dioxus::prelude::*;
+use std::time::Duration;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConfirmAction {
+    ImportV1,
+    Reset,
+}
 
 pub fn render(
     mut settings: Signal<super::super::SettingsSnapshot>,
@@ -6,6 +13,8 @@ pub fn render(
 ) -> Element {
     let snapshot = settings();
     let advanced = snapshot.config.advanced.clone();
+    let mut confirm_action = use_signal(|| None::<ConfirmAction>);
+    let mut confirm_closing = use_signal(|| false);
 
     rsx! {
         section {
@@ -52,14 +61,14 @@ pub fn render(
             section { class: "sound-card advanced-card",
                 div { class: "sound-card-title advanced-row",
                     div { class: "startup-copy",
-                        h2 { "Disable Tray Icon double-click" }
-                        p { "Delay for single click will be removed" }
+                        h2 { "Double-click tray icon to open Settings" }
+                        p { "Disable to remove delay from muting mic with single-click" }
                     }
                     super::Toggle {
-                        checked: advanced.disable_tray_double_click_settings,
-                        onchange: move |checked| {
+                        checked: !advanced.disable_tray_double_click_settings,
+                        onchange: move |checked: bool| {
                             super::super::update_settings(settings, |config| {
-                                config.advanced.disable_tray_double_click_settings = checked;
+                                config.advanced.disable_tray_double_click_settings = !checked;
                             });
                         }
                     }
@@ -103,15 +112,29 @@ pub fn render(
                 section { class: "sound-card general-reset-card",
                     div { class: "sound-card-title general-reset-row",
                         div { class: "startup-copy",
+                            h2 { "Import from silence! v.1" }
+                        }
+                        button {
+                            class: "secondary general-reset-button",
+                            onclick: move |_| {
+                                confirm_closing.set(false);
+                                confirm_action.set(Some(ConfirmAction::ImportV1));
+                            },
+                            "Import"
+                        }
+                    }
+                }
+
+                section { class: "sound-card general-reset-card",
+                    div { class: "sound-card-title general-reset-row",
+                        div { class: "startup-copy",
                             h2 { "Reset settings" }
                         }
                         button {
                             class: "secondary general-reset-button",
                             onclick: move |_| {
-                                if crate::reset_settings().is_ok() {
-                                    let next = settings.peek().clone().refresh(true);
-                                    settings.set(next);
-                                }
+                                confirm_closing.set(false);
+                                confirm_action.set(Some(ConfirmAction::Reset));
                             },
                             "Reset settings"
                         }
@@ -119,5 +142,78 @@ pub fn render(
                 }
             }
         }
+
+        if let Some(action) = confirm_action() {
+            div {
+                class: if confirm_closing() {
+                    "general-confirm-backdrop exiting"
+                } else {
+                    "general-confirm-backdrop"
+                },
+                onclick: move |_| close_confirm_modal(confirm_action, confirm_closing),
+                div {
+                    class: if confirm_closing() {
+                        "general-confirm-modal exiting"
+                    } else {
+                        "general-confirm-modal"
+                    },
+                    onclick: move |evt| evt.stop_propagation(),
+                    div { class: "general-confirm-copy",
+                        h2 {
+                            match action {
+                                ConfirmAction::ImportV1 => "Import from silence! v.1?",
+                                ConfirmAction::Reset => "Reset all settings?",
+                            }
+                        }
+                        p {
+                            match action {
+                                ConfirmAction::ImportV1 => "Current settings will be replaced by converted v1 settings from the old app data folder.",
+                                ConfirmAction::Reset => "Current settings will be replaced with defaults immediately.",
+                            }
+                        }
+                    }
+                    div { class: "general-confirm-actions",
+                        button {
+                            class: "secondary",
+                            onclick: move |_| close_confirm_modal(confirm_action, confirm_closing),
+                            "Cancel"
+                        }
+                        button {
+                            class: "secondary general-confirm-danger",
+                            onclick: move |_| {
+                                let result = match action {
+                                    ConfirmAction::ImportV1 => crate::import_v1_settings(),
+                                    ConfirmAction::Reset => crate::reset_settings(),
+                                };
+                                if result.is_ok() {
+                                    let next = settings.peek().clone().refresh(true);
+                                    settings.set(next);
+                                    close_confirm_modal(confirm_action, confirm_closing);
+                                }
+                            },
+                            match action {
+                                ConfirmAction::ImportV1 => "Import",
+                                ConfirmAction::Reset => "Reset settings",
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+}
+
+fn close_confirm_modal(
+    mut confirm_action: Signal<Option<ConfirmAction>>,
+    mut confirm_closing: Signal<bool>,
+) {
+    if confirm_closing() {
+        return;
+    }
+    confirm_closing.set(true);
+    spawn(async move {
+        tokio::time::sleep(Duration::from_millis(170)).await;
+        confirm_action.set(None);
+        confirm_closing.set(false);
+    });
 }

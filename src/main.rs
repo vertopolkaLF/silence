@@ -25,6 +25,7 @@ use gilrs::{Button, EventType, Gilrs};
 use once_cell::sync::Lazy;
 use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Source, buffer::SamplesBuffer};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use windows::{
     Win32::{
         Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
@@ -4248,11 +4249,384 @@ pub fn import_settings() -> Result<()> {
     Ok(())
 }
 
+pub fn import_v1_settings() -> Result<()> {
+    let content = fs::read_to_string(v1_settings_path()?)?;
+    let settings: Value = serde_json::from_str(&content)?;
+    let mut config = Config::default();
+
+    config.startup.launch_on_startup = value_bool(&settings, "AutoStartEnabled")
+        .unwrap_or(config.startup.launch_on_startup);
+    config.sound_settings.enabled =
+        value_bool(&settings, "SoundsEnabled").unwrap_or(config.sound_settings.enabled);
+    config.sound_settings.volume = value_unit_percent(&settings, "SoundVolume")
+        .unwrap_or(config.sound_settings.volume);
+    config.sound_settings.mute_theme = v1_sound_selection(
+        &settings,
+        "MuteSoundPreloaded",
+        "MuteSoundCustomPath",
+        "v1-mute",
+    );
+    config.sound_settings.unmute_theme = v1_sound_selection(
+        &settings,
+        "UnmuteSoundPreloaded",
+        "UnmuteSoundCustomPath",
+        "v1-unmute",
+    );
+    config.sound_settings.custom_sounds = v1_custom_sounds(&settings);
+
+    config.hold_to_mute.play_sounds =
+        value_bool(&settings, "HoldPlaySounds").unwrap_or(config.hold_to_mute.play_sounds);
+    config.hold_to_mute.show_overlay =
+        value_bool(&settings, "HoldShowOverlay").unwrap_or(config.hold_to_mute.show_overlay);
+    config.hold_to_mute.volume_override = value_unit_percent(&settings, "HoldSoundVolume");
+    config.hold_to_mute.mute_theme_override =
+        v1_optional_sound_selection(&settings, "HoldMuteSoundPreloaded", "HoldMuteSoundCustomPath");
+    config.hold_to_mute.unmute_theme_override = v1_optional_sound_selection(
+        &settings,
+        "HoldUnmuteSoundPreloaded",
+        "HoldUnmuteSoundCustomPath",
+    );
+
+    config.auto_mute.mute_on_startup =
+        value_bool(&settings, "AutoMuteOnStartup").unwrap_or(config.auto_mute.mute_on_startup);
+    config.auto_mute.after_inactivity_enabled =
+        value_bool(&settings, "AutoMuteAfterInactivityEnabled")
+            .unwrap_or(config.auto_mute.after_inactivity_enabled);
+    config.auto_mute.after_inactivity_minutes =
+        value_u16(&settings, "AutoMuteAfterInactivityMinutes")
+            .unwrap_or(config.auto_mute.after_inactivity_minutes)
+            .clamp(1, 1440);
+    config.auto_mute.unmute_on_activity =
+        value_bool(&settings, "AutoUnmuteOnActivity").unwrap_or(config.auto_mute.unmute_on_activity);
+    config.auto_mute.play_sounds =
+        value_bool(&settings, "AutoMutePlaySounds").unwrap_or(config.auto_mute.play_sounds);
+
+    config.overlay.enabled =
+        value_bool(&settings, "OverlayEnabled").unwrap_or(config.overlay.enabled);
+    config.overlay.visibility = value_string(&settings, "OverlayVisibilityMode")
+        .unwrap_or(config.overlay.visibility);
+    config.overlay.position_x =
+        value_f64(&settings, "OverlayPositionX").unwrap_or(config.overlay.position_x);
+    config.overlay.position_y =
+        value_f64(&settings, "OverlayPositionY").unwrap_or(config.overlay.position_y);
+    config.overlay.duration_secs =
+        value_f64(&settings, "OverlayShowDuration").unwrap_or(config.overlay.duration_secs);
+    config.overlay.scale = value_u32(&settings, "OverlayScale").unwrap_or(config.overlay.scale);
+    config.overlay.show_text =
+        value_bool(&settings, "OverlayShowText").unwrap_or(config.overlay.show_text);
+    config.overlay.variant =
+        value_string(&settings, "OverlayVariant").unwrap_or(config.overlay.variant);
+    config.overlay.icon_style =
+        value_string(&settings, "OverlayIconStyle").unwrap_or(config.overlay.icon_style);
+    config.overlay.background_style =
+        value_string(&settings, "OverlayBackgroundStyle").unwrap_or(config.overlay.background_style);
+    config.overlay.background_opacity = value_u8(&settings, "OverlayOpacity")
+        .unwrap_or(config.overlay.background_opacity)
+        .min(100);
+    config.overlay.content_opacity = value_u8(&settings, "OverlayContentOpacity")
+        .unwrap_or(config.overlay.content_opacity)
+        .clamp(20, 100);
+    config.overlay.border_radius = value_u8(&settings, "OverlayBorderRadius")
+        .unwrap_or(config.overlay.border_radius)
+        .min(24);
+    config.overlay.show_border =
+        value_bool(&settings, "OverlayShowBorder").unwrap_or(config.overlay.show_border);
+
+    config.tray_icon.variant = match value_string(&settings, "TrayIconStyle").as_deref() {
+        Some("FilledCircle") => "ColorDot".to_string(),
+        Some("Dot") => "ColorDot".to_string(),
+        Some("Standard") => "StatusMic".to_string(),
+        _ => config.tray_icon.variant,
+    };
+
+    config.hotkeys = v1_hotkeys(&settings);
+    config.shortcut = config
+        .hotkeys
+        .iter()
+        .find(|binding| binding.action == HotkeyAction::ToggleMute && binding.gamepad.is_none())
+        .map(|binding| binding.shortcut.clone())
+        .unwrap_or_default();
+    normalize_hotkeys(&mut config.hotkeys);
+
+    save_config(&config)?;
+    sync_startup_registration(config.startup.launch_on_startup)?;
+    apply_live_config(&config, config_modified_time());
+    Ok(())
+}
+
 pub fn reset_settings() -> Result<()> {
     let config = Config::default();
     save_config(&config)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
+}
+
+fn v1_settings_path() -> Result<PathBuf> {
+    let local_appdata = std::env::var_os("LOCALAPPDATA").context("LOCALAPPDATA is not set")?;
+    Ok(PathBuf::from(local_appdata)
+        .join("silence")
+        .join("settings.json"))
+}
+
+fn value_bool(value: &Value, key: &str) -> Option<bool> {
+    value.get(key)?.as_bool()
+}
+
+fn value_string(value: &Value, key: &str) -> Option<String> {
+    value.get(key)?.as_str().map(str::to_string)
+}
+
+fn value_f64(value: &Value, key: &str) -> Option<f64> {
+    value.get(key)?.as_f64()
+}
+
+fn value_u8(value: &Value, key: &str) -> Option<u8> {
+    let number = value.get(key)?.as_u64()?;
+    u8::try_from(number).ok()
+}
+
+fn value_u16(value: &Value, key: &str) -> Option<u16> {
+    let number = value.get(key)?.as_u64()?;
+    u16::try_from(number).ok()
+}
+
+fn value_u32(value: &Value, key: &str) -> Option<u32> {
+    let number = value.get(key)?.as_u64()?;
+    u32::try_from(number).ok()
+}
+
+fn value_unit_percent(value: &Value, key: &str) -> Option<u8> {
+    let percent = (value.get(key)?.as_f64()? * 100.0).round();
+    Some(percent.clamp(0.0, 100.0) as u8)
+}
+
+fn v1_custom_sounds(settings: &Value) -> Vec<CustomSound> {
+    [
+        ("MuteSoundCustomPath", "v1-mute"),
+        ("UnmuteSoundCustomPath", "v1-unmute"),
+        ("HoldMuteSoundCustomPath", "v1-hold-mute"),
+        ("HoldUnmuteSoundCustomPath", "v1-hold-unmute"),
+    ]
+    .into_iter()
+    .filter_map(|(key, id)| {
+        let path = value_string(settings, key)?;
+        let path = PathBuf::from(path);
+        let original_file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("custom sound")
+            .to_string();
+        Some(CustomSound {
+            id: id.to_string(),
+            path,
+            original_file_name,
+        })
+    })
+    .collect()
+}
+
+fn v1_optional_sound_selection(
+    settings: &Value,
+    preloaded_key: &str,
+    custom_path_key: &str,
+) -> Option<String> {
+    if value_string(settings, custom_path_key).is_some() {
+        return Some(custom_sound_value(match custom_path_key {
+            "HoldMuteSoundCustomPath" => "v1-hold-mute",
+            "HoldUnmuteSoundCustomPath" => "v1-hold-unmute",
+            _ => "v1-custom",
+        }));
+    }
+    value_string(settings, preloaded_key).map(|theme| v1_sound_theme(&theme).to_string())
+}
+
+fn v1_sound_selection(
+    settings: &Value,
+    preloaded_key: &str,
+    custom_path_key: &str,
+    custom_id: &str,
+) -> String {
+    if value_string(settings, custom_path_key).is_some() {
+        return custom_sound_value(custom_id);
+    }
+    value_string(settings, preloaded_key)
+        .map(|theme| v1_sound_theme(&theme).to_string())
+        .unwrap_or_else(default_sound_theme)
+}
+
+fn v1_sound_theme(theme: &str) -> &'static str {
+    match theme {
+        "blob" => "blob",
+        "digital" => "digital",
+        "discord" => "discord",
+        "pop" => "pop",
+        "punchy" => "punchy",
+        "scifi" => "scifi",
+        "vibrant" => "vibrant",
+        "8bit" => "8bit",
+        "sifi" => "scifi",
+        _ => default_sound_theme_static(),
+    }
+}
+
+fn default_sound_theme_static() -> &'static str {
+    "8bit"
+}
+
+fn v1_hotkeys(settings: &Value) -> Vec<HotkeyBinding> {
+    let mut hotkeys = Vec::new();
+    if let Some(bindings) = settings.get("HotkeyBindings").and_then(Value::as_array) {
+        hotkeys.extend(bindings.iter().filter_map(v1_hotkey_binding));
+    }
+    if let Some(bindings) = settings.get("HoldHotkeyBindings").and_then(Value::as_array) {
+        let action = match value_string(settings, "HoldAction").as_deref() {
+            Some("HoldToMute") => HotkeyAction::HoldToMute,
+            Some("HoldToUnmute") => HotkeyAction::HoldToUnmute,
+            _ => HotkeyAction::HoldToToggle,
+        };
+        hotkeys.extend(bindings.iter().filter_map(|binding| {
+            let mut hotkey = v1_base_hotkey_binding(binding, action)?;
+            hotkey.ignore_modifiers = value_bool(settings, "IgnoreHoldModifiers").unwrap_or(false);
+            Some(hotkey)
+        }));
+    }
+    if hotkeys.is_empty() {
+        let mut hotkey = HotkeyBinding::default();
+        hotkey.shortcut = Shortcut {
+            ctrl: v1_modifier_enabled(settings, "HotkeyModifiers", 2),
+            alt: v1_modifier_enabled(settings, "HotkeyModifiers", 4),
+            shift: v1_modifier_enabled(settings, "HotkeyModifiers", 1),
+            win: v1_modifier_enabled(settings, "HotkeyModifiers", 8),
+            vk: value_u32(settings, "HotkeyCode").unwrap_or_default(),
+            mouse_buttons: Vec::new(),
+        };
+        hotkey.ignore_modifiers = value_bool(settings, "IgnoreModifiers").unwrap_or(false);
+        hotkeys.push(hotkey);
+    }
+    if hotkeys.is_empty() {
+        hotkeys.push(HotkeyBinding::default());
+    }
+    hotkeys
+}
+
+fn v1_hotkey_binding(binding: &Value) -> Option<HotkeyBinding> {
+    let action = match value_string(binding, "Action").as_deref() {
+        Some("Mute") => HotkeyAction::Mute,
+        Some("Unmute") => HotkeyAction::Unmute,
+        _ => HotkeyAction::ToggleMute,
+    };
+    let mut hotkey = v1_base_hotkey_binding(binding, action)?;
+    hotkey.ignore_modifiers = value_bool(binding, "IgnoreModifiers").unwrap_or(false);
+    Some(hotkey)
+}
+
+fn v1_base_hotkey_binding(binding: &Value, action: HotkeyAction) -> Option<HotkeyBinding> {
+    let mut hotkey = HotkeyBinding {
+        id: value_string(binding, "Id").filter(|id| !id.is_empty()).unwrap_or_else(default_hotkey_id),
+        action,
+        shortcut: Shortcut {
+            ctrl: v1_modifier_enabled(binding, "Modifiers", 2),
+            alt: v1_modifier_enabled(binding, "Modifiers", 4),
+            shift: v1_modifier_enabled(binding, "Modifiers", 1),
+            win: v1_modifier_enabled(binding, "Modifiers", 8),
+            vk: value_u32(binding, "KeyCode").unwrap_or_default(),
+            mouse_buttons: value_u32_array(binding, "ChordKeyCodes")
+                .into_iter()
+                .filter(|code| is_supported_mouse_button(*code))
+                .collect(),
+        },
+        gamepad: None,
+        ignore_modifiers: false,
+        target: None,
+        target_2: None,
+    };
+    if v1_input_device_is_gamepad(binding) {
+        hotkey.shortcut = Shortcut::default();
+        hotkey.gamepad = Some(GamepadShortcut {
+            inputs: v1_gamepad_inputs(binding),
+        });
+    }
+    Some(hotkey)
+}
+
+fn v1_input_device_is_gamepad(value: &Value) -> bool {
+    match value.get("DeviceKind") {
+        Some(Value::Number(number)) => number.as_u64() == Some(1),
+        Some(Value::String(kind)) => kind == "Gamepad",
+        _ => false,
+    }
+}
+
+fn v1_modifier_enabled(value: &Value, key: &str, flag: u64) -> bool {
+    match value.get(key) {
+        Some(Value::Number(number)) => number.as_u64().is_some_and(|bits| bits & flag != 0),
+        Some(Value::String(text)) => text.split(", ").any(|part| {
+            matches!(
+                (part, flag),
+                ("Shift", 1) | ("Ctrl", 2) | ("Alt", 4) | ("Win", 8)
+            )
+        }),
+        _ => false,
+    }
+}
+
+fn value_u32_array(value: &Value, key: &str) -> Vec<u32> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_u64().and_then(|number| u32::try_from(number).ok()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn v1_gamepad_inputs(binding: &Value) -> Vec<GamepadInput> {
+    let mask = binding
+        .get("GamepadButtonsMask")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let mut inputs = (0..16)
+        .filter(|index| mask & (1 << index) != 0)
+        .filter_map(|index| v1_gamepad_button_id(index + 1))
+        .collect::<Vec<_>>();
+    if inputs.is_empty() {
+        if let Some(button) = binding
+            .get("GamepadButton")
+            .and_then(Value::as_u64)
+            .and_then(v1_gamepad_button_id)
+        {
+            inputs.push(button);
+        }
+    }
+    inputs
+        .into_iter()
+        .map(|button| GamepadInput::Button { button })
+        .collect()
+}
+
+fn v1_gamepad_button_id(id: u64) -> Option<GamepadButton> {
+    Some(match id {
+        1 => GamepadButton::South,
+        2 => GamepadButton::East,
+        3 => GamepadButton::West,
+        4 => GamepadButton::North,
+        5 => GamepadButton::LeftTrigger,
+        6 => GamepadButton::RightTrigger,
+        7 => GamepadButton::LeftTrigger2,
+        8 => GamepadButton::RightTrigger2,
+        9 => GamepadButton::Select,
+        10 => GamepadButton::Start,
+        11 => GamepadButton::DPadUp,
+        12 => GamepadButton::DPadDown,
+        13 => GamepadButton::DPadLeft,
+        14 => GamepadButton::DPadRight,
+        15 => GamepadButton::LeftThumb,
+        16 => GamepadButton::RightThumb,
+        _ => return None,
+    })
 }
 
 pub fn open_external(target: &str) -> Result<()> {
