@@ -689,7 +689,8 @@ fn HotkeyPanel(
     let source = draft_source();
     let action = draft_action();
     let target_is_missing = action.requires_explicit_target()
-        && (draft_target().is_empty() || (action.needs_second_target() && draft_target_2().is_empty()));
+        && (draft_target().is_empty()
+            || (action.needs_second_target() && draft_target_2().is_empty()));
     let action_devices = devices.clone();
     let action_output_devices = output_devices.clone();
     let backdrop_class = if panel_closing() {
@@ -1587,7 +1588,8 @@ fn device_target_label(
 
     if matches!(
         action,
-        crate::HotkeyAction::SetDefaultOutputDevice | crate::HotkeyAction::ToggleDefaultOutputDevice
+        crate::HotkeyAction::SetDefaultOutputDevice
+            | crate::HotkeyAction::ToggleDefaultOutputDevice
     ) {
         return target
             .and_then(|target| output_devices.iter().find(|device| device.id == target))

@@ -184,48 +184,51 @@ pub fn render(
     rsx! {
         nav {
             class: "sidebar",
-            div {
-                class: "sidebar-brand",
-                img {
-                    class: "sidebar-brand-icon",
-                    src: APP_ICON,
-                    alt: "silence!"
-                }
-                span { "silence!" }
-            }
-            for &tab in SettingsTab::ALL {
-                button {
-                    class: if active_tab() == tab { "nav-item active" } else { "nav-item" },
-                    onclick: move |_| {
-                        select_tab(
-                            tab,
-                            active_tab,
-                            active_section,
-                            displayed_tab,
-                            transition,
-                            transition_id,
-                            pending_tab,
-                        );
-                    },
-                    span { class: "nav-icon-stack",
-                        span { class: "solar-icon nav-icon nav-icon-line {tab.icon()}" }
-                        span { class: "solar-icon nav-icon nav-icon-filled {tab.active_icon()}" }
+            div { class: "sidebar-scroll",
+                div {
+                    class: "sidebar-brand",
+                    img {
+                        class: "sidebar-brand-icon",
+                        src: APP_ICON,
+                        alt: "silence!"
                     }
-                    span { "{tab.label()}" }
+                    span { "silence!" }
                 }
 
-                if tab.sections().len() > 1 {
-                    div {
-                        class: if active_tab() == tab { "nav-subsections-shell open" } else { "nav-subsections-shell" },
-                        div { class: "nav-subsections",
-                            for section in tab.sections() {
-                                button {
-                                    class: if active_section() == section.id { "nav-subitem active" } else { "nav-subitem" },
-                                    tabindex: if active_tab() == tab { "0" } else { "-1" },
-                                    onclick: move |_| {
-                                        scroll_to_section(section.id);
-                                    },
-                                    "{section.label}"
+                for &tab in SettingsTab::ALL {
+                    button {
+                        class: if active_tab() == tab { "nav-item active" } else { "nav-item" },
+                        onclick: move |_| {
+                            select_tab(
+                                tab,
+                                active_tab,
+                                active_section,
+                                displayed_tab,
+                                transition,
+                                transition_id,
+                                pending_tab,
+                            );
+                        },
+                        span { class: "nav-icon-stack",
+                            span { class: "solar-icon nav-icon nav-icon-line {tab.icon()}" }
+                            span { class: "solar-icon nav-icon nav-icon-filled {tab.active_icon()}" }
+                        }
+                        span { "{tab.label()}" }
+                    }
+
+                    if tab.sections().len() > 1 {
+                        div {
+                            class: if active_tab() == tab { "nav-subsections-shell open" } else { "nav-subsections-shell" },
+                            div { class: "nav-subsections",
+                                for section in tab.sections() {
+                                    button {
+                                        class: if active_section() == section.id { "nav-subitem active" } else { "nav-subitem" },
+                                        tabindex: if active_tab() == tab { "0" } else { "-1" },
+                                        onclick: move |_| {
+                                            scroll_to_section(section.id);
+                                        },
+                                        "{section.label}"
+                                    }
                                 }
                             }
                         }

@@ -37,8 +37,8 @@ use windows::{
             DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, SelectObject,
         },
         Media::Audio::{
-            DEVICE_STATE_ACTIVE, Endpoints::IAudioEndpointVolume, IMMDevice, IMMDeviceEnumerator,
-            MMDeviceEnumerator, EDataFlow, ERole, eCapture, eCommunications, eConsole,
+            DEVICE_STATE_ACTIVE, EDataFlow, ERole, Endpoints::IAudioEndpointVolume, IMMDevice,
+            IMMDeviceEnumerator, MMDeviceEnumerator, eCapture, eCommunications, eConsole,
             eMultimedia, eRender,
         },
         System::{
@@ -93,7 +93,7 @@ use windows::{
             },
         },
     },
-    core::{GUID, HRESULT, Interface, IUnknown, IUnknown_Vtbl, PCWSTR, PROPVARIANT, PWSTR, w},
+    core::{GUID, HRESULT, IUnknown, IUnknown_Vtbl, Interface, PCWSTR, PROPVARIANT, PWSTR, w},
 };
 
 mod gui;
@@ -1170,8 +1170,7 @@ impl core::ops::Deref for IPolicyConfig {
 #[allow(non_snake_case)]
 struct IPolicyConfigVtbl {
     base__: IUnknown_Vtbl,
-    GetMixFormat:
-        unsafe extern "system" fn(*mut c_void, PCWSTR, *mut *mut c_void) -> HRESULT,
+    GetMixFormat: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut *mut c_void) -> HRESULT,
     GetDeviceFormat:
         unsafe extern "system" fn(*mut c_void, PCWSTR, i32, *mut *mut c_void) -> HRESULT,
     ResetDeviceFormat: unsafe extern "system" fn(*mut c_void, PCWSTR) -> HRESULT,
@@ -1179,14 +1178,17 @@ struct IPolicyConfigVtbl {
         unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void, *const c_void) -> HRESULT,
     GetProcessingPeriod:
         unsafe extern "system" fn(*mut c_void, PCWSTR, i32, *mut i64, *mut i64) -> HRESULT,
-    SetProcessingPeriod:
-        unsafe extern "system" fn(*mut c_void, PCWSTR, *const i64) -> HRESULT,
+    SetProcessingPeriod: unsafe extern "system" fn(*mut c_void, PCWSTR, *const i64) -> HRESULT,
     GetShareMode: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut c_void) -> HRESULT,
     SetShareMode: unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void) -> HRESULT,
     GetPropertyValue:
         unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void, *mut PROPVARIANT) -> HRESULT,
-    SetPropertyValue:
-        unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void, *const PROPVARIANT) -> HRESULT,
+    SetPropertyValue: unsafe extern "system" fn(
+        *mut c_void,
+        PCWSTR,
+        *const c_void,
+        *const PROPVARIANT,
+    ) -> HRESULT,
     SetDefaultEndpoint: unsafe extern "system" fn(*mut c_void, PCWSTR, ERole) -> HRESULT,
     SetEndpointVisibility: unsafe extern "system" fn(*mut c_void, PCWSTR, i32) -> HRESULT,
 }
@@ -2682,7 +2684,11 @@ fn append_disabled_menu_item(menu: HMENU, label: &str) {
 }
 
 fn handle_tray_device_command(command_id: usize) {
-    let command = TRAY_DEVICE_COMMANDS.lock().unwrap().get(&command_id).cloned();
+    let command = TRAY_DEVICE_COMMANDS
+        .lock()
+        .unwrap()
+        .get(&command_id)
+        .cloned();
     match command {
         Some(TrayDeviceCommand::Input(device_id)) => {
             if let Err(err) = set_default_capture_device(&device_id) {
@@ -3831,9 +3837,8 @@ pub fn set_default_render_device(device_id: &str) -> Result<()> {
 fn set_default_audio_device(device_id: &str) -> Result<()> {
     let device_id = wide(device_id);
     unsafe {
-        let policy: IPolicyConfig =
-            CoCreateInstance(&CLSID_POLICY_CONFIG_CLIENT, None, CLSCTX_ALL)
-                .context("create policy config client")?;
+        let policy: IPolicyConfig = CoCreateInstance(&CLSID_POLICY_CONFIG_CLIENT, None, CLSCTX_ALL)
+            .context("create policy config client")?;
         for role in [eConsole, eMultimedia, eCommunications] {
             (Interface::vtable(&policy).SetDefaultEndpoint)(
                 Interface::as_raw(&policy),

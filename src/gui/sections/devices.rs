@@ -71,7 +71,7 @@ fn DeviceCard(
                 h2 { "{title}" }
                 if let Some(desc) = description {
                     p { "{desc}" }
-                }   
+                }
             }
 
             if options.is_empty() {
@@ -91,9 +91,7 @@ fn DeviceCard(
 fn input_options(devices: Vec<crate::MicDevice>) -> Vec<SelectOption> {
     devices
         .into_iter()
-        .map(|device| {
-            device_option(device.id, device.name, device.is_default, "icon-microphone")
-        })
+        .map(|device| device_option(device.id, device.name, device.is_default, "icon-microphone"))
         .collect()
 }
 
