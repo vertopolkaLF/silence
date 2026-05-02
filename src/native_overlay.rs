@@ -726,14 +726,16 @@ impl NativeOverlay {
             return;
         }
 
-        let icon_color = if self.settings.icon_style == "Monochrome" {
-            if dark_background {
-                (255, 255, 255)
-            } else {
-                (0, 0, 0)
+        let icon_color = match self.settings.icon_style.as_str() {
+            "Monochrome" => {
+                if dark_background {
+                    (255, 255, 255)
+                } else {
+                    (0, 0, 0)
+                }
             }
-        } else {
-            state_accent(muted)
+            "SystemColor" => crate::WindowsAccent::load().accent,
+            _ => state_accent(muted),
         };
 
         let icon_left = if self.settings.show_text {

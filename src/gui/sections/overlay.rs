@@ -27,34 +27,19 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let background_opacity_progress = format!("{background_opacity}%");
     let border_radius_progress = format!("{:.0}%", border_radius as f64 / 24.0 * 100.0);
     let visibility_options = vec![
-        SelectOption::new("Always", "Always visible")
-            .detail("Keep the overlay on screen at all times")
-            .icon("icon-widget"),
-        SelectOption::new("WhenMuted", "Visible when muted")
-            .detail("Only show the overlay while the microphone is muted")
-            .icon("icon-mic"),
-        SelectOption::new("WhenUnmuted", "Visible when unmuted")
-            .detail("Only show the overlay while the microphone is live")
-            .icon("icon-mic"),
-        SelectOption::new("AfterToggle", "Show after toggle")
-            .detail("Appear briefly after a mute state change")
-            .icon("icon-record"),
+        SelectOption::new("Always", "Always visible").icon("icon-widget"),
+        SelectOption::new("WhenMuted", "Visible when muted").icon("icon-mic"),
+        SelectOption::new("WhenUnmuted", "Visible when unmuted").icon("icon-mic"),
+        SelectOption::new("AfterToggle", "Show after toggle").icon("icon-record"),
     ];
     let icon_style_options = vec![
-        SelectOption::new("Colored", "Colored")
-            .detail("Use red and green states")
-            .icon("icon-mic"),
-        SelectOption::new("Monochrome", "Monochrome")
-            .detail("Keep the icon neutral and let the shape carry meaning")
-            .icon("icon-mic"),
+        SelectOption::new("Colored", "Colored").icon("icon-mic"),
+        SelectOption::new("Monochrome", "Monochrome").icon("icon-mic"),
+        SelectOption::new("SystemColor", "System color").icon("icon-widget"),
     ];
     let background_options = vec![
-        SelectOption::new("Dark", "Dark")
-            .detail("Blends into most apps with low contrast")
-            .icon("icon-widget"),
-        SelectOption::new("Light", "Light")
-            .detail("Stays readable on darker workspaces")
-            .icon("icon-widget"),
+        SelectOption::new("Dark", "Dark").icon("icon-widget"),
+        SelectOption::new("Light", "Light").icon("icon-widget"),
     ];
 
     rsx! {
@@ -64,23 +49,17 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
             "data-settings-section": "true",
             div { class: "overlay-header section-head-row",
                 h1 { "Overlay" }
+                super::Toggle {
+                    checked: overlay.enabled,
+                    onchange: move |checked| {
+                        super::super::update_settings(settings, |config| {
+                            config.overlay.enabled = checked;
+                        });
+                    }
+                }
             }
 
             section { class: "sound-card",
-                div { class: "sound-card-title",
-                    div {
-                        h2 { "Enable overlay" }
-                    }
-                    super::Toggle {
-                        checked: overlay.enabled,
-                        onchange: move |checked| {
-                            super::super::update_settings(settings, |config| {
-                                config.overlay.enabled = checked;
-                            });
-                        }
-                    }
-                }
-
                 div { class: "overlay-field",
                     label { "Visibility" }
                     Select {

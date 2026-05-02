@@ -19,11 +19,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 id: "sounds-overview",
                 "data-settings-section": "true",
                 h1 { "Sounds" }
-            }
-
-            section { class: "sound-card",
-                div { class: "sound-card-title",
-                    h2 { "Enable sounds" }
                     super::Toggle {
                         checked: sound_settings.enabled,
                         onchange: move |checked| {
@@ -33,7 +28,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         }
                     }
                 }
-            }
 
             section { class: "sound-card",
                 div { class: "sound-row-head",
@@ -107,11 +101,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
                 div { class: "custom-sound-library",
-                    if custom_sounds.is_empty() {
-                        div { class: "custom-sound-empty",
-                            "No custom sounds yet. Add one and it’ll show up above the built-ins, like royalty but louder."
-                        }
-                    } else {
                         for custom_sound in custom_sounds {
                             CustomSoundFile {
                                 custom_sound,
@@ -120,7 +109,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 playing_preview
                             }
                         }
-                    }
+                    
                 }
             }
         }

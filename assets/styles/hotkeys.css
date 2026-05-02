@@ -34,9 +34,8 @@
 
 .hotkey-entry {
   display: grid;
-  gap: 10px;
   min-width: 0;
-  padding: 14px 0;
+  padding: 16px 0;
   border-top: 1px solid var(--border);
   transition: background var(--ui-transition), padding var(--ui-transition);
 }
@@ -50,16 +49,37 @@
 }
 
 .hotkey-action-cell,
+.hotkey-shortcut-cell,
 .hotkey-row-actions {
   min-width: 0;
 }
 
-.hotkey-action-cell h3,
-.hotkey-secondary-row span {
+.hotkey-action-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.hotkey-action-cell h3 {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hotkey-target-label,
+.hotkey-modifier-mode {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hotkey-shortcut-cell {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
 }
 
 .hotkey-row-actions {
@@ -68,18 +88,8 @@
   gap: 8px;
 }
 
-.hotkey-secondary-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 84px);
-  gap: 10px;
-  align-items: center;
-  min-width: 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .hotkey-modifier-mode {
-  justify-self: end;
+  max-width: 100%;
 }
 
 .danger-button:hover {
@@ -235,6 +245,55 @@
   gap: 6px;
 }
 
+.shortcut-record-viewport {
+  --record-pane-height: 68px;
+  height: var(--record-pane-height);
+  overflow: hidden;
+  transition: height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shortcut-record-track {
+  display: flex;
+  width: 200%;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.shortcut-record-viewport.keyboard-active .shortcut-record-track {
+  transform: translateX(0);
+}
+
+.shortcut-record-viewport.gamepad-active .shortcut-record-track {
+  transform: translateX(-50%);
+}
+
+.shortcut-record-pane {
+  width: 50%;
+  min-width: 0;
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shortcut-record-viewport.keyboard-active .gamepad-pane,
+.shortcut-record-viewport.gamepad-active .keyboard-pane {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shortcut-record-viewport.keyboard-active .keyboard-pane,
+.shortcut-record-viewport.gamepad-active .gamepad-pane {
+  opacity: 1;
+}
+
+.shortcut-record-viewport.keyboard-active .gamepad-pane {
+  transform: translateX(10px);
+}
+
+.shortcut-record-viewport.gamepad-active .keyboard-pane {
+  transform: translateX(-10px);
+}
+
 .shortcut-record-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -264,7 +323,7 @@
   display: flex;
   align-items: center;
   gap: var(--shortcut-gap);
-  padding: 4px 0 6px;
+  padding: 0px;
   overflow: hidden;
   --pending-offset: 0px;
   transition: gap 200ms ease;
@@ -481,8 +540,7 @@
 @media (max-width: 760px) {
 
   .hotkey-table-head,
-  .hotkey-main-row,
-  .hotkey-secondary-row {
+  .hotkey-main-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
   }
 

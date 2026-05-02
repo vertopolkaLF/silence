@@ -192,21 +192,71 @@ pub fn modal_host(
                         hold_progress.set(0.0);
                     }
                 } else if let Some(started) = modifier_hold_started() {
+                    let current = current_mouse_shortcut().or_else(current_modifier_shortcut);
+                    if let Some(shortcut) = current.clone() {
+                        recording_shortcut.set(Some(shortcut.clone()));
+                        live_modifier_shortcut.set(Some(shortcut));
+                    }
                     let progress = (started.elapsed().as_secs_f64()
                         / MODIFIER_HOLD_DURATION.as_secs_f64())
                     .clamp(0.0, 1.0);
                     hold_progress.set(progress);
                     if progress >= 1.0 {
-                        if let Some(shortcut) = current_modifier_shortcut() {
-                            draft_shortcut.set(Some(shortcut));
-                            recording_shortcut.set(Some(shortcut));
+                        if let Some(shortcut) = current {
+                            draft_shortcut.set(Some(shortcut.clone()));
+                            recording_shortcut.set(Some(shortcut.clone()));
+                            if let Some(id) = match modal() {
+                                Some(ModalMode::Edit(id)) => Some(id),
+                                _ => None,
+                            } {
+                                apply_draft_to_binding(
+                                    settings,
+                                    id,
+                                    shortcut.clone(),
+                                    None,
+                                    draft_action(),
+                                    draft_target(),
+                                    draft_ignore_modifiers(),
+                                );
+                            }
                             recording.set(false);
                             modifier_hold_started.set(None);
                             hold_progress.set(0.0);
                             live_modifier_shortcut.set(None);
                             animate_pending_out(pending_exiting);
+                        } else {
+                            recording_shortcut.set(None);
+                            live_modifier_shortcut.set(None);
+                            modifier_hold_started.set(None);
+                            hold_progress.set(0.0);
                         }
                     }
+                } else if let Some(shortcut) = crate::take_settings_mouse_pressed_shortcut() {
+                    recording_shortcut.set(Some(shortcut.clone()));
+                    live_modifier_shortcut.set(Some(shortcut.clone()));
+                    draft_shortcut.set(Some(shortcut.clone()));
+                    if let Some(id) = match modal() {
+                        Some(ModalMode::Edit(id)) => Some(id),
+                        _ => None,
+                    } {
+                        apply_draft_to_binding(
+                            settings,
+                            id,
+                            shortcut.clone(),
+                            None,
+                            draft_action(),
+                            draft_target(),
+                            draft_ignore_modifiers(),
+                        );
+                    }
+                    recording.set(false);
+                    live_modifier_shortcut.set(None);
+                    hold_progress.set(0.0);
+                } else if let Some(shortcut) = current_mouse_shortcut() {
+                    recording_shortcut.set(Some(shortcut.clone()));
+                    live_modifier_shortcut.set(Some(shortcut));
+                    modifier_hold_started.set(Some(Instant::now()));
+                    hold_progress.set(0.0);
                 } else if hold_progress() != 0.0 {
                     hold_progress.set(0.0);
                 }
@@ -538,6 +588,56 @@ fn HotkeyPanel(
     } else {
         "hotkey-editor-panel"
     };
+    let source_class = match source {
+        HotkeySource::Keyboard => "keyboard-active",
+        HotkeySource::Gamepad => "gamepad-active",
+    };
+    let record_height_source = source;
+    let record_height_key = format!(
+        "{}:{}:{}:{}:{}:{}:{}:{}",
+        recording(),
+        draft_shortcut()
+            .map(|shortcut| shortcut.display())
+            .unwrap_or_default(),
+        draft_gamepad()
+            .map(|shortcut| shortcut.parts().join("|"))
+            .unwrap_or_default(),
+        recording_shortcut()
+            .map(|shortcut| shortcut.display())
+            .unwrap_or_default(),
+        recording_gamepad()
+            .map(|shortcut| shortcut.parts().join("|"))
+            .unwrap_or_default(),
+        live_modifier_shortcut()
+            .map(|shortcut| shortcut.display())
+            .unwrap_or_default(),
+        modifier_hold_started().is_some(),
+        pending_exiting()
+    );
+
+    use_effect(use_reactive!(|record_height_source, record_height_key| {
+        let _ = record_height_key.as_str();
+        spawn(async move {
+            let active_pane = match record_height_source {
+                HotkeySource::Keyboard => "keyboard",
+                HotkeySource::Gamepad => "gamepad",
+            };
+            let script = format!(
+                r#"
+const viewport = document.querySelector('[data-hotkey-record-viewport]');
+const pane = document.querySelector(`[data-hotkey-record-pane="{active_pane}"]`);
+if (viewport && pane) {{
+  const applyHeight = () => {{
+    viewport.style.setProperty('--record-pane-height', `${{pane.scrollHeight}}px`);
+  }};
+  requestAnimationFrame(() => requestAnimationFrame(applyHeight));
+  setTimeout(applyHeight, 120);
+}}
+"#
+            );
+            let _ = dioxus::document::eval(&script).await;
+        });
+    }));
 
     use_future(move || {
         let alt_space_editing_id = alt_space_editing_id.clone();
@@ -553,14 +653,15 @@ fn HotkeyPanel(
                         shift: false,
                         win: false,
                         vk: 0x20,
+                        mouse_buttons: Vec::new(),
                     };
-                    draft_shortcut.set(Some(shortcut));
-                    recording_shortcut.set(Some(shortcut));
+                    draft_shortcut.set(Some(shortcut.clone()));
+                    recording_shortcut.set(Some(shortcut.clone()));
                     if let Some(id) = alt_space_editing_id.clone() {
                         apply_draft_to_binding(
                             settings,
                             id,
-                            shortcut,
+                            shortcut.clone(),
                             None,
                             draft_action(),
                             draft_target(),
@@ -596,19 +697,19 @@ fn HotkeyPanel(
                     if let Some(shortcut) = shortcut_from_keyboard_data(&evt.data()) {
                         if shortcut.vk == 0 {
                             let current = current_modifier_shortcut().unwrap_or(shortcut);
-                            if live_modifier_shortcut() != Some(current) {
+                            if live_modifier_shortcut() != Some(current.clone()) {
                                 modifier_hold_started.set(Some(Instant::now()));
                                 hold_progress.set(0.0);
                             }
                             live_modifier_shortcut.set(Some(current));
                         } else {
-                            draft_shortcut.set(Some(shortcut));
-                            recording_shortcut.set(Some(shortcut));
+                            draft_shortcut.set(Some(shortcut.clone()));
+                            recording_shortcut.set(Some(shortcut.clone()));
                             if let Some(id) = keydown_editing_id.clone() {
                                 apply_draft_to_binding(
                                     settings,
                                     id,
-                                    shortcut,
+                                    shortcut.clone(),
                                     None,
                                     draft_action(),
                                     draft_target(),
@@ -631,7 +732,7 @@ fn HotkeyPanel(
                     }
                     evt.prevent_default();
                     let current = current_modifier_shortcut();
-                    live_modifier_shortcut.set(current);
+                    live_modifier_shortcut.set(current.clone());
                     if current.is_none() {
                         if modifier_hold_started().is_some() {
                             animate_pending_out(pending_exiting);
@@ -680,58 +781,101 @@ fn HotkeyPanel(
                     }
                     div { class: "field-group modal-field",
                         label { if source == HotkeySource::Gamepad { "Gamepad input" } else { "Shortcut" } }
-                            div { class: "shortcut-record-stack",
-                                div { class: "shortcut-record-row",
-                                    KeyDisplay {
-                                        display_id: Some("hotkey-editor-shortcut".to_string()),
-                                        shortcut: if source == HotkeySource::Keyboard {
-                                            if recording() {
-                                                live_modifier_shortcut().or_else(|| recording_shortcut())
-                                            } else {
-                                                draft_shortcut()
+                            div {
+                                class: "shortcut-record-viewport {source_class}",
+                                "data-hotkey-record-viewport": "true",
+                                div { class: "shortcut-record-track",
+                                    div {
+                                        class: "shortcut-record-pane keyboard-pane",
+                                        "data-hotkey-record-pane": "keyboard",
+                                        div { class: "shortcut-record-stack",
+                                            div { class: "shortcut-record-row",
+                                                KeyDisplay {
+                                                    display_id: Some("hotkey-editor-keyboard-shortcut".to_string()),
+                                                    shortcut: if recording() && source == HotkeySource::Keyboard {
+                                                        live_modifier_shortcut().or_else(|| recording_shortcut())
+                                                    } else {
+                                                        draft_shortcut()
+                                                    },
+                                                    gamepad: None,
+                                                    recording: recording() && source == HotkeySource::Keyboard,
+                                                    boxed: true,
+                                                    animate: true,
+                                                    modifier_hold_active: source == HotkeySource::Keyboard && modifier_hold_started().is_some(),
+                                                    pending_exiting: source == HotkeySource::Keyboard && pending_exiting(),
+                                                    hold_progress: if source == HotkeySource::Keyboard { hold_progress() } else { 0.0 }
+                                                }
+                                                button {
+                                                    class: "secondary",
+                                                    onclick: move |_| {
+                                                        draft_source.set(HotkeySource::Keyboard);
+                                                        let next = !(recording() && draft_source() == HotkeySource::Keyboard);
+                                                        recording.set(next);
+                                                        recording_shortcut.set(None);
+                                                        recording_gamepad.set(None);
+                                                        if modifier_hold_started().is_some() {
+                                                            animate_pending_out(pending_exiting);
+                                                        }
+                                                        modifier_hold_started.set(None);
+                                                        hold_progress.set(0.0);
+                                                        live_modifier_shortcut.set(None);
+                                                    },
+                                                    span { class: "solar-icon button-icon icon-record" }
+                                                    if recording() && source == HotkeySource::Keyboard {
+                                                        "Cancel"
+                                                    } else {
+                                                        "Record"
+                                                    }
+                                                }
                                             }
-                                        } else {
-                                            None
-                                        },
-                                        gamepad: if source == HotkeySource::Gamepad && recording() {
-                                            recording_gamepad().or_else(|| draft_gamepad())
-                                        } else {
-                                            draft_gamepad()
-                                        },
-                                        recording: recording(),
-                                        boxed: true,
-                                        animate: true,
-                                        modifier_hold_active: modifier_hold_started().is_some(),
-                                        pending_exiting: pending_exiting(),
-                                        hold_progress: hold_progress()
-                                    }
-                                    button {
-                                        class: "secondary",
-                                        onclick: move |_| {
-                                            let next = !recording();
-                                            recording.set(next);
-                                            recording_shortcut.set(None);
-                                            recording_gamepad.set(None);
-                                            if modifier_hold_started().is_some() {
-                                                animate_pending_out(pending_exiting);
-                                            }
-                                            modifier_hold_started.set(None);
-                                            hold_progress.set(0.0);
-                                            live_modifier_shortcut.set(None);
-                                        },
-                                        span { class: "solar-icon button-icon icon-record" }
-                                        if recording() {
-                                            "Cancel"
-                                        } else {
-                                            "Record"
+                                            p { class: "shortcut-record-hint", "Hold to bind only modifier keys" }
                                         }
                                     }
-                                }
-                                p { class: "shortcut-record-hint",
-                                    if source == HotkeySource::Gamepad {
-                                        "Hold one control to bind it, or press a second while the first is still held"
-                                    } else {
-                                        "Hold to bind only modifier keys"
+                                    div {
+                                        class: "shortcut-record-pane gamepad-pane",
+                                        "data-hotkey-record-pane": "gamepad",
+                                        div { class: "shortcut-record-stack",
+                                            div { class: "shortcut-record-row",
+                                                KeyDisplay {
+                                                    display_id: Some("hotkey-editor-gamepad-shortcut".to_string()),
+                                                    shortcut: None,
+                                                    gamepad: if source == HotkeySource::Gamepad && recording() {
+                                                        recording_gamepad().or_else(|| draft_gamepad())
+                                                    } else {
+                                                        draft_gamepad()
+                                                    },
+                                                    recording: recording() && source == HotkeySource::Gamepad,
+                                                    boxed: true,
+                                                    animate: true,
+                                                    modifier_hold_active: source == HotkeySource::Gamepad && modifier_hold_started().is_some(),
+                                                    pending_exiting: source == HotkeySource::Gamepad && pending_exiting(),
+                                                    hold_progress: if source == HotkeySource::Gamepad { hold_progress() } else { 0.0 }
+                                                }
+                                                button {
+                                                    class: "secondary",
+                                                    onclick: move |_| {
+                                                        draft_source.set(HotkeySource::Gamepad);
+                                                        let next = !(recording() && draft_source() == HotkeySource::Gamepad);
+                                                        recording.set(next);
+                                                        recording_shortcut.set(None);
+                                                        recording_gamepad.set(None);
+                                                        if modifier_hold_started().is_some() {
+                                                            animate_pending_out(pending_exiting);
+                                                        }
+                                                        modifier_hold_started.set(None);
+                                                        hold_progress.set(0.0);
+                                                        live_modifier_shortcut.set(None);
+                                                    },
+                                                    span { class: "solar-icon button-icon icon-record" }
+                                                    if recording() && source == HotkeySource::Gamepad {
+                                                        "Cancel"
+                                                    } else {
+                                                        "Record"
+                                                    }
+                                                }
+                                            }
+                                            p { class: "shortcut-record-hint", "Hold one control to bind it, or press a second while the first is still held" }
+                                        }
                                     }
                                 }
                             }
@@ -982,34 +1126,30 @@ fn HotkeyRow(
 ) -> Element {
     let id = hotkey.id.clone();
     let action = hotkey.action;
-    let target_label = if action.needs_target() {
-        target_label(hotkey.target.as_deref(), &devices)
-    } else {
-        "No target needed".to_string()
-    };
-    let modifier_label = if hotkey.gamepad.is_some() {
-        "Any gamepad"
-    } else if hotkey.ignore_modifiers {
-        "Ignores modifiers"
-    } else {
-        "Exact modifiers"
-    };
-
+    let target_label = target_label(hotkey.target.as_deref(), &devices);
     rsx! {
         div { class: "hotkey-entry",
             div { class: "hotkey-main-row",
                 div { class: "hotkey-action-cell",
                     h3 { "{action.label()}" }
+                    if action.needs_target() {
+                        span { class: "hotkey-target-label", "{target_label}" }
+                    }
                 }
-                KeyDisplay {
-                    shortcut: Some(hotkey.shortcut),
-                    gamepad: hotkey.gamepad.clone(),
-                    recording: false,
-                    boxed: false,
-                    animate: false,
-                    modifier_hold_active: false,
-                    pending_exiting: false,
-                    hold_progress: 0.0
+                div { class: "hotkey-shortcut-cell",
+                    KeyDisplay {
+                    shortcut: Some(hotkey.shortcut.clone()),
+                        gamepad: hotkey.gamepad.clone(),
+                        recording: false,
+                        boxed: false,
+                        animate: false,
+                        modifier_hold_active: false,
+                        pending_exiting: false,
+                        hold_progress: 0.0
+                    }
+                    if hotkey.gamepad.is_none() && hotkey.ignore_modifiers {
+                        span { class: "hotkey-modifier-mode", "Ignores modifiers" }
+                    }
                 }
                 div { class: "hotkey-row-actions",
                     button {
@@ -1031,12 +1171,6 @@ fn HotkeyRow(
                         span { class: "solar-icon icon-close" }
                     }
                 }
-            }
-
-            div { class: "hotkey-secondary-row",
-                span { "{action.label()}" }
-                span { "{target_label}" }
-                span { class: "hotkey-modifier-mode", "{modifier_label}" }
             }
         }
     }
@@ -1157,9 +1291,15 @@ fn action_options() -> Vec<SelectOption> {
                 crate::HotkeyAction::ToggleMute => option.group("Mute").icon("icon-mic"),
                 crate::HotkeyAction::Mute => option.group("Mute").icon("icon-mic"),
                 crate::HotkeyAction::Unmute => option.group("Mute").icon("icon-mic"),
-                crate::HotkeyAction::HoldToToggle => option.group("Hold to mute").icon("icon-mic"),
-                crate::HotkeyAction::HoldToMute => option.group("Hold to mute").icon("icon-mic"),
-                crate::HotkeyAction::HoldToUnmute => option.group("Hold to mute").icon("icon-mic"),
+                crate::HotkeyAction::HoldToToggle => {
+                    option.group("Hold to mute").icon("icon-oven-mitts")
+                }
+                crate::HotkeyAction::HoldToMute => {
+                    option.group("Hold to mute").icon("icon-oven-mitts")
+                }
+                crate::HotkeyAction::HoldToUnmute => {
+                    option.group("Hold to mute").icon("icon-oven-mitts")
+                }
                 crate::HotkeyAction::OpenSettings => option.group("Other").icon("icon-settings"),
             }
         })
@@ -1193,7 +1333,7 @@ fn sync_legacy_shortcut(config: &mut crate::Config) {
         .find(|binding| {
             binding.gamepad.is_none() && binding.action == crate::HotkeyAction::ToggleMute
         })
-        .map(|binding| binding.shortcut)
+        .map(|binding| binding.shortcut.clone())
     {
         config.shortcut = shortcut;
     }
@@ -1210,6 +1350,7 @@ fn shortcut_from_keyboard_data(data: &dioxus::events::KeyboardData) -> Option<cr
         shift: modifiers.shift() || matches!(vk, crate::VK_SHIFT),
         win: modifiers.meta() || matches!(vk, crate::VK_LWIN | crate::VK_RWIN),
         vk: if modifier_only { 0 } else { vk },
+        mouse_buttons: Vec::new(),
     })
 }
 
@@ -1225,10 +1366,28 @@ fn current_modifier_shortcut() -> Option<crate::Shortcut> {
             shift,
             win,
             vk: 0,
+            mouse_buttons: Vec::new(),
         })
     } else {
         None
     }
+}
+
+fn current_mouse_shortcut() -> Option<crate::Shortcut> {
+    let mut mouse_buttons = crate::settings_mouse_held_buttons();
+    mouse_buttons.truncate(2);
+    if mouse_buttons.is_empty() {
+        return None;
+    }
+
+    Some(crate::Shortcut {
+        ctrl: crate::key_down(crate::VK_CONTROL),
+        alt: crate::key_down(crate::VK_MENU),
+        shift: crate::key_down(crate::VK_SHIFT),
+        win: crate::key_down(crate::VK_LWIN) || crate::key_down(crate::VK_RWIN),
+        vk: 0,
+        mouse_buttons,
+    })
 }
 
 fn vk_from_code(code: &str) -> Option<u32> {

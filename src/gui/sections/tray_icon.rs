@@ -12,15 +12,9 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let preview_tone_class = if muted { "muted" } else { "live" };
     let status_controls_open = tray_icon.variant == "StatusMic";
     let status_style_options = vec![
-        SelectOption::new("Colored", "Colored")
-            .detail("Use red and green microphone states")
-            .icon("icon-mic"),
-        SelectOption::new("Monochrome", "Monochrome")
-            .detail("Keep the tray icon neutral")
-            .icon("icon-mic"),
-        SelectOption::new("SystemColor", "System color")
-            .detail("Use the current Windows accent color")
-            .icon("icon-widget"),
+        SelectOption::new("Colored", "Colored").icon("icon-mic"),
+        SelectOption::new("Monochrome", "Monochrome").icon("icon-mic"),
+        SelectOption::new("SystemColor", "System color").icon("icon-widget"),
     ];
 
     rsx! {
