@@ -208,6 +208,7 @@ pub fn update_settings(
     let mut config = crate::load_config().unwrap_or_else(|_| settings().config);
     let startup_was_enabled = config.startup.launch_on_startup;
     update(&mut config);
+    crate::normalize_hotkeys(&mut config.hotkeys);
     let _ = crate::save_config(&config);
     if config.startup.launch_on_startup != startup_was_enabled {
         let _ = crate::sync_startup_registration(config.startup.launch_on_startup);

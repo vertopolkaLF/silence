@@ -109,7 +109,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 playing_preview
                             }
                         }
-                    
+
                 }
             }
         }

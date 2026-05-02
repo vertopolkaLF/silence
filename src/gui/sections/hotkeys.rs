@@ -106,6 +106,7 @@ pub fn modal_host(
     let pending_exiting = use_signal(|| false);
     let panel_closing = use_signal(|| false);
     let mut live_modifier_shortcut = use_signal(|| None::<crate::Shortcut>);
+    let mut hold_timer_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut draft_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut recording_shortcut = use_signal(|| None::<crate::Shortcut>);
     let mut draft_gamepad = use_signal(|| None::<crate::GamepadShortcut>);
@@ -197,6 +198,39 @@ pub fn modal_host(
                         recording_shortcut.set(Some(shortcut.clone()));
                         live_modifier_shortcut.set(Some(shortcut));
                     }
+                    if current != hold_timer_shortcut() {
+                        hold_timer_shortcut.set(current.clone());
+                        modifier_hold_started.set(current.as_ref().map(|_| Instant::now()));
+                        hold_progress.set(0.0);
+                        continue;
+                    }
+                    if let Some(shortcut) = current.clone().filter(|shortcut| {
+                        !shortcut.mouse_buttons.is_empty() && shortcut_has_modifier(shortcut)
+                    }) {
+                        draft_shortcut.set(Some(shortcut.clone()));
+                        recording_shortcut.set(Some(shortcut.clone()));
+                        if let Some(id) = match modal() {
+                            Some(ModalMode::Edit(id)) => Some(id),
+                            _ => None,
+                        } {
+                            apply_draft_to_binding(
+                                settings,
+                                id,
+                                shortcut.clone(),
+                                None,
+                                draft_action(),
+                                draft_target(),
+                                draft_ignore_modifiers(),
+                            );
+                        }
+                        recording.set(false);
+                        modifier_hold_started.set(None);
+                        hold_timer_shortcut.set(None);
+                        hold_progress.set(0.0);
+                        live_modifier_shortcut.set(None);
+                        animate_pending_out(pending_exiting);
+                        continue;
+                    }
                     let progress = (started.elapsed().as_secs_f64()
                         / MODIFIER_HOLD_DURATION.as_secs_f64())
                     .clamp(0.0, 1.0);
@@ -221,12 +255,14 @@ pub fn modal_host(
                             }
                             recording.set(false);
                             modifier_hold_started.set(None);
+                            hold_timer_shortcut.set(None);
                             hold_progress.set(0.0);
                             live_modifier_shortcut.set(None);
                             animate_pending_out(pending_exiting);
                         } else {
                             recording_shortcut.set(None);
                             live_modifier_shortcut.set(None);
+                            hold_timer_shortcut.set(None);
                             modifier_hold_started.set(None);
                             hold_progress.set(0.0);
                         }
@@ -251,16 +287,20 @@ pub fn modal_host(
                     }
                     recording.set(false);
                     live_modifier_shortcut.set(None);
+                    hold_timer_shortcut.set(None);
                     hold_progress.set(0.0);
                 } else if let Some(shortcut) = current_mouse_shortcut() {
                     recording_shortcut.set(Some(shortcut.clone()));
-                    live_modifier_shortcut.set(Some(shortcut));
+                    live_modifier_shortcut.set(Some(shortcut.clone()));
+                    hold_timer_shortcut.set(Some(shortcut));
                     modifier_hold_started.set(Some(Instant::now()));
                     hold_progress.set(0.0);
                 } else if hold_progress() != 0.0 {
+                    hold_timer_shortcut.set(None);
                     hold_progress.set(0.0);
                 }
             } else if hold_progress() != 0.0 {
+                hold_timer_shortcut.set(None);
                 hold_progress.set(0.0);
             }
             tokio::time::sleep(Duration::from_millis(40)).await;
@@ -696,6 +736,31 @@ if (viewport && pane) {{
                     evt.prevent_default();
                     if let Some(shortcut) = shortcut_from_keyboard_data(&evt.data()) {
                         if shortcut.vk == 0 {
+                            if let Some(mouse_shortcut) = current_mouse_shortcut()
+                                .filter(shortcut_has_modifier)
+                            {
+                                draft_shortcut.set(Some(mouse_shortcut.clone()));
+                                recording_shortcut.set(Some(mouse_shortcut.clone()));
+                                if let Some(id) = keydown_editing_id.clone() {
+                                    apply_draft_to_binding(
+                                        settings,
+                                        id,
+                                        mouse_shortcut.clone(),
+                                        None,
+                                        draft_action(),
+                                        draft_target(),
+                                        draft_ignore_modifiers(),
+                                    );
+                                }
+                                if modifier_hold_started().is_some() {
+                                    animate_pending_out(pending_exiting);
+                                }
+                                recording.set(false);
+                                modifier_hold_started.set(None);
+                                hold_progress.set(0.0);
+                                live_modifier_shortcut.set(None);
+                                return;
+                            }
                             let current = current_modifier_shortcut().unwrap_or(shortcut);
                             if live_modifier_shortcut() != Some(current.clone()) {
                                 modifier_hold_started.set(Some(Instant::now()));
@@ -1388,6 +1453,10 @@ fn current_mouse_shortcut() -> Option<crate::Shortcut> {
         vk: 0,
         mouse_buttons,
     })
+}
+
+fn shortcut_has_modifier(shortcut: &crate::Shortcut) -> bool {
+    shortcut.ctrl || shortcut.alt || shortcut.shift || shortcut.win
 }
 
 fn vk_from_code(code: &str) -> Option<u32> {

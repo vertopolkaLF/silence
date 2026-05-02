@@ -138,6 +138,7 @@
   border-radius: 24px 0 0 24px;
   background: var(--surface);
   box-shadow: -18px 0 44px var(--shadow-medium);
+  outline: none !important;
   animation: panel-slide-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 

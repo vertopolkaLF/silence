@@ -75,15 +75,15 @@ use windows::{
                 DispatchMessageW, FindWindowW, GWL_WNDPROC, GetCursorPos, GetMessageW,
                 GetSystemMetrics, HHOOK, HICON, IDC_ARROW, IDI_APPLICATION, IsIconic,
                 KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW,
-                MENU_ITEM_FLAGS, MSG, PostQuitMessage, RegisterClassW, SC_KEYMENU, SM_CXSCREEN,
-                SM_CYSCREEN, SW_RESTORE, SendMessageW, SetForegroundWindow, SetTimer,
+                MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostQuitMessage, RegisterClassW, SC_KEYMENU,
+                SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SendMessageW, SetForegroundWindow, SetTimer,
                 SetWindowLongPtrW, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, MSLLHOOKSTRUCT,
-                WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY,
-                WM_DISPLAYCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN,
-                WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP,
-                WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED, WM_TIMER, WM_XBUTTONDOWN,
-                WM_XBUTTONUP, WNDCLASSW, WNDPROC, WS_OVERLAPPED,
+                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
+                WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN,
+                WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
+                WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND,
+                WM_THEMECHANGED, WM_TIMER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
+                WS_OVERLAPPED,
             },
         },
     },
@@ -157,7 +157,8 @@ impl Shortcut {
     fn normalized(mut self) -> Self {
         self.mouse_buttons
             .retain(|button| is_supported_mouse_button(*button));
-        self.mouse_buttons.sort_by_key(|button| mouse_button_sort_key(*button));
+        self.mouse_buttons
+            .sort_by_key(|button| mouse_button_sort_key(*button));
         self.mouse_buttons.dedup();
         if !self.mouse_buttons.is_empty() {
             self.vk = 0;
@@ -180,7 +181,10 @@ impl Shortcut {
             {
                 return false;
             }
-            if !self.mouse_buttons.contains(&vk) {
+            let has_modifier = self.ctrl || self.alt || self.shift || self.win;
+            let event_is_mouse_button = self.mouse_buttons.contains(&vk);
+            let event_is_required_modifier = has_modifier && is_modifier(vk);
+            if !event_is_mouse_button && !event_is_required_modifier {
                 return false;
             }
             if ignore_modifiers {
@@ -1052,6 +1056,7 @@ static AUDIO_ENGINE: Lazy<Mutex<Option<AudioEngine>>> = Lazy::new(|| Mutex::new(
 static SETTINGS_HOTKEY_RECORDING: AtomicBool = AtomicBool::new(false);
 static SETTINGS_ALT_SPACE_RECORDED: AtomicBool = AtomicBool::new(false);
 static SETTINGS_GAMEPAD_RECORDING: AtomicBool = AtomicBool::new(false);
+static MOUSE_HOTKEYS_ENABLED: AtomicBool = AtomicBool::new(true);
 static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
 static SETTINGS_MOUSE_HELD: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
@@ -1317,6 +1322,8 @@ fn main() -> Result<()> {
             )
             .with_custom_head(gui::settings_startup_head())
             .with_background_color((18, 18, 18, 255));
+        MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
+        install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
         dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(|| {
             start_gamepad_monitor(false);
             start_xinput_monitor(false);
@@ -2296,10 +2303,15 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     if is_down {
         let mut actions = Vec::new();
         let mut suppress_key = false;
+        let modifiers;
         {
             let mut state = STATE.lock().unwrap();
             update_modifier_state(&mut state.modifiers, vk, true);
-            let modifiers = state.modifiers;
+            modifiers = state.modifiers;
+        }
+        record_mouse_shortcut_with_modifiers(modifiers);
+        {
+            let mut state = STATE.lock().unwrap();
             let matching_hotkeys: Vec<HotkeyBinding> = state
                 .hotkeys
                 .iter()
@@ -2308,14 +2320,12 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                     if hotkey.shortcut.vk == 0 && !is_modifier(vk) {
                         return false;
                     }
-                    hotkey
-                        .shortcut
-                        .is_pressed(
-                            vk,
-                            hotkey.ignore_modifiers,
-                            &modifiers,
-                            &state.mouse_buttons_down,
-                        )
+                    hotkey.shortcut.is_pressed(
+                        vk,
+                        hotkey.ignore_modifiers,
+                        &modifiers,
+                        &state.mouse_buttons_down,
+                    )
                 })
                 .cloned()
                 .collect();
@@ -2363,14 +2373,12 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 hotkey.shortcut.vk == vk
                     || (hotkey.shortcut.vk == 0
                         && is_modifier(vk)
-                        && !hotkey
-                            .shortcut
-                            .is_pressed(
-                                vk,
-                                hotkey.ignore_modifiers,
-                                &modifiers,
-                                &state.mouse_buttons_down,
-                            ))
+                        && !hotkey.shortcut.is_pressed(
+                            vk,
+                            hotkey.ignore_modifiers,
+                            &modifiers,
+                            &state.mouse_buttons_down,
+                        ))
             })
             .cloned()
             .collect();
@@ -2414,26 +2422,16 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
     let down = mouse_button_event_is_down(event);
 
     if SETTINGS_HOTKEY_RECORDING.load(Ordering::Relaxed) {
-        let mut held = SETTINGS_MOUSE_HELD.lock().unwrap();
         if down {
-            held.insert(button);
-            let modifiers = current_modifier_state();
-            if modifiers.ctrl || modifiers.alt || modifiers.shift || modifiers.win {
-                let mut mouse_buttons = held.iter().copied().collect::<Vec<_>>();
-                mouse_buttons.sort_by_key(|button| mouse_button_sort_key(*button));
-                mouse_buttons.truncate(2);
-                *SETTINGS_MOUSE_PRESSED_SHORTCUT.lock().unwrap() = Some(Shortcut {
-                    ctrl: modifiers.ctrl,
-                    alt: modifiers.alt,
-                    shift: modifiers.shift,
-                    win: modifiers.win,
-                    vk: 0,
-                    mouse_buttons,
-                });
-            }
+            SETTINGS_MOUSE_HELD.lock().unwrap().insert(button);
+            record_mouse_shortcut_with_modifiers(current_modifier_state());
         } else {
-            held.remove(&button);
+            SETTINGS_MOUSE_HELD.lock().unwrap().remove(&button);
         }
+    }
+
+    if !MOUSE_HOTKEYS_ENABLED.load(Ordering::Relaxed) {
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
     let mut actions = Vec::new();
@@ -2458,6 +2456,35 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
     }
 
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
+}
+
+fn record_mouse_shortcut_with_modifiers(modifiers: ModifierState) {
+    if !SETTINGS_HOTKEY_RECORDING.load(Ordering::Relaxed)
+        || !(modifiers.ctrl || modifiers.alt || modifiers.shift || modifiers.win)
+    {
+        return;
+    }
+
+    let mut mouse_buttons = SETTINGS_MOUSE_HELD
+        .lock()
+        .unwrap()
+        .iter()
+        .copied()
+        .collect::<Vec<_>>();
+    if mouse_buttons.is_empty() {
+        return;
+    }
+
+    mouse_buttons.sort_by_key(|button| mouse_button_sort_key(*button));
+    mouse_buttons.truncate(2);
+    *SETTINGS_MOUSE_PRESSED_SHORTCUT.lock().unwrap() = Some(Shortcut {
+        ctrl: modifiers.ctrl,
+        alt: modifiers.alt,
+        shift: modifiers.shift,
+        win: modifiers.win,
+        vk: 0,
+        mouse_buttons,
+    });
 }
 
 fn mouse_press_actions(state: &mut AppState, button: u32) -> Vec<HotkeyRequest> {
