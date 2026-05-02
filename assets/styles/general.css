@@ -65,6 +65,55 @@
   color: var(--muted);
 }
 
+.devices-panel {
+  display: grid;
+  gap: 18px;
+  max-width: 720px;
+}
+
+.devices-header {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.devices-header p {
+  color: var(--muted);
+}
+
+.devices-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.device-card {
+  gap: 16px;
+}
+
+.device-card-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.device-card-copy p {
+  color: var(--muted);
+}
+
+.device-empty {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  padding: 0 14px;
+  color: var(--muted);
+  background: color-mix(in oklch, var(--surface-2) 76%, transparent);
+  transition:
+    background var(--ui-transition),
+    border-color var(--ui-transition),
+    color var(--ui-transition);
+}
+
 .advanced-panel {
   display: grid;
   gap: 18px;

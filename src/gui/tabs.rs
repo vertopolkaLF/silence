@@ -14,6 +14,7 @@ pub struct SettingsSection {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SettingsTab {
     General,
+    Devices,
     HoldToMute,
     Hotkeys,
     Sounds,
@@ -42,6 +43,7 @@ pub(crate) struct TabTransition {
 impl SettingsTab {
     const ALL: &'static [Self] = &[
         Self::General,
+        Self::Devices,
         Self::Hotkeys,
         Self::Sounds,
         Self::Overlay,
@@ -55,6 +57,7 @@ impl SettingsTab {
     pub fn label(self) -> &'static str {
         match self {
             Self::General => "General",
+            Self::Devices => "Devices",
             Self::HoldToMute => "Hold to Mute",
             Self::Hotkeys => "Hotkeys",
             Self::Sounds => "Sounds",
@@ -69,6 +72,7 @@ impl SettingsTab {
     fn icon(self) -> &'static str {
         match self {
             Self::General => "icon-settings",
+            Self::Devices => "icon-microphone",
             Self::HoldToMute => "icon-oven-mitts",
             Self::Hotkeys => "icon-keyboard",
             Self::Sounds => "icon-volume",
@@ -83,6 +87,7 @@ impl SettingsTab {
     fn active_icon(self) -> &'static str {
         match self {
             Self::General => "icon-settings-bold",
+            Self::Devices => "icon-microphone-3-bold",
             Self::HoldToMute => "icon-oven-mitts-bold",
             Self::Hotkeys => "icon-keyboard-bold",
             Self::Sounds => "icon-volume-loud-bold",
@@ -99,6 +104,10 @@ impl SettingsTab {
             Self::General => &[SettingsSection {
                 id: "general-status",
                 label: "General",
+            }],
+            Self::Devices => &[SettingsSection {
+                id: "devices-overview",
+                label: "Devices",
             }],
             Self::HoldToMute => &[SettingsSection {
                 id: "hold-to-mute-overview",
@@ -151,14 +160,15 @@ impl SettingsTab {
     fn order(self) -> usize {
         match self {
             Self::General => 0,
-            Self::Hotkeys => 1,
-            Self::Sounds => 2,
-            Self::Overlay => 3,
-            Self::HoldToMute => 4,
-            Self::TrayIcon => 5,
-            Self::AutoMute => 6,
-            Self::Advanced => 7,
-            Self::About => 8,
+            Self::Devices => 1,
+            Self::Hotkeys => 2,
+            Self::Sounds => 3,
+            Self::Overlay => 4,
+            Self::HoldToMute => 5,
+            Self::TrayIcon => 6,
+            Self::AutoMute => 7,
+            Self::Advanced => 8,
+            Self::About => 9,
         }
     }
 }

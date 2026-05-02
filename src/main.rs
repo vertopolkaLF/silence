@@ -38,7 +38,8 @@ use windows::{
         },
         Media::Audio::{
             DEVICE_STATE_ACTIVE, Endpoints::IAudioEndpointVolume, IMMDevice, IMMDeviceEnumerator,
-            MMDeviceEnumerator, eCapture, eConsole,
+            MMDeviceEnumerator, EDataFlow, ERole, eCapture, eCommunications, eConsole,
+            eMultimedia, eRender,
         },
         System::{
             Com::{
@@ -92,7 +93,7 @@ use windows::{
             },
         },
     },
-    core::{PCWSTR, PWSTR, w},
+    core::{GUID, HRESULT, Interface, IUnknown, IUnknown_Vtbl, PCWSTR, PROPVARIANT, PWSTR, w},
 };
 
 mod gui;
@@ -951,6 +952,13 @@ pub struct MicDevice {
     pub is_default: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AudioDevice {
+    pub id: String,
+    pub name: String,
+    pub is_default: bool,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct WindowsAccent {
     accent: (u8, u8, u8),
@@ -1090,6 +1098,50 @@ static XINPUT_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
 type WindowLongPtrValue = i32;
 #[cfg(target_pointer_width = "64")]
 type WindowLongPtrValue = isize;
+
+#[repr(transparent)]
+#[derive(Clone, PartialEq, Eq)]
+struct IPolicyConfig(IUnknown);
+
+unsafe impl Interface for IPolicyConfig {
+    type Vtable = IPolicyConfigVtbl;
+    const IID: GUID = GUID::from_u128(0xf8679f50_850a_41cf_9c72_430f290290c8);
+}
+
+impl core::ops::Deref for IPolicyConfig {
+    type Target = IUnknown;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+struct IPolicyConfigVtbl {
+    base__: IUnknown_Vtbl,
+    GetMixFormat:
+        unsafe extern "system" fn(*mut c_void, PCWSTR, *mut *mut c_void) -> HRESULT,
+    GetDeviceFormat:
+        unsafe extern "system" fn(*mut c_void, PCWSTR, i32, *mut *mut c_void) -> HRESULT,
+    ResetDeviceFormat: unsafe extern "system" fn(*mut c_void, PCWSTR) -> HRESULT,
+    SetDeviceFormat:
+        unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void, *const c_void) -> HRESULT,
+    GetProcessingPeriod:
+        unsafe extern "system" fn(*mut c_void, PCWSTR, i32, *mut i64, *mut i64) -> HRESULT,
+    SetProcessingPeriod:
+        unsafe extern "system" fn(*mut c_void, PCWSTR, *const i64) -> HRESULT,
+    GetShareMode: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut c_void) -> HRESULT,
+    SetShareMode: unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void) -> HRESULT,
+    GetPropertyValue:
+        unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void, *mut PROPVARIANT) -> HRESULT,
+    SetPropertyValue:
+        unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void, *const PROPVARIANT) -> HRESULT,
+    SetDefaultEndpoint: unsafe extern "system" fn(*mut c_void, PCWSTR, ERole) -> HRESULT,
+    SetEndpointVisibility: unsafe extern "system" fn(*mut c_void, PCWSTR, i32) -> HRESULT,
+}
+
+const CLSID_POLICY_CONFIG_CLIENT: GUID = GUID::from_u128(0x870af99c_171d_4f9e_af0d_e63df40c2bc9);
 
 pub(crate) fn set_settings_hotkey_recording(recording: bool) {
     let was_recording = SETTINGS_HOTKEY_RECORDING.swap(recording, Ordering::Relaxed);
@@ -3473,28 +3525,45 @@ fn set_all_capture_devices_mute(muted: bool) -> Result<()> {
 }
 
 pub fn capture_devices() -> Result<Vec<MicDevice>> {
+    endpoint_devices(eCapture, "Microphone").map(|devices| {
+        devices
+            .into_iter()
+            .map(|device| MicDevice {
+                id: device.id,
+                name: device.name,
+                is_default: device.is_default,
+            })
+            .collect()
+    })
+}
+
+pub fn render_devices() -> Result<Vec<AudioDevice>> {
+    endpoint_devices(eRender, "Speaker")
+}
+
+fn endpoint_devices(flow: EDataFlow, fallback_name: &str) -> Result<Vec<AudioDevice>> {
     unsafe {
         let enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
                 .context("create audio device enumerator")?;
-        let default_id = capture_device_id(
+        let default_id = endpoint_device_id(
             &enumerator
-                .GetDefaultAudioEndpoint(eCapture, eConsole)
-                .context("get default capture endpoint")?,
+                .GetDefaultAudioEndpoint(flow, eConsole)
+                .context("get default audio endpoint")?,
         )
         .ok();
         let collection = enumerator
-            .EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
-            .context("enumerate capture endpoints")?;
-        let count = collection.GetCount().context("count capture endpoints")?;
+            .EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE)
+            .context("enumerate audio endpoints")?;
+        let count = collection.GetCount().context("count audio endpoints")?;
         let mut devices = Vec::with_capacity(count as usize);
 
         for index in 0..count {
-            let device = collection.Item(index).context("get capture endpoint")?;
-            let id = capture_device_id(&device)?;
-            let name = capture_device_name(&device).unwrap_or_else(|| "Microphone".to_string());
+            let device = collection.Item(index).context("get audio endpoint")?;
+            let id = endpoint_device_id(&device)?;
+            let name = endpoint_device_name(&device).unwrap_or_else(|| fallback_name.to_string());
             let is_default = default_id.as_deref() == Some(id.as_str());
-            devices.push(MicDevice {
+            devices.push(AudioDevice {
                 id,
                 name,
                 is_default,
@@ -3505,6 +3574,33 @@ pub fn capture_devices() -> Result<Vec<MicDevice>> {
     }
 }
 
+pub fn set_default_capture_device(device_id: &str) -> Result<()> {
+    set_default_audio_device(device_id)
+}
+
+pub fn set_default_render_device(device_id: &str) -> Result<()> {
+    set_default_audio_device(device_id)
+}
+
+fn set_default_audio_device(device_id: &str) -> Result<()> {
+    let device_id = wide(device_id);
+    unsafe {
+        let policy: IPolicyConfig =
+            CoCreateInstance(&CLSID_POLICY_CONFIG_CLIENT, None, CLSCTX_ALL)
+                .context("create policy config client")?;
+        for role in [eConsole, eMultimedia, eCommunications] {
+            (Interface::vtable(&policy).SetDefaultEndpoint)(
+                Interface::as_raw(&policy),
+                PCWSTR(device_id.as_ptr()),
+                role,
+            )
+            .ok()
+            .context("set default audio endpoint")?;
+        }
+    }
+    Ok(())
+}
+
 pub fn default_mic_label(devices: &[MicDevice]) -> String {
     devices
         .iter()
@@ -3513,14 +3609,14 @@ pub fn default_mic_label(devices: &[MicDevice]) -> String {
         .unwrap_or_else(|| "Default microphone".to_string())
 }
 
-unsafe fn capture_device_id(device: &IMMDevice) -> Result<String> {
+unsafe fn endpoint_device_id(device: &IMMDevice) -> Result<String> {
     let id = unsafe { device.GetId()? };
     let text = unsafe { pwstr_to_string(id) };
     unsafe { CoTaskMemFree(Some(id.0 as *const c_void)) };
     Ok(text)
 }
 
-unsafe fn capture_device_name(device: &IMMDevice) -> Option<String> {
+unsafe fn endpoint_device_name(device: &IMMDevice) -> Option<String> {
     let store = unsafe { device.OpenPropertyStore(STGM_READ).ok()? };
     let value = unsafe { store.GetValue(&PKEY_Device_FriendlyName).ok()? };
     let name = value.to_string();

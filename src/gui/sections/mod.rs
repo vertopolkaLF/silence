@@ -5,6 +5,7 @@ use super::tabs::{SettingsTab, TabTransition};
 mod about;
 mod advanced;
 mod auto_mute;
+mod devices;
 mod general;
 mod hold_to_mute;
 mod hotkeys;
@@ -27,6 +28,7 @@ pub fn render(
 ) -> Element {
     match tab {
         SettingsTab::General => rsx! { GeneralSection { settings, recording } },
+        SettingsTab::Devices => rsx! { DevicesSection { settings } },
         SettingsTab::HoldToMute => rsx! {
             HoldToMuteSection {
                 settings,
@@ -52,6 +54,11 @@ pub fn render(
 #[component]
 fn GeneralSection(settings: Signal<super::SettingsSnapshot>, recording: Signal<bool>) -> Element {
     general::render(settings, recording)
+}
+
+#[component]
+fn DevicesSection(settings: Signal<super::SettingsSnapshot>) -> Element {
+    devices::render(settings)
 }
 
 #[component]

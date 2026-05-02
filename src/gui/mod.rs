@@ -29,6 +29,7 @@ const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css(
 const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
 const MICROPHONE_3_BOLD_ICON: Asset = asset!("/assets/icons/microphone-3-bold.svg");
+const MICROPHONE_3_LINEAR_ICON: Asset = asset!("/assets/icons/microphone-3-linear.svg");
 const MOON_LINEAR_ICON: Asset = asset!("/assets/icons/moon-linear.svg");
 const MONITOR_BOLD_ICON: Asset = asset!("/assets/icons/monitor-bold.svg");
 const OVEN_MITTS_BOLD_ICON: Asset = asset!("/assets/icons/oven-mitts-bold.svg");
@@ -54,6 +55,7 @@ const DEVICE_REFRESH_INTERVAL: Duration = Duration::from_secs(2);
 pub struct SettingsSnapshot {
     pub config: crate::Config,
     pub devices: Vec<crate::MicDevice>,
+    pub output_devices: Vec<crate::AudioDevice>,
     pub muted: bool,
 }
 
@@ -72,6 +74,7 @@ impl SettingsSnapshot {
         Self {
             config: crate::load_config().unwrap_or_default(),
             devices: Vec::new(),
+            output_devices: Vec::new(),
             muted: false,
         }
     }
@@ -80,11 +83,13 @@ impl SettingsSnapshot {
         self.config = crate::load_config().unwrap_or_else(|_| self.config);
         if refresh_devices {
             self.devices = crate::capture_devices().unwrap_or_default();
+            self.output_devices = crate::render_devices().unwrap_or_default();
         }
         self.muted = crate::mic_mute_state(None).unwrap_or(self.muted);
         Self {
             config: self.config,
             devices: self.devices,
+            output_devices: self.output_devices,
             muted: self.muted,
         }
     }
@@ -183,6 +188,7 @@ fn settings_icon_style() -> String {
 .icon-oven-mitts {{ --icon: url("{OVEN_MITTS_LINEAR_ICON}"); }}
 .icon-clock-circle-bold {{ --icon: url("{CLOCK_CIRCLE_BOLD_ICON}"); }}
 .icon-settings-bold {{ --icon: url("{SETTINGS_BOLD_ICON}"); }}
+.icon-microphone {{ --icon: url("{MICROPHONE_3_LINEAR_ICON}"); }}
 .icon-microphone-3-bold {{ --icon: url("{MICROPHONE_3_BOLD_ICON}"); }}
 .icon-oven-mitts-bold {{ --icon: url("{OVEN_MITTS_BOLD_ICON}"); }}
 .icon-volume-loud-bold {{ --icon: url("{VOLUME_LOUD_BOLD_ICON}"); }}
@@ -219,6 +225,7 @@ pub fn update_settings(
     let next = SettingsSnapshot {
         config,
         devices: settings.peek().devices.clone(),
+        output_devices: settings.peek().output_devices.clone(),
         muted: settings.peek().muted,
     };
     settings.set(next.refresh(false));
