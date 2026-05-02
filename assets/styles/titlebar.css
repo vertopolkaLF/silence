@@ -46,7 +46,3 @@
   mask: var(--titlebar-icon) center / contain no-repeat;
   pointer-events: none;
 }
-
-.devtools-button {
-  margin-right: 4px;
-}

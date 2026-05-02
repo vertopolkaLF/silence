@@ -247,16 +247,12 @@
 
 .ui-select-scroll-shadow.top {
   top: 0;
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--shadow-medium) 70%, transparent), transparent 72%),
-    linear-gradient(180deg, color-mix(in oklch, var(--surface-2) 96%, transparent), transparent 88%);
+  background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 14%, transparent), transparent);
 }
 
 .ui-select-scroll-shadow.bottom {
   bottom: 0;
-  background:
-    linear-gradient(0deg, color-mix(in oklch, var(--shadow-medium) 70%, transparent), transparent 72%),
-    linear-gradient(0deg, color-mix(in oklch, var(--surface-2) 96%, transparent), transparent 88%);
+  background: linear-gradient(0deg, color-mix(in oklch, var(--accent) 14%, transparent), transparent);
 }
 
 .ui-select-menu[data-scroll-top="true"] .ui-select-scroll-shadow.top,

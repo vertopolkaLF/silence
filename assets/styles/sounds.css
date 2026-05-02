@@ -30,7 +30,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 6px;
 }
 
 .toggle {
@@ -277,8 +277,8 @@
   gap: 10px;
 }
 
-.small-button {
-  height: 42px;
+.sound-select-row .small-button {
+  height: 44px;
   padding: 0 14px;
 }
 
@@ -288,9 +288,9 @@
 }
 
 .preview-button {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
 }
 
 .preview-button .solar-icon {

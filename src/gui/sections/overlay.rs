@@ -311,27 +311,29 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 });
                             }
                         }
-                        div { class: "overlay-field",
-                            label { "Icon style" }
-                            Select {
-                                value: overlay.icon_style.clone(),
-                                options: icon_style_options,
-                                onchange: move |value: String| {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.icon_style = value;
-                                    });
+                        div { class: "overlay-select-grid",
+                            div { class: "overlay-field",
+                                label { "Icon style" }
+                                Select {
+                                    value: overlay.icon_style.clone(),
+                                    options: icon_style_options,
+                                    onchange: move |value: String| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.icon_style = value;
+                                        });
+                                    }
                                 }
                             }
-                        }
-                        div { class: "overlay-field",
-                            label { "Background" }
-                            Select {
-                                value: overlay.background_style.clone(),
-                                options: background_options,
-                                onchange: move |value: String| {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.background_style = value;
-                                    });
+                            div { class: "overlay-field",
+                                label { "Background" }
+                                Select {
+                                    value: overlay.background_style.clone(),
+                                    options: background_options,
+                                    onchange: move |value: String| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.background_style = value;
+                                        });
+                                    }
                                 }
                             }
                         }

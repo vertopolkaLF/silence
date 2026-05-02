@@ -40,8 +40,8 @@ body {
   --surface-color-3: oklch(from var(--windows-accent) 24.5% calc(c * 0.34) h);
   --surface-color-4: oklch(from var(--windows-accent) 28% calc(c * 0.42) h);
   --surface-color-5: oklch(from var(--windows-accent) 31.5% calc(c * 0.5) h);
-  --border: oklch(27.39% 0.0055 286.03);
-  --border-strong: oklch(37.03% 0.0119 285.81);
+  --border: color-mix(in oklch, oklch(20.39% 0.0055 286.03) 85%, var(--windows-accent));
+  --border-strong: color-mix(in oklch, oklch(37.03% 0.0119 285.81) 82%, var(--windows-accent));
   --control-border: #0000;
   --focus-outline-offset: -1px;
   --text: oklch(98.51% 0 0);

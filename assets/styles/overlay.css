@@ -19,6 +19,14 @@
   gap: 10px;
 }
 
+.overlay-select-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+  transition: grid-template-columns 0.2s ease, gap 0.2s ease;
+}
+
 .overlay-icon-field {
   max-width: 100%;
 }
