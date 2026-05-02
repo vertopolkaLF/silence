@@ -122,8 +122,18 @@
       }
     }
 
+    function resetStars() {
+      currentFtl = 1;
+      targetFtl = 1;
+      stars.forEach((star) => star.reset(true));
+    }
+
     function syncRecordedSpeed() {
-      targetFtl = canvas.dataset.hotkeyRecorded === "true" ? 10 : 1;
+      if (canvas.dataset.hotkeyRecorded === "true") {
+        targetFtl = 10;
+      } else {
+        resetStars();
+      }
     }
 
     resize();

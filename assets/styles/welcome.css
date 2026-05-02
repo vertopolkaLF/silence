@@ -54,7 +54,7 @@
     linear-gradient(90deg,
       var(--welcome-progress-color) 0 var(--welcome-progress),
       transparent var(--welcome-progress) 100%),
-    radial-gradient(circle at 16% 18%, color-mix(in oklch, var(--accent) 18%, transparent), transparent 34%),
+    radial-gradient(circle at 0% 0%, color-mix(in oklch, var(--accent) 13%, transparent), transparent 70%),
     linear-gradient(180deg, color-mix(in oklch, var(--content-bg) 22%, transparent), color-mix(in oklch, var(--body-bg) 58%, transparent));
   transition:
     --welcome-progress 120ms linear,
@@ -67,8 +67,8 @@
 
 .welcome-logo {
   position: absolute;
-  top: 24px;
-  left: 28px;
+  top: 36px;
+  left: 40px;
   z-index: 2;
   display: inline-flex;
   align-items: baseline;
@@ -192,6 +192,7 @@
   gap: 10px;
   flex-wrap: wrap;
   padding: 18px;
+  margin: 20px 0;
 }
 
 .welcome-keycap {

@@ -135,7 +135,7 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
             div { class: "welcome-stage",
                 if step() == 0 {
                     section { class: "welcome-screen",
-                        div { class: "welcome-kicker", "silence! v2" }
+                        div { class: "welcome-kicker", "new version!" }
                         h1 { "Welcome" }
                         div { class: "welcome-feature-list",
                             div { class: "welcome-feature-card",
@@ -191,8 +191,7 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
                 } else if step() == 1 {
                     section { class: "welcome-screen welcome-hotkey-screen",
                         div { class: "welcome-kicker", "Step 2 of 3" }
-                        h1 { "Bind mic toggle" }
-                        p { class: "welcome-subtitle", "Press the shortcut you want. Recording is already active, because making you click Record here would be deranged." }
+                        h1 { "Choose your hotkey" }
                         div { class: "welcome-keycaps recording",
                             for part in welcome_display_shortcut(
                                 modifier_hold_shortcut(),
@@ -201,16 +200,26 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
                                 span { class: "welcome-keycap", "{part}" }
                             }
                         }
-                        p { class: "welcome-hint", "Hold only modifiers for one second to bind them without another key." }
+                        // p { class: "welcome-hint", "Hold only modifiers for one second to bind them without another key." }
                         div { class: "welcome-actions",
                             button {
                                 class: "secondary",
-                                onclick: move |_| step.set(0),
+                                onclick: move |_| {
+                                    modifier_hold_started.set(None);
+                                    modifier_hold_shortcut.set(None);
+                                    capture_progress.set(0.0);
+                                    capture_completed.set(false);
+                                    step.set(0);
+                                },
                                 "Back"
                             }
                             button {
                                 class: "save",
-                                onclick: move |_| step.set(2),
+                                onclick: move |_| {
+                                    let _ = crate::set_welcome_toggle_shortcut(captured_shortcut());
+                                    complete_capture_progress(capture_progress, capture_completed);
+                                    step.set(2);
+                                },
                                 "Looks good"
                             }
                         }
