@@ -347,6 +347,32 @@ impl GamepadInput {
             }
         }
     }
+
+    pub fn icon_id(self) -> Option<&'static str> {
+        let Self::Button { button } = self else {
+            return None;
+        };
+        match button {
+            GamepadButton::South => Some("xbox_button_a"),
+            GamepadButton::East => Some("xbox_button_b"),
+            GamepadButton::North => Some("xbox_button_y"),
+            GamepadButton::West => Some("xbox_button_x"),
+            GamepadButton::LeftTrigger => Some("xbox_lb"),
+            GamepadButton::LeftTrigger2 => Some("xbox_lt"),
+            GamepadButton::RightTrigger => Some("xbox_rb"),
+            GamepadButton::RightTrigger2 => Some("xbox_rt"),
+            GamepadButton::Select => Some("xbox_button_view"),
+            GamepadButton::Start => Some("xbox_button_menu"),
+            GamepadButton::LeftThumb => Some("xbox_ls"),
+            GamepadButton::RightThumb => Some("xbox_rs"),
+            GamepadButton::DPadUp => Some("xbox_dpad_up_outline"),
+            GamepadButton::DPadDown => Some("xbox_dpad_down_outline"),
+            GamepadButton::DPadLeft => Some("xbox_dpad_left_outline"),
+            GamepadButton::DPadRight => Some("xbox_dpad_right_outline"),
+            GamepadButton::Mode => Some("xbox_button_share"),
+            GamepadButton::C | GamepadButton::Z => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

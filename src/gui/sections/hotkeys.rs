@@ -7,6 +7,23 @@ use dioxus::prelude::*;
 
 use crate::gui::controls::{Checkbox, Select, SelectOption};
 
+const XBOX_BUTTON_A_ICON: Asset = asset!("/assets/gamepad/xbox_button_a.png");
+const XBOX_BUTTON_B_ICON: Asset = asset!("/assets/gamepad/xbox_button_b.png");
+const XBOX_BUTTON_MENU_ICON: Asset = asset!("/assets/gamepad/xbox_button_menu.png");
+const XBOX_BUTTON_SHARE_ICON: Asset = asset!("/assets/gamepad/xbox_button_share.png");
+const XBOX_BUTTON_VIEW_ICON: Asset = asset!("/assets/gamepad/xbox_button_view.png");
+const XBOX_BUTTON_X_ICON: Asset = asset!("/assets/gamepad/xbox_button_x.png");
+const XBOX_BUTTON_Y_ICON: Asset = asset!("/assets/gamepad/xbox_button_y.png");
+const XBOX_DPAD_DOWN_ICON: Asset = asset!("/assets/gamepad/xbox_dpad_down_outline.png");
+const XBOX_DPAD_LEFT_ICON: Asset = asset!("/assets/gamepad/xbox_dpad_left_outline.png");
+const XBOX_DPAD_RIGHT_ICON: Asset = asset!("/assets/gamepad/xbox_dpad_right_outline.png");
+const XBOX_DPAD_UP_ICON: Asset = asset!("/assets/gamepad/xbox_dpad_up_outline.png");
+const XBOX_LB_ICON: Asset = asset!("/assets/gamepad/xbox_lb.png");
+const XBOX_LS_ICON: Asset = asset!("/assets/gamepad/xbox_ls.png");
+const XBOX_LT_ICON: Asset = asset!("/assets/gamepad/xbox_lt.png");
+const XBOX_RB_ICON: Asset = asset!("/assets/gamepad/xbox_rb.png");
+const XBOX_RS_ICON: Asset = asset!("/assets/gamepad/xbox_rs.png");
+const XBOX_RT_ICON: Asset = asset!("/assets/gamepad/xbox_rt.png");
 const MODIFIER_HOLD_DURATION: Duration = Duration::from_millis(1000);
 const DEFAULT_TARGET_LABEL: &str = "Default";
 const ALL_MICROPHONES_LABEL: &str = "All microphones";
@@ -667,10 +684,14 @@ fn HotkeyPanel(
                                 div { class: "shortcut-record-row",
                                     KeyDisplay {
                                         display_id: Some("hotkey-editor-shortcut".to_string()),
-                                        shortcut: if source == HotkeySource::Keyboard && recording() {
-                                            live_modifier_shortcut().or_else(|| recording_shortcut())
+                                        shortcut: if source == HotkeySource::Keyboard {
+                                            if recording() {
+                                                live_modifier_shortcut().or_else(|| recording_shortcut())
+                                            } else {
+                                                draft_shortcut()
+                                            }
                                         } else {
-                                            draft_shortcut()
+                                            None
                                         },
                                         gamepad: if source == HotkeySource::Gamepad && recording() {
                                             recording_gamepad().or_else(|| draft_gamepad())
@@ -852,8 +873,13 @@ fn KeyDisplay(
     hold_progress: f64,
 ) -> Element {
     let parts = gamepad
+        .as_ref()
         .map(|shortcut| shortcut.parts())
         .or_else(|| shortcut.map(|shortcut| shortcut.parts()))
+        .unwrap_or_default();
+    let gamepad_inputs = gamepad
+        .as_ref()
+        .map(|shortcut| shortcut.inputs.clone())
         .unwrap_or_default();
     let progress = format!("{:.0}%", hold_progress * 100.0);
     let generated_display_id = use_hook(|| {
@@ -924,8 +950,17 @@ setTimeout(updatePending, 80);
             style: "--hold-progress: {progress};",
             "data-shortcut-display-id": "{display_id}",
             span { class: "keycap-list",
-                for part in parts {
-                    span { class: keycap_class(animate), "{part}" }
+                if gamepad_inputs.is_empty() {
+                    for part in parts {
+                        span { class: keycap_class(animate), "{part}" }
+                    }
+                } else {
+                    for input in gamepad_inputs {
+                        GamepadKeycap {
+                            input,
+                            animate
+                        }
+                    }
                 }
             }
             if modifier_hold_active || pending_exiting {
@@ -1021,6 +1056,59 @@ fn keycap_class(animate: bool) -> &'static str {
         "keycap anim"
     } else {
         "keycap noanim"
+    }
+}
+
+#[component]
+fn GamepadKeycap(input: crate::GamepadInput, animate: bool) -> Element {
+    let label = input.label();
+    if let Some(icon) = gamepad_icon(input) {
+        rsx! {
+            span {
+                class: gamepad_keycap_class(animate),
+                title: "{label}",
+                img {
+                    class: "gamepad-keycap-icon",
+                    src: "{icon}",
+                    alt: "{label}"
+                }
+            }
+        }
+    } else {
+        rsx! {
+            span { class: keycap_class(animate), "{label}" }
+        }
+    }
+}
+
+fn gamepad_icon(input: crate::GamepadInput) -> Option<Asset> {
+    match input.icon_id()? {
+        "xbox_button_a" => Some(XBOX_BUTTON_A_ICON),
+        "xbox_button_b" => Some(XBOX_BUTTON_B_ICON),
+        "xbox_button_menu" => Some(XBOX_BUTTON_MENU_ICON),
+        "xbox_button_share" => Some(XBOX_BUTTON_SHARE_ICON),
+        "xbox_button_view" => Some(XBOX_BUTTON_VIEW_ICON),
+        "xbox_button_x" => Some(XBOX_BUTTON_X_ICON),
+        "xbox_button_y" => Some(XBOX_BUTTON_Y_ICON),
+        "xbox_dpad_down_outline" => Some(XBOX_DPAD_DOWN_ICON),
+        "xbox_dpad_left_outline" => Some(XBOX_DPAD_LEFT_ICON),
+        "xbox_dpad_right_outline" => Some(XBOX_DPAD_RIGHT_ICON),
+        "xbox_dpad_up_outline" => Some(XBOX_DPAD_UP_ICON),
+        "xbox_lb" => Some(XBOX_LB_ICON),
+        "xbox_ls" => Some(XBOX_LS_ICON),
+        "xbox_lt" => Some(XBOX_LT_ICON),
+        "xbox_rb" => Some(XBOX_RB_ICON),
+        "xbox_rs" => Some(XBOX_RS_ICON),
+        "xbox_rt" => Some(XBOX_RT_ICON),
+        _ => None,
+    }
+}
+
+fn gamepad_keycap_class(animate: bool) -> &'static str {
+    if animate {
+        "gamepad-keycap anim"
+    } else {
+        "gamepad-keycap noanim"
     }
 }
 

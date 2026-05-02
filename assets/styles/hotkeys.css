@@ -357,6 +357,30 @@
   animation: none;
 }
 
+.gamepad-keycap {
+  height: 26px;
+  width: auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gamepad-keycap-icon {
+  width: auto;
+  height: 26px;
+  display: block;
+  object-fit: contain;
+}
+
+.gamepad-keycap.anim {
+  animation: keycap-rise 200ms ease both;
+}
+
+.gamepad-keycap.noanim {
+  animation: none;
+}
+
 .shortcut-pending {
   position: absolute;
   left: var(--pending-offset);
