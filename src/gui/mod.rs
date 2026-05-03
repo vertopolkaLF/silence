@@ -264,6 +264,7 @@ pub fn settings_app() -> Element {
     let recording = use_signal(|| false);
     let open_select = use_signal(|| None::<String>);
     let mut closing = use_signal(|| false);
+    let main_intro = use_signal(|| false);
     use_context_provider(|| open_select);
     use_future(move || {
         let reveal_desktop = reveal_desktop.clone();
@@ -361,9 +362,9 @@ pub fn settings_app() -> Element {
             }
 
             div {
-                class: "body",
+                class: if main_intro() { "body main-app-entering" } else { "body" },
                 if !settings().config.welcome_completed {
-                    WelcomeSequence { settings }
+                    WelcomeSequence { settings, main_intro }
                 } else {
                     {tabs::render(
                         active_tab,

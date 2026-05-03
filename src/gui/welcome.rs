@@ -13,10 +13,14 @@ const WELCOME_STARS_JS: Asset = asset!("/assets/scripts/welcome-stars.js");
 static NEXT_WELCOME_KEYCAPS_ID: AtomicUsize = AtomicUsize::new(1);
 
 #[component]
-pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element {
+pub(super) fn WelcomeSequence(
+    mut settings: Signal<SettingsSnapshot>,
+    mut main_intro: Signal<bool>,
+) -> Element {
     let mut step = use_signal(|| 0_usize);
     let mut returning_user = use_signal(|| false);
     let mut import_error = use_signal(String::new);
+    let mut closing = use_signal(|| false);
     let mut captured_shortcut = use_signal(|| {
         settings()
             .config
@@ -80,10 +84,22 @@ pub(super) fn WelcomeSequence(mut settings: Signal<SettingsSnapshot>) -> Element
     });
 
     let finish = move |_| {
-        if crate::complete_welcome().is_ok() {
-            let next = settings.peek().clone().refresh(false);
-            settings.set(next);
+        if closing() {
+            return;
         }
+
+        closing.set(true);
+        spawn(async move {
+            tokio::time::sleep(Duration::from_millis(540)).await;
+            if crate::complete_welcome().is_ok() {
+                main_intro.set(true);
+                let next = settings.peek().clone().refresh(false);
+                settings.set(next);
+
+                tokio::time::sleep(Duration::from_millis(800)).await;
+                main_intro.set(false);
+            }
+        });
     };
     let welcome_progress = format!("{:.2}%", capture_progress() * 100.0);
     let welcome_keycaps_id = use_hook(|| {
@@ -197,7 +213,11 @@ setupWelcomeKeycapAnimator();
         link { rel: "stylesheet", href: "{WELCOME_CSS}" }
         script { src: "{WELCOME_STARS_JS}" }
         main {
-            class: if capture_completed() { "welcome-shell capture-completed" } else { "welcome-shell" },
+            class: {
+                let capture_class = if capture_completed() { " capture-completed" } else { "" };
+                let closing_class = if closing() { " closing" } else { "" };
+                format!("welcome-shell{capture_class}{closing_class}")
+            },
             tabindex: "0",
             style: "--welcome-progress: {welcome_progress};",
             onkeydown: move |evt| {
@@ -243,10 +263,10 @@ setupWelcomeKeycapAnimator();
             div { class: "welcome-stage",
                 if step() == 0 {
                     section { class: "welcome-screen",
-                        div { class: "welcome-kicker", "Now in Rust" }
+                        div { class: "welcome-kicker", " " }
                         div { class: "welcome-heading-copy",
                             h1 { "Hi! Welcome to silence!" }
-                            p { "Best app to mute your mic. Period." }
+                            p { "The best app to mute your mic. Period." }
                         }
                         div { class: "welcome-feature-list",
                             div { class: "welcome-feature-card",
@@ -347,8 +367,10 @@ setupWelcomeKeycapAnimator();
                 } else if returning_user() {
                     section { class: "welcome-screen",
                         div { class: "welcome-kicker", "Oh, it's you!" }
+                        div { class: "welcome-heading-copy",
                         h1 { "Welcome Back!" }
                         p {"Have a look at new features"}
+                        }
                         div { class: "welcome-feature-list returning",
                             div { class: "welcome-feature-card",
                                 span { class: "solar-icon icon-microphone-3-bold" }
