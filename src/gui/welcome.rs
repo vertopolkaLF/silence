@@ -256,6 +256,14 @@ setupWelcomeKeycapAnimator();
                 aria_hidden: "true",
             }
             div {
+                class: "welcome-progress-bar",
+                aria_hidden: "true",
+                span {
+                    class: "welcome-progress-fill",
+                    style: "width: {welcome_progress};",
+                }
+            }
+            div {
                 class: "welcome-logo",
                 span { "silence" }
                 strong { "!" }
