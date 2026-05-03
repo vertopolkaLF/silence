@@ -19,7 +19,8 @@ use std::{
 
 use anyhow::{Context, Result};
 use dioxus::desktop::{
-    Config as DesktopConfig, LogicalSize, WindowBuilder, tao::dpi::PhysicalPosition,
+    Config as DesktopConfig, LogicalSize, WindowBuilder,
+    tao::{dpi::PhysicalPosition, platform::windows::WindowBuilderExtWindows},
 };
 use gilrs::{Button, EventType, Gilrs};
 use once_cell::sync::Lazy;
@@ -92,11 +93,11 @@ use windows::{
                 SendMessageW, SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
                 SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
                 TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
-                WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN,
-                WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
-                WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND,
-                WM_THEMECHANGED, WM_TIMER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
-                WS_OVERLAPPED,
+                WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED,
+                WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN,
+                WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP,
+                WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED, WM_TIMER, WM_WINDOWPOSCHANGED,
+                WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC, WS_OVERLAPPED,
             },
         },
     },
@@ -1180,6 +1181,7 @@ static SETTINGS_GAMEPAD_RECORDING: AtomicBool = AtomicBool::new(false);
 static MOUSE_HOTKEYS_ENABLED: AtomicBool = AtomicBool::new(true);
 static SUPPRESS_NEXT_TRAY_LBUTTON_UP: AtomicBool = AtomicBool::new(false);
 static TRAY_ICON_ADDED: AtomicBool = AtomicBool::new(false);
+static SETTINGS_MICA_ENABLED: AtomicBool = AtomicBool::new(false);
 static TASKBAR_CREATED_MESSAGE: Lazy<u32> =
     Lazy::new(|| unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) });
 static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
@@ -1310,6 +1312,7 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
     let mica_enabled = load_config()
         .map(|config| config.advanced.enable_mica)
         .unwrap_or_default();
+    SETTINGS_MICA_ENABLED.store(mica_enabled, Ordering::Relaxed);
     apply_settings_backdrop(HWND(hwnd as *mut c_void), mica_enabled);
 
     let previous = unsafe {
@@ -1325,6 +1328,7 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
 }
 
 pub(crate) fn set_settings_mica_enabled(enabled: bool) {
+    SETTINGS_MICA_ENABLED.store(enabled, Ordering::Relaxed);
     let title = wide(SETTINGS_WINDOW_TITLE);
     if let Ok(hwnd) = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) } {
         apply_settings_backdrop(hwnd, enabled);
@@ -1379,13 +1383,29 @@ unsafe extern "system" fn settings_window_proc(
         }
     }
 
+    let refresh_backdrop = matches!(
+        msg,
+        WM_DWMCOMPOSITIONCHANGED
+            | WM_DISPLAYCHANGE
+            | WM_DPICHANGED
+            | WM_SETTINGCHANGE
+            | WM_THEMECHANGED
+            | WM_WINDOWPOSCHANGED
+    );
+
     let previous = SETTINGS_ORIGINAL_WNDPROC.load(Ordering::Relaxed);
-    if previous == 0 {
-        return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+    let result = if previous == 0 {
+        unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+    } else {
+        let previous: WNDPROC = unsafe { std::mem::transmute(previous) };
+        unsafe { CallWindowProcW(previous, hwnd, msg, wparam, lparam) }
+    };
+
+    if refresh_backdrop {
+        apply_settings_backdrop(hwnd, SETTINGS_MICA_ENABLED.load(Ordering::Relaxed));
     }
 
-    let previous: WNDPROC = unsafe { std::mem::transmute(previous) };
-    unsafe { CallWindowProcW(previous, hwnd, msg, wparam, lparam) }
+    result
 }
 
 struct AudioEngine {
@@ -1528,6 +1548,7 @@ fn main() -> Result<()> {
                     .with_decorations(false)
                     .with_resizable(true)
                     .with_transparent(true)
+                    .with_no_redirection_bitmap(true)
                     .with_visible(false)
                     .with_inner_size(settings_window_size)
                     .with_min_inner_size(settings_window_size)
