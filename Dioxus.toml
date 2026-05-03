@@ -8,3 +8,5 @@ publisher = "vertopolkaLF"
 
 [bundle.windows]
 icon_path = "assets/app.ico"
+webview_install_mode = "Skip"
+nsis = { install_mode = "CurrentUser", installer_icon = "assets/app.ico", start_menu_folder = "silence!", template = "installer/nsis-template.nsi" }

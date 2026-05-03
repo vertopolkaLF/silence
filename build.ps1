@@ -89,21 +89,21 @@ function Copy-PortableApp {
     Compress-Archive -Path (Join-Path $PortableDir '*') -DestinationPath $ZipPath -Force
 }
 
-function Collect-MsiArtifact {
+function Collect-NsisArtifact {
     param(
         [string]$StageDir,
         [string]$FinalPath
     )
 
-    $msi = Get-ChildItem $StageDir -Filter *.msi -File -Recurse | Select-Object -First 1
-    if (-not $msi) {
-        throw "MSI bundle was not produced in $StageDir"
+    $installer = Get-ChildItem $StageDir -Filter *.exe -File -Recurse | Select-Object -First 1
+    if (-not $installer) {
+        throw "NSIS installer was not produced in $StageDir"
     }
 
     if (Test-Path $FinalPath) {
         Remove-Item $FinalPath -Force
     }
-    Move-Item $msi.FullName $FinalPath
+    Move-Item $installer.FullName $FinalPath
 }
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -136,7 +136,7 @@ foreach ($legacyDir in @("portable", "msi")) {
     }
 }
 Get-ChildItem $versionRoot -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.Extension -in @(".zip", ".msi") } |
+    Where-Object { $_.Extension -in @(".zip", ".msi", ".exe") } |
     Remove-Item -Force
 New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
@@ -156,7 +156,7 @@ try {
         $portableDir = Join-Path $stagingRoot "portable-$arch"
         $zipPath = Join-Path $versionRoot "$safeName-$($package.Version)-windows-$arch-portable.zip"
         $bundleStageDir = Join-Path $stagingRoot "bundle-$arch"
-        $finalMsiPath = Join-Path $versionRoot "$safeName-$($package.Version)-windows-$arch-installer.msi"
+        $finalInstallerPath = Join-Path $versionRoot "$safeName-$($package.Version)-windows-$arch-setup.exe"
 
         try {
             Write-Step "Building portable app for $arch ($triple)"
@@ -173,7 +173,7 @@ try {
 
             Copy-PortableApp -SourceAppDir $appRoot -PortableDir $portableDir -ZipPath $zipPath
 
-            Write-Step "Bundling MSI for $arch ($triple)"
+            Write-Step "Bundling NSIS installer for $arch ($triple)"
             if (Test-Path $bundleStageDir) {
                 Remove-Item $bundleStageDir -Recurse -Force
             }
@@ -184,11 +184,11 @@ try {
                 "--platform", "windows",
                 "--release",
                 "--target", $triple,
-                "--package-types", "msi",
+                "--package-types", "nsis",
                 "--out-dir", $bundleStageDir
             )
 
-            Collect-MsiArtifact -StageDir $bundleStageDir -FinalPath $finalMsiPath
+            Collect-NsisArtifact -StageDir $bundleStageDir -FinalPath $finalInstallerPath
         }
         catch {
             $failures.Add("${arch}: $($_.Exception.Message)")
