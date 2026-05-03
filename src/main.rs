@@ -1863,7 +1863,7 @@ fn create_message_window(instance: HINSTANCE) -> Result<HWND> {
         CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             w!("SilenceV2Hidden"),
-            w!("silence!"),
+            w!("SilenceV2Hidden"),
             WS_OVERLAPPED,
             0,
             0,
