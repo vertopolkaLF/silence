@@ -88,8 +88,8 @@ use windows::{
                 GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON, HMENU, IDC_ARROW,
                 IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW,
                 LoadIconW, MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostQuitMessage, RegisterClassW,
-                SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SendMessageW,
-                SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
+                RegisterWindowMessageW, SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE,
+                SendMessageW, SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
                 SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
                 TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
                 WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_KEYDOWN,
@@ -115,6 +115,7 @@ const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
 const ID_OVERLAY_DRAG_TIMER: usize = 12;
 const ID_TRAY_CLICK_TIMER: usize = 13;
+const ID_TRAY_ADD_RETRY_TIMER: usize = 14;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
@@ -126,6 +127,7 @@ const MENU_POS_DEFAULT_OUTPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
 const DWMWA_MICA_EFFECT: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(1029);
 const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;
+const TRAY_ADD_RETRY_MS: u32 = 2_000;
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const STARTUP_RUN_VALUE: &str = "SilenceV2";
@@ -1177,6 +1179,9 @@ static SETTINGS_ALT_SPACE_RECORDED: AtomicBool = AtomicBool::new(false);
 static SETTINGS_GAMEPAD_RECORDING: AtomicBool = AtomicBool::new(false);
 static MOUSE_HOTKEYS_ENABLED: AtomicBool = AtomicBool::new(true);
 static SUPPRESS_NEXT_TRAY_LBUTTON_UP: AtomicBool = AtomicBool::new(false);
+static TRAY_ICON_ADDED: AtomicBool = AtomicBool::new(false);
+static TASKBAR_CREATED_MESSAGE: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) });
 static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
 static SETTINGS_MOUSE_HELD: Lazy<Mutex<Vec<u32>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -2028,6 +2033,10 @@ fn gamepad_shortcut_matches(shortcut: &GamepadShortcut, pressed: &HashSet<Gamepa
 }
 
 fn add_tray_icon(hwnd: HWND) -> Result<()> {
+    if TRAY_ICON_ADDED.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+
     let config = STATE.lock().unwrap().tray_icon.clone();
     let muted = STATE.lock().unwrap().muted;
     let icon = load_tray_icon(&config, muted)
@@ -2045,13 +2054,23 @@ fn add_tray_icon(hwnd: HWND) -> Result<()> {
     };
     write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), "Silence");
     unsafe {
-        Shell_NotifyIconW(NIM_ADD, &nid).ok()?;
+        if Shell_NotifyIconW(NIM_ADD, &nid).as_bool() {
+            TRAY_ICON_ADDED.store(true, Ordering::Relaxed);
+            let _ = KillTimer(hwnd, ID_TRAY_ADD_RETRY_TIMER);
+        } else {
+            let _ = SetTimer(hwnd, ID_TRAY_ADD_RETRY_TIMER, TRAY_ADD_RETRY_MS, None);
+            return Ok(());
+        }
     }
     refresh_tray_icon();
     Ok(())
 }
 
 fn refresh_tray_icon() {
+    if !TRAY_ICON_ADDED.load(Ordering::Relaxed) {
+        return;
+    }
+
     let (hwnd, muted, config) = {
         let state = STATE.lock().unwrap();
         if state.hwnd.0.is_null() {
@@ -2437,6 +2456,7 @@ fn remove_tray_icon() {
     unsafe {
         let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
     }
+    TRAY_ICON_ADDED.store(false, Ordering::Relaxed);
 }
 
 fn tray_double_click_disabled() -> bool {
@@ -2480,6 +2500,12 @@ unsafe extern "system" fn main_wnd_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    if msg == *TASKBAR_CREATED_MESSAGE {
+        TRAY_ICON_ADDED.store(false, Ordering::Relaxed);
+        let _ = add_tray_icon(hwnd);
+        return LRESULT(0);
+    }
+
     match msg {
         WM_TRAY => {
             match lparam.0 as u32 {
@@ -2507,6 +2533,8 @@ unsafe extern "system" fn main_wnd_proc(
             } else if wparam.0 == ID_TRAY_CLICK_TIMER {
                 let _ = unsafe { KillTimer(hwnd, ID_TRAY_CLICK_TIMER) };
                 toggle_mute();
+            } else if wparam.0 == ID_TRAY_ADD_RETRY_TIMER {
+                let _ = add_tray_icon(hwnd);
             }
             LRESULT(0)
         }
