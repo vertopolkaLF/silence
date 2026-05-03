@@ -131,7 +131,7 @@ const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;
 const TRAY_ADD_RETRY_MS: u32 = 2_000;
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
-const STARTUP_RUN_VALUE: &str = "SilenceV2";
+const STARTUP_RUN_VALUE: &str = "silence!";
 const XINPUT_TRIGGER_PRESS_THRESHOLD: u8 = 160;
 const XINPUT_TRIGGER_RELEASE_THRESHOLD: u8 = 96;
 const MAX_GAMEPAD_COMBO_INPUTS: usize = 2;
@@ -1863,7 +1863,7 @@ fn create_message_window(instance: HINSTANCE) -> Result<HWND> {
         CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             w!("SilenceV2Hidden"),
-            w!("Silence"),
+            w!("silence!"),
             WS_OVERLAPPED,
             0,
             0,
@@ -2073,7 +2073,7 @@ fn add_tray_icon(hwnd: HWND) -> Result<()> {
         hIcon: icon,
         ..Default::default()
     };
-    write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), "Silence");
+    write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), "silence!");
     unsafe {
         if Shell_NotifyIconW(NIM_ADD, &nid).as_bool() {
             TRAY_ICON_ADDED.store(true, Ordering::Relaxed);
@@ -2453,9 +2453,9 @@ fn refresh_tray_tip() {
         .map(|hotkey| hotkey.shortcut.display())
         .unwrap_or_else(|| "no hotkey".to_string());
     let tip = if state.muted {
-        format!("Silence: microphone muted ({primary_shortcut})")
+        format!("silence!: microphone muted ({primary_shortcut})")
     } else {
-        format!("Silence: microphone on ({primary_shortcut})")
+        format!("silence!: microphone on ({primary_shortcut})")
     };
     write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), &tip);
     unsafe {

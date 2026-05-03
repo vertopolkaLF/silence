@@ -1,9 +1,12 @@
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
+!include "LogicLib.nsh"
 !include "x64.nsh"
 
+!define SILENCE_V1_UNINSTALL_KEY "{8E4D9F2A-3B7C-4E1F-A5D6-9C8B2E7F4A3D}_is1"
+
 ; Basic installer attributes
-Name "{{product_name}}"
+Name "silence!"
 OutFile "{{output_path}}"
 Unicode true
 {{#if installer_icon}}
@@ -11,9 +14,9 @@ Icon "{{installer_icon}}"
 UninstallIcon "{{installer_icon}}"
 {{/if}}
 {{#if install_mode_per_machine}}
-InstallDir "$PROGRAMFILES\{{product_name}}"
+InstallDir "$PROGRAMFILES\silence!"
 {{else}}
-InstallDir "$LOCALAPPDATA\Programs\{{product_name}}"
+InstallDir "$LOCALAPPDATA\Programs\silence!"
 {{/if}}
 
 ; Request appropriate privileges
@@ -27,7 +30,7 @@ RequestExecutionLevel user
 
 ; Version information
 VIProductVersion "{{version}}.0"
-VIAddVersionKey "ProductName" "{{product_name}}"
+VIAddVersionKey "ProductName" "silence!"
 VIAddVersionKey "FileVersion" "{{version}}"
 VIAddVersionKey "ProductVersion" "{{version}}"
 VIAddVersionKey "FileDescription" "{{short_description}}"
@@ -73,6 +76,8 @@ VIAddVersionKey "LegalCopyright" "{{copyright}}"
 
 ; Installer section
 Section "Install"
+    Call RemoveSilenceV1
+
     SetOutPath $INSTDIR
 
     ; Install main binary
@@ -91,15 +96,17 @@ Section "Install"
 
     ; Create Start Menu shortcuts
     CreateDirectory "$SMPROGRAMS\{{start_menu_folder}}"
-    CreateShortcut "$SMPROGRAMS\{{start_menu_folder}}\{{product_name}}.lnk" "$INSTDIR\{{main_binary_name}}"
-    CreateShortcut "$SMPROGRAMS\{{start_menu_folder}}\Uninstall {{product_name}}.lnk" "$INSTDIR\uninstall.exe"
+    CreateShortcut "$SMPROGRAMS\{{start_menu_folder}}\silence!.lnk" "$INSTDIR\{{main_binary_name}}"
+    CreateShortcut "$SMPROGRAMS\{{start_menu_folder}}\Uninstall silence!.lnk" "$INSTDIR\uninstall.exe"
 
     ; Create Desktop shortcut
-    CreateShortcut "$DESKTOP\{{product_name}}.lnk" "$INSTDIR\{{main_binary_name}}"
+    CreateShortcut "$DESKTOP\silence!.lnk" "$INSTDIR\{{main_binary_name}}"
 
     ; Write registry keys for Add/Remove Programs
     WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}" \
-        "DisplayName" "{{product_name}}"
+        "DisplayName" "silence!"
+    WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}" \
+        "DisplayIcon" "$INSTDIR\{{main_binary_name}},0"
     WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}" \
         "UninstallString" '"$INSTDIR\uninstall.exe"'
     WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}" \
@@ -110,10 +117,14 @@ Section "Install"
     {{/if}}
     WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}" \
         "InstallLocation" "$INSTDIR"
+    WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}" \
+        "HelpLink" "https://github.com/vertopolkaLF/silence/issues"
+    WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}" \
+        "URLUpdateInfo" "https://github.com/vertopolkaLF/silence/releases/latest"
 
     ; Register launch with Windows.
     WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Run" \
-        "SilenceV2" '"$INSTDIR\{{main_binary_name}}"'
+        "silence!" '"$INSTDIR\{{main_binary_name}}"'
 
     ; Get installed size
     ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
@@ -128,6 +139,46 @@ Section "Install"
 
 SectionEnd
 
+Function RunSilenceV1Uninstaller
+    Pop $0
+    ${If} $0 != ""
+        ExecWait 'taskkill.exe /f /im "silence!.exe"'
+        ExecWait '$0 /VERYSILENT /SUPPRESSMSGBOXES /NORESTART'
+    ${EndIf}
+FunctionEnd
+
+Function RemoveSilenceV1
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SILENCE_V1_UNINSTALL_KEY}" "QuietUninstallString"
+    ${If} $0 == ""
+        ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SILENCE_V1_UNINSTALL_KEY}" "UninstallString"
+    ${EndIf}
+    ${If} $0 != ""
+        Push $0
+        Call RunSilenceV1Uninstaller
+    ${EndIf}
+
+    SetRegView 64
+    ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SILENCE_V1_UNINSTALL_KEY}" "QuietUninstallString"
+    ${If} $0 == ""
+        ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SILENCE_V1_UNINSTALL_KEY}" "UninstallString"
+    ${EndIf}
+    ${If} $0 != ""
+        Push $0
+        Call RunSilenceV1Uninstaller
+    ${EndIf}
+
+    SetRegView 32
+    ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SILENCE_V1_UNINSTALL_KEY}" "QuietUninstallString"
+    ${If} $0 == ""
+        ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${SILENCE_V1_UNINSTALL_KEY}" "UninstallString"
+    ${EndIf}
+    ${If} $0 != ""
+        Push $0
+        Call RunSilenceV1Uninstaller
+    ${EndIf}
+    SetRegView lastused
+FunctionEnd
+
 {{#if installer_hooks}}
 !include "{{installer_hooks}}"
 {{/if}}
@@ -141,9 +192,9 @@ Section "Uninstall"
     RMDir /r "$SMPROGRAMS\{{start_menu_folder}}"
 
     ; Remove Desktop shortcut
-    Delete "$DESKTOP\{{product_name}}.lnk"
+    Delete "$DESKTOP\silence!.lnk"
 
     ; Remove registry keys
-    DeleteRegValue SHCTX "Software\Microsoft\Windows\CurrentVersion\Run" "SilenceV2"
+    DeleteRegValue SHCTX "Software\Microsoft\Windows\CurrentVersion\Run" "silence!"
     DeleteRegKey SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}"
 SectionEnd
