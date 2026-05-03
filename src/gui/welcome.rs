@@ -323,7 +323,11 @@ setupWelcomeKeycapAnimator();
                             }
                             button {
                                 class: "save",
-                                onclick: move |_| step.set(1),
+                                onclick: move |_| {
+                                    crate::set_settings_hotkey_recording(true);
+                                    step.set(1);
+                                    focus_welcome_shell();
+                                },
                                 "Set hotkey"
                                 span { class: "solar-icon button-icon icon-arrow-right" }
                             }
@@ -421,6 +425,17 @@ setupWelcomeKeycapAnimator();
             }
         }
     }
+}
+
+fn focus_welcome_shell() {
+    spawn(async move {
+        let script = r#"
+requestAnimationFrame(() => {
+  document.querySelector('.welcome-shell')?.focus();
+});
+"#;
+        let _ = dioxus::document::eval(script).await;
+    });
 }
 
 fn welcome_error_is_not_found(err: &anyhow::Error) -> bool {
