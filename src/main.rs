@@ -4303,7 +4303,9 @@ pub fn import_settings() -> Result<()> {
     };
 
     let content = fs::read_to_string(source)?;
-    let config = parse_config_content(&content)?;
+    let mut config = parse_config_content(&content)?;
+    config.welcome_completed = true;
+    config.hotkeys_paused = false;
     save_config(&config)?;
     apply_live_config(&config, config_modified_time());
     Ok(())

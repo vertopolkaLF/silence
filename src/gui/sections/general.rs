@@ -182,7 +182,9 @@ pub fn render(
                             class: "secondary general-confirm-danger",
                             onclick: move |_| {
                                 let result = match action {
-                                    ConfirmAction::ImportV1 => crate::import_v1_settings(),
+                                    ConfirmAction::ImportV1 => {
+                                        crate::import_v1_settings().and_then(|_| crate::complete_welcome())
+                                    }
                                     ConfirmAction::Reset => crate::reset_settings(),
                                 };
                                 if result.is_ok() {
