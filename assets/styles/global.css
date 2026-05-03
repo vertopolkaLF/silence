@@ -80,8 +80,8 @@ body,
   --content-bg: var(--surface);
   --select-menu-bg: color-mix(in oklch, oklch(30.5% 0.006 286) 99%, var(--windows-accent));
   --hotkey-panel-bg: color-mix(in oklch, oklch(17.5% 0.006 286) 99%, var(--windows-accent));
-  --surface-2: color-mix(in oklch, oklch(40% 0.006 286) 22%, transparent);
-  --surface-3: color-mix(in oklch, oklch(48% 0.007 286) 32%, transparent);
+  --surface-2: color-mix(in oklch, oklch(40% 0.006 286) 15%, transparent);
+  --surface-3: color-mix(in oklch, oklch(48% 0.007 286) 20%, transparent);
   --surface-hover: color-mix(in oklch, var(--surface-2) 82%, var(--accent-text));
   --surface-color-1: color-mix(in oklch, oklch(from var(--windows-accent) 34% calc(c * 0.18) h) 10%, transparent);
   --surface-color-2: color-mix(in oklch, oklch(from var(--windows-accent) 39% calc(c * 0.24) h) 15%, transparent);
@@ -149,6 +149,7 @@ p {
 button,
 input {
   font: inherit;
+  border: none;
 }
 
 button {

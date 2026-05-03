@@ -1,30 +1,33 @@
 .about-panel {
-  width: min(760px, 100%);
+  width: min(720px, 100%);
   display: grid;
-  gap: 12px;
+  gap: 20px;
 }
-
-.about-hero,
-.about-card {}
 
 .about-hero {
   display: flex;
   align-items: center;
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: 20px;
+}
+
+.about-hero-visual {
+  flex: 0 0 auto;
 }
 
 .about-app-icon {
-  width: 72px;
-  height: 72px;
-  flex: 0 0 72px;
-  border-radius: 18px;
-  box-shadow: 0 8px 18px color-mix(in oklch, var(--shadow-medium) 65%, transparent);
+  width: 66px;
+  height: 66px;
+  flex: 0 0 66px;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px color-mix(in oklch, var(--shadow-medium) 60%, transparent);
+  z-index: 1;
+  position: relative;
 }
 
 .about-hero-copy {
   min-width: 0;
   display: grid;
+  gap: 2px;
 }
 
 .about-title-row {
@@ -35,15 +38,23 @@
 }
 
 .about-version-pill {
-  height: 28px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 12px;
   border-radius: 999px;
-  background: var(--surface-color-5);
+  background: var(--accent-soft);
   color: var(--accent-text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
+  border: 1px solid var(--control-border);
+}
+
+.about-description {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .about-card {
@@ -53,6 +64,7 @@
   border-radius: 14px;
   background: var(--surface-2);
   box-shadow: 0 8px 26px var(--shadow-faint);
+  border: 1px solid var(--control-border);
 }
 
 .about-card-head {
@@ -62,86 +74,278 @@
 }
 
 .about-card-icon {
+  width: 20px;
+  height: 20px;
   color: var(--accent-text);
+  flex-shrink: 0;
+}
+
+.about-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.about-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--accent) 6%, var(--surface-2));
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+  text-align: left;
+}
+
+.about-action-btn:hover {
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface-2));
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px var(--shadow-faint);
+}
+
+.about-action-btn .solar-icon {
+  font-size: 22px;
+  color: var(--accent-text);
+  margin-bottom: 4px;
+}
+
+.about-action-btn span:nth-child(2) {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.about-action-hint {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .about-update-status {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+  transition: color var(--ui-transition);
+}
+
+.about-update-status.highlight {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.about-update-wrapper {
+  position: relative;
+  width: 100%;
+  height: 48px;
+}
+
+.about-update-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.about-update-layer.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.about-update-layer.exit {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+
+.about-update-layer.exit-up {
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+
+.about-update-layer.exit-down {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+
+/* Button Text Switcher */
+.btn-text-switcher {
+  position: relative;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+}
+
+.btn-text-switcher span {
+  grid-area: 1 / 1;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.btn-text-switcher span.text-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.btn-text-switcher span.text-out {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.btn-text-switcher span.check-in-text.text-out {
+  transform: translateY(10px);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.solar-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.about-update-btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 48px;
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--accent) 6%, var(--surface-2));
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+.about-update-btn.hidden {
+  flex: 0 0 0px;
+  padding: 0;
+  margin: 0;
+  opacity: 0;
+  border-width: 0;
+  gap: 0;
+  pointer-events: none;
+}
+
+.about-update-btn:hover:not(.hidden) {
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface-2));
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px var(--shadow-faint);
+}
+
+.about-update-btn .solar-icon {
+  font-size: 20px;
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+
+.about-update-btn span:not(.solar-icon) {
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.about-update-progress {
+  position: relative;
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.about-update-progress-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: color-mix(in oklch, var(--accent) 18%, var(--surface));
+  width: var(--progress);
+  transition: width 0.24s ease;
+  pointer-events: none;
+}
+
+.about-update-progress-copy {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  padding: 0 16px;
+  pointer-events: none;
 }
 
-.about-update-copy {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
+.about-update-progress-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
 }
 
-.about-actions {
+.about-update-progress-value {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.about-footer {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.about-signoff-card {
-  justify-items: center;
-  text-align: center;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 8px;
 }
 
 .about-made-by {
-  color: var(--faint);
-  font-size: 12px;
-}
-
-.about-credits-card {
-  gap: 14px;
-}
-
-.about-credits-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 8px;
-}
-
-.about-credits-list li {
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 13px;
 }
 
-@media (max-width: 720px) {
+.about-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
   .about-hero {
     align-items: flex-start;
-    padding: 20px;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .about-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .about-app-icon-frame {
+    width: 68px;
+    height: 68px;
   }
 
   .about-app-icon {
-    width: 64px;
-    height: 64px;
-    flex-basis: 64px;
+    width: 56px;
+    height: 56px;
   }
 
   .about-card {
     padding: 16px;
-  }
-}
-
-@media (max-width: 560px) {
-  .about-hero {
-    flex-direction: column;
-  }
-
-  .about-update-status,
-  .about-actions {
-    width: 100%;
-  }
-
-  .about-actions .secondary {
-    flex: 1 1 180px;
   }
 }

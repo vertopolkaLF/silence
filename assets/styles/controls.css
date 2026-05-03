@@ -471,7 +471,7 @@
   width: 100%;
   height: 48px;
   color: var(--text);
-  --range-fill: color-mix(in oklch, var(--accent) 18%, var(--surface));
+  --range-fill: color-mix(in oklch, var(--accent) 12%, var(--surface-2));
   --range-empty: var(--surface-2);
   --range-thumb: color-mix(in oklch, var(--accent) 86%, var(--text));
   --range-track-height: 40px;
