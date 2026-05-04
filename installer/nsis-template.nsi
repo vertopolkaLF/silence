@@ -84,6 +84,9 @@ Section "Install"
 
     ; Install main binary
     File "{{main_binary_path}}"
+    {{#if installer_icon}}
+    File /oname=app.ico "{{installer_icon}}"
+    {{/if}}
 
     ; Install resources
     {{#each staged_files}}
@@ -98,11 +101,11 @@ Section "Install"
 
     ; Create Start Menu shortcuts
     CreateDirectory "$SMPROGRAMS\{{start_menu_folder}}"
-    CreateShortcut "$SMPROGRAMS\{{start_menu_folder}}\silence!.lnk" "$INSTDIR\{{main_binary_name}}"
-    CreateShortcut "$SMPROGRAMS\{{start_menu_folder}}\Uninstall silence!.lnk" "$INSTDIR\uninstall.exe"
+    CreateShortcut "$SMPROGRAMS\{{start_menu_folder}}\silence!.lnk" "$INSTDIR\{{main_binary_name}}" "" "$INSTDIR\app.ico" 0
+    CreateShortcut "$SMPROGRAMS\{{start_menu_folder}}\Uninstall silence!.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\app.ico" 0
 
     ; Create Desktop shortcut
-    CreateShortcut "$DESKTOP\silence!.lnk" "$INSTDIR\{{main_binary_name}}"
+    CreateShortcut "$DESKTOP\silence!.lnk" "$INSTDIR\{{main_binary_name}}" "" "$INSTDIR\app.ico" 0
 
     ; Write registry keys for Add/Remove Programs
     WriteRegStr SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}" \

@@ -17,7 +17,7 @@ use serde::Deserialize;
 use tokio::io::AsyncWriteExt;
 
 const GITHUB_API_ROOT: &str = "https://api.github.com/repos";
-const DEFAULT_UPDATE_REPO: &str = "vertopolkaLF/AUTOUPDATETEST";
+const DEFAULT_UPDATE_REPO: &str = "vertopolkaLF/silence";
 const USER_AGENT: &str = concat!("silence-updater/", env!("CARGO_PKG_VERSION"));
 
 static INSTALLING: AtomicBool = AtomicBool::new(false);

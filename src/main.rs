@@ -1752,8 +1752,9 @@ fn register_notification_integration() {
 
 fn notification_icon_path() -> Option<PathBuf> {
     let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    [
+    let direct_candidates = [
         exe_dir.join("app.ico"),
+        exe_dir.join("assets").join("app.ico"),
         PathBuf::from("assets").join("app.ico"),
     ]
     .into_iter()
@@ -1764,7 +1765,69 @@ fn notification_icon_path() -> Option<PathBuf> {
             std::env::current_dir().ok()?.join(path)
         };
         path.exists().then_some(path)
-    })
+    });
+    direct_candidates.or_else(|| find_asset_icon(&exe_dir.join("assets")))
+}
+
+fn find_asset_icon(asset_dir: &Path) -> Option<PathBuf> {
+    fs::read_dir(asset_dir)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| {
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                return false;
+            };
+            name.starts_with("app-") && name.ends_with(".ico")
+        })
+}
+
+fn toast_logo_path() -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let direct_candidates = [
+        exe_dir.join("app.png"),
+        exe_dir.join("assets").join("app.png"),
+        PathBuf::from("assets").join("app.png"),
+    ]
+    .into_iter()
+    .find_map(|path| {
+        let path = if path.is_absolute() {
+            path
+        } else {
+            std::env::current_dir().ok()?.join(path)
+        };
+        path.exists().then_some(path)
+    });
+    direct_candidates
+        .or_else(|| find_asset_image(&exe_dir.join("assets"), "app-", ".png"))
+        .or_else(|| notification_icon_path())
+}
+
+fn find_asset_image(asset_dir: &Path, prefix: &str, suffix: &str) -> Option<PathBuf> {
+    fs::read_dir(asset_dir)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| {
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                return false;
+            };
+            name.starts_with(prefix) && name.ends_with(suffix)
+        })
+}
+
+fn apply_toast_logo(toast: &mut winrt_toast::Toast) {
+    let Some(path) = toast_logo_path() else {
+        return;
+    };
+    let Ok(image) = winrt_toast::Image::new_local(path).map(|image| {
+        image
+            .with_placement(winrt_toast::content::image::ImagePlacement::AppLogoOverride)
+            .with_alt("silence!")
+    }) else {
+        return;
+    };
+    toast.image(1, image);
 }
 
 fn register_protocol_handler() -> Result<()> {
@@ -3706,6 +3769,7 @@ pub fn send_test_push_notification() {
     register_notification_integration();
 
     let mut toast = winrt_toast::Toast::new();
+    apply_toast_logo(&mut toast);
     toast
         .text1("silence! push")
         .text2("System notification pipeline is alive.")
@@ -3788,6 +3852,7 @@ fn show_updated_notification(version: &str) {
     register_notification_integration();
 
     let mut toast = winrt_toast::Toast::new();
+    apply_toast_logo(&mut toast);
     toast
         .text1(format!("Updated to {version} successfully"))
         .duration(winrt_toast::ToastDuration::Long)
@@ -3870,6 +3935,7 @@ fn launched_from_installer() -> bool {
 fn show_update_notification(update: &updater::UpdateInfo) {
     register_notification_integration();
     let mut toast = winrt_toast::Toast::new();
+    apply_toast_logo(&mut toast);
     toast
         .text1("silence! update available")
         .text2(&format!(
