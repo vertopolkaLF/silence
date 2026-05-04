@@ -28,20 +28,17 @@
 
 `silence!` is a Windows microphone mute utility built for fast, reliable control from anywhere. Mute a specific microphone or every active microphone with keyboard, mouse, or gamepad input, then confirm the state with tray icons, sounds, and an on-screen overlay.
 
-`silence! v2` is a Rust/Dioxus rebuild focused on more control, cleaner settings, live updates, and fewer weird little workflow annoyances.
+`silence! v2` is a Rust rebuild focused on more control, cleaner settings, live updates, and much less disk/RAM usage.
 
 ## What's new in v2
 
 - Rebuilt with Rust, Dioxus desktop, and a new settings UI
-- Multiple hotkey actions: toggle, mute, unmute, hold actions, device switching, and open Settings
-- Keyboard, mouse, modifier-only, and gamepad bindings
-- Xbox controller buttons and two-button gamepad combos
-- Default input and output device switching from settings or hotkeys
-- Custom overlay styles with icon packs, dot mode, text, color mode, opacity, border, radius, scale, and position controls
-- Tray icon style picker with logo, mic status, and color dot variants
-- Import/export for settings, plus v1 settings import
-- In-app update checking, download progress, and installer launch flow
-- Settings apply immediately. No Save button ceremony. Thank fuck.
+- Tiny footprint: about **20MB for the app plus bundled assets** and **under 10MB RAM** during normal work
+- Device management: Bind hotkey to switch to/between Output/Input devices or use new tray menu
+- More reliable gamepad support, including wheels and PlayStation controllers
+- More options to customize overlay and different icons
+- New tray customize options
+- Import/export for settings with ability to import settings from the v1 app
 
 ## Features
 
@@ -81,6 +78,12 @@
 - Settings backup and restore
 - v1 settings import
 - In-app update flow
+
+### Performance and size
+
+- About **20MB total** for the app and bundled assets
+- Uses **under 10MB of RAM** during normal work
+- Built to sit quietly in the background instead of cosplaying as an Electron-powered space heater
 
 ## Screenshots
 

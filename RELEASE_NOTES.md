@@ -14,6 +14,12 @@
 
 - **Mica Background Support** - Added a toggle for the app's Mica background, because Windows can look nice when it is not busy inventing new ways to be weird.
 
+### Tiny Footprint
+
+- **~20MB App + Assets** - The app plus bundled assets come in at about 20MB. Not 200MB. Not "please clear disk space for a mute button." Just 20MB-ish.
+
+- **Under 10MB RAM During Work** - Normal background usage stays under 10MB of RAM, because muting a microphone should not require the memory budget of a small browser tab.
+
 ### Hotkeys Got Way More Useful
 
 - **Multi-Action Hotkeys** - Hotkeys can now be assigned to toggle mute, mute, unmute, hold actions, default device switching, and opening Settings.
@@ -100,6 +106,7 @@
 
 - Rebuilt project as a Rust 2024 application
 - Added Dioxus 0.7 desktop UI
+- Reduced normal working memory usage to under 10MB RAM with app and bundled assets around 20MB
 - Added direct Windows API integration for audio devices, hotkeys, tray behavior, windowing, Mica, and notifications
 - Added `gilrs` gamepad input support
 - Added `rodio` sound playback
