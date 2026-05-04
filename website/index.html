@@ -5,10 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>silence! - the best Windows app to mute your mic</title>
-    <meta name="description" content="silence! is a free, open-source Windows microphone mute app with global hotkeys, hold-to-talk, a visual overlay, custom sounds, and tray controls.">
-    <meta name="keywords" content="mic mute, mute mic app, app to mute mic, microphone mute app, microphone mute utility, mute microphone Windows, Windows mic mute, Windows microphone mute, global hotkey mic mute, push to talk Windows, hold to talk Windows, mute microphone shortcut, tray mic mute app, open source mic mute, silence app, silence!">
+    <meta name="description" content="silence! is a free, open-source Windows microphone mute app with multi-action hotkeys, gamepad support, hold-to-mute, auto-mute, custom overlay, sounds, tray icon styles, device switching, import/export, and auto-updates.">
+    <meta name="keywords" content="mic mute, mute mic app, app to mute mic, microphone mute app, microphone mute utility, mute microphone Windows, Windows mic mute, Windows microphone mute, global hotkey mic mute, gamepad mic mute, hold to mute Windows, hold to talk Windows, mute microphone shortcut, default audio device hotkey, tray mic mute app, open source mic mute, silence v2, silence app, silence!">
     <meta name="robots" content="index, follow">
-    <meta name="author" content="vertopolkalf">
+    <meta name="author" content="vertopolkaLF">
     <meta name="application-name" content="silence!">
     <meta name="theme-color" content="#fb923c">
     <link rel="canonical" href="https://silencemute.fun/">
@@ -17,14 +17,14 @@
     <meta property="og:locale" content="en_US">
     <meta property="og:site_name" content="silence!">
     <meta property="og:title" content="silence! - the best Windows app to mute your mic">
-    <meta property="og:description" content="Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, overlay controls, custom sounds, and more.">
+    <meta property="og:description" content="Free, open-source microphone mute utility for Windows with multi-action hotkeys, gamepad support, auto-mute, custom overlay, sounds, tray controls, and auto-updates.">
     <meta property="og:url" content="https://silencemute.fun/">
     <meta property="og:image" content="https://silencemute.fun/ogimage.png">
     <meta property="og:image:alt" content="silence! social preview image">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="silence! - the best Windows app to mute your mic">
-    <meta name="twitter:description" content="Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, overlay controls, custom sounds, and more.">
+    <meta name="twitter:description" content="Free, open-source microphone mute utility for Windows with multi-action hotkeys, gamepad support, auto-mute, custom overlay, sounds, tray controls, and auto-updates.">
     <meta name="twitter:image" content="https://silencemute.fun/ogimage.png">
     <meta name="twitter:image:alt" content="silence! social preview image">
 
@@ -39,16 +39,16 @@
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
             "name": "silence!",
-            "description": "Free, open-source microphone mute utility for Windows with global hotkeys, hold-to-talk, visual overlay, custom sounds, and tray controls.",
+            "description": "Free, open-source microphone mute utility for Windows with multi-action hotkeys, gamepad support, hold-to-mute, auto-mute, visual overlay, custom sounds, tray controls, device switching, import/export, and auto-updates.",
             "applicationCategory": "UtilitiesApplication",
             "operatingSystem": "Windows 10, Windows 11",
             "url": "https://silencemute.fun/",
-            "downloadUrl": "https://github.com/vertopolkalf/silence/releases/latest",
+            "downloadUrl": "https://github.com/vertopolkaLF/silence/releases",
             "image": "https://silencemute.fun/app.png",
             "author": {
                 "@type": "Person",
-                "name": "vertopolkalf",
-                "url": "https://github.com/vertopolkalf"
+                "name": "vertopolkaLF",
+                "url": "https://github.com/vertopolkaLF"
             },
             "offers": {
                 "@type": "Offer",
@@ -81,10 +81,10 @@
                 },
                 {
                     "@type": "Question",
-                    "name": "How is it better the muting in the Discord/Teams/[insert app name]",
+                    "name": "How is it better than muting in Discord, Teams, or another app?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "You don't need to set up same shortcut in all the apps, because silence! works for everything at once. You don't need to remember the shortcuts for each of the app. You can always see that you are 100% muted. If the app doesn't have shortucut for muting you need to open app window and click mute. There's a long list, I should stop 😅"
+                        "text": "You do not need to configure the same shortcut in every app, because silence! works at the microphone device level. You can use one set of hotkeys, see the mute state in the overlay or tray, and keep the same behavior across calls, games, browsers, and recording tools."
                     }
                 },
                 {
@@ -97,10 +97,10 @@
                 },
                 {
                     "@type": "Question",
-                    "name": "Why C#, .NET and WinUI?",
+                    "name": "What changed in silence! v2?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "It felt like the best fit for Windows. I wanted the app to be as invisible and native-feeling as possible, and I was tired of building custom GUIs and reinventing design choices."
+                        "text": "v2 is a rebuild focused on more control and cleaner settings: multiple hotkey actions, gamepad support, default input and output device switching, hold actions, auto-mute, custom overlay and tray icon styles, import/export, v1 settings import, and an in-app updater."
                     }
                 },
                 {
@@ -108,7 +108,7 @@
                     "name": "Can I request a feature?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Yes. Many updates came directly from community feedback, including the clickable on-screen mute button, auto-mute, and Hold-to-Mute. You can suggest a feature or report a bug on the project's GitHub issues page."
+                        "text": "Yes. Many updates came directly from community feedback, including gamepad hotkeys, richer overlay controls, tray icon styles, auto-mute, custom sounds, and Hold-to-Mute. You can suggest a feature or report a bug on the project's GitHub issues page."
                     }
                 },
                 {
@@ -140,7 +140,7 @@
                     "name": "Why this app is so good?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Short Answer: Because I use it mysellf!\n\nLong answer: I am kinda a perfectionist and have high quality standards for my work. Before releasing the app I tested it on both x64 and x86, 10 and 11 Windows in Virtual machine, and tested it on some old laptops I have. I also like polished things and for everything to look nice and smooth. Although there ase some things that I can just not care about as much (tray icon *ahem*) overall state should be perfect. "
+                        "text": "Short answer: because I use it myself. Long answer: I care about control, reliability, and polish, so the app is built around the workflows I actually need every day: fast mute control, clear feedback, and settings that apply immediately."
                     }
                 }
             ]
@@ -340,6 +340,12 @@
             justify-content: space-between;
             align-items: center;
             width: 100%;
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 24px;
+            align-items: center;
         }
 
         .nav-link {
@@ -894,7 +900,9 @@
         }
 
         .bg-surface .feature-badge,
-        .bg-gradient-dark .feature-badge {
+        .bg-gradient-dark .feature-badge,
+        .bg-faq-yellow .feature-badge,
+        .bg-faq-blue .feature-badge {
             background: rgba(250, 250, 249, 0.12);
             border-color: rgba(250, 250, 249, 0.16);
             color: var(--text);
@@ -1168,6 +1176,21 @@
         }
 
         @media (max-width: 800px) {
+            nav {
+                gap: 16px;
+                flex-wrap: wrap;
+            }
+
+            .nav-actions {
+                width: 100%;
+                justify-content: space-between;
+                gap: 14px;
+            }
+
+            .nav-actions .btn {
+                padding: 12px 18px !important;
+            }
+
             .hero {
                 h1 {
                     font-size: 3.5rem;
@@ -1197,6 +1220,20 @@
         }
 
         @media (max-width: 500px) {
+            .nav-actions {
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            .nav-link {
+                font-size: 0.95rem;
+            }
+
+            .nav-actions .btn {
+                flex: 1 0 100%;
+                justify-content: center;
+            }
+
             .bento-grid {
                 grid-template-columns: 1fr;
                 grid-auto-rows: minmax(200px, auto);
@@ -1851,14 +1888,14 @@
             <a href="#" class="brand">
                 silence<span>!</span>
             </a>
-            <div style="display: flex; gap: 24px; align-items: center;">
+            <div class="nav-actions">
                 <a href="#screenshots" class="nav-link" onclick="document.getElementById('screenshots-card')?.click(); return false;">Screenshots</a>
                 <a href="#faq" class="nav-link" onclick="document.getElementById('faq-open-button')?.click(); return false;">FAQ</a>
-                <a href="https://github.com/vertopolkalf/silence" target="_blank" class="nav-link" style="display: flex; align-items: center; gap: 6px;">
+                <a href="https://github.com/vertopolkaLF/silence" target="_blank" class="nav-link" style="display: flex; align-items: center; gap: 6px;">
                     <iconify-icon icon="mdi:github" style="font-size: 1.25rem;"></iconify-icon>
                     <span id="github-stars">GitHub</span>
                 </a>
-                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
+                <a href="https://github.com/vertopolkaLF/silence/releases" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;" data-download-link>
                     Download
                 </a>
             </div>
@@ -1877,15 +1914,15 @@
             <p class="hero-anim hero-delay-5">
                 A ridiculously good Windows app to <b>mute your mic</b> on OS level.
                 <br />
-                Multi-action hotkeys, hold−to−talk, controller support, sounds, visual overlay and a <i>looooot of features</i>
+                Multi-action hotkeys, gamepad support, hold actions, auto-mute, device switching, visual overlay and a <i>looooot of features</i>
             </p>
 
             <div class="hero-actions hero-anim hero-delay-6">
-                <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
+                <a href="https://github.com/vertopolkaLF/silence/releases" class="btn btn-primary" data-download-link>
                     <iconify-icon icon="fluent:arrow-download-24-filled"></iconify-icon>
                     Get for Windows
                 </a>
-                <a href="https://github.com/vertopolkalf/silence" target="_blank" class="btn btn-secondary">
+                <a href="https://github.com/vertopolkaLF/silence" target="_blank" class="btn btn-secondary">
                     <iconify-icon icon="mdi:github"></iconify-icon>
                     Star on GitHub
                 </a>
@@ -1970,7 +2007,7 @@
                     </div>
                     <div class="card-copy">
                         <h3>Global<br>Hotkeys.</h3>
-                        <p>Pick any shortcut, use it everywhere, and let it still fire even when extra modifiers are pressed in games.</p>
+                        <p>Bind keyboard, mouse, or gamepad shortcuts for mute, unmute, hold actions, device switching, and opening Settings.</p>
                     </div>
                 </div>
 
@@ -1981,7 +2018,7 @@
                     </div>
                     <div class="card-copy">
                         <h4>Multi-Action Shortcuts</h4>
-                        <p>Give toggle, mute, and unmute their own dedicated shortcuts.</p>
+                        <p>Give toggle, mute, unmute, hold actions, device switching, and Settings their own shortcuts.</p>
                     </div>
                 </div>
 
@@ -1992,7 +2029,7 @@
                     </div>
                     <div class="card-copy">
                         <h4>Auto-Mute Timer</h4>
-                        <p>Set a timeout so silence! mutes the mic for you if you forget.</p>
+                        <p>Mute on app launch, mute after keyboard and mouse inactivity, and optionally unmute when activity returns.</p>
                     </div>
                 </div>
 
@@ -2003,7 +2040,7 @@
                     </div>
                     <div class="card-copy">
                         <h4>Gamepad Support</h4>
-                        <p>Bind mute actions straight to controller buttons and combos.</p>
+                        <p>Bind actions straight to any controller buttons and combos.</p>
                     </div>
                 </div>
 
@@ -2043,7 +2080,7 @@
                     </div>
                     <div class="card-copy">
                         <h3>Visual Overlay</h3>
-                        <p>Keep your mute state visible above any app with an indicator that can show an icon, text, or both.</p>
+                        <p>Keep your mute state visible above any app with a lot of customization.</p>
                     </div>
                 </div>
 
@@ -2065,7 +2102,7 @@
                     </div>
                     <div class="card-copy">
                         <h4>Flexible Positioning</h4>
-                        <p>Drag it anywhere and snap it neatly to center when you want it tidy.</p>
+                        <p>Move the overlay with live positioning controls and place it exactly where it belongs.</p>
                     </div>
                 </div>
 
@@ -2085,7 +2122,7 @@
                     </div>
                     <div class="card-copy">
                         <h3>Sounds &<br>Custom Audio</h3>
-                        <p>Pick from 8 built-in themes or bring MP3, WAV, FLAC, OGG, M4A, and WMA files so your mute state is obvious by ear.</p>
+                        <p>Pick from 8 built-in themes or bring MP3, WAV, OGG, and FLAC files so your mute state is obvious by ear.</p>
                     </div>
                 </div>
 
@@ -2107,27 +2144,29 @@
                     </div>
                     <div class="card-copy">
                         <h4>System Tray Controls</h4>
-                        <p>Live quietly in the tray, left-click to toggle instantly, and choose standard, filled-circle, or dot icon styles.</p>
+                        <p>Live quietly in the tray, showing current mic status.</p>
                     </div>
                 </div>
 
                 <div class="bento-card span-1x1 bg-faq-blue">
+                    <span class="feature-badge">New</span>
                     <div class="bento-icon" style="color: var(--pop-blue);">
                         <iconify-icon icon="solar:palette-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h4>Native Windows UI</h4>
-                        <p>Built with WinUI 3, with Mica on Windows 11 and Acrylic on Windows 10.</p>
+                        <h4>Polished v2 UI</h4>
+                        <p>Rebuilt settings with animated tab transitions, Mica support, and controls that apply changes right away.</p>
                     </div>
                 </div>
 
                 <div class="bento-card span-1x1 bg-faq-yellow">
+                    <span class="feature-badge">New</span>
                     <div class="bento-icon" style="color: var(--pop-yellow);">
-                        <iconify-icon icon="solar:moon-bold-duotone"></iconify-icon>
+                        <iconify-icon icon="solar:headphones-round-sound-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h4>Theme Sync</h4>
-                        <p>Automatically matches your system theme and accent color.</p>
+                        <h4>Device Switching</h4>
+                        <p>Switch default input or output devices directly from settings or hotkeys.</p>
                     </div>
                 </div>
 
@@ -2137,7 +2176,7 @@
                     </div>
                     <div class="card-copy">
                         <h4>Startup Rules</h4>
-                        <p>Start with Windows, launch straight to tray, or come up already muted.</p>
+                        <p>Start with Windows, mute on app launch, and keep the utility out of your way.</p>
                     </div>
                 </div>
 
@@ -2148,7 +2187,7 @@
                     </div>
                     <div class="card-copy">
                         <h4>Actually Lightweight</h4>
-                        <p>Sits at basically 0% CPU and around 70MB of RAM, so it stays out of your way while you do your thing.</p>
+                        <p>Less than 20MB install size, and only ~7MB of RAM used while running in the tray.</p>
                     </div>
                 </div>
 
@@ -2158,7 +2197,7 @@
                     </div>
                     <div class="card-copy">
                         <h4>Auto-Updates</h4>
-                        <p>Get new features and improvements without the usual update hassle.</p>
+                        <p>Check, download, and launch updates from the app with progress shown in the About screen.</p>
                     </div>
                 </div>
 
@@ -2253,8 +2292,8 @@
                         <div class="faq-item-answer">
                             <div class="faq-item-answer-inner">
                                 <div class="faq-item-answer-content">
-                                    <p>Please do! A lot of features in the updates came from the community, including the clickable on-screen mute button, auto-mute, and Hold-to-Mute.</p>
-                                    <p>You can suggest a feature or report a bug on <a href="https://github.com/vertopolkalf/silence/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+                                    <p>Please do! A lot of features in the updates came from the community, including gamepad hotkeys, richer overlay controls, tray icon styles, auto-mute, custom sounds, and Hold-to-Mute.</p>
+                                    <p>You can suggest a feature or report a bug on <a href="https://github.com/vertopolkaLF/silence/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
                                 </div>
                             </div>
                         </div>
@@ -2279,7 +2318,7 @@
 
                     <article class="faq-item">
                         <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>How is it better the muting in the Discord/Teams/[insert app name]</h3>
+                            <h3>How is it better than muting in Discord, Teams, or another app?</h3>
                             <span class="faq-item-indicator" aria-hidden="true">
                                 <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
                             </span>
@@ -2287,7 +2326,7 @@
                         <div class="faq-item-answer">
                             <div class="faq-item-answer-inner">
                                 <div class="faq-item-answer-content">
-                                    <p>You don't need to set up same shortcut in all the apps, because silence! works for everything at once. You don't need to remember the shortcuts for each of the app. You can always see that you are 100% muted. If the app doesn't have shortucut for muting you need to open app window and click mute. There's a long list, I should stop 😅</p>
+                                    <p>You don't need to configure the same shortcut in every app, because silence! works at the microphone device level. One set of hotkeys can cover calls, games, browsers, recording tools, and whatever else is currently trying to hear you breathe.</p>
                                 </div>
                             </div>
                         </div>
@@ -2353,8 +2392,8 @@
                         <div class="faq-item-answer">
                             <div class="faq-item-answer-inner">
                                 <div class="faq-item-answer-content">
-                                    <p>Short Answer: Because I use it mysellf!</p>
-                                    <p>Long answer: I am kinda a perfectionist and have high quality standards for my work. Before releasing the app I tested it on both x64 and x86, 10 and 11 Windows in Virtual machine, and tested it on some old laptops I have. I also like polished things and for everything to look nice and smooth. Although there ase some things that I can just not care about as much (tray icon *ahem*) overall state should be perfect. </p>
+                                    <p>Short answer: because I use it myself.</p>
+                                    <p>Long answer: I care about control, reliability, and polish, so the app is built around the workflows I actually need every day: fast mute control, clear feedback, and settings that apply immediately.</p>
                                 </div>
                             </div>
                         </div>
@@ -2380,7 +2419,7 @@
 
                     <article class="faq-item">
                         <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Why C#, .NET and WinUI?</h3>
+                            <h3>What changed in silence! v2?</h3>
                             <span class="faq-item-indicator" aria-hidden="true">
                                 <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
                             </span>
@@ -2388,8 +2427,8 @@
                         <div class="faq-item-answer">
                             <div class="faq-item-answer-inner">
                                 <div class="faq-item-answer-content">
-                                    <p>It felt like the best fit for Windows. I wanted the app to be as invisible as possible and still feel native.</p>
-                                    <p>I was also tired of building custom GUIs and reinventing design choices for desktop apps.</p>
+                                    <p>v2 is a rebuild focused on more control and cleaner settings: multiple hotkey actions, gamepad support, default input and output device switching, hold actions, auto-mute, custom overlay and tray icon styles, import/export, v1 settings import, and an in-app updater.</p>
+                                    <p>Settings apply immediately, because Save buttons for this kind of utility are ceremonial nonsense.</p>
                                 </div>
                             </div>
                         </div>
@@ -2410,14 +2449,14 @@
                     <h2 class="cta-animate cta-delay-1">Drop the janky scripts.</h2>
                     <p class="cta-animate cta-delay-2">One clean utility. Zero bloat. Total control.</p>
                     <div class="cta-animate cta-delay-3">
-                        <a href="https://github.com/vertopolkalf/silence/releases/latest" class="btn btn-primary">
+                        <a href="https://github.com/vertopolkaLF/silence/releases" class="btn btn-primary" data-download-link>
                             Download silence!
                         </a>
                     </div>
                 </div>
                 <div class="footer-info">
                     <div class="cta-animate cta-delay-4" style="margin: 0;">
-                        <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkalf" target="_blank">vertopolkalf</a>.
+                        <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkaLF" target="_blank">vertopolkaLF</a>.
                     </div>
                 </div>
 
@@ -2438,7 +2477,7 @@
         document.addEventListener("DOMContentLoaded", async () => {
             try {
                 // Fetch stargazers count
-                fetch("https://api.github.com/repos/vertopolkalf/silence")
+                fetch("https://api.github.com/repos/vertopolkaLF/silence")
                     .then(res => res.json())
                     .then(data => {
                         if (data.stargazers_count !== undefined) {
@@ -2450,10 +2489,17 @@
                     })
                     .catch(e => console.error("Failed to fetch stars:", e));
 
-                const response = await fetch("https://api.github.com/repos/vertopolkalf/silence/releases/latest");
+                const response = await fetch("https://api.github.com/repos/vertopolkaLF/silence/releases/latest");
                 if (!response.ok) return;
 
                 const data = await response.json();
+                const latestVersion = String(data.tag_name || data.name || "");
+                const majorMatch = latestVersion.match(/v?(\d+)/i);
+                const latestMajor = majorMatch ? Number(majorMatch[1]) : 0;
+
+                if (latestMajor < 2) {
+                    return;
+                }
 
                 // Determine architecture
                 let arch = "x64"; // Default
@@ -2470,8 +2516,8 @@
                 const asset = data.assets.find(a => a.name.includes(`${arch}-setup.exe`)) || data.assets.find(a => a.name.includes("x64-setup.exe"));
 
                 if (asset) {
-                    // Update all download buttons pointing to the latest release page
-                    const downloadBtns = document.querySelectorAll('a[href*="/releases/latest"]');
+                    // Update all download buttons to the matching installer once v2+ is the latest release.
+                    const downloadBtns = document.querySelectorAll('[data-download-link]');
                     downloadBtns.forEach(btn => {
                         btn.href = asset.browser_download_url;
                     });
