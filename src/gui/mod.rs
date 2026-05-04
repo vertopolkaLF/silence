@@ -253,9 +253,10 @@ pub fn settings_app() -> Element {
     let close_desktop = desktop.clone();
     let reveal_desktop = desktop.clone();
     let mut settings = use_signal(SettingsSnapshot::load);
-    let active_tab = use_signal(|| SettingsTab::Hotkeys);
-    let displayed_tab = use_signal(|| SettingsTab::Hotkeys);
-    let active_section = use_signal(|| SettingsTab::Hotkeys.first_section_id().to_string());
+    let startup_tab = startup_settings_tab();
+    let active_tab = use_signal(move || startup_tab);
+    let displayed_tab = use_signal(move || startup_tab);
+    let active_section = use_signal(move || startup_tab.first_section_id().to_string());
     let tab_transition = use_signal(|| None::<TabTransition>);
     let tab_transition_id = use_signal(|| 0_u64);
     let pending_tab = use_signal(|| None::<SettingsTab>);
@@ -434,6 +435,14 @@ pub fn settings_app() -> Element {
                 {sections::hotkey_modal_host(settings, hotkey_modal_request)}
             }
         }
+    }
+}
+
+fn startup_settings_tab() -> SettingsTab {
+    if std::env::args().any(|arg| arg == "--about") {
+        SettingsTab::About
+    } else {
+        SettingsTab::Hotkeys
     }
 }
 

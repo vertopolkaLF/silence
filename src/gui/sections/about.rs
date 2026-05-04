@@ -156,6 +156,13 @@ pub fn render() -> Element {
                         }
                     }
                 }
+                button {
+                    class: "about-text-button",
+                    onclick: move |_| {
+                        crate::send_test_push_notification();
+                    },
+                    "Send Push"
+                }
             }
 
             section { class: "about-card about-actions-card",

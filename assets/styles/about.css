@@ -264,6 +264,22 @@
   flex-shrink: 0;
 }
 
+.about-text-button {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color var(--ui-transition), opacity var(--ui-transition);
+}
+
+.about-text-button:hover {
+  color: var(--text);
+}
+
 .about-update-progress {
   position: relative;
   width: 100%;

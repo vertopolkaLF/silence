@@ -89,7 +89,7 @@ use windows::{
                 GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON, HMENU, IDC_ARROW,
                 IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW,
                 LoadIconW, MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostQuitMessage, RegisterClassW,
-                RegisterWindowMessageW, SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE,
+                RegisterWindowMessageW, SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SW_SHOW,
                 SendMessageW, SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
                 SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
                 TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
@@ -111,6 +111,9 @@ pub(crate) mod overlay_icons;
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_TOGGLE_MUTE: u32 = WM_APP + 2;
 const WM_OVERLAY_POSITIONING: u32 = WM_APP + 3;
+const WM_MUTE: u32 = WM_APP + 4;
+const WM_UNMUTE: u32 = WM_APP + 5;
+const WM_OPEN_SETTINGS: u32 = WM_APP + 6;
 const ID_TRAY: u32 = 1;
 const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
@@ -126,6 +129,9 @@ const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
 const MENU_POS_DEFAULT_INPUT: u32 = 2;
 const MENU_POS_DEFAULT_OUTPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
+const APP_USER_MODEL_ID: &str = "Silence.SilenceV2";
+const APP_PROTOCOL: &str = "silence";
+const MAIN_INSTANCE_MUTEX: PCWSTR = w!("SilenceV2BackgroundApp");
 const DWMWA_MICA_EFFECT: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(1029);
 const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;
 const TRAY_ADD_RETRY_MS: u32 = 2_000;
@@ -761,6 +767,14 @@ struct ActiveHoldHotkey {
     previous_muted: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NotificationAction {
+    ToggleMute,
+    Mute,
+    Unmute,
+    OpenSettings,
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 struct ModifierState {
     ctrl: bool,
@@ -1191,6 +1205,8 @@ static SETTINGS_MOUSE_PRESSED_SHORTCUT: Lazy<Mutex<Option<Shortcut>>> =
     Lazy::new(|| Mutex::new(None));
 static TRAY_DEVICE_COMMANDS: Lazy<Mutex<HashMap<usize, TrayDeviceCommand>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
+static PENDING_NOTIFICATION_ACTION: Lazy<Mutex<Option<NotificationAction>>> =
+    Lazy::new(|| Mutex::new(None));
 static SETTINGS_ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
 static GILRS_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
 static XINPUT_MONITOR_STARTED: AtomicBool = AtomicBool::new(false);
@@ -1529,6 +1545,13 @@ const SOUND_THEMES: &[SoundTheme] = &[
 fn main() -> Result<()> {
     set_dpi_awareness();
 
+    if let Some(action) = notification_action_from_args(std::env::args().skip(1)) {
+        if dispatch_notification_action(action) {
+            return Ok(());
+        }
+        PENDING_NOTIFICATION_ACTION.lock().unwrap().replace(action);
+    }
+
     if std::env::args().any(|arg| arg == "--settings") {
         let settings_mutex = unsafe { CreateMutexW(None, true, w!("SilenceV2SettingsWindow"))? };
         if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
@@ -1571,7 +1594,159 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    run_background_app()
+    let main_mutex = unsafe { CreateMutexW(None, true, MAIN_INSTANCE_MUTEX)? };
+    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+        if let Some(action) = PENDING_NOTIFICATION_ACTION.lock().unwrap().take() {
+            dispatch_notification_action(action);
+        } else {
+            dispatch_notification_action(NotificationAction::OpenSettings);
+        }
+        return Ok(());
+    }
+
+    let result = run_background_app();
+    let _main_mutex = main_mutex;
+    result
+}
+
+fn notification_action_from_args(
+    args: impl IntoIterator<Item = String>,
+) -> Option<NotificationAction> {
+    args.into_iter()
+        .find_map(|arg| notification_action_from_text(&arg))
+}
+
+fn notification_action_from_text(value: &str) -> Option<NotificationAction> {
+    let lower = value.trim().trim_end_matches('/').to_ascii_lowercase();
+    if lower == "--toggle-mute"
+        || lower == "toggle-mute"
+        || lower.ends_with("://toggle-mute")
+        || lower.contains("toggle-mute")
+    {
+        Some(NotificationAction::ToggleMute)
+    } else if lower == "--mute" || lower == "mute" || lower.ends_with("://mute") {
+        Some(NotificationAction::Mute)
+    } else if lower == "--unmute"
+        || lower == "unmute"
+        || lower.ends_with("://unmute")
+        || lower.contains("unmute")
+    {
+        Some(NotificationAction::Unmute)
+    } else if lower == "settings"
+        || lower == "open-settings"
+        || lower.ends_with("://settings")
+        || lower.ends_with("://open-settings")
+        || lower.contains("open-settings")
+    {
+        Some(NotificationAction::OpenSettings)
+    } else {
+        None
+    }
+}
+
+fn hidden_window() -> Option<HWND> {
+    let class = wide("SilenceV2Hidden");
+    let hwnd = unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR(null())) }.ok()?;
+    (!hwnd.0.is_null()).then_some(hwnd)
+}
+
+fn dispatch_notification_action(action: NotificationAction) -> bool {
+    let Some(hwnd) = hidden_window() else {
+        return false;
+    };
+    let message = match action {
+        NotificationAction::ToggleMute => WM_TOGGLE_MUTE,
+        NotificationAction::Mute => WM_MUTE,
+        NotificationAction::Unmute => WM_UNMUTE,
+        NotificationAction::OpenSettings => WM_OPEN_SETTINGS,
+    };
+    unsafe {
+        let _ = SendMessageW(hwnd, message, WPARAM(0), LPARAM(0));
+    }
+    true
+}
+
+fn apply_pending_notification_action() {
+    let action = PENDING_NOTIFICATION_ACTION.lock().unwrap().take();
+    if let Some(action) = action {
+        handle_notification_action(action);
+    }
+}
+
+fn handle_notification_action(action: NotificationAction) {
+    match action {
+        NotificationAction::ToggleMute => toggle_mute(),
+        NotificationAction::Mute => set_mute_target(None, true),
+        NotificationAction::Unmute => set_mute_target(None, false),
+        NotificationAction::OpenSettings => launch_settings_window(Some("--about")),
+    }
+}
+
+fn register_notification_integration() {
+    if let Err(err) = register_protocol_handler() {
+        eprintln!("failed to register notification protocol handler: {err:?}");
+    }
+    if let Err(err) = winrt_toast::register(
+        APP_USER_MODEL_ID,
+        "silence!",
+        notification_icon_path().as_deref(),
+    ) {
+        eprintln!("failed to register toast app id: {err:?}");
+    }
+}
+
+fn notification_icon_path() -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    [
+        exe_dir.join("app.ico"),
+        PathBuf::from("assets").join("app.ico"),
+    ]
+    .into_iter()
+    .find_map(|path| {
+        let path = if path.is_absolute() {
+            path
+        } else {
+            std::env::current_dir().ok()?.join(path)
+        };
+        path.exists().then_some(path)
+    })
+}
+
+fn register_protocol_handler() -> Result<()> {
+    let exe = std::env::current_exe().context("locate current executable for protocol handler")?;
+    let command = format!("\"{}\" \"%1\"", exe.display());
+    let root_key = format!(r"Software\Classes\{APP_PROTOCOL}");
+    let command_key = format!(r"{root_key}\shell\open\command");
+    set_hkcu_string(&root_key, "", &format!("URL:{APP_PROTOCOL}"))?;
+    set_hkcu_string(&root_key, "URL Protocol", "")?;
+    set_hkcu_string(&command_key, "", &command)?;
+    Ok(())
+}
+
+fn set_hkcu_string(subkey: &str, value_name: &str, value: &str) -> Result<()> {
+    let subkey = wide(subkey);
+    let value_name_wide = wide(value_name);
+    let value = wide(value);
+    let name = if value_name.is_empty() {
+        PCWSTR(null())
+    } else {
+        PCWSTR(value_name_wide.as_ptr())
+    };
+    let status = unsafe {
+        RegSetKeyValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(subkey.as_ptr()),
+            name,
+            REG_SZ.0,
+            Some(value.as_ptr() as *const c_void),
+            (value.len() * size_of::<u16>()) as u32,
+        )
+    };
+    anyhow::ensure!(
+        status == ERROR_SUCCESS,
+        "registry write failed with status {status:?}"
+    );
+    Ok(())
 }
 
 fn centered_window_position(size: LogicalSize<f64>) -> PhysicalPosition<i32> {
@@ -1814,6 +1989,7 @@ fn run_background_app() -> Result<()> {
         state.hwnd = hwnd;
         state.muted = muted;
     }
+    register_notification_integration();
     let sound_settings = STATE.lock().unwrap().sound_settings.clone();
     native_overlay::init(instance.into(), muted, &overlay_config)?;
     apply_overlay_visibility();
@@ -1828,6 +2004,7 @@ fn run_background_app() -> Result<()> {
         open_settings_window();
     }
     apply_startup_auto_mute();
+    apply_pending_notification_action();
     unsafe {
         let _ = SetTimer(hwnd, ID_STATE_TIMER, 250, None);
     }
@@ -2563,6 +2740,18 @@ unsafe extern "system" fn main_wnd_proc(
             toggle_mute();
             LRESULT(0)
         }
+        WM_MUTE => {
+            set_mute_target(None, true);
+            LRESULT(0)
+        }
+        WM_UNMUTE => {
+            set_mute_target(None, false);
+            LRESULT(0)
+        }
+        WM_OPEN_SETTINGS => {
+            launch_settings_window(Some("--about"));
+            LRESULT(0)
+        }
         WM_OVERLAY_POSITIONING => {
             let active = wparam.0 != 0;
             if let Some((x, y)) = native_overlay::set_positioning(active) {
@@ -2864,10 +3053,19 @@ fn open_settings_window() {
         return;
     }
 
+    launch_settings_window(None);
+}
+
+fn launch_settings_window(tab_arg: Option<&str>) {
     let Ok(exe) = std::env::current_exe() else {
         return;
     };
-    let _ = Command::new(exe).arg("--settings").spawn();
+    let mut command = Command::new(exe);
+    command.arg("--settings");
+    if let Some(tab_arg) = tab_arg {
+        command.arg(tab_arg);
+    }
+    let _ = command.spawn();
 }
 
 fn focus_settings_window() -> bool {
@@ -2882,6 +3080,7 @@ fn focus_settings_window() -> bool {
     }
 
     unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOW);
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
@@ -3397,6 +3596,40 @@ fn set_global_mute_state(muted: bool, trigger_overlay: bool) {
         show_overlay_temporarily(millis);
     } else {
         apply_overlay_visibility();
+    }
+}
+
+pub fn send_test_push_notification() {
+    register_notification_integration();
+
+    let mut toast = winrt_toast::Toast::new();
+    toast
+        .text1("silence! push")
+        .text2("System notification pipeline is alive.")
+        .duration(winrt_toast::ToastDuration::Short)
+        .launch("open-settings")
+        .action(
+            winrt_toast::Action::new("Toggle mute", "silence://toggle-mute", "button")
+                .with_activation_type(winrt_toast::content::action::ActivationType::Protocol),
+        )
+        .action(
+            winrt_toast::Action::new("Settings", "silence://open-settings", "button")
+                .with_activation_type(winrt_toast::content::action::ActivationType::Protocol),
+        );
+
+    let manager = winrt_toast::ToastManager::new(APP_USER_MODEL_ID);
+    let activated = Some(Box::new(move |arguments: winrt_toast::Result<String>| {
+        match arguments
+            .ok()
+            .and_then(|arguments| notification_action_from_text(&arguments))
+        {
+            Some(action) => handle_notification_action(action),
+            None => open_settings_window(),
+        }
+    }) as Box<dyn FnMut(winrt_toast::Result<String>) + Send + 'static>);
+
+    if let Err(err) = manager.show_with_callbacks(&toast, activated, None, None) {
+        eprintln!("failed to show push notification: {err:?}");
     }
 }
 
