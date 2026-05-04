@@ -87,17 +87,27 @@
 
 ## Screenshots
 
-| Hotkeys                                        | Devices                                       |
-| ---------------------------------------------- | --------------------------------------------- |
-| ![Hotkeys settings](website/screenshots/1.png) | ![Device settings](website/screenshots/2.png) |
+The app follows the user's Windows accent color, so these screenshots intentionally show different colors instead of pretending everyone lives in the same theme box.
 
-| Sounds                                        | Overlay                                        |
-| --------------------------------------------- | ---------------------------------------------- |
-| ![Sounds settings](website/screenshots/3.png) | ![Overlay settings](website/screenshots/4.png) |
+| Hotkeys | Devices |
+| --- | --- |
+| ![Hotkeys page with blue accent](website/screenshots/1.png) | ![Devices page with green accent](website/screenshots/2.png) |
 
-| Tray icon                                        | Auto-Mute                                        |
-| ------------------------------------------------ | ------------------------------------------------ |
-| ![Tray icon settings](website/screenshots/6.png) | ![Auto-Mute settings](website/screenshots/7.png) |
+| Sounds | Overlay |
+| --- | --- |
+| ![Sounds page with blue accent](website/screenshots/3.png) | ![Overlay page with red accent](website/screenshots/4.png) |
+
+| Hold to Mute | Tray Icon |
+| --- | --- |
+| ![Hold to Mute page with purple accent](website/screenshots/5.png) | ![Tray Icon page with red accent](website/screenshots/6.png) |
+
+| Auto-Mute | General |
+| --- | --- |
+| ![Auto-Mute page with blue accent](website/screenshots/7.png) | ![General and Import/Export page with green accent](website/screenshots/8.png) |
+
+| About | Tray menu |
+| --- | --- |
+| ![About and Updates page with blue accent](website/screenshots/9.png) | ![Tray menu](website/screenshots/10.png) |
 
 ## Installation
 
