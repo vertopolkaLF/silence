@@ -13,7 +13,10 @@ rodio = "0.22.2"
 rfd = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.52", features = ["time"] }
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls", "stream"] }
+semver = "1.0"
+tokio = { version = "1.52", features = ["fs", "io-util", "rt-multi-thread", "time"] }
 winrt-toast = "0.1.1"
 windows = { version = "0.58", features = [
     "Win32_Foundation",

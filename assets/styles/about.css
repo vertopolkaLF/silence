@@ -136,6 +136,11 @@
   font-weight: 600;
 }
 
+.about-update-status.error {
+  color: #d92d20;
+  font-weight: 600;
+}
+
 .about-update-wrapper {
   position: relative;
   width: 100%;

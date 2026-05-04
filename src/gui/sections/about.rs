@@ -14,31 +14,34 @@ const GITHUB_URL: &str = "https://github.com/vertopolkaLF/silence";
 const RELEASES_URL: &str = "https://github.com/vertopolkaLF/silence/releases";
 const ISSUES_URL: &str = "https://github.com/vertopolkaLF/silence/issues";
 
-#[derive(Clone, Copy, PartialEq)]
-enum MockUpdateState {
-    Initial,
+#[derive(Clone, Debug, PartialEq)]
+enum UpdateUiState {
+    Idle,
     Checking,
-    Found,
-    Downloading(f32),
+    UpToDate,
+    Available(crate::updater::UpdateInfo),
+    Installing,
+    Failed(String),
 }
 
 pub fn render() -> Element {
     let version = format!("v{}", env!("CARGO_PKG_VERSION"));
-    let mut update_state = use_signal(|| MockUpdateState::Initial);
+    let mut update_state = use_signal(|| UpdateUiState::Idle);
 
-    let status_text = match *update_state.read() {
-        MockUpdateState::Initial | MockUpdateState::Checking => "No updates found. Last checked: Just now",
-        MockUpdateState::Found => "New version available!",
-        MockUpdateState::Downloading(_) => "Downloading update...",
+    let status_text = match update_state.read().clone() {
+        UpdateUiState::Idle => "Ready to check for updates.".to_string(),
+        UpdateUiState::Checking => "Checking updates...".to_string(),
+        UpdateUiState::UpToDate => "No updates found.".to_string(),
+        UpdateUiState::Available(update) => format!("{} is available.", update.version),
+        UpdateUiState::Installing => "Launching installer...".to_string(),
+        UpdateUiState::Failed(message) => format!("Update failed: {message}"),
     };
 
     let status_class = match *update_state.read() {
-        MockUpdateState::Found | MockUpdateState::Downloading(_) => "about-update-status highlight",
+        UpdateUiState::Available(_) | UpdateUiState::Installing => "about-update-status highlight",
+        UpdateUiState::Failed(_) => "about-update-status error",
         _ => "about-update-status",
     };
-
-    let progress_val = if let MockUpdateState::Downloading(p) = *update_state.read() { p } else { 0.0 };
-    let progress_percent = progress_val as u32;
 
     rsx! {
         section { class: "about-panel",
@@ -71,59 +74,66 @@ pub fn render() -> Element {
                 }
                 div { class: "{status_class}", "{status_text}" }
                 div { class: "about-update-wrapper",
-                    // Initial / Checking Layer
                     div {
                         class: match *update_state.read() {
-                            MockUpdateState::Initial | MockUpdateState::Checking => "about-update-layer active",
+                            UpdateUiState::Idle | UpdateUiState::Checking | UpdateUiState::UpToDate | UpdateUiState::Failed(_) => "about-update-layer active",
                             _ => "about-update-layer exit-up",
                         },
                         button {
                             class: "about-update-btn",
+                            disabled: matches!(*update_state.read(), UpdateUiState::Checking),
                             onclick: move |_| {
-                                if *update_state.read() == MockUpdateState::Initial {
-                                    update_state.set(MockUpdateState::Checking);
-                                    spawn(async move {
-                                        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-                                        update_state.set(MockUpdateState::Found);
-                                    });
+                                if matches!(*update_state.read(), UpdateUiState::Checking) {
+                                    return;
                                 }
+                                update_state.set(UpdateUiState::Checking);
+                                spawn(async move {
+                                    match crate::check_for_update().await {
+                                        Ok(crate::updater::UpdateCheck::Available(update)) => {
+                                            update_state.set(UpdateUiState::Available(update));
+                                        }
+                                        Ok(crate::updater::UpdateCheck::UpToDate) => {
+                                            update_state.set(UpdateUiState::UpToDate);
+                                        }
+                                        Err(err) => {
+                                            update_state.set(UpdateUiState::Failed(err.to_string()));
+                                        }
+                                    }
+                                });
                             },
                             span {
-                                class: if *update_state.read() == MockUpdateState::Checking { "solar-icon spinning" } else { "solar-icon" },
+                                class: if matches!(*update_state.read(), UpdateUiState::Checking) { "solar-icon spinning" } else { "solar-icon" },
                                 style: "--icon: url('{ICON_UPDATE}')"
                             }
                             div { class: "btn-text-switcher",
                                 span {
-                                    class: if *update_state.read() == MockUpdateState::Checking { "text-out" } else { "text-in" },
+                                    class: if matches!(*update_state.read(), UpdateUiState::Checking) { "text-out" } else { "text-in" },
                                     "Check Update"
                                 }
                                 span {
-                                    class: if *update_state.read() == MockUpdateState::Checking { "text-in" } else { "text-out check-in-text" },
+                                    class: if matches!(*update_state.read(), UpdateUiState::Checking) { "text-in" } else { "text-out check-in-text" },
                                     "Checking updates..."
                                 }
                             }
                         }
                     }
-                    
-                    // Found Layer
+
                     div {
                         class: match *update_state.read() {
-                            MockUpdateState::Found => "about-update-layer active",
-                            MockUpdateState::Downloading(_) => "about-update-layer exit-up",
+                            UpdateUiState::Available(_) => "about-update-layer active",
+                            UpdateUiState::Installing => "about-update-layer exit-up",
                             _ => "about-update-layer exit-down",
                         },
                         button {
                             class: "about-update-btn",
                             onclick: move |_| {
-                                update_state.set(MockUpdateState::Downloading(0.0));
-                                spawn(async move {
-                                    for i in 1..=100 {
-                                        tokio::time::sleep(std::time::Duration::from_millis(30)).await;
-                                        update_state.set(MockUpdateState::Downloading(i as f32));
-                                    }
-                                    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                                    update_state.set(MockUpdateState::Initial);
-                                });
+                                let UpdateUiState::Available(update) = update_state.read().clone() else {
+                                    return;
+                                };
+                                update_state.set(UpdateUiState::Installing);
+                                if let Err(err) = crate::request_update_install(update) {
+                                    update_state.set(UpdateUiState::Failed(err.to_string()));
+                                }
                             },
                             span { class: "solar-icon", style: "--icon: url('{ICON_DOWNLOAD}')" }
                             span { "Update silence!" }
@@ -131,27 +141,33 @@ pub fn render() -> Element {
                         button {
                             class: "about-update-btn",
                             onclick: move |_| {
-                                let _ = crate::open_external(RELEASES_URL);
+                                let target = match update_state.read().clone() {
+                                    UpdateUiState::Available(update) => update.release_url,
+                                    _ => RELEASES_URL.to_string(),
+                                };
+                                let _ = crate::open_external(&target);
                             },
                             span { class: "solar-icon", style: "--icon: url('{ICON_CHANGELOG}')" }
                             span { "View Release" }
                         }
                     }
 
-                    // Downloading Layer
                     div {
                         class: match *update_state.read() {
-                            MockUpdateState::Downloading(_) => "about-update-layer active",
+                            UpdateUiState::Installing => "about-update-layer active",
                             _ => "about-update-layer exit-down",
                         },
                         div { class: "about-update-progress",
                             span {
                                 class: "about-update-progress-fill",
-                                style: "--progress: {progress_val}%;"
+                                style: "--progress: 100%;"
                             }
                             span { class: "about-update-progress-copy",
-                                span { class: "about-update-progress-label", "Downloading update..." }
-                                span { class: "about-update-progress-value", "{progress_percent}%" }
+                                span {
+                                    class: "about-update-progress-label",
+                                    "Launching installer..."
+                                }
+                                span { class: "about-update-progress-value", "" }
                             }
                         }
                     }

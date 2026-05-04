@@ -93,11 +93,12 @@ use windows::{
                 SendMessageW, SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
                 SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
                 TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
-                WINDOW_EX_STYLE, WM_APP, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED,
-                WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN,
-                WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP,
-                WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED, WM_TIMER, WM_WINDOWPOSCHANGED,
-                WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC, WS_OVERLAPPED,
+                WINDOW_EX_STYLE, WM_APP, WM_CLOSE, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
+                WM_DPICHANGED, WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
+                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN,
+                WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED, WM_TIMER,
+                WM_WINDOWPOSCHANGED, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
+                WS_OVERLAPPED,
             },
         },
     },
@@ -107,6 +108,7 @@ use windows::{
 mod gui;
 mod native_overlay;
 pub(crate) mod overlay_icons;
+pub mod updater;
 
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_TOGGLE_MUTE: u32 = WM_APP + 2;
@@ -114,6 +116,7 @@ const WM_OVERLAY_POSITIONING: u32 = WM_APP + 3;
 const WM_MUTE: u32 = WM_APP + 4;
 const WM_UNMUTE: u32 = WM_APP + 5;
 const WM_OPEN_SETTINGS: u32 = WM_APP + 6;
+const WM_UPDATE_NOW: u32 = WM_APP + 7;
 const ID_TRAY: u32 = 1;
 const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
@@ -773,6 +776,8 @@ enum NotificationAction {
     Mute,
     Unmute,
     OpenSettings,
+    UpdateNow,
+    ViewUpdate,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -1639,6 +1644,18 @@ fn notification_action_from_text(value: &str) -> Option<NotificationAction> {
         || lower.contains("open-settings")
     {
         Some(NotificationAction::OpenSettings)
+    } else if lower == "update-now"
+        || lower == "--update-now"
+        || lower.ends_with("://update-now")
+        || lower.contains("update-now")
+    {
+        Some(NotificationAction::UpdateNow)
+    } else if lower == "view-update"
+        || lower == "--view-update"
+        || lower.ends_with("://view-update")
+        || lower.contains("view-update")
+    {
+        Some(NotificationAction::ViewUpdate)
     } else {
         None
     }
@@ -1659,6 +1676,8 @@ fn dispatch_notification_action(action: NotificationAction) -> bool {
         NotificationAction::Mute => WM_MUTE,
         NotificationAction::Unmute => WM_UNMUTE,
         NotificationAction::OpenSettings => WM_OPEN_SETTINGS,
+        NotificationAction::UpdateNow => WM_UPDATE_NOW,
+        NotificationAction::ViewUpdate => WM_OPEN_SETTINGS,
     };
     unsafe {
         let _ = SendMessageW(hwnd, message, WPARAM(0), LPARAM(0));
@@ -1679,6 +1698,8 @@ fn handle_notification_action(action: NotificationAction) {
         NotificationAction::Mute => set_mute_target(None, true),
         NotificationAction::Unmute => set_mute_target(None, false),
         NotificationAction::OpenSettings => launch_settings_window(Some("--about")),
+        NotificationAction::UpdateNow => start_update_install(None),
+        NotificationAction::ViewUpdate => launch_settings_window(Some("--about")),
     }
 }
 
@@ -1990,6 +2011,7 @@ fn run_background_app() -> Result<()> {
         state.muted = muted;
     }
     register_notification_integration();
+    start_update_check();
     let sound_settings = STATE.lock().unwrap().sound_settings.clone();
     native_overlay::init(instance.into(), muted, &overlay_config)?;
     apply_overlay_visibility();
@@ -2752,6 +2774,10 @@ unsafe extern "system" fn main_wnd_proc(
             launch_settings_window(Some("--about"));
             LRESULT(0)
         }
+        WM_UPDATE_NOW => {
+            start_update_install(None);
+            LRESULT(0)
+        }
         WM_OVERLAY_POSITIONING => {
             let active = wparam.0 != 0;
             if let Some((x, y)) = native_overlay::set_positioning(active) {
@@ -3085,6 +3111,19 @@ fn focus_settings_window() -> bool {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
         SetForegroundWindow(hwnd).as_bool()
+    }
+}
+
+fn close_settings_window() {
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    let Ok(hwnd) = (unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }) else {
+        return;
+    };
+    if hwnd.0.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = SendMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
     }
 }
 
@@ -3626,10 +3665,133 @@ pub fn send_test_push_notification() {
             Some(action) => handle_notification_action(action),
             None => open_settings_window(),
         }
-    }) as Box<dyn FnMut(winrt_toast::Result<String>) + Send + 'static>);
+    })
+        as Box<dyn FnMut(winrt_toast::Result<String>) + Send + 'static>);
 
     if let Err(err) = manager.show_with_callbacks(&toast, activated, None, None) {
         eprintln!("failed to show push notification: {err:?}");
+    }
+}
+
+pub async fn check_for_update() -> Result<updater::UpdateCheck> {
+    updater::check_for_update().await
+}
+
+pub async fn download_and_install_update(
+    update: updater::UpdateInfo,
+    on_progress: impl FnMut(f32),
+) -> Result<()> {
+    let installer = updater::download_update(&update, on_progress).await?;
+    close_settings_window();
+    updater::install_update(installer)?;
+    std::process::exit(0);
+}
+
+pub fn request_update_install(update: updater::UpdateInfo) -> Result<()> {
+    if dispatch_notification_action(NotificationAction::UpdateNow) {
+        close_settings_window();
+        return Ok(());
+    }
+
+    start_update_install(Some(update));
+    Ok(())
+}
+
+fn start_update_check() {
+    thread::spawn(|| {
+        let runtime = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(runtime) => runtime,
+            Err(err) => {
+                eprintln!("failed to create update check runtime: {err:?}");
+                return;
+            }
+        };
+        let result = runtime.block_on(updater::check_for_update());
+        match result {
+            Ok(updater::UpdateCheck::Available(update))
+                if updater::should_prompt_update(&update) =>
+            {
+                show_update_notification(&update);
+            }
+            Ok(_) => {}
+            Err(err) => eprintln!("update check failed: {err:?}"),
+        }
+    });
+}
+
+fn start_update_install(update: Option<updater::UpdateInfo>) {
+    thread::spawn(move || {
+        let runtime = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(runtime) => runtime,
+            Err(err) => {
+                eprintln!("failed to create update install runtime: {err:?}");
+                return;
+            }
+        };
+        let result: Result<()> = runtime.block_on(async move {
+            let update = match update {
+                Some(update) => update,
+                None => match updater::check_for_update().await? {
+                    updater::UpdateCheck::Available(update) => update,
+                    updater::UpdateCheck::UpToDate => return Ok(()),
+                },
+            };
+            let installer = updater::download_update(&update, |_| {}).await?;
+            updater::install_update(installer)?;
+            Ok(())
+        });
+
+        if let Err(err) = result {
+            eprintln!("update install failed: {err:?}");
+            return;
+        }
+
+        close_settings_window();
+        cleanup();
+        std::process::exit(0);
+    });
+}
+
+fn show_update_notification(update: &updater::UpdateInfo) {
+    register_notification_integration();
+    let mut toast = winrt_toast::Toast::new();
+    toast
+        .text1("silence! update available")
+        .text2(&format!(
+            "{} -> {}",
+            updater::current_version_text(),
+            update.version
+        ))
+        .duration(winrt_toast::ToastDuration::Long)
+        .launch("view-update")
+        .action(
+            winrt_toast::Action::new("Update now", "silence://update-now", "button")
+                .with_activation_type(winrt_toast::content::action::ActivationType::Protocol),
+        )
+        .action(
+            winrt_toast::Action::new("View Release", "silence://view-update", "button")
+                .with_activation_type(winrt_toast::content::action::ActivationType::Protocol),
+        );
+
+    let manager = winrt_toast::ToastManager::new(APP_USER_MODEL_ID);
+    let activated = Some(Box::new(move |arguments: winrt_toast::Result<String>| {
+        if let Some(action) = arguments
+            .ok()
+            .and_then(|arguments| notification_action_from_text(&arguments))
+        {
+            handle_notification_action(action);
+        }
+    })
+        as Box<dyn FnMut(winrt_toast::Result<String>) + Send + 'static>);
+
+    if let Err(err) = manager.show_with_callbacks(&toast, activated, None, None) {
+        eprintln!("failed to show update notification: {err:?}");
     }
 }
 

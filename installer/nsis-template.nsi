@@ -77,6 +77,7 @@ VIAddVersionKey "LegalCopyright" "{{copyright}}"
 ; Installer section
 Section "Install"
     Call RemoveSilenceV1
+    nsExec::ExecToLog 'taskkill.exe /f /im "silence.exe"'
 
     SetOutPath $INSTDIR
 
@@ -142,7 +143,7 @@ SectionEnd
 Function RunSilenceV1Uninstaller
     Pop $0
     ${If} $0 != ""
-        ExecWait 'taskkill.exe /f /im "silence!.exe"'
+        nsExec::ExecToLog 'taskkill.exe /f /im "silence!.exe"'
         ExecWait '$0 /VERYSILENT /SUPPRESSMSGBOXES /NORESTART'
     ${EndIf}
 FunctionEnd
