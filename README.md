@@ -84,16 +84,16 @@
 
 ## Screenshots
 
-| Hotkeys | Devices |
-| --- | --- |
+| Hotkeys                                        | Devices                                       |
+| ---------------------------------------------- | --------------------------------------------- |
 | ![Hotkeys settings](website/screenshots/1.png) | ![Device settings](website/screenshots/2.png) |
 
-| Sounds | Overlay |
-| --- | --- |
+| Sounds                                        | Overlay                                        |
+| --------------------------------------------- | ---------------------------------------------- |
 | ![Sounds settings](website/screenshots/3.png) | ![Overlay settings](website/screenshots/4.png) |
 
-| Tray icon | Auto-Mute |
-| --- | --- |
+| Tray icon                                        | Auto-Mute                                        |
+| ------------------------------------------------ | ------------------------------------------------ |
 | ![Tray icon settings](website/screenshots/6.png) | ![Auto-Mute settings](website/screenshots/7.png) |
 
 ## Installation
@@ -148,7 +148,7 @@ The packaging script builds `x64`, `x86`, and `arm64` portable archives and NSIS
 
 ## Contributing
 
-Bug reports, feature requests, and pull requests are welcome. If you are changing settings behavior, keep it immediate and reactive: no Save buttons, no stale overlay state, no "apply later" bullshit.
+Bug reports, feature requests, and pull requests are welcome.
 
 ## License
 
