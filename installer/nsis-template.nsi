@@ -54,6 +54,7 @@ VIAddVersionKey "LegalCopyright" "{{copyright}}"
 !define MUI_WELCOMEFINISHPAGE_BITMAP "{{sidebar_image}}"
 {{/if}}
 !define MUI_FINISHPAGE_RUN "$INSTDIR\{{main_binary_name}}"
+!define MUI_FINISHPAGE_RUN_PARAMETERS "--post-install"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch silence!"
 
 ; Pages
@@ -137,6 +138,9 @@ Section "Install"
     ; WebView2 installation
     {{webview_install_code}}
     {{/if}}
+
+    IfSilent 0 +2
+    Exec '"$INSTDIR\{{main_binary_name}}" --post-install'
 
 SectionEnd
 

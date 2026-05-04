@@ -1,9 +1,12 @@
 use std::{
+    fs,
     path::PathBuf,
     sync::{
         Mutex,
         atomic::{AtomicBool, Ordering},
     },
+    thread,
+    time::Duration,
 };
 
 use anyhow::{Context, Result};
@@ -123,7 +126,7 @@ pub async fn download_update(
     update: &UpdateInfo,
     mut on_progress: impl FnMut(f32),
 ) -> Result<PathBuf> {
-    let target_dir = std::env::temp_dir().join("silence-updater");
+    let target_dir = update_temp_dir();
     tokio::fs::create_dir_all(&target_dir)
         .await
         .context("create update temp directory")?;
@@ -181,6 +184,21 @@ pub async fn download_update(
     Ok(final_path)
 }
 
+pub fn cleanup_downloads_after_startup() {
+    thread::spawn(|| {
+        thread::sleep(Duration::from_secs(10));
+        let target_dir = update_temp_dir();
+        if let Err(err) = fs::remove_dir_all(&target_dir) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "failed to cleanup update downloads {}: {err:?}",
+                    target_dir.display()
+                );
+            }
+        }
+    });
+}
+
 pub fn install_update(installer: PathBuf) -> Result<()> {
     if INSTALLING.swap(true, Ordering::Relaxed) {
         anyhow::bail!("update installation is already running");
@@ -190,6 +208,10 @@ pub fn install_update(installer: PathBuf) -> Result<()> {
         .spawn()
         .with_context(|| format!("launch update installer {}", installer.display()))?;
     Ok(())
+}
+
+fn update_temp_dir() -> PathBuf {
+    std::env::temp_dir().join("silence-updater")
 }
 
 pub fn should_prompt_update(update: &UpdateInfo) -> bool {

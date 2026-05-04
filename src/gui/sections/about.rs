@@ -20,6 +20,7 @@ enum UpdateUiState {
     Checking,
     UpToDate,
     Available(crate::updater::UpdateInfo),
+    Downloading(f32),
     Installing,
     Failed(String),
 }
@@ -27,21 +28,42 @@ enum UpdateUiState {
 pub fn render() -> Element {
     let version = format!("v{}", env!("CARGO_PKG_VERSION"));
     let mut update_state = use_signal(|| UpdateUiState::Idle);
+    let mut auto_update_started = use_signal(|| false);
+
+    if super::super::settings_should_start_update() && !auto_update_started() {
+        auto_update_started.set(true);
+        update_state.set(UpdateUiState::Checking);
+        spawn(async move {
+            check_and_start_update(update_state).await;
+        });
+    }
 
     let status_text = match update_state.read().clone() {
         UpdateUiState::Idle => "Ready to check for updates.".to_string(),
         UpdateUiState::Checking => "Checking updates...".to_string(),
         UpdateUiState::UpToDate => "No updates found.".to_string(),
         UpdateUiState::Available(update) => format!("{} is available.", update.version),
+        UpdateUiState::Downloading(progress) => {
+            format!("Downloading update... {}%", progress.round() as u32)
+        }
         UpdateUiState::Installing => "Launching installer...".to_string(),
         UpdateUiState::Failed(message) => format!("Update failed: {message}"),
     };
 
     let status_class = match *update_state.read() {
-        UpdateUiState::Available(_) | UpdateUiState::Installing => "about-update-status highlight",
+        UpdateUiState::Available(_) | UpdateUiState::Downloading(_) | UpdateUiState::Installing => {
+            "about-update-status highlight"
+        }
         UpdateUiState::Failed(_) => "about-update-status error",
         _ => "about-update-status",
     };
+
+    let progress_val = match *update_state.read() {
+        UpdateUiState::Downloading(progress) => progress,
+        UpdateUiState::Installing => 100.0,
+        _ => 0.0,
+    };
+    let progress_percent = progress_val.round() as u32;
 
     rsx! {
         section { class: "about-panel",
@@ -88,17 +110,7 @@ pub fn render() -> Element {
                                 }
                                 update_state.set(UpdateUiState::Checking);
                                 spawn(async move {
-                                    match crate::check_for_update().await {
-                                        Ok(crate::updater::UpdateCheck::Available(update)) => {
-                                            update_state.set(UpdateUiState::Available(update));
-                                        }
-                                        Ok(crate::updater::UpdateCheck::UpToDate) => {
-                                            update_state.set(UpdateUiState::UpToDate);
-                                        }
-                                        Err(err) => {
-                                            update_state.set(UpdateUiState::Failed(err.to_string()));
-                                        }
-                                    }
+                                    check_for_update_only(update_state).await;
                                 });
                             },
                             span {
@@ -121,7 +133,7 @@ pub fn render() -> Element {
                     div {
                         class: match *update_state.read() {
                             UpdateUiState::Available(_) => "about-update-layer active",
-                            UpdateUiState::Installing => "about-update-layer exit-up",
+                            UpdateUiState::Downloading(_) | UpdateUiState::Installing => "about-update-layer exit-up",
                             _ => "about-update-layer exit-down",
                         },
                         button {
@@ -130,10 +142,10 @@ pub fn render() -> Element {
                                 let UpdateUiState::Available(update) = update_state.read().clone() else {
                                     return;
                                 };
-                                update_state.set(UpdateUiState::Installing);
-                                if let Err(err) = crate::request_update_install(update) {
-                                    update_state.set(UpdateUiState::Failed(err.to_string()));
-                                }
+                                update_state.set(UpdateUiState::Downloading(0.0));
+                                spawn(async move {
+                                    start_update(update_state, update).await;
+                                });
                             },
                             span { class: "solar-icon", style: "--icon: url('{ICON_DOWNLOAD}')" }
                             span { "Update silence!" }
@@ -154,30 +166,27 @@ pub fn render() -> Element {
 
                     div {
                         class: match *update_state.read() {
-                            UpdateUiState::Installing => "about-update-layer active",
+                            UpdateUiState::Downloading(_) | UpdateUiState::Installing => "about-update-layer active",
                             _ => "about-update-layer exit-down",
                         },
                         div { class: "about-update-progress",
                             span {
                                 class: "about-update-progress-fill",
-                                style: "--progress: 100%;"
+                                style: "--progress: {progress_val}%;"
                             }
                             span { class: "about-update-progress-copy",
                                 span {
                                     class: "about-update-progress-label",
-                                    "Launching installer..."
+                                    if matches!(*update_state.read(), UpdateUiState::Installing) {
+                                        "Launching installer..."
+                                    } else {
+                                        "Downloading update..."
+                                    }
                                 }
-                                span { class: "about-update-progress-value", "" }
+                                span { class: "about-update-progress-value", "{progress_percent}%" }
                             }
                         }
                     }
-                }
-                button {
-                    class: "about-text-button",
-                    onclick: move |_| {
-                        crate::send_test_push_notification();
-                    },
-                    "Send Push"
                 }
             }
 
@@ -227,5 +236,46 @@ pub fn render() -> Element {
             }
 
         }
+    }
+}
+
+async fn check_for_update_only(mut update_state: Signal<UpdateUiState>) {
+    match crate::check_for_update().await {
+        Ok(crate::updater::UpdateCheck::Available(update)) => {
+            update_state.set(UpdateUiState::Available(update));
+        }
+        Ok(crate::updater::UpdateCheck::UpToDate) => {
+            update_state.set(UpdateUiState::UpToDate);
+        }
+        Err(err) => {
+            update_state.set(UpdateUiState::Failed(err.to_string()));
+        }
+    }
+}
+
+async fn check_and_start_update(mut update_state: Signal<UpdateUiState>) {
+    match crate::check_for_update().await {
+        Ok(crate::updater::UpdateCheck::Available(update)) => {
+            start_update(update_state, update).await;
+        }
+        Ok(crate::updater::UpdateCheck::UpToDate) => {
+            update_state.set(UpdateUiState::UpToDate);
+        }
+        Err(err) => {
+            update_state.set(UpdateUiState::Failed(err.to_string()));
+        }
+    }
+}
+
+async fn start_update(mut update_state: Signal<UpdateUiState>, update: crate::updater::UpdateInfo) {
+    update_state.set(UpdateUiState::Downloading(0.0));
+    let result = crate::download_and_install_update(update, move |progress| {
+        update_state.set(UpdateUiState::Downloading(progress));
+    })
+    .await;
+    if let Err(err) = result {
+        update_state.set(UpdateUiState::Failed(err.to_string()));
+    } else {
+        update_state.set(UpdateUiState::Installing);
     }
 }

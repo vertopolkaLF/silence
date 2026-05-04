@@ -439,11 +439,19 @@ pub fn settings_app() -> Element {
 }
 
 fn startup_settings_tab() -> SettingsTab {
-    if std::env::args().any(|arg| arg == "--about") {
+    if settings_should_open_about() {
         SettingsTab::About
     } else {
         SettingsTab::Hotkeys
     }
+}
+
+pub(crate) fn settings_should_open_about() -> bool {
+    std::env::args().any(|arg| arg == "--about" || arg == "--about-update")
+}
+
+pub(crate) fn settings_should_start_update() -> bool {
+    std::env::args().any(|arg| arg == "--about-update")
 }
 
 #[component]
