@@ -164,6 +164,7 @@ const VK_XBUTTON1: u32 = 0x05;
 const VK_XBUTTON2: u32 = 0x06;
 const XBUTTON1: u32 = 0x0001;
 const XBUTTON2: u32 = 0x0002;
+const LLKHF_EXTENDED: u32 = 0x01;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Shortcut {
@@ -3309,7 +3310,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 
     let event = wparam.0 as u32;
     let kb = unsafe { *(lparam.0 as *const KBDLLHOOKSTRUCT) };
-    let vk = kb.vkCode;
+    let vk = normalized_keyboard_vk(kb.vkCode, kb.scanCode, kb.flags.0);
     let is_down = event == WM_KEYDOWN || event == 0x0104;
     let is_up = event == WM_KEYUP || event == 0x0105;
 
@@ -3427,6 +3428,27 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     }
 
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
+}
+
+fn normalized_keyboard_vk(vk: u32, scan_code: u32, flags: u32) -> u32 {
+    if flags & LLKHF_EXTENDED != 0 {
+        return vk;
+    }
+
+    match scan_code {
+        0x52 => VK_NUMPAD0,
+        0x4F => VK_NUMPAD0 + 1,
+        0x50 => VK_NUMPAD0 + 2,
+        0x51 => VK_NUMPAD0 + 3,
+        0x4B => VK_NUMPAD0 + 4,
+        0x4C => VK_NUMPAD0 + 5,
+        0x4D => VK_NUMPAD0 + 6,
+        0x47 => VK_NUMPAD0 + 7,
+        0x48 => VK_NUMPAD0 + 8,
+        0x49 => VK_NUMPAD0 + 9,
+        0x53 => 0x6E,
+        _ => vk,
+    }
 }
 
 unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
