@@ -485,7 +485,7 @@ fn welcome_shortcut_from_keyboard_data(
     data: &dioxus::events::KeyboardData,
 ) -> Option<crate::Shortcut> {
     let code = format!("{:?}", data.code());
-    let vk = welcome_vk_from_code(&code)?;
+    let vk = crate::vk_from_keyboard_code(&code)?;
     let modifiers = data.modifiers();
     let modifier_only = crate::is_modifier(vk);
     Some(crate::Shortcut {
@@ -496,38 +496,4 @@ fn welcome_shortcut_from_keyboard_data(
         vk: if modifier_only { 0 } else { vk },
         mouse_buttons: Vec::new(),
     })
-}
-
-fn welcome_vk_from_code(code: &str) -> Option<u32> {
-    if let Some(letter) = code.strip_prefix("Key") {
-        return letter
-            .as_bytes()
-            .first()
-            .map(|byte| byte.to_ascii_uppercase() as u32);
-    }
-    if let Some(digit) = code.strip_prefix("Digit") {
-        return digit.as_bytes().first().map(|byte| *byte as u32);
-    }
-    if let Some(number) = code.strip_prefix('F') {
-        let n = number.parse::<u32>().ok()?;
-        if (1..=24).contains(&n) {
-            return Some(crate::VK_F1 + n - 1);
-        }
-    }
-    match code {
-        "ShiftLeft" | "ShiftRight" | "Shift" => Some(crate::VK_SHIFT),
-        "ControlLeft" | "ControlRight" | "Control" => Some(crate::VK_CONTROL),
-        "AltLeft" | "AltRight" | "Alt" => Some(crate::VK_MENU),
-        "MetaLeft" | "MetaRight" | "Meta" => Some(crate::VK_LWIN),
-        "Space" => Some(0x20),
-        "Tab" => Some(0x09),
-        "Enter" => Some(0x0D),
-        "Escape" => Some(0x1B),
-        "Backspace" => Some(0x08),
-        "ArrowLeft" => Some(0x25),
-        "ArrowUp" => Some(0x26),
-        "ArrowRight" => Some(0x27),
-        "ArrowDown" => Some(0x28),
-        _ => None,
-    }
 }

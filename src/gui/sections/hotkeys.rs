@@ -1693,7 +1693,7 @@ fn sync_legacy_shortcut(config: &mut crate::Config) {
 
 fn shortcut_from_keyboard_data(data: &dioxus::events::KeyboardData) -> Option<crate::Shortcut> {
     let code = format!("{:?}", data.code());
-    let vk = vk_from_code(&code)?;
+    let vk = crate::vk_from_keyboard_code(&code)?;
     let modifiers = data.modifiers();
     let modifier_only = crate::is_modifier(vk);
     Some(crate::Shortcut {
@@ -1799,49 +1799,4 @@ fn recording_shortcut_parts(
         parts.push(crate::vk_name(shortcut.vk));
     }
     parts
-}
-
-fn vk_from_code(code: &str) -> Option<u32> {
-    if let Some(letter) = code.strip_prefix("Key") {
-        return letter
-            .as_bytes()
-            .first()
-            .map(|byte| byte.to_ascii_uppercase() as u32);
-    }
-    if let Some(digit) = code.strip_prefix("Digit") {
-        return digit.as_bytes().first().map(|byte| *byte as u32);
-    }
-    if let Some(digit) = code.strip_prefix("Numpad") {
-        return digit
-            .as_bytes()
-            .first()
-            .filter(|byte| byte.is_ascii_digit())
-            .map(|byte| crate::VK_NUMPAD0 + (*byte - b'0') as u32);
-    }
-    if let Some(number) = code.strip_prefix('F') {
-        let n = number.parse::<u32>().ok()?;
-        if (1..=24).contains(&n) {
-            return Some(crate::VK_F1 + n - 1);
-        }
-    }
-    match code {
-        "ShiftLeft" | "ShiftRight" | "Shift" => Some(crate::VK_SHIFT),
-        "ControlLeft" | "ControlRight" | "Control" => Some(crate::VK_CONTROL),
-        "AltLeft" | "AltRight" | "Alt" => Some(crate::VK_MENU),
-        "MetaLeft" | "MetaRight" | "Meta" => Some(crate::VK_LWIN),
-        "Space" => Some(0x20),
-        "Backspace" => Some(0x08),
-        "Tab" => Some(0x09),
-        "Enter" => Some(0x0D),
-        "Escape" => Some(0x1B),
-        "PageUp" => Some(0x21),
-        "PageDown" => Some(0x22),
-        "End" => Some(0x23),
-        "Home" => Some(0x24),
-        "ArrowLeft" => Some(0x25),
-        "ArrowUp" => Some(0x26),
-        "ArrowRight" => Some(0x27),
-        "ArrowDown" => Some(0x28),
-        _ => None,
-    }
 }
