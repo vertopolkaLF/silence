@@ -1125,10 +1125,12 @@ pub struct WindowsAccent {
     accent: (u8, u8, u8),
 }
 
+const FALLBACK_WINDOWS_ACCENT: (u8, u8, u8) = (250, 121, 48);
+
 impl Default for WindowsAccent {
     fn default() -> Self {
         Self {
-            accent: (250, 121, 48),
+            accent: FALLBACK_WINDOWS_ACCENT,
         }
     }
 }
@@ -1139,6 +1141,7 @@ impl WindowsAccent {
         Self {
             accent: read_windows_accent_dword()
                 .map(windows_accent_to_rgb)
+                .filter(|accent| *accent != (0, 0, 0))
                 .unwrap_or(fallback.accent),
         }
     }
