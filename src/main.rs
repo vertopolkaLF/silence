@@ -56,8 +56,8 @@ use windows::{
             },
             LibraryLoader::GetModuleHandleW,
             Registry::{
-                HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_DWORD, RegDeleteKeyValueW, RegGetValueW,
-                RegSetKeyValueW,
+                HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_SZ, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+                RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
             },
             SystemInformation::GetTickCount,
             Threading::CreateMutexW,
@@ -736,7 +736,42 @@ impl Default for AdvancedSettings {
 }
 
 fn default_enable_mica() -> bool {
-    true
+    settings_mica_available()
+}
+
+pub(crate) fn settings_mica_available() -> bool {
+    windows_build_number()
+        .map(|build| build >= 22_000)
+        .unwrap_or(false)
+}
+
+pub(crate) fn effective_settings_mica_enabled(config: &Config) -> bool {
+    config.advanced.enable_mica && settings_mica_available()
+}
+
+fn windows_build_number() -> Option<u32> {
+    let mut data = [0_u16; 32];
+    let mut data_size = (data.len() * size_of::<u16>()) as u32;
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            w!(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"),
+            w!("CurrentBuildNumber"),
+            RRF_RT_REG_SZ,
+            None,
+            Some(data.as_mut_ptr() as *mut c_void),
+            Some(&mut data_size),
+        )
+    };
+    if status != ERROR_SUCCESS || data_size < size_of::<u16>() as u32 {
+        return None;
+    }
+
+    let len = data
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(data.len());
+    String::from_utf16_lossy(&data[..len]).parse().ok()
 }
 
 struct AppState {
@@ -1344,7 +1379,7 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
     }
 
     let mica_enabled = load_config()
-        .map(|config| config.advanced.enable_mica)
+        .map(|config| effective_settings_mica_enabled(&config))
         .unwrap_or_default();
     SETTINGS_MICA_ENABLED.store(mica_enabled, Ordering::Relaxed);
     apply_settings_backdrop(HWND(hwnd as *mut c_void), mica_enabled);
@@ -1362,6 +1397,7 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
 }
 
 pub(crate) fn set_settings_mica_enabled(enabled: bool) {
+    let enabled = enabled && settings_mica_available();
     SETTINGS_MICA_ENABLED.store(enabled, Ordering::Relaxed);
     let title = wide(SETTINGS_WINDOW_TITLE);
     if let Ok(hwnd) = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) } {
@@ -1370,6 +1406,7 @@ pub(crate) fn set_settings_mica_enabled(enabled: bool) {
 }
 
 fn apply_settings_backdrop(hwnd: HWND, enabled: bool) {
+    let enabled = enabled && settings_mica_available();
     unsafe {
         let use_dark_mode = 1_i32;
         let _ = DwmSetWindowAttribute(
@@ -1469,6 +1506,14 @@ impl AudioEngine {
 
         let bytes =
             fs::read(path).with_context(|| format!("read sound asset {}", path.display()))?;
+        self.decoded_sound_bytes(cache_key, bytes)
+    }
+
+    fn decoded_sound_bytes(&mut self, cache_key: &str, bytes: Vec<u8>) -> Result<SamplesBuffer> {
+        if let Some(sound) = self.cached_sounds.get(cache_key) {
+            return Ok(sound.clone());
+        }
+
         let decoder = Decoder::try_from(Cursor::new(bytes)).context("decode sound asset")?;
         let sound = decoder.record();
         self.cached_sounds
@@ -4345,6 +4390,10 @@ fn theme_from_selection(selection: &str) -> &str {
 
 fn load_theme_sound(theme: &str, muted: bool) -> Result<SamplesBuffer> {
     let file = sound_file_name(theme, muted);
+    if let Some(bytes) = sound_asset_bytes(&file) {
+        return load_decoded_sound_bytes(file, bytes);
+    }
+
     let path = sound_asset_path(&file).with_context(|| format!("find sound asset {file}"))?;
     load_decoded_sound(file, &path)
 }
@@ -4362,6 +4411,16 @@ fn load_decoded_sound(cache_key: String, path: &Path) -> Result<SamplesBuffer> {
 
     let engine = audio.as_mut().expect("audio engine initialized");
     engine.decoded_sound(&cache_key, path)
+}
+
+fn load_decoded_sound_bytes(cache_key: String, bytes: &'static [u8]) -> Result<SamplesBuffer> {
+    let mut audio = AUDIO_ENGINE.lock().unwrap();
+    if audio.is_none() {
+        *audio = Some(AudioEngine::new()?);
+    }
+
+    let engine = audio.as_mut().expect("audio engine initialized");
+    engine.decoded_sound_bytes(&cache_key, bytes.to_vec())
 }
 
 fn play_theme_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
@@ -4398,6 +4457,28 @@ fn sound_asset_path(file: &str) -> Option<PathBuf> {
         .into_iter()
         .map(|root| root.join("assets").join("sounds").join(file))
         .find(|path| path.exists())
+}
+
+fn sound_asset_bytes(file: &str) -> Option<&'static [u8]> {
+    Some(match file {
+        "8bit_mute.mp3" => include_bytes!("../assets/sounds/8bit_mute.mp3"),
+        "8bit_unmute.mp3" => include_bytes!("../assets/sounds/8bit_unmute.mp3"),
+        "blob_mute.mp3" => include_bytes!("../assets/sounds/blob_mute.mp3"),
+        "blob_unmute.mp3" => include_bytes!("../assets/sounds/blob_unmute.mp3"),
+        "digital_mute.mp3" => include_bytes!("../assets/sounds/digital_mute.mp3"),
+        "digital_unmute.mp3" => include_bytes!("../assets/sounds/digital_unmute.mp3"),
+        "discord_mute.mp3" => include_bytes!("../assets/sounds/discord_mute.mp3"),
+        "discord_unmute.mp3" => include_bytes!("../assets/sounds/discord_unmute.mp3"),
+        "pop_mute.mp3" => include_bytes!("../assets/sounds/pop_mute.mp3"),
+        "pop_unmute.mp3" => include_bytes!("../assets/sounds/pop_unmute.mp3"),
+        "punchy_mute.mp3" => include_bytes!("../assets/sounds/punchy_mute.mp3"),
+        "punchy_unmute.mp3" => include_bytes!("../assets/sounds/punchy_unmute.mp3"),
+        "scifi_mute.mp3" => include_bytes!("../assets/sounds/scifi_mute.mp3"),
+        "scifi_unmute.mp3" => include_bytes!("../assets/sounds/scifi_unmute.mp3"),
+        "vibrant_mute.mp3" => include_bytes!("../assets/sounds/vibrant_mute.mp3"),
+        "vibrant_unmute.mp3" => include_bytes!("../assets/sounds/vibrant_unmute.mp3"),
+        _ => return None,
+    })
 }
 
 fn custom_sound_cache_key(path: &Path) -> Result<String> {

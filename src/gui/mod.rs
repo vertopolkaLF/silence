@@ -316,7 +316,11 @@ pub fn settings_app() -> Element {
         style { {settings_font_face()} }
         div {
             class: {
-                let mica_class = if settings().config.advanced.enable_mica { " mica-enabled" } else { "" };
+                let mica_class = if crate::effective_settings_mica_enabled(&settings().config) {
+                    " mica-enabled"
+                } else {
+                    ""
+                };
                 if closing() {
                     format!("window closing{mica_class}")
                 } else {
