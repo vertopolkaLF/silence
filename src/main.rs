@@ -2442,7 +2442,7 @@ fn run_background_app() -> Result<()> {
     register_notification_integration();
     updater::cleanup_downloads_after_startup();
     maybe_show_updated_notification();
-    if !launched_from_installer() {
+    if !launched_from_installer() && !development_tools_enabled() {
         start_update_check();
     }
     let sound_settings = STATE.lock().unwrap().sound_settings.clone();
@@ -4370,6 +4370,10 @@ fn start_update_check() {
             Err(err) => eprintln!("update check failed: {err:?}"),
         }
     });
+}
+
+pub(crate) fn development_tools_enabled() -> bool {
+    cfg!(debug_assertions)
 }
 
 fn launched_from_installer() -> bool {

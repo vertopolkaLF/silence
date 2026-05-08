@@ -343,7 +343,7 @@ pub fn settings_app() -> Element {
                 class: "titlebar",
                 onmousedown: move |_| drag_desktop.drag(),
                 div { class: "title-spacer" }
-                if cfg!(debug_assertions) {
+                if crate::development_tools_enabled() {
                     button {
                         class: "titlebar-button devtools-button",
                         id: "devtools",
