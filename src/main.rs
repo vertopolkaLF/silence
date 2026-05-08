@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     ffi::c_void,
     fs,
     io::Cursor,
@@ -29,7 +29,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use windows::{
     Win32::{
-        Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
+        Devices::{
+            Display::{
+                DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME, DISPLAYCONFIG_DEVICE_INFO_HEADER,
+                DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_TARGET_DEVICE_NAME,
+                DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QDC_ONLY_ACTIVE_PATHS,
+                QueryDisplayConfig,
+            },
+            FunctionDiscovery::PKEY_Device_FriendlyName,
+        },
         Foundation::{
             BOOL, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError,
             HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
@@ -964,6 +972,7 @@ fn default_overlay_show_border() -> bool {
 
 pub fn overlay_displays() -> Vec<OverlayDisplay> {
     let mut monitors = Vec::<MonitorSnapshot>::new();
+    let mut friendly_names = display_config_target_names();
     unsafe {
         let _ = EnumDisplayMonitors(
             HDC::default(),
@@ -987,10 +996,16 @@ pub fn overlay_displays() -> Vec<OverlayDisplay> {
         .enumerate()
         .map(|(index, monitor)| {
             let display_number = index + 1;
-            let label = if monitor.primary {
+            let fallback_label = if monitor.primary {
                 format!("Display {display_number} (primary)")
             } else {
                 format!("Display {display_number}")
+            };
+            let friendly_name = friendly_names.pop_front().filter(|name| !name.is_empty());
+            let label = match (friendly_name, monitor.primary) {
+                (Some(name), true) => format!("{name} – Display {display_number} (primary)"),
+                (Some(name), false) => format!("{name} – Display {display_number}"),
+                (None, _) => fallback_label,
             };
             let width = monitor.rect.right - monitor.rect.left;
             let height = monitor.rect.bottom - monitor.rect.top;
@@ -1034,6 +1049,67 @@ unsafe extern "system" fn collect_monitor_snapshot(
         });
     }
     true.into()
+}
+
+fn display_config_target_names() -> VecDeque<String> {
+    let mut path_count = 0;
+    let mut mode_count = 0;
+    let flags = QDC_ONLY_ACTIVE_PATHS;
+
+    let status = unsafe { GetDisplayConfigBufferSizes(flags, &mut path_count, &mut mode_count) };
+    if status != ERROR_SUCCESS || path_count == 0 {
+        return VecDeque::new();
+    }
+
+    let mut paths = vec![DISPLAYCONFIG_PATH_INFO::default(); path_count as usize];
+    let mut modes = vec![DISPLAYCONFIG_MODE_INFO::default(); mode_count as usize];
+    let status = unsafe {
+        QueryDisplayConfig(
+            flags,
+            &mut path_count,
+            paths.as_mut_ptr(),
+            &mut mode_count,
+            modes.as_mut_ptr(),
+            None,
+        )
+    };
+    if status != ERROR_SUCCESS {
+        return VecDeque::new();
+    }
+
+    paths.truncate(path_count as usize);
+    paths
+        .iter()
+        .filter_map(|path| display_config_target_name(path))
+        .collect()
+}
+
+fn display_config_target_name(path: &DISPLAYCONFIG_PATH_INFO) -> Option<String> {
+    let mut target_name = DISPLAYCONFIG_TARGET_DEVICE_NAME::default();
+    target_name.header = DISPLAYCONFIG_DEVICE_INFO_HEADER {
+        r#type: DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
+        size: size_of::<DISPLAYCONFIG_TARGET_DEVICE_NAME>() as u32,
+        adapterId: path.targetInfo.adapterId,
+        id: path.targetInfo.id,
+    };
+
+    let status = unsafe {
+        DisplayConfigGetDeviceInfo(&mut target_name.header as *mut DISPLAYCONFIG_DEVICE_INFO_HEADER)
+    };
+    if status != 0 {
+        return None;
+    }
+
+    let name = wide_slice_to_string(&target_name.monitorFriendlyDeviceName);
+    if name.is_empty() { None } else { Some(name) }
+}
+
+fn wide_slice_to_string(value: &[u16]) -> String {
+    let len = value
+        .iter()
+        .position(|item| *item == 0)
+        .unwrap_or(value.len());
+    String::from_utf16_lossy(&value[..len]).trim().to_string()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
