@@ -73,7 +73,7 @@
 }
 
 .content-panel.current.resting .content-scroll {
-  scrollbar-color: #737373ff transparent;
+  scrollbar-color: var(--surface-color-5) transparent;
 }
 
 .content-inner {

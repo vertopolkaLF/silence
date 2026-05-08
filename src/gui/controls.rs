@@ -5,6 +5,7 @@ use std::{
 };
 
 static NEXT_SELECT_ID: AtomicUsize = AtomicUsize::new(1);
+static NEXT_RANGE_ID: AtomicUsize = AtomicUsize::new(1);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SelectOption {
@@ -100,8 +101,53 @@ pub fn Range(
     #[props(default)] class: String,
     #[props(default)] label_icon: Option<String>,
 ) -> Element {
+    let range_id =
+        use_hook(|| format!("ui-range-{}", NEXT_RANGE_ID.fetch_add(1, Ordering::Relaxed)));
+    let wheel_range_id = range_id.clone();
+
+    use_effect(move || {
+        let range_id = wheel_range_id.clone();
+        spawn(async move {
+            let script = format!(
+                r#"
+const root = document.querySelector('[data-ui-range-id="{range_id}"]');
+const input = root?.querySelector('.ui-range');
+if (!root || !input) {{
+  return;
+}}
+
+root.onmouseenter = () => {{
+  root.dataset.wheelReadyAt = String(Date.now() + 600);
+}};
+
+root.onmouseleave = () => {{
+  delete root.dataset.wheelReadyAt;
+}};
+
+root.onwheel = (event) => {{
+  const readyAt = Number(root.dataset.wheelReadyAt || 0);
+  if (!readyAt || Date.now() < readyAt) {{
+    return;
+  }}
+
+  event.preventDefault();
+  if (event.deltaY < 0) {{
+    input.stepUp();
+  }} else if (event.deltaY > 0) {{
+    input.stepDown();
+  }} else {{
+    return;
+  }}
+  input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+}};
+"#
+            );
+            let _ = dioxus::document::eval(&script).await;
+        });
+    });
+
     rsx! {
-        div { class: merged_class("ui-range-control", &class),
+        div { class: merged_class("ui-range-control", &class), "data-ui-range-id": "{range_id}",
             label { class: "ui-range-shell",
                 span {
                     class: "ui-range-fill",
@@ -443,7 +489,7 @@ if (!menu || !list) {{
 }}
 
 const scrollSelectedIntoView = () => {{
-  const selected = list.querySelector('.ui-select-item.highlighted, .ui-select-item.selected');
+  const selected = list.querySelector('.ui-select-item.selected, .ui-select-item.highlighted');
   if (!selected) {{
     return;
   }}
@@ -518,6 +564,10 @@ requestAnimationFrame(() => {{
         .unwrap_or_else(|| "Search".to_string());
     let filtered_option_count = filtered_options.len();
     let highlighted_option = filtered_options.get(highlighted).cloned();
+    let selected_option_index = options
+        .iter()
+        .position(|option| option.value == value)
+        .unwrap_or(0);
 
     rsx! {
         div { class: "{root_class}", "data-ui-select-id": "{select_id}",
@@ -617,7 +667,7 @@ requestAnimationFrame(() => {{
                             open_select.set(None);
                         } else {
                             search_query.set(String::new());
-                            highlighted_index.set(0);
+                            highlighted_index.set(selected_option_index);
                             open_select.set(Some(trigger_select_id.clone()));
                             open.set(true);
                         }

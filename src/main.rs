@@ -522,6 +522,9 @@ pub enum HotkeyAction {
     SetDefaultOutputDevice,
     ToggleDefaultInputDevice,
     ToggleDefaultOutputDevice,
+    SetVolume,
+    IncreaseVolume,
+    DecreaseVolume,
     OpenSettings,
 }
 
@@ -537,6 +540,9 @@ impl HotkeyAction {
         Self::ToggleDefaultOutputDevice,
         Self::SetDefaultInputDevice,
         Self::ToggleDefaultInputDevice,
+        Self::SetVolume,
+        Self::IncreaseVolume,
+        Self::DecreaseVolume,
         Self::OpenSettings,
     ];
 
@@ -552,6 +558,9 @@ impl HotkeyAction {
             Self::SetDefaultOutputDevice => "Set output device",
             Self::ToggleDefaultInputDevice => "Toggle input device",
             Self::ToggleDefaultOutputDevice => "Toggle output device",
+            Self::SetVolume => "Set volume",
+            Self::IncreaseVolume => "Increase volume",
+            Self::DecreaseVolume => "Decrease volume",
             Self::OpenSettings => "Open settings",
         }
     }
@@ -568,6 +577,9 @@ impl HotkeyAction {
             Self::SetDefaultOutputDevice => "SetDefaultOutputDevice",
             Self::ToggleDefaultInputDevice => "ToggleDefaultInputDevice",
             Self::ToggleDefaultOutputDevice => "ToggleDefaultOutputDevice",
+            Self::SetVolume => "SetVolume",
+            Self::IncreaseVolume => "IncreaseVolume",
+            Self::DecreaseVolume => "DecreaseVolume",
             Self::OpenSettings => "OpenSettings",
         }
     }
@@ -583,6 +595,9 @@ impl HotkeyAction {
             "SetDefaultOutputDevice" => Self::SetDefaultOutputDevice,
             "ToggleDefaultInputDevice" => Self::ToggleDefaultInputDevice,
             "ToggleDefaultOutputDevice" => Self::ToggleDefaultOutputDevice,
+            "SetVolume" => Self::SetVolume,
+            "IncreaseVolume" => Self::IncreaseVolume,
+            "DecreaseVolume" => Self::DecreaseVolume,
             "OpenSettings" => Self::OpenSettings,
             _ => Self::ToggleMute,
         }
@@ -601,6 +616,9 @@ impl HotkeyAction {
                 | Self::SetDefaultOutputDevice
                 | Self::ToggleDefaultInputDevice
                 | Self::ToggleDefaultOutputDevice
+                | Self::SetVolume
+                | Self::IncreaseVolume
+                | Self::DecreaseVolume
         )
     }
 
@@ -3995,6 +4013,13 @@ enum HotkeyRequest {
         target_1: Option<String>,
         target_2: Option<String>,
     },
+    SetVolume {
+        target: Option<String>,
+    },
+    ChangeVolume {
+        target: Option<String>,
+        direction: i32,
+    },
     OpenSettings,
 }
 
@@ -4039,6 +4064,17 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
             target_1: hotkey.target.clone(),
             target_2: hotkey.target_2.clone(),
         },
+        HotkeyAction::SetVolume => HotkeyRequest::SetVolume {
+            target: hotkey.target.clone(),
+        },
+        HotkeyAction::IncreaseVolume => HotkeyRequest::ChangeVolume {
+            target: hotkey.target.clone(),
+            direction: 1,
+        },
+        HotkeyAction::DecreaseVolume => HotkeyRequest::ChangeVolume {
+            target: hotkey.target.clone(),
+            direction: -1,
+        },
         HotkeyAction::OpenSettings => HotkeyRequest::OpenSettings,
     }
 }
@@ -4074,6 +4110,16 @@ fn run_hotkey_action(action: HotkeyRequest) {
         HotkeyRequest::ToggleDefaultOutput { target_1, target_2 } => {
             if let Err(err) = toggle_default_audio_device(eRender, target_1, target_2) {
                 eprintln!("failed to toggle default output device from hotkey: {err:?}");
+            }
+        }
+        HotkeyRequest::SetVolume { target } => {
+            if let Err(err) = set_capture_volume_from_hotkey(target.as_deref()) {
+                eprintln!("failed to set microphone volume from hotkey: {err:?}");
+            }
+        }
+        HotkeyRequest::ChangeVolume { target, direction } => {
+            if let Err(err) = change_capture_volume_from_hotkey(target.as_deref(), direction) {
+                eprintln!("failed to change microphone volume from hotkey: {err:?}");
             }
         }
         HotkeyRequest::OpenSettings => open_settings_window(),
@@ -4545,6 +4591,35 @@ fn set_mute(device_id: Option<&str>, muted: bool) -> Result<bool> {
         volume.SetMute(muted, null())?;
     }
     Ok(muted)
+}
+
+fn hotkey_volume_target_percent(target: Option<&str>, fallback: u8) -> u8 {
+    target
+        .and_then(|target| target.trim().parse::<u8>().ok())
+        .unwrap_or(fallback)
+        .min(100)
+}
+
+fn set_capture_volume_from_hotkey(target: Option<&str>) -> Result<()> {
+    set_capture_volume_percent(hotkey_volume_target_percent(target, 100))
+}
+
+fn change_capture_volume_from_hotkey(target: Option<&str>, direction: i32) -> Result<()> {
+    let amount = i32::from(hotkey_volume_target_percent(target, 10));
+    let volume = capture_volume(None)?;
+    let current = unsafe { volume.GetMasterVolumeLevelScalar()? };
+    let current_percent = (current * 100.0).round() as i32;
+    let next = (current_percent + amount * direction).clamp(0, 100) as u8;
+    set_capture_volume_percent(next)
+}
+
+fn set_capture_volume_percent(percent: u8) -> Result<()> {
+    let volume = capture_volume(None)?;
+    let scalar = f32::from(percent.min(100)) / 100.0;
+    unsafe {
+        volume.SetMasterVolumeLevelScalar(scalar, null())?;
+    }
+    Ok(())
 }
 
 fn play_mute_sound(muted: bool) {

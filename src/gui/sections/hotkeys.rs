@@ -5,7 +5,7 @@ use std::{
 
 use dioxus::prelude::*;
 
-use crate::gui::controls::{Checkbox, Select, SelectOption};
+use crate::gui::controls::{Checkbox, Range, Select, SelectOption};
 
 const XBOX_BUTTON_A_ICON: Asset = asset!("/assets/gamepad/xbox_button_a.png");
 const XBOX_BUTTON_B_ICON: Asset = asset!("/assets/gamepad/xbox_button_b.png");
@@ -579,7 +579,12 @@ fn start_modal(
         draft_gamepad.set(None);
         draft_source.set(HotkeySource::Keyboard);
         draft_action.set(preset_action.unwrap_or(crate::HotkeyAction::ToggleMute));
-        draft_target.set(String::new());
+        draft_target.set(default_target_for_action(
+            preset_action.unwrap_or(crate::HotkeyAction::ToggleMute),
+            &settings().devices,
+            &settings().output_devices,
+            &settings().config.hotkeys,
+        ));
         draft_target_2.set(String::new());
         draft_ignore_modifiers.set(false);
         modal.set(Some(ModalMode::Add));
@@ -1060,11 +1065,15 @@ if (viewport && pane) {{
                                 value: action.id().to_string(),
                                 options: action_options(),
                                 onchange: move |value: String| {
+                                    let previous_action = draft_action();
                                     let action = crate::HotkeyAction::from_id(&value);
                                     draft_action.set(action);
                                     let mut target = draft_target();
-                                    if !action.needs_target() || !target_is_valid_for_action(action, &target, &action_devices, &action_output_devices) {
-                                        target = default_target_for_action(action, &action_devices, &action_output_devices);
+                                    if action_uses_volume_target(action) && previous_action != action {
+                                        target = default_target_for_action(action, &action_devices, &action_output_devices, &settings().config.hotkeys);
+                                        draft_target.set(target.clone());
+                                    } else if !action.needs_target() || !target_is_valid_for_action(action, &target, &action_devices, &action_output_devices) {
+                                        target = default_target_for_action(action, &action_devices, &action_output_devices, &settings().config.hotkeys);
                                         draft_target.set(target.clone());
                                     }
                                     let mut target_2 = draft_target_2();
@@ -1088,7 +1097,27 @@ if (viewport && pane) {{
                             }
                         }
 
-                        if action.needs_target() {
+                        if action.needs_target() && action_uses_volume_target(action) {
+                            VolumeTargetInput {
+                                action,
+                                value: draft_target(),
+                                onchange: move |value: String| {
+                                    draft_target.set(value.clone());
+                                    if let Some(id) = target_editing_id.clone() {
+                                        apply_draft_to_binding(
+                                            settings,
+                                            id,
+                                            draft_shortcut().unwrap_or_default(),
+                                            draft_gamepad(),
+                                            draft_action(),
+                                            value,
+                                            draft_target_2(),
+                                            if draft_source() == HotkeySource::Keyboard { draft_ignore_modifiers() } else { false },
+                                        );
+                                    }
+                                }
+                            }
+                        } else if action.needs_target() {
                             TargetSelect {
                                 action,
                                 label: "Target 1",
@@ -1486,6 +1515,41 @@ fn TargetSelect(
     }
 }
 
+#[component]
+fn VolumeTargetInput(
+    action: crate::HotkeyAction,
+    value: String,
+    onchange: EventHandler<String>,
+) -> Element {
+    let label = match action {
+        crate::HotkeyAction::SetVolume => "Volume",
+        crate::HotkeyAction::IncreaseVolume | crate::HotkeyAction::DecreaseVolume => "Amount",
+        _ => "Target",
+    };
+    let value = volume_target_value(&value, action).to_string();
+    let value_label = format!("{value}%");
+
+    rsx! {
+        div { class: "field-group modal-field target-field",
+            Range {
+                label: label.to_string(),
+                value_label,
+                value: value.clone(),
+                min: "0".to_string(),
+                max: "100".to_string(),
+                step: "1".to_string(),
+                progress: format!("{value}%"),
+                label_icon: Some("icon-volume".to_string()),
+                oninput: move |evt: FormEvent| {
+                    if let Ok(value) = evt.value().parse::<u8>() {
+                        onchange.call(value.min(100).to_string());
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn target_options(
     action: crate::HotkeyAction,
     devices: Vec<crate::MicDevice>,
@@ -1560,6 +1624,9 @@ fn action_options() -> Vec<SelectOption> {
                 crate::HotkeyAction::ToggleDefaultOutputDevice => {
                     option.group("System").icon("icon-volume")
                 }
+                crate::HotkeyAction::SetVolume => option.group("Volume").icon("icon-volume"),
+                crate::HotkeyAction::IncreaseVolume => option.group("Volume").icon("icon-volume"),
+                crate::HotkeyAction::DecreaseVolume => option.group("Volume").icon("icon-volume"),
                 crate::HotkeyAction::OpenSettings => option.group("System").icon("icon-settings"),
             }
         })
@@ -1590,6 +1657,11 @@ fn device_target_label(
     output_devices: &[crate::AudioDevice],
     name_display: &str,
 ) -> String {
+    if action_uses_volume_target(action) {
+        let value = volume_target_value(target.unwrap_or_default(), action);
+        return format!("{value}%");
+    }
+
     if matches!(
         action,
         crate::HotkeyAction::SetDefaultInputDevice | crate::HotkeyAction::ToggleDefaultInputDevice
@@ -1637,6 +1709,11 @@ fn target_is_valid_for_action(
         | crate::HotkeyAction::ToggleDefaultOutputDevice => {
             output_devices.iter().any(|device| device.id == target)
         }
+        crate::HotkeyAction::SetVolume
+        | crate::HotkeyAction::IncreaseVolume
+        | crate::HotkeyAction::DecreaseVolume => {
+            target.trim().parse::<u8>().is_ok_and(|value| value <= 100)
+        }
         _ => true,
     }
 }
@@ -1645,6 +1722,7 @@ fn default_target_for_action(
     action: crate::HotkeyAction,
     devices: &[crate::MicDevice],
     output_devices: &[crate::AudioDevice],
+    hotkeys: &[crate::HotkeyBinding],
 ) -> String {
     match action {
         crate::HotkeyAction::SetDefaultInputDevice
@@ -1657,8 +1735,43 @@ fn default_target_for_action(
             .first()
             .map(|device| device.id.clone())
             .unwrap_or_default(),
+        crate::HotkeyAction::SetVolume => "100".to_string(),
+        crate::HotkeyAction::IncreaseVolume | crate::HotkeyAction::DecreaseVolume => hotkeys
+            .iter()
+            .find(|hotkey| {
+                matches!(
+                    hotkey.action,
+                    crate::HotkeyAction::IncreaseVolume | crate::HotkeyAction::DecreaseVolume
+                )
+            })
+            .and_then(|hotkey| hotkey.target.as_deref())
+            .map(|target| volume_target_value(target, action).to_string())
+            .unwrap_or_else(|| "10".to_string()),
         _ => String::new(),
     }
+}
+
+fn action_uses_volume_target(action: crate::HotkeyAction) -> bool {
+    matches!(
+        action,
+        crate::HotkeyAction::SetVolume
+            | crate::HotkeyAction::IncreaseVolume
+            | crate::HotkeyAction::DecreaseVolume
+    )
+}
+
+fn volume_target_value(target: &str, action: crate::HotkeyAction) -> u8 {
+    target
+        .trim()
+        .parse::<u8>()
+        .unwrap_or_else(|_| {
+            if matches!(action, crate::HotkeyAction::SetVolume) {
+                100
+            } else {
+                10
+            }
+        })
+        .min(100)
 }
 
 fn default_second_target_for_action(
