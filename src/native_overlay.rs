@@ -7,13 +7,13 @@ use windows::{
     Win32::{
         Foundation::{BOOL, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
         Graphics::Gdi::{
-            AC_SRC_ALPHA, ANTIALIASED_QUALITY, AddFontMemResourceEx, BI_RGB, BITMAPINFO,
-            BITMAPINFOHEADER, BLENDFUNCTION, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS,
-            CreateCompatibleDC, CreateDIBSection, CreateFontW, CreatePen, CreateSolidBrush,
-            DEFAULT_CHARSET, DEFAULT_PITCH, DIB_RGB_COLORS, DeleteDC, DeleteObject, DrawTextW,
-            EnumDisplayMonitors, FF_DONTCARE, FW_MEDIUM, GetMonitorInfoW, GetTextExtentPoint32W,
-            HDC, HMONITOR, MONITORINFO, OUT_DEFAULT_PRECIS, PS_SOLID, RoundRect, SelectObject,
-            SetBkMode, SetTextColor, TRANSPARENT,
+            AC_SRC_ALPHA, ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BLENDFUNCTION,
+            CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, CreateCompatibleDC, CreateDIBSection,
+            CreateFontW, CreatePen, CreateSolidBrush, DEFAULT_CHARSET, DEFAULT_PITCH,
+            DIB_RGB_COLORS, DeleteDC, DeleteObject, DrawTextW, EnumDisplayMonitors, FF_DONTCARE,
+            FW_MEDIUM, GetMonitorInfoW, GetTextExtentPoint32W, HDC, HMONITOR, MONITORINFO,
+            OUT_DEFAULT_PRECIS, PS_SOLID, RoundRect, SelectObject, SetBkMode, SetTextColor,
+            TRANSPARENT,
         },
         UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI},
         UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON},
@@ -37,25 +37,9 @@ const CONTENT_TRANSITION_MS: u32 = 300;
 const CONTENT_TRANSITION_STEPS: u32 = 18;
 const ID_CONTENT_TRANSITION_TIMER: usize = 30;
 const ID_WINDOW_FADE_TIMER: usize = 31;
-const OVERLAY_TEXT_FONT_NAME: &str = "Bricolage Grotesque 12pt Bold";
-const OVERLAY_TEXT_FONT_BYTES: &[u8] =
-    include_bytes!("../assets/fonts/BricolageGrotesque12pt-Bold.ttf");
-const OVERLAY_TEXT_FONT_WEIGHT: i32 = 700;
-
 static OVERLAY: Lazy<Mutex<Option<NativeOverlay>>> = Lazy::new(|| Mutex::new(None));
 static ICON_MASK_CACHE: Lazy<Mutex<HashMap<(String, bool, u32), Vec<u8>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
-static OVERLAY_TEXT_FONT_REGISTERED: Lazy<bool> = Lazy::new(|| unsafe {
-    let mut font_count = 0;
-    !AddFontMemResourceEx(
-        OVERLAY_TEXT_FONT_BYTES.as_ptr() as *const c_void,
-        OVERLAY_TEXT_FONT_BYTES.len() as u32,
-        None,
-        &mut font_count,
-    )
-    .0
-    .is_null()
-});
 struct OverlayMetrics {
     padding: i32,
     right_padding: i32,
@@ -334,8 +318,11 @@ impl NativeOverlay {
         }
 
         let metrics = overlay_metrics(self.height);
-        let text_width =
-            measure_text_width(overlay_label(&self.settings, muted), metrics.text_font_size);
+        let text_width = measure_text_width(
+            &self.settings,
+            overlay_label(&self.settings, muted),
+            metrics.text_font_size,
+        );
         metrics.padding + metrics.icon_size + metrics.gap + text_width + metrics.right_padding
     }
 
@@ -861,13 +848,13 @@ impl NativeOverlay {
                 (18, 18, 18)
             };
             if let Some(mask) = render_text_mask(self.width, self.height, |hdc| unsafe {
-                let text_face = overlay_text_font_face();
+                let text_face = overlay_text_font_face(&self.settings);
                 let text_font = CreateFontW(
                     metrics.text_font_size,
                     0,
                     0,
                     0,
-                    OVERLAY_TEXT_FONT_WEIGHT,
+                    overlay_text_font_weight(&self.settings),
                     0,
                     0,
                     0,
@@ -1056,20 +1043,20 @@ fn overlay_label(settings: &crate::OverlayConfig, muted: bool) -> &str {
     }
 }
 
-fn measure_text_width(text: &str, font_size: i32) -> i32 {
+fn measure_text_width(settings: &crate::OverlayConfig, text: &str, font_size: i32) -> i32 {
     unsafe {
         let hdc = CreateCompatibleDC(None);
         if hdc.0.is_null() {
             return fallback_text_width(text, font_size);
         }
 
-        let text_face = overlay_text_font_face();
+        let text_face = overlay_text_font_face(settings);
         let font = CreateFontW(
             font_size,
             0,
             0,
             0,
-            OVERLAY_TEXT_FONT_WEIGHT,
+            overlay_text_font_weight(settings),
             0,
             0,
             0,
@@ -1101,9 +1088,17 @@ fn fallback_text_width(text: &str, font_size: i32) -> i32 {
     (text.chars().count() as f64 * px * 0.56).round() as i32
 }
 
-fn overlay_text_font_face() -> Vec<u16> {
-    let _ = *OVERLAY_TEXT_FONT_REGISTERED;
-    crate::wide(OVERLAY_TEXT_FONT_NAME)
+fn overlay_text_font_face(settings: &crate::OverlayConfig) -> Vec<u16> {
+    let family = settings.text_font.trim();
+    if family.is_empty() {
+        crate::wide("Segoe UI")
+    } else {
+        crate::wide(family)
+    }
+}
+
+fn overlay_text_font_weight(settings: &crate::OverlayConfig) -> i32 {
+    i32::from(settings.text_font_weight.clamp(100, 900))
 }
 
 fn render_text_mask(width: i32, height: i32, draw: impl FnOnce(HDC)) -> Option<Vec<u8>> {

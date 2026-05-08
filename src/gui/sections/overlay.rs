@@ -59,7 +59,10 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let mut font_options = snapshot
         .system_fonts
         .iter()
-        .map(|font| SelectOption::new(font.family.clone(), font.family.clone()))
+        .map(|font| {
+            SelectOption::new(font.family.clone(), font.family.clone())
+                .font_family(font.family.clone())
+        })
         .collect::<Vec<_>>();
     if !overlay.text_font.is_empty()
         && !font_options
@@ -68,7 +71,8 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     {
         font_options.insert(
             0,
-            SelectOption::new(overlay.text_font.clone(), overlay.text_font.clone()),
+            SelectOption::new(overlay.text_font.clone(), overlay.text_font.clone())
+                .font_family(overlay.text_font.clone()),
         );
     }
 

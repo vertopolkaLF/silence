@@ -63,6 +63,7 @@ pub struct SettingsSnapshot {
     pub devices: Vec<crate::MicDevice>,
     pub output_devices: Vec<crate::AudioDevice>,
     pub overlay_displays: Vec<crate::OverlayDisplay>,
+    pub system_fonts: Vec<crate::SystemFont>,
     pub muted: bool,
 }
 
@@ -83,6 +84,7 @@ impl SettingsSnapshot {
             devices: Vec::new(),
             output_devices: Vec::new(),
             overlay_displays: crate::overlay_displays(),
+            system_fonts: crate::system_fonts(),
             muted: false,
         }
     }
@@ -94,12 +96,16 @@ impl SettingsSnapshot {
             self.output_devices = crate::render_devices().unwrap_or_default();
         }
         self.overlay_displays = crate::overlay_displays();
+        if self.system_fonts.is_empty() {
+            self.system_fonts = crate::system_fonts();
+        }
         self.muted = crate::mic_mute_state(None).unwrap_or(self.muted);
         Self {
             config: self.config,
             devices: self.devices,
             output_devices: self.output_devices,
             overlay_displays: self.overlay_displays,
+            system_fonts: self.system_fonts,
             muted: self.muted,
         }
     }
@@ -241,6 +247,7 @@ pub fn update_settings(
         devices: settings.peek().devices.clone(),
         output_devices: settings.peek().output_devices.clone(),
         overlay_displays: settings.peek().overlay_displays.clone(),
+        system_fonts: settings.peek().system_fonts.clone(),
         muted: settings.peek().muted,
     };
     settings.set(next.refresh(false));

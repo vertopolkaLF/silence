@@ -14,6 +14,7 @@ pub struct SelectOption {
     pub detail: Option<String>,
     pub icon_class: Option<String>,
     pub end_icon_class: Option<String>,
+    pub font_family: Option<String>,
 }
 
 impl SelectOption {
@@ -25,6 +26,7 @@ impl SelectOption {
             detail: None,
             icon_class: None,
             end_icon_class: None,
+            font_family: None,
         }
     }
 
@@ -45,6 +47,11 @@ impl SelectOption {
 
     pub fn end_icon(mut self, icon_class: impl Into<String>) -> Self {
         self.end_icon_class = Some(icon_class.into());
+        self
+    }
+
+    pub fn font_family(mut self, font_family: impl Into<String>) -> Self {
+        self.font_family = Some(font_family.into());
         self
     }
 }
@@ -171,83 +178,90 @@ pub fn Select(
     });
 
     let mut rendered_options = Vec::new();
-    let mut current_group = None::<String>;
-    for option in options {
-        if option.group_label != current_group {
-            current_group = option.group_label.clone();
-            if let Some(group_label) = current_group.clone() {
-                rendered_options.push(rsx! {
-                    div {
-                        key: "select-group-{group_label}",
-                        class: "ui-select-group",
-                        "{group_label}"
-                    }
-                });
+    if open() {
+        let mut current_group = None::<String>;
+        for option in options {
+            if option.group_label != current_group {
+                current_group = option.group_label.clone();
+                if let Some(group_label) = current_group.clone() {
+                    rendered_options.push(rsx! {
+                        div {
+                            key: "select-group-{group_label}",
+                            class: "ui-select-group",
+                            "{group_label}"
+                        }
+                    });
+                }
             }
-        }
 
-        let is_selected = option.value == value;
-        let next_value = option.value.clone();
-        let item_class = if is_selected {
-            "ui-select-item selected"
-        } else {
-            "ui-select-item"
-        };
-        let action_value = option.value.clone();
-        let close_select_id = select_id.clone();
-        let should_animate = next_value != value;
-        let previous_value = current.clone();
+            let is_selected = option.value == value;
+            let next_value = option.value.clone();
+            let item_class = if is_selected {
+                "ui-select-item selected"
+            } else {
+                "ui-select-item"
+            };
+            let action_value = option.value.clone();
+            let close_select_id = select_id.clone();
+            let should_animate = next_value != value;
+            let previous_value = current.clone();
+            let option_label_style = select_option_label_style(option.font_family.as_deref());
 
-        rendered_options.push(rsx! {
-            div {
-                key: "select-option-{option.value}",
-                class: "{item_class}",
-                button {
-                    r#type: "button",
-                    class: "ui-select-item-button",
-                    onclick: move |_| {
-                        open.set(false);
-                        if open_select().as_deref() == Some(close_select_id.as_str()) {
-                            open_select.set(None);
-                        }
-                        if should_animate {
-                            exiting_value.set(previous_value.clone());
-                        }
-                        animate_value.set(should_animate);
-                        onchange.call(next_value.clone());
-                    },
-                    div { class: "ui-select-item-main",
-                        if let Some(icon_class) = option.icon_class.as_deref() {
-                            span { class: "solar-icon ui-select-item-icon {icon_class}" }
-                        }
-                        div { class: "ui-select-item-copy",
-                            span { class: "ui-select-item-label", "{option.label}" }
-                            if let Some(detail) = option.detail.as_deref() {
-                                span { class: "ui-select-item-detail", "{detail}" }
+            rendered_options.push(rsx! {
+                div {
+                    key: "select-option-{option.value}",
+                    class: "{item_class}",
+                    button {
+                        r#type: "button",
+                        class: "ui-select-item-button",
+                        onclick: move |_| {
+                            open.set(false);
+                            if open_select().as_deref() == Some(close_select_id.as_str()) {
+                                open_select.set(None);
+                            }
+                            if should_animate {
+                                exiting_value.set(previous_value.clone());
+                            }
+                            animate_value.set(should_animate);
+                            onchange.call(next_value.clone());
+                        },
+                        div { class: "ui-select-item-main",
+                            if let Some(icon_class) = option.icon_class.as_deref() {
+                                span { class: "solar-icon ui-select-item-icon {icon_class}" }
+                            }
+                            div { class: "ui-select-item-copy",
+                                span {
+                                    class: "ui-select-item-label",
+                                    style: "{option_label_style}",
+                                    "{option.label}"
+                                }
+                                if let Some(detail) = option.detail.as_deref() {
+                                    span { class: "ui-select-item-detail", "{detail}" }
+                                }
                             }
                         }
                     }
-                }
-                if let Some(icon_class) = option.end_icon_class.as_deref() {
-                    div { class: "ui-select-item-end",
-                        if let Some(on_option_action) = on_option_action.clone() {
-                            button {
-                                r#type: "button",
-                                class: "ui-select-item-action",
-                                title: "Preview",
-                                onclick: move |evt| {
-                                    evt.stop_propagation();
-                                    on_option_action.call(action_value.clone());
-                                },
+                    if let Some(icon_class) = option.end_icon_class.as_deref() {
+                        div { class: "ui-select-item-end",
+                            if let Some(on_option_action) = on_option_action.clone() {
+                                button {
+                                    r#type: "button",
+                                    class: "ui-select-item-action",
+                                    title: "Preview",
+                                    onclick: move |evt| {
+                                        evt.stop_propagation();
+                                        on_option_action.call(action_value.clone());
+                                    },
+                                    span { class: "solar-icon ui-select-item-end-icon {icon_class}" }
+                                }
+                            } else {
                                 span { class: "solar-icon ui-select-item-end-icon {icon_class}" }
                             }
-                        } else {
-                            span { class: "solar-icon ui-select-item-end-icon {icon_class}" }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 
     let position_select_id = select_id.clone();
@@ -480,7 +494,11 @@ requestAnimationFrame(() => {{
                                 div {
                                     key: "current-exit-{option.value}",
                                     class: "ui-select-current-text ui-select-current-text-exit",
-                                    span { class: "ui-select-current-label", "{option.label}" }
+                                    span {
+                                        class: "ui-select-current-label",
+                                        style: "{select_option_label_style(option.font_family.as_deref())}",
+                                        "{option.label}"
+                                    }
                                     if show_current_detail {
                                         if let Some(detail) = option.detail.as_deref() {
                                             span { class: "ui-select-current-detail", "{detail}" }
@@ -495,6 +513,7 @@ requestAnimationFrame(() => {{
                                 class: if animate_value() { "ui-select-current-text ui-select-current-text-enter" } else { "ui-select-current-text" },
                                 span {
                                     class: "ui-select-current-label",
+                                    style: "{select_option_label_style(option.font_family.as_deref())}",
                                     "{option.label}"
                                 }
                                 if show_current_detail {
@@ -509,12 +528,14 @@ requestAnimationFrame(() => {{
                 span { class: "solar-icon ui-select-chevron icon-down" }
             }
 
-            div { class: "{menu_class}", style: "{menu_style}",
-                div { class: "ui-select-scroll-shadow top", aria_hidden: "true" }
-                div { class: "ui-select-scroll-shadow bottom", aria_hidden: "true" }
-                div { class: "ui-select-list",
-                    for item in rendered_options {
-                        {item}
+            if open() {
+                div { class: "{menu_class}", style: "{menu_style}",
+                    div { class: "ui-select-scroll-shadow top", aria_hidden: "true" }
+                    div { class: "ui-select-scroll-shadow bottom", aria_hidden: "true" }
+                    div { class: "ui-select-list",
+                        for item in rendered_options {
+                            {item}
+                        }
                     }
                 }
             }
@@ -528,4 +549,31 @@ fn merged_class(base: &str, extra: &str) -> String {
     } else {
         format!("{base} {extra}")
     }
+}
+
+fn select_option_label_style(font_family: Option<&str>) -> String {
+    let Some(font_family) = font_family
+        .map(str::trim)
+        .filter(|family| !family.is_empty())
+    else {
+        return String::new();
+    };
+
+    format!(
+        "font-family: \"{}\", sans-serif;",
+        css_string_value(font_family)
+    )
+}
+
+fn css_string_value(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' | '\r' | '\u{000c}' => escaped.push(' '),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
