@@ -61,7 +61,7 @@ pub fn render(mut settings: Signal<super::super::SettingsSnapshot>) -> Element {
             section { class: "sound-card device-card device-settings-card",
                 div { class: "device-field",
                     div { class: "device-card-copy",
-                        h2 { "Display audio devices names" }
+                        h2 { "Displayed audio device name" }
                     }
                     Select {
                         value: audio_device_name_display.clone(),

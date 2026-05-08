@@ -547,10 +547,10 @@ impl HotkeyAction {
             Self::HoldToToggle => "Hold to toggle state",
             Self::HoldToMute => "Hold to mute",
             Self::HoldToUnmute => "Hold to unmute",
-            Self::SetDefaultInputDevice => "Set default input device",
-            Self::SetDefaultOutputDevice => "Set default output device",
-            Self::ToggleDefaultInputDevice => "Toggle default input device",
-            Self::ToggleDefaultOutputDevice => "Toggle default output device",
+            Self::SetDefaultInputDevice => "Set input device",
+            Self::SetDefaultOutputDevice => "Set output device",
+            Self::ToggleDefaultInputDevice => "Toggle input device",
+            Self::ToggleDefaultOutputDevice => "Toggle output device",
             Self::OpenSettings => "Open settings",
         }
     }
