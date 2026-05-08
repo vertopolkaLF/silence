@@ -150,6 +150,10 @@ const MAIN_INSTANCE_MUTEX: PCWSTR = w!("SilenceV2BackgroundApp");
 const DWMWA_MICA_EFFECT: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(1029);
 const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;
 const TRAY_ADD_RETRY_MS: u32 = 2_000;
+const GILRS_ACTIVE_POLL_MS: u64 = 16;
+const GAMEPAD_INACTIVE_POLL_MS: u64 = 1_000;
+const XINPUT_CONNECTED_POLL_MS: u64 = 16;
+const XINPUT_IDLE_POLL_MS: u64 = 250;
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const STARTUP_RUN_VALUE: &str = "silence!";
@@ -1509,6 +1513,9 @@ pub(crate) fn set_settings_gamepad_recording(recording: bool) {
     if recording != was_recording {
         SETTINGS_GAMEPAD_HELD.lock().unwrap().clear();
     }
+    if recording {
+        ensure_gamepad_monitors(false);
+    }
 }
 
 pub(crate) fn settings_gamepad_held_inputs() -> Vec<GamepadInput> {
@@ -1820,8 +1827,9 @@ fn main() -> Result<()> {
         MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
         install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
         dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(|| {
-            start_gamepad_monitor(false);
-            start_xinput_monitor(false);
+            if gamepad_monitoring_needed(false) {
+                ensure_gamepad_monitors(false);
+            }
             gui::settings_app()
         });
         let _settings_mutex = settings_mutex;
@@ -2112,10 +2120,18 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
         let mut previous_right_trigger = [false; 4];
         let mut previous_connected = [false; 4];
         loop {
+            if !gamepad_monitoring_needed(enable_hotkeys) {
+                reset_gamepad_input_state(enable_hotkeys);
+                thread::sleep(Duration::from_millis(GAMEPAD_INACTIVE_POLL_MS));
+                continue;
+            }
+
+            let mut any_connected = false;
             for user_index in 0..4 {
                 let mut state = XINPUT_STATE::default();
                 let result = unsafe { XInputGetState(user_index, &mut state) };
                 let connected = result == ERROR_SUCCESS.0;
+                any_connected |= connected;
                 if connected != previous_connected[user_index as usize] {
                     previous_connected[user_index as usize] = connected;
                     eprintln!(
@@ -2193,7 +2209,12 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
                     );
                 }
             }
-            thread::sleep(Duration::from_millis(16));
+            let poll_ms = if any_connected {
+                XINPUT_CONNECTED_POLL_MS
+            } else {
+                XINPUT_IDLE_POLL_MS
+            };
+            thread::sleep(Duration::from_millis(poll_ms));
         }
     });
 }
@@ -2336,8 +2357,9 @@ fn run_background_app() -> Result<()> {
 
     install_keyboard_hook(instance.into())?;
     install_mouse_hook(instance.into())?;
-    start_gamepad_monitor(true);
-    start_xinput_monitor(true);
+    if gamepad_monitoring_needed(true) {
+        ensure_gamepad_monitors(true);
+    }
     add_tray_icon(hwnd)?;
     if !STATE.lock().unwrap().welcome_completed {
         open_settings_window();
@@ -2433,16 +2455,46 @@ fn start_gamepad_monitor(enable_hotkeys: bool) {
         }
 
         loop {
+            if !gamepad_monitoring_needed(enable_hotkeys) {
+                reset_gamepad_input_state(enable_hotkeys);
+                thread::sleep(Duration::from_millis(GAMEPAD_INACTIVE_POLL_MS));
+                continue;
+            }
+
             while let Some(event) = gilrs.next_event() {
-                eprintln!(
-                    "gilrs event: gamepad={:?}, event={:?}",
-                    event.id, event.event
-                );
                 handle_gamepad_event(event.event, enable_hotkeys);
             }
-            thread::sleep(Duration::from_millis(8));
+            thread::sleep(Duration::from_millis(GILRS_ACTIVE_POLL_MS));
         }
     });
+}
+
+fn ensure_gamepad_monitors(enable_hotkeys: bool) {
+    start_gamepad_monitor(enable_hotkeys);
+    start_xinput_monitor(enable_hotkeys);
+}
+
+fn gamepad_monitoring_needed(enable_hotkeys: bool) -> bool {
+    if SETTINGS_GAMEPAD_RECORDING.load(Ordering::Relaxed) {
+        return true;
+    }
+
+    enable_hotkeys
+        && STATE
+            .lock()
+            .unwrap()
+            .hotkeys
+            .iter()
+            .any(|hotkey| hotkey.gamepad.is_some())
+}
+
+fn reset_gamepad_input_state(enable_hotkeys: bool) {
+    SETTINGS_GAMEPAD_HELD.lock().unwrap().clear();
+    if enable_hotkeys {
+        let mut state = STATE.lock().unwrap();
+        state.gamepad_inputs_down.clear();
+        state.gamepad_hotkeys_down.clear();
+    }
 }
 
 fn handle_gamepad_event(event: EventType, enable_hotkeys: bool) {
@@ -5612,6 +5664,9 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
         state.auto_mute_cursor_position = POINT::default();
     }
     drop(state);
+    if gamepad_monitoring_needed(true) {
+        ensure_gamepad_monitors(true);
+    }
     refresh_tray_icon();
     apply_overlay_visibility();
     prime_sound_assets(&config.sound_settings);
