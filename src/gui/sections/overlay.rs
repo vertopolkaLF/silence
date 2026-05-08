@@ -35,6 +35,15 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
         SelectOption::new("WhenUnmuted", "Visible when unmuted").icon("icon-mic-lucide"),
         SelectOption::new("AfterToggle", "Show after toggle").icon("icon-clock-circle"),
     ];
+    let display_options = snapshot
+        .overlay_displays
+        .iter()
+        .map(|display| {
+            SelectOption::new(display.id.clone(), display.label.clone())
+                .detail(display.detail.clone())
+                .icon("icon-monitor")
+        })
+        .collect::<Vec<_>>();
     let icon_style_options = vec![
         SelectOption::new("Colored", "Colored").icon("icon-palette"),
         SelectOption::new("Monochrome", "Monochrome").icon("icon-contrast"),
@@ -62,12 +71,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 }
             }
 
-            section {
-                class: if duration_controls_open {
-                    "sound-card overlay-visibility-card duration-open"
-                } else {
-                    "sound-card overlay-visibility-card duration-closed"
-                },
+            section { class: "sound-card",
                 div { class: "overlay-field",
                     label { "Visibility" }
                     Select {
@@ -102,9 +106,20 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         }
                     }
                 }
-            }
 
-            section { class: "sound-card",
+                div { class: "overlay-field",
+                    label { "Display" }
+                    Select {
+                        value: overlay.display.clone(),
+                        options: display_options,
+                        onchange: move |value: String| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.display = value;
+                            });
+                        }
+                    }
+                }
+
                 Range {
                     label: "Horizontal position".to_string(),
                     value_label: format!("{x}%"),

@@ -62,6 +62,7 @@ pub struct SettingsSnapshot {
     pub config: crate::Config,
     pub devices: Vec<crate::MicDevice>,
     pub output_devices: Vec<crate::AudioDevice>,
+    pub overlay_displays: Vec<crate::OverlayDisplay>,
     pub muted: bool,
 }
 
@@ -81,6 +82,7 @@ impl SettingsSnapshot {
             config: crate::load_config().unwrap_or_default(),
             devices: Vec::new(),
             output_devices: Vec::new(),
+            overlay_displays: crate::overlay_displays(),
             muted: false,
         }
     }
@@ -91,11 +93,13 @@ impl SettingsSnapshot {
             self.devices = crate::capture_devices().unwrap_or_default();
             self.output_devices = crate::render_devices().unwrap_or_default();
         }
+        self.overlay_displays = crate::overlay_displays();
         self.muted = crate::mic_mute_state(None).unwrap_or(self.muted);
         Self {
             config: self.config,
             devices: self.devices,
             output_devices: self.output_devices,
+            overlay_displays: self.overlay_displays,
             muted: self.muted,
         }
     }
@@ -236,6 +240,7 @@ pub fn update_settings(
         config,
         devices: settings.peek().devices.clone(),
         output_devices: settings.peek().output_devices.clone(),
+        overlay_displays: settings.peek().overlay_displays.clone(),
         muted: settings.peek().muted,
     };
     settings.set(next.refresh(false));

@@ -31,10 +31,6 @@
   max-width: 100%;
 }
 
-.overlay-visibility-card.duration-closed {
-  gap: 0;
-}
-
 .overlay-appearance {
   gap: 18px;
 }

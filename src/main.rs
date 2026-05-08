@@ -31,8 +31,8 @@ use windows::{
     Win32::{
         Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
         Foundation::{
-            ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError, HINSTANCE,
-            HWND, LPARAM, LRESULT, POINT, WPARAM,
+            BOOL, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError,
+            HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
         },
         Graphics::{
             Dwm::{
@@ -41,7 +41,8 @@ use windows::{
             },
             Gdi::{
                 BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection,
-                DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, SelectObject,
+                DIB_RGB_COLORS, DeleteDC, DeleteObject, EnumDisplayMonitors, GetMonitorInfoW,
+                HBITMAP, HDC, HMONITOR, MONITORINFO, SelectObject,
             },
         },
         Media::Audio::{
@@ -149,6 +150,7 @@ const XINPUT_TRIGGER_RELEASE_THRESHOLD: u8 = 96;
 const MAX_GAMEPAD_COMBO_INPUTS: usize = 2;
 
 pub(crate) const HOTKEY_TARGET_ALL_MICROPHONES: &str = "__all_microphones__";
+pub(crate) const OVERLAY_DISPLAY_PRIMARY: &str = "Primary";
 
 const VK_SHIFT: u32 = 0x10;
 const VK_CONTROL: u32 = 0x11;
@@ -843,6 +845,8 @@ pub struct OverlayConfig {
     pub enabled: bool,
     #[serde(default = "default_overlay_visibility")]
     pub visibility: String,
+    #[serde(default = "default_overlay_display")]
+    pub display: String,
     #[serde(default = "default_overlay_position_x")]
     pub position_x: f64,
     #[serde(default = "default_overlay_position_y")]
@@ -871,11 +875,20 @@ pub struct OverlayConfig {
     pub show_border: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OverlayDisplay {
+    pub id: String,
+    pub label: String,
+    pub detail: String,
+    pub primary: bool,
+}
+
 impl Default for OverlayConfig {
     fn default() -> Self {
         Self {
             enabled: default_overlay_enabled(),
             visibility: default_overlay_visibility(),
+            display: default_overlay_display(),
             position_x: default_overlay_position_x(),
             position_y: default_overlay_position_y(),
             duration_secs: default_overlay_duration_secs(),
@@ -899,6 +912,10 @@ fn default_overlay_enabled() -> bool {
 
 fn default_overlay_visibility() -> String {
     "WhenMuted".to_string()
+}
+
+fn default_overlay_display() -> String {
+    OVERLAY_DISPLAY_PRIMARY.to_string()
 }
 
 fn default_overlay_position_x() -> f64 {
@@ -943,6 +960,80 @@ fn default_overlay_border_radius() -> u8 {
 
 fn default_overlay_show_border() -> bool {
     true
+}
+
+pub fn overlay_displays() -> Vec<OverlayDisplay> {
+    let mut monitors = Vec::<MonitorSnapshot>::new();
+    unsafe {
+        let _ = EnumDisplayMonitors(
+            HDC::default(),
+            None,
+            Some(collect_monitor_snapshot),
+            LPARAM(&mut monitors as *mut _ as isize),
+        );
+    }
+
+    if monitors.is_empty() {
+        return vec![OverlayDisplay {
+            id: OVERLAY_DISPLAY_PRIMARY.to_string(),
+            label: "Primary display".to_string(),
+            detail: "Windows primary monitor".to_string(),
+            primary: true,
+        }];
+    }
+
+    monitors
+        .into_iter()
+        .enumerate()
+        .map(|(index, monitor)| {
+            let display_number = index + 1;
+            let label = if monitor.primary {
+                format!("Display {display_number} (primary)")
+            } else {
+                format!("Display {display_number}")
+            };
+            let width = monitor.rect.right - monitor.rect.left;
+            let height = monitor.rect.bottom - monitor.rect.top;
+            OverlayDisplay {
+                id: if monitor.primary {
+                    OVERLAY_DISPLAY_PRIMARY.to_string()
+                } else {
+                    monitor.device_name
+                },
+                label,
+                detail: format!("{width} x {height}"),
+                primary: monitor.primary,
+            }
+        })
+        .collect()
+}
+
+#[derive(Clone)]
+struct MonitorSnapshot {
+    rect: RECT,
+    device_name: String,
+    primary: bool,
+}
+
+unsafe extern "system" fn collect_monitor_snapshot(
+    monitor: HMONITOR,
+    _hdc: HDC,
+    _rect: *mut RECT,
+    data: LPARAM,
+) -> BOOL {
+    let monitors = unsafe { &mut *(data.0 as *mut Vec<MonitorSnapshot>) };
+    let mut info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    if unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
+        monitors.push(MonitorSnapshot {
+            rect: info.rcMonitor,
+            device_name: format!("Monitor{}", monitors.len() + 1),
+            primary: (info.dwFlags & 1) != 0,
+        });
+    }
+    true.into()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

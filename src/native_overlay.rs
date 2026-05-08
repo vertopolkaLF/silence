@@ -5,25 +5,26 @@ use once_cell::sync::Lazy;
 use resvg::{tiny_skia, usvg};
 use windows::{
     Win32::{
-        Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
+        Foundation::{BOOL, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
         Graphics::Gdi::{
             AC_SRC_ALPHA, ANTIALIASED_QUALITY, AddFontMemResourceEx, BI_RGB, BITMAPINFO,
             BITMAPINFOHEADER, BLENDFUNCTION, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS,
             CreateCompatibleDC, CreateDIBSection, CreateFontW, CreatePen, CreateSolidBrush,
             DEFAULT_CHARSET, DEFAULT_PITCH, DIB_RGB_COLORS, DeleteDC, DeleteObject, DrawTextW,
-            FF_DONTCARE, FW_MEDIUM, GetTextExtentPoint32W, HDC, OUT_DEFAULT_PRECIS, PS_SOLID,
-            RoundRect, SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
+            EnumDisplayMonitors, FF_DONTCARE, FW_MEDIUM, GetMonitorInfoW, GetTextExtentPoint32W,
+            HDC, HMONITOR, MONITORINFO, OUT_DEFAULT_PRECIS, PS_SOLID, RoundRect, SelectObject,
+            SetBkMode, SetTextColor, TRANSPARENT,
         },
-        UI::HiDpi::GetDpiForWindow,
+        UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI},
         UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON},
         UI::WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, GWL_EXSTYLE, GetCursorPos,
-            GetSystemMetrics, GetWindowLongW, HWND_TOPMOST, IDC_ARROW, IDC_SIZEALL, KillTimer,
-            LoadCursorW, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_HIDE, SWP_FRAMECHANGED,
-            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_SHOWWINDOW, SetCursor,
-            SetTimer, SetWindowLongW, SetWindowPos, ShowWindow, ULW_ALPHA, UpdateLayeredWindow,
-            WM_ERASEBKGND, WM_PAINT, WM_SETCURSOR, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
-            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+            GetWindowLongW, HWND_TOPMOST, IDC_ARROW, IDC_SIZEALL, KillTimer, LoadCursorW,
+            RegisterClassW, SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
+            SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_SHOWWINDOW, SetCursor, SetTimer, SetWindowLongW,
+            SetWindowPos, ShowWindow, ULW_ALPHA, UpdateLayeredWindow, WM_ERASEBKGND, WM_PAINT,
+            WM_SETCURSOR, WM_TIMER, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+            WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
         },
     },
     core::{PCWSTR, w},
@@ -421,13 +422,17 @@ impl NativeOverlay {
     }
 
     fn saved_x(&self) -> i32 {
-        let screen = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(self.width);
-        percent_to_axis(self.settings.position_x, screen, self.width)
+        let monitor = self.selected_monitor();
+        let rect = monitor.rect;
+        let screen = (rect.right - rect.left).max(self.width);
+        rect.left + percent_to_axis(self.settings.position_x, screen, self.width)
     }
 
     fn saved_y(&self) -> i32 {
-        let screen = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(self.height);
-        percent_to_axis(self.settings.position_y, screen, self.height)
+        let monitor = self.selected_monitor();
+        let rect = monitor.rect;
+        let screen = (rect.bottom - rect.top).max(self.height);
+        rect.top + percent_to_axis(self.settings.position_y, screen, self.height)
     }
 
     fn process_drag(&mut self) -> Option<(f64, f64)> {
@@ -456,8 +461,12 @@ impl NativeOverlay {
         }
 
         if self.dragging && mouse_down {
-            self.x = (cursor.x - self.drag_offset_x).clamp(0, self.screen_width() - self.width);
-            self.y = (cursor.y - self.drag_offset_y).clamp(0, self.screen_height() - self.height);
+            let monitor = self.selected_monitor();
+            let rect = monitor.rect;
+            let max_x = (rect.right - self.width).max(rect.left);
+            let max_y = (rect.bottom - self.height).max(rect.top);
+            self.x = (cursor.x - self.drag_offset_x).clamp(rect.left, max_x);
+            self.y = (cursor.y - self.drag_offset_y).clamp(rect.top, max_y);
             unsafe {
                 let _ = SetWindowPos(
                     self.hwnd,
@@ -486,26 +495,26 @@ impl NativeOverlay {
     }
 
     fn current_percent_position(&mut self) -> (f64, f64) {
-        let width = self.screen_width();
-        let height = self.screen_height();
-        let x = axis_to_percent(self.x, width, self.width);
-        let y = axis_to_percent(self.y, height, self.height);
+        let monitor = self.selected_monitor();
+        let rect = monitor.rect;
+        let width = (rect.right - rect.left).max(self.width);
+        let height = (rect.bottom - rect.top).max(self.height);
+        let x = axis_to_percent(self.x - rect.left, width, self.width);
+        let y = axis_to_percent(self.y - rect.top, height, self.height);
         self.settings.position_x = x;
         self.settings.position_y = y;
         (x, y)
     }
 
-    fn screen_width(&self) -> i32 {
-        unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(self.width)
-    }
-
-    fn screen_height(&self) -> i32 {
-        unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(self.height)
+    fn selected_monitor(&self) -> MonitorRect {
+        selected_monitor(&self.settings.display)
     }
 
     fn native_scale(&self) -> f64 {
         let user_scale = self.settings.scale.clamp(10, 400) as f64 / 100.0;
-        user_scale * dpi_scale(self.hwnd)
+        user_scale
+            * monitor_dpi_scale(self.selected_monitor().handle)
+                .unwrap_or_else(|| dpi_scale(self.hwnd))
     }
 
     fn set_click_through(&self, click_through: bool) {
@@ -956,6 +965,68 @@ fn axis_to_percent(position: i32, screen: i32, size: i32) -> f64 {
     (position as f64 * 100.0 / available).clamp(0.0, 100.0)
 }
 
+fn selected_monitor(display: &str) -> MonitorRect {
+    let monitors = monitor_rects();
+    let primary = monitors
+        .iter()
+        .find(|monitor| monitor.primary)
+        .or_else(|| monitors.first());
+
+    if display == crate::OVERLAY_DISPLAY_PRIMARY || display.is_empty() {
+        return primary.cloned().unwrap_or_default();
+    }
+
+    monitors
+        .iter()
+        .find(|monitor| monitor.id == display)
+        .or(primary)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn monitor_rects() -> Vec<MonitorRect> {
+    let mut monitors = Vec::<MonitorRect>::new();
+    unsafe {
+        let _ = EnumDisplayMonitors(
+            HDC::default(),
+            None,
+            Some(collect_monitor_rect),
+            LPARAM(&mut monitors as *mut _ as isize),
+        );
+    }
+    monitors
+}
+
+#[derive(Clone, Default)]
+struct MonitorRect {
+    handle: HMONITOR,
+    id: String,
+    rect: RECT,
+    primary: bool,
+}
+
+unsafe extern "system" fn collect_monitor_rect(
+    monitor: HMONITOR,
+    _hdc: HDC,
+    _rect: *mut RECT,
+    data: LPARAM,
+) -> BOOL {
+    let monitors = unsafe { &mut *(data.0 as *mut Vec<MonitorRect>) };
+    let mut info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    if unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
+        monitors.push(MonitorRect {
+            handle: monitor,
+            id: format!("Monitor{}", monitors.len() + 1),
+            rect: info.rcMonitor,
+            primary: (info.dwFlags & 1) != 0,
+        });
+    }
+    true.into()
+}
+
 fn background_fill(rgb: (u8, u8, u8), opacity: u8) -> COLORREF {
     let _ = opacity;
     colorref_tuple(rgb)
@@ -1372,6 +1443,17 @@ fn color_distance_sq(a: (u8, u8, u8), b: (u8, u8, u8)) -> u32 {
 fn dpi_scale(hwnd: HWND) -> f64 {
     let dpi = unsafe { GetDpiForWindow(hwnd) }.max(96);
     dpi as f64 / 96.0
+}
+
+fn monitor_dpi_scale(monitor: HMONITOR) -> Option<f64> {
+    if monitor.0.is_null() {
+        return None;
+    }
+
+    let mut dpi_x = 96;
+    let mut dpi_y = 96;
+    unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) }.ok()?;
+    Some(dpi_x.max(dpi_y).max(96) as f64 / 96.0)
 }
 
 fn mouse_down() -> bool {
