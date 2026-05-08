@@ -387,6 +387,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                         Select {
                                             value: overlay.text_font.clone(),
                                             options: font_options,
+                                            searchable: true,
                                             onchange: move |value: String| {
                                                 super::super::update_settings(settings, |config| {
                                                     config.overlay.text_font = value;

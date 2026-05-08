@@ -318,12 +318,10 @@ impl NativeOverlay {
         }
 
         let metrics = overlay_metrics(self.height);
-        let text_width = measure_text_width(
-            &self.settings,
-            overlay_label(&self.settings, muted),
-            metrics.text_font_size,
-        );
-        metrics.padding + metrics.icon_size + metrics.gap + text_width + metrics.right_padding
+        let label = overlay_label(&self.settings, muted);
+        let text_width = measure_text_width(&self.settings, label, metrics.text_font_size);
+        let text_gap = if text_width > 0 { metrics.gap } else { 0 };
+        metrics.padding + metrics.icon_size + text_gap + text_width + metrics.right_padding
     }
 
     fn start_content_transition(&mut self, from_muted: bool, to_muted: bool) {
@@ -841,7 +839,8 @@ impl NativeOverlay {
             );
         }
 
-        if self.settings.show_text {
+        let label = overlay_label(&self.settings, muted);
+        if self.settings.show_text && !label.is_empty() {
             let text_color = if dark_background {
                 (245, 245, 245)
             } else {
@@ -866,9 +865,7 @@ impl NativeOverlay {
                     PCWSTR(text_face.as_ptr()),
                 );
                 let old_font = SelectObject(hdc, text_font);
-                let mut label: Vec<u16> = overlay_label(&self.settings, muted)
-                    .encode_utf16()
-                    .collect();
+                let mut label: Vec<u16> = label.encode_utf16().collect();
                 let mut text_rect = RECT {
                     left: metrics.padding + metrics.icon_size + metrics.gap,
                     top: metrics.text_y_offset,
@@ -1044,6 +1041,10 @@ fn overlay_label(settings: &crate::OverlayConfig, muted: bool) -> &str {
 }
 
 fn measure_text_width(settings: &crate::OverlayConfig, text: &str, font_size: i32) -> i32 {
+    if text.is_empty() {
+        return 0;
+    }
+
     unsafe {
         let hdc = CreateCompatibleDC(None);
         if hdc.0.is_null() {

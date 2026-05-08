@@ -141,12 +141,16 @@ pub fn Select(
     onchange: EventHandler<String>,
     #[props(default)] on_option_action: Option<EventHandler<String>>,
     #[props(default = true)] show_current_detail: bool,
+    #[props(default = false)] searchable: bool,
     #[props(default)] class: String,
 ) -> Element {
     let mut open = use_signal(|| false);
     let mut menu_style = use_signal(String::new);
+    let mut menu_height = use_signal(|| None::<f64>);
     let mut animate_value = use_signal(|| false);
     let mut exiting_value = use_signal(|| None::<SelectOption>);
+    let mut search_query = use_signal(String::new);
+    let mut highlighted_index = use_signal(|| 0_usize);
     let mut open_select = use_context::<Signal<Option<String>>>();
     let select_id = use_hook(|| {
         format!(
@@ -177,10 +181,56 @@ pub fn Select(
         }
     });
 
+    let search_select_id = select_id.clone();
+    use_effect(move || {
+        let select_id = search_select_id.clone();
+        if !open() || !searchable {
+            return;
+        }
+
+        spawn(async move {
+            let script = format!(
+                r#"
+const input = document.querySelector('[data-ui-select-id="{select_id}"] .ui-select-search-input');
+if (input) {{
+  input.focus();
+  input.select();
+}}
+"#
+            );
+            let _ = dioxus::document::eval(&script).await;
+        });
+    });
+
+    let mut filtered_options = Vec::<SelectOption>::new();
+    if open() {
+        let query = search_query().trim().to_ascii_lowercase();
+        filtered_options = options
+            .iter()
+            .filter(|option| {
+                query.is_empty()
+                    || option.label.to_ascii_lowercase().contains(&query)
+                    || option.value.to_ascii_lowercase().contains(&query)
+                    || option
+                        .detail
+                        .as_deref()
+                        .map(|detail| detail.to_ascii_lowercase().contains(&query))
+                        .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+    }
+
+    let highlighted = if filtered_options.is_empty() {
+        0
+    } else {
+        highlighted_index().min(filtered_options.len() - 1)
+    };
+
     let mut rendered_options = Vec::new();
     if open() {
         let mut current_group = None::<String>;
-        for option in options {
+        for (option_index, option) in filtered_options.iter().cloned().enumerate() {
             if option.group_label != current_group {
                 current_group = option.group_label.clone();
                 if let Some(group_label) = current_group.clone() {
@@ -196,7 +246,11 @@ pub fn Select(
 
             let is_selected = option.value == value;
             let next_value = option.value.clone();
-            let item_class = if is_selected {
+            let item_class = if option_index == highlighted && is_selected {
+                "ui-select-item highlighted selected"
+            } else if option_index == highlighted {
+                "ui-select-item highlighted"
+            } else if is_selected {
                 "ui-select-item selected"
             } else {
                 "ui-select-item"
@@ -216,6 +270,8 @@ pub fn Select(
                         class: "ui-select-item-button",
                         onclick: move |_| {
                             open.set(false);
+                            search_query.set(String::new());
+                            highlighted_index.set(0);
                             if open_select().as_deref() == Some(close_select_id.as_str()) {
                                 open_select.set(None);
                             }
@@ -262,6 +318,17 @@ pub fn Select(
                 }
             });
         }
+
+        if filtered_options.is_empty() {
+            let empty_key = "select-empty";
+            rendered_options.push(rsx! {
+                div {
+                    key: "{empty_key}",
+                    class: "ui-select-empty",
+                    "No results"
+                }
+            });
+        }
     }
 
     let position_select_id = select_id.clone();
@@ -269,8 +336,13 @@ pub fn Select(
         let select_id = position_select_id.clone();
         if !open() {
             menu_style.set(String::new());
+            menu_height.set(None);
             return;
         }
+        let locked_height = menu_height();
+        let locked_height_js = locked_height
+            .map(|height| height.to_string())
+            .unwrap_or_else(|| "null".to_string());
 
         spawn(async move {
             let script = format!(
@@ -282,6 +354,8 @@ if (!trigger || !list) {{
   return '';
 }}
 
+const lockedHeight = {locked_height_js};
+
 const rect = trigger.getBoundingClientRect();
 const viewportWidth = window.innerWidth;
 const viewportHeight = window.innerHeight;
@@ -292,7 +366,7 @@ const left = Math.min(
   Math.max(gutter, rect.left),
   viewportWidth - gutter - width
 );
-const desiredHeight = Math.min(list.scrollHeight, 320);
+const desiredHeight = Math.min(lockedHeight ?? list.scrollHeight, 320);
 const spaceAbove = Math.max(0, rect.top - gutter);
 const spaceBelow = Math.max(0, viewportHeight - rect.bottom - gutter);
 const minComfortHeight = Math.min(desiredHeight, 140);
@@ -324,17 +398,22 @@ if (!placeBelow) {{
   shift = 6;
   origin = 'bottom center';
   if (top < gutter) {{
-    top = Math.max(gutter, rect.top - height + 14);
-    height = Math.max(96, rect.bottom - top - 14);
+    top = gutter;
+    height = Math.max(96, rect.top - gap - gutter);
   }}
 }}
 
-return `left:${{left}}px;top:${{top}}px;width:${{width}}px;--ui-select-max-height:${{height}}px;--ui-select-shift:${{shift}}px;--ui-select-origin:${{origin}};`;
+return `left:${{left}}px;top:${{top}}px;width:${{width}}px;--ui-select-height:${{height}}px;--ui-select-shift:${{shift}}px;--ui-select-origin:${{origin}};`;
 "#
             );
 
             if let Ok(result) = dioxus::document::eval(&script).await {
                 if let Some(style) = result.as_str() {
+                    if menu_height().is_none() {
+                        if let Some(height) = parse_select_height(style) {
+                            menu_height.set(Some(height));
+                        }
+                    }
                     menu_style.set(style.to_string());
                 }
             }
@@ -344,6 +423,8 @@ return `left:${{left}}px;top:${{top}}px;width:${{width}}px;--ui-select-max-heigh
     let shadow_select_id = select_id.clone();
     use_effect(move || {
         let select_id = shadow_select_id.clone();
+        let _ = highlighted_index();
+        let _ = search_query();
         if !open() || menu_style().is_empty() {
             return;
         }
@@ -359,7 +440,7 @@ if (!menu || !list) {{
 }}
 
 const scrollSelectedIntoView = () => {{
-  const selected = list.querySelector('.ui-select-item.selected');
+  const selected = list.querySelector('.ui-select-item.highlighted, .ui-select-item.selected');
   if (!selected) {{
     return;
   }}
@@ -428,6 +509,12 @@ requestAnimationFrame(() => {{
 
     let trigger_select_id = select_id.clone();
     let dismiss_select_id = select_id.clone();
+    let search_input_placeholder = current
+        .as_ref()
+        .map(|option| option.label.clone())
+        .unwrap_or_else(|| "Search".to_string());
+    let filtered_option_count = filtered_options.len();
+    let highlighted_option = filtered_options.get(highlighted).cloned();
 
     rsx! {
         div { class: "{root_class}", "data-ui-select-id": "{select_id}",
@@ -439,6 +526,8 @@ requestAnimationFrame(() => {{
                     aria_hidden: "true",
                     onclick: move |_| {
                         open.set(false);
+                        search_query.set(String::new());
+                        highlighted_index.set(0);
                         if open_select().as_deref() == Some(dismiss_select_id.as_str()) {
                             open_select.set(None);
                         }
@@ -446,20 +535,87 @@ requestAnimationFrame(() => {{
                 }
             }
 
-            button {
-                r#type: "button",
-                class: "ui-select-trigger",
-                aria_expanded: if open() { "true" } else { "false" },
-                onclick: move |_| {
-                    if open() {
-                        open.set(false);
-                        open_select.set(None);
-                    } else {
-                        open_select.set(Some(trigger_select_id.clone()));
-                        open.set(true);
+            if searchable && open() {
+                div {
+                    class: "ui-select-trigger ui-select-search-trigger",
+                    aria_expanded: "true",
+                    input {
+                        class: "ui-select-search-input",
+                        r#type: "text",
+                        value: "{search_query}",
+                        placeholder: "{search_input_placeholder}",
+                        oninput: move |evt| {
+                            search_query.set(evt.value());
+                            highlighted_index.set(0);
+                        },
+                        onkeydown: move |evt| {
+                            let key = evt.data().key().to_string();
+                            match key.as_str() {
+                                "ArrowDown" => {
+                                    evt.prevent_default();
+                                    if filtered_option_count > 0 {
+                                        highlighted_index.set((highlighted_index() + 1) % filtered_option_count);
+                                    }
+                                }
+                                "ArrowUp" => {
+                                    evt.prevent_default();
+                                    if filtered_option_count > 0 {
+                                        highlighted_index.set(
+                                            if highlighted_index() == 0 {
+                                                filtered_option_count - 1
+                                            } else {
+                                                highlighted_index() - 1
+                                            }
+                                        );
+                                    }
+                                }
+                                "Enter" => {
+                                    evt.prevent_default();
+                                    if let Some(option) = highlighted_option.clone() {
+                                        let should_animate = option.value != value;
+                                        open.set(false);
+                                        search_query.set(String::new());
+                                        highlighted_index.set(0);
+                                        open_select.set(None);
+                                        if should_animate {
+                                            exiting_value.set(current.clone());
+                                        }
+                                        animate_value.set(should_animate);
+                                        onchange.call(option.value);
+                                    }
+                                }
+                                "Escape" => {
+                                    evt.prevent_default();
+                                    open.set(false);
+                                    search_query.set(String::new());
+                                    highlighted_index.set(0);
+                                    open_select.set(None);
+                                }
+                                _ => {}
+                            }
+                        }
                     }
-                },
-                div { class: "ui-select-current",
+                    span { class: "solar-icon ui-select-chevron icon-down" }
+                }
+            } else {
+                button {
+                    r#type: "button",
+                    class: "ui-select-trigger",
+                    aria_expanded: if open() { "true" } else { "false" },
+                    onclick: move |_| {
+                        if open() {
+                            open.set(false);
+                            search_query.set(String::new());
+                            highlighted_index.set(0);
+                            open_select.set(None);
+                        } else {
+                            search_query.set(String::new());
+                            highlighted_index.set(0);
+                            open_select.set(Some(trigger_select_id.clone()));
+                            open.set(true);
+                        }
+                    },
+                    div { class: "ui-select-current",
                     if current.as_ref().and_then(|option| option.icon_class.as_deref()).is_some()
                         || exiting_value().as_ref().and_then(|option| option.icon_class.as_deref()).is_some()
                     {
@@ -524,8 +680,9 @@ requestAnimationFrame(() => {{
                             }
                         }
                     }
+                    }
+                    span { class: "solar-icon ui-select-chevron icon-down" }
                 }
-                span { class: "solar-icon ui-select-chevron icon-down" }
             }
 
             if open() {
@@ -549,6 +706,14 @@ fn merged_class(base: &str, extra: &str) -> String {
     } else {
         format!("{base} {extra}")
     }
+}
+
+fn parse_select_height(style: &str) -> Option<f64> {
+    let marker = "--ui-select-height:";
+    let start = style.find(marker)? + marker.len();
+    let rest = &style[start..];
+    let end = rest.find("px")?;
+    rest[..end].trim().parse().ok()
 }
 
 fn select_option_label_style(font_family: Option<&str>) -> String {
