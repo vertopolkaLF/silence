@@ -323,17 +323,22 @@ impl NativeOverlay {
         let label = overlay_label(&self.settings, muted);
         let text_width = measure_text_width(&self.settings, label, metrics.text_font_size);
         let icon_width = if has_icon { metrics.icon_size } else { 0 };
+        let left_padding = if has_icon {
+            metrics.padding
+        } else {
+            metrics.right_padding
+        };
         let right_padding = if has_icon {
             metrics.right_padding
         } else {
-            metrics.padding
+            metrics.right_padding
         };
         let text_gap = if has_icon && text_width > 0 {
             metrics.gap
         } else {
             0
         };
-        (metrics.padding + icon_width + text_gap + text_width + right_padding).max(self.height)
+        (left_padding + icon_width + text_gap + text_width + right_padding).max(self.height)
     }
 
     fn start_content_transition(&mut self, from_muted: bool, to_muted: bool) {
@@ -881,12 +886,12 @@ impl NativeOverlay {
                 let text_left = if has_icon {
                     metrics.padding + metrics.icon_size + metrics.gap
                 } else {
-                    metrics.padding
+                    metrics.right_padding
                 };
                 let text_right_padding = if has_icon {
                     metrics.right_padding
                 } else {
-                    metrics.padding
+                    metrics.right_padding
                 };
                 let mut text_rect = RECT {
                     left: text_left,
