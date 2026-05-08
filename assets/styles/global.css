@@ -78,7 +78,7 @@ body,
   --window-bg: var(--bg);
   --body-bg: transparent;
   --content-bg: var(--surface);
-  --select-menu-bg: color-mix(in oklch, oklch(21.5% 0.006 286) 99%, var(--windows-accent));
+  --select-menu-bg: color-mix(in oklch, oklch(25.5% 0.006 286) 99%, var(--windows-accent));
   --hotkey-panel-bg: color-mix(in oklch, oklch(17.5% 0.006 286) 99%, var(--windows-accent));
   --surface-2: color-mix(in oklch, oklch(40% 0.006 286) 15%, transparent);
   --surface-3: color-mix(in oklch, oklch(48% 0.007 286) 20%, transparent);
