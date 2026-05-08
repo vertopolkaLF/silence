@@ -271,6 +271,158 @@
   min-height: 48px;
 }
 
+.hotkey-action-picker {
+  min-width: 0;
+}
+
+.hotkey-action-trigger {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition:
+    background var(--ui-transition),
+    box-shadow var(--ui-transition),
+    color var(--ui-transition);
+}
+
+.hotkey-action-trigger:hover,
+.hotkey-action-trigger.open {
+  border-color: var(--control-border);
+  background: var(--surface-3);
+}
+
+.hotkey-action-trigger.open {
+  box-shadow:
+    inset 0 1px 0 var(--highlight-line),
+    0 0 0 1px color-mix(in oklch, var(--accent) 20%, transparent),
+    0 8px 18px var(--shadow-faint);
+}
+
+.hotkey-action-trigger.open .ui-select-chevron {
+  transform: rotate(180deg);
+  color: var(--accent-text);
+}
+
+.hotkey-action-sidepanel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 24;
+  width: 70%;
+  height: 100%;
+  display: grid;
+  border-radius: 24px 0 0 24px;
+  background: var(--hotkey-panel-bg);
+  box-shadow: -24px 0 54px var(--shadow-medium);
+  animation: action-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hotkey-action-sidepanel.exiting {
+  animation: action-panel-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.hotkey-action-groups {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 32px;
+  padding-right: 24px;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--accent) 38%, transparent) transparent;
+}
+
+.hotkey-action-groups::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hotkey-action-groups::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hotkey-action-groups::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 38%, transparent);
+}
+
+.hotkey-action-group {
+  display: grid;
+  gap: 10px;
+}
+
+.hotkey-action-group h3 {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.hotkey-action-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hotkey-action-card {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--accent) 6%, var(--surface-2));
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 0.2s ease-out,
+    background 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.hotkey-action-card:hover {
+  border-color: var(--control-border);
+  background: color-mix(in oklch, var(--accent) 20%, var(--surface-2));
+  box-shadow: 0 8px 20px var(--shadow-faint);
+  transform: translateY(-1px);
+}
+
+.hotkey-action-card.selected {
+  background: color-mix(in oklch, var(--accent) 30%, var(--surface-2));
+  box-shadow: 0 8px 20px var(--shadow-faint);
+  transform: translateY(-1px);
+}
+
+.hotkey-action-card-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--accent-text);
+  flex: 0 0 auto;
+}
+
+.hotkey-action-card-label {
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.16;
+}
+
 .target-field .ui-select-current-copy {
   gap: 0;
 }
@@ -541,6 +693,30 @@
   }
 }
 
+@keyframes action-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes action-panel-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+
 @keyframes keycap-rise {
   from {
     opacity: 0;
@@ -574,17 +750,5 @@
   to {
     opacity: 0;
     transform: translateY(calc(-50% + 8px));
-  }
-}
-
-@media (max-width: 760px) {
-
-  .hotkey-table-head,
-  .hotkey-main-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
-  }
-
-  .hotkey-action-target-row {
-    grid-template-columns: minmax(0, 1fr);
   }
 }

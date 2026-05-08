@@ -692,6 +692,8 @@ fn HotkeyPanel(
     let target_editing_id = editing_id.clone();
     let target_2_editing_id = editing_id.clone();
     let alt_space_editing_id = editing_id.clone();
+    let action_picker_open = use_signal(|| false);
+    let action_picker_closing = use_signal(|| false);
     let source = draft_source();
     let action = draft_action();
     let target_is_missing = action.requires_explicit_target()
@@ -806,7 +808,13 @@ if (viewport && pane) {{
     rsx! {
         div {
             class: "{backdrop_class}",
-            onclick: move |_| onclose.call(()),
+            onclick: move |_| {
+                if action_picker_open() {
+                    close_action_picker(action_picker_open, action_picker_closing);
+                } else {
+                    onclose.call(());
+                }
+            },
             div {
                 class: "{panel_class}",
                 tabindex: "0",
@@ -1061,9 +1069,10 @@ if (viewport && pane) {{
                     div { class: "hotkey-action-target-row",
                         div { class: "field-group modal-field",
                             label { "Action" }
-                            Select {
-                                value: action.id().to_string(),
-                                options: action_options(),
+                            ActionPicker {
+                                action,
+                                open: action_picker_open,
+                                closing: action_picker_closing,
                                 onchange: move |value: String| {
                                     let previous_action = draft_action();
                                     let action = crate::HotkeyAction::from_id(&value);
@@ -1194,6 +1203,128 @@ if (viewport && pane) {{
                     }
                 }
             }
+        }
+    }
+}
+
+#[component]
+fn ActionPicker(
+    action: crate::HotkeyAction,
+    open: Signal<bool>,
+    closing: Signal<bool>,
+    onchange: EventHandler<String>,
+) -> Element {
+    let mut open = open;
+    let mut closing = closing;
+    let options = action_options();
+    let current = options
+        .iter()
+        .find(|option| option.value == action.id())
+        .cloned()
+        .or_else(|| options.first().cloned());
+
+    rsx! {
+        div { class: "hotkey-action-picker",
+            button {
+                r#type: "button",
+                class: if open() { "hotkey-action-trigger open" } else { "hotkey-action-trigger" },
+                aria_expanded: if open() { "true" } else { "false" },
+                onclick: move |_| {
+                    closing.set(false);
+                    open.set(true);
+                },
+                div { class: "ui-select-current",
+                    if let Some(option) = current.as_ref() {
+                        if let Some(icon_class) = option.icon_class.as_deref() {
+                            span { class: "solar-icon ui-select-current-icon {icon_class}" }
+                        }
+                        div { class: "ui-select-current-copy",
+                            div { class: "ui-select-current-text",
+                                span { class: "ui-select-current-label", "{option.label}" }
+                            }
+                        }
+                    }
+                }
+                span { class: "solar-icon ui-select-chevron icon-down" }
+            }
+
+            if open() {
+                div {
+                    class: if closing() { "hotkey-action-sidepanel exiting" } else { "hotkey-action-sidepanel" },
+                    onclick: move |evt| evt.stop_propagation(),
+                    div { class: "hotkey-action-groups",
+                        for group in action_groups(options.clone()) {
+                            section { class: "hotkey-action-group",
+                                h3 { "{group.label}" }
+                                div { class: "hotkey-action-card-grid",
+                                    for option in group.options {
+                                        ActionCard {
+                                            option: option.clone(),
+                                            selected: option.value == action.id(),
+                                            onselect: move |value: String| {
+                                                onchange.call(value);
+                                                close_action_picker(open, closing);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn close_action_picker(mut open: Signal<bool>, mut closing: Signal<bool>) {
+    if closing() {
+        return;
+    }
+    closing.set(true);
+    spawn(async move {
+        tokio::time::sleep(Duration::from_millis(180)).await;
+        open.set(false);
+        closing.set(false);
+    });
+}
+
+#[derive(Clone, PartialEq)]
+struct ActionGroup {
+    label: String,
+    options: Vec<SelectOption>,
+}
+
+fn action_groups(options: Vec<SelectOption>) -> Vec<ActionGroup> {
+    let mut groups = Vec::<ActionGroup>::new();
+    for option in options {
+        let label = option
+            .group_label
+            .clone()
+            .unwrap_or_else(|| "Other".to_string());
+        if let Some(group) = groups.iter_mut().find(|group| group.label == label) {
+            group.options.push(option);
+        } else {
+            groups.push(ActionGroup {
+                label,
+                options: vec![option],
+            });
+        }
+    }
+    groups
+}
+
+#[component]
+fn ActionCard(option: SelectOption, selected: bool, onselect: EventHandler<String>) -> Element {
+    rsx! {
+        button {
+            r#type: "button",
+            class: if selected { "hotkey-action-card selected" } else { "hotkey-action-card" },
+            onclick: move |_| onselect.call(option.value.clone()),
+            if let Some(icon_class) = option.icon_class.as_deref() {
+                span { class: "solar-icon hotkey-action-card-icon {icon_class}" }
+            }
+            span { class: "hotkey-action-card-label", "{option.label}" }
         }
     }
 }
@@ -1595,7 +1726,24 @@ fn target_options(
 }
 
 fn action_options() -> Vec<SelectOption> {
-    crate::HotkeyAction::ALL
+    const ORDERED_ACTIONS: &[crate::HotkeyAction] = &[
+        crate::HotkeyAction::Mute,
+        crate::HotkeyAction::Unmute,
+        crate::HotkeyAction::ToggleMute,
+        crate::HotkeyAction::HoldToMute,
+        crate::HotkeyAction::HoldToUnmute,
+        crate::HotkeyAction::HoldToToggle,
+        crate::HotkeyAction::SetDefaultOutputDevice,
+        crate::HotkeyAction::ToggleDefaultOutputDevice,
+        crate::HotkeyAction::SetDefaultInputDevice,
+        crate::HotkeyAction::ToggleDefaultInputDevice,
+        crate::HotkeyAction::IncreaseVolume,
+        crate::HotkeyAction::DecreaseVolume,
+        crate::HotkeyAction::SetVolume,
+        crate::HotkeyAction::OpenSettings,
+    ];
+
+    ORDERED_ACTIONS
         .iter()
         .map(|action| {
             let option = SelectOption::new(action.id(), action.label());
@@ -1613,16 +1761,16 @@ fn action_options() -> Vec<SelectOption> {
                     option.group("Hold to mute").icon("icon-oven-mitts")
                 }
                 crate::HotkeyAction::SetDefaultInputDevice => {
-                    option.group("System").icon("icon-mic")
+                    option.group("Devices").icon("icon-mic")
                 }
                 crate::HotkeyAction::SetDefaultOutputDevice => {
-                    option.group("System").icon("icon-volume")
+                    option.group("Devices").icon("icon-volume")
                 }
                 crate::HotkeyAction::ToggleDefaultInputDevice => {
-                    option.group("System").icon("icon-mic")
+                    option.group("Devices").icon("icon-mic")
                 }
                 crate::HotkeyAction::ToggleDefaultOutputDevice => {
-                    option.group("System").icon("icon-volume")
+                    option.group("Devices").icon("icon-volume")
                 }
                 crate::HotkeyAction::SetVolume => option.group("Volume").icon("icon-volume"),
                 crate::HotkeyAction::IncreaseVolume => option.group("Volume").icon("icon-volume"),
