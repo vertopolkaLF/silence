@@ -153,7 +153,7 @@ const TRAY_ADD_RETRY_MS: u32 = 2_000;
 const GILRS_ACTIVE_POLL_MS: u64 = 16;
 const GAMEPAD_INACTIVE_POLL_MS: u64 = 1_000;
 const XINPUT_CONNECTED_POLL_MS: u64 = 16;
-const XINPUT_IDLE_POLL_MS: u64 = 250;
+const XINPUT_IDLE_POLL_MS: u64 = 1_000;
 const ICON_RESOURCE_VERSION: u32 = 0x0003_0000;
 const STARTUP_RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const STARTUP_RUN_VALUE: &str = "silence!";
@@ -2154,15 +2154,9 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
                 let buttons = state.Gamepad.wButtons.0;
                 let changed = buttons ^ previous_buttons[user_index as usize];
                 if changed != 0 {
-                    for (mask, label, input) in xinput_button_inputs() {
+                    for (mask, input) in xinput_button_inputs() {
                         if changed & mask != 0 {
                             let down = buttons & mask != 0;
-                            eprintln!(
-                                "xinput controller {} button {} {}",
-                                user_index,
-                                label,
-                                if down { "pressed" } else { "released" }
-                            );
                             handle_gamepad_input_change(input, down, enable_hotkeys);
                         }
                     }
@@ -2175,11 +2169,6 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
                 );
                 if left_trigger != previous_left_trigger[user_index as usize] {
                     previous_left_trigger[user_index as usize] = left_trigger;
-                    eprintln!(
-                        "xinput controller {} trigger LT {}",
-                        user_index,
-                        if left_trigger { "pressed" } else { "released" }
-                    );
                     handle_gamepad_input_change(
                         GamepadInput::Button {
                             button: GamepadButton::LeftTrigger2,
@@ -2195,11 +2184,6 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
                 );
                 if right_trigger != previous_right_trigger[user_index as usize] {
                     previous_right_trigger[user_index as usize] = right_trigger;
-                    eprintln!(
-                        "xinput controller {} trigger RT {}",
-                        user_index,
-                        if right_trigger { "pressed" } else { "released" }
-                    );
                     handle_gamepad_input_change(
                         GamepadInput::Button {
                             button: GamepadButton::RightTrigger2,
@@ -2227,102 +2211,88 @@ fn update_xinput_trigger_state(was_down: bool, value: u8) -> bool {
     }
 }
 
-fn xinput_button_inputs() -> [(u16, &'static str, GamepadInput); 14] {
+fn xinput_button_inputs() -> [(u16, GamepadInput); 14] {
     [
         (
             XINPUT_GAMEPAD_A.0,
-            "A",
             GamepadInput::Button {
                 button: GamepadButton::South,
             },
         ),
         (
             XINPUT_GAMEPAD_B.0,
-            "B",
             GamepadInput::Button {
                 button: GamepadButton::East,
             },
         ),
         (
             XINPUT_GAMEPAD_X.0,
-            "X",
             GamepadInput::Button {
                 button: GamepadButton::West,
             },
         ),
         (
             XINPUT_GAMEPAD_Y.0,
-            "Y",
             GamepadInput::Button {
                 button: GamepadButton::North,
             },
         ),
         (
             XINPUT_GAMEPAD_LEFT_SHOULDER.0,
-            "LB",
             GamepadInput::Button {
                 button: GamepadButton::LeftTrigger,
             },
         ),
         (
             XINPUT_GAMEPAD_RIGHT_SHOULDER.0,
-            "RB",
             GamepadInput::Button {
                 button: GamepadButton::RightTrigger,
             },
         ),
         (
             XINPUT_GAMEPAD_LEFT_THUMB.0,
-            "LeftThumb",
             GamepadInput::Button {
                 button: GamepadButton::LeftThumb,
             },
         ),
         (
             XINPUT_GAMEPAD_RIGHT_THUMB.0,
-            "RightThumb",
             GamepadInput::Button {
                 button: GamepadButton::RightThumb,
             },
         ),
         (
             XINPUT_GAMEPAD_BACK.0,
-            "Back",
             GamepadInput::Button {
                 button: GamepadButton::Select,
             },
         ),
         (
             XINPUT_GAMEPAD_START.0,
-            "Start",
             GamepadInput::Button {
                 button: GamepadButton::Start,
             },
         ),
         (
             XINPUT_GAMEPAD_DPAD_UP.0,
-            "DPadUp",
             GamepadInput::Button {
                 button: GamepadButton::DPadUp,
             },
         ),
         (
             XINPUT_GAMEPAD_DPAD_DOWN.0,
-            "DPadDown",
             GamepadInput::Button {
                 button: GamepadButton::DPadDown,
             },
         ),
         (
             XINPUT_GAMEPAD_DPAD_LEFT.0,
-            "DPadLeft",
             GamepadInput::Button {
                 button: GamepadButton::DPadLeft,
             },
         ),
         (
             XINPUT_GAMEPAD_DPAD_RIGHT.0,
-            "DPadRight",
             GamepadInput::Button {
                 button: GamepadButton::DPadRight,
             },
@@ -2442,17 +2412,7 @@ fn start_gamepad_monitor(enable_hotkeys: bool) {
             eprintln!("failed to initialize gamepad input");
             return;
         };
-        eprintln!(
-            "gilrs initialized; connected gamepads: {}",
-            gilrs.gamepads().count()
-        );
-        for (id, gamepad) in gilrs.gamepads() {
-            eprintln!(
-                "gamepad connected at startup: {:?} - {}",
-                id,
-                gamepad.name()
-            );
-        }
+        let mut connected_gamepads = gilrs.gamepads().count();
 
         loop {
             if !gamepad_monitoring_needed(enable_hotkeys) {
@@ -2461,10 +2421,31 @@ fn start_gamepad_monitor(enable_hotkeys: bool) {
                 continue;
             }
 
-            while let Some(event) = gilrs.next_event() {
+            let timeout = if connected_gamepads == 0 {
+                Duration::from_millis(GAMEPAD_INACTIVE_POLL_MS)
+            } else {
+                Duration::from_millis(GILRS_ACTIVE_POLL_MS)
+            };
+
+            while let Some(event) = gilrs.next_event_blocking(Some(timeout)) {
+                match event.event {
+                    EventType::Connected => {
+                        connected_gamepads = gilrs.gamepads().count();
+                        eprintln!("gamepad connected; connected gamepads: {connected_gamepads}");
+                    }
+                    EventType::Disconnected => {
+                        connected_gamepads = gilrs.gamepads().count();
+                        reset_gamepad_input_state(enable_hotkeys);
+                        eprintln!("gamepad disconnected; connected gamepads: {connected_gamepads}");
+                    }
+                    _ => {}
+                }
                 handle_gamepad_event(event.event, enable_hotkeys);
+
+                if connected_gamepads == 0 {
+                    break;
+                }
             }
-            thread::sleep(Duration::from_millis(GILRS_ACTIVE_POLL_MS));
         }
     });
 }
