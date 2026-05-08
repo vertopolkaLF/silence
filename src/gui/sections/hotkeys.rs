@@ -672,6 +672,7 @@ fn HotkeyPanel(
         ModalMode::Add => "Add hotkey",
         ModalMode::Edit(_) => "Edit hotkey",
     };
+    let audio_device_name_display = settings().config.advanced.audio_device_name_display.clone();
     let subtitle = match &mode {
         ModalMode::Add => "Choose the action, then record the shortcut.",
         ModalMode::Edit(_) => "Changes apply as soon as you make them.",
@@ -1094,6 +1095,7 @@ if (viewport && pane) {{
                                 value: draft_target(),
                                 devices: devices.clone(),
                                 output_devices: output_devices.clone(),
+                                name_display: audio_device_name_display.clone(),
                                 onchange: move |value: String| {
                                     draft_target.set(value.clone());
                                     if let Some(id) = target_editing_id.clone() {
@@ -1117,6 +1119,7 @@ if (viewport && pane) {{
                                     value: draft_target_2(),
                                     devices: devices.clone(),
                                     output_devices: output_devices.clone(),
+                                    name_display: audio_device_name_display.clone(),
                                     onchange: move |value: String| {
                                         draft_target_2.set(value.clone());
                                         if let Some(id) = target_2_editing_id.clone() {
@@ -1331,12 +1334,14 @@ fn HotkeyRow(
 ) -> Element {
     let id = hotkey.id.clone();
     let action = hotkey.action;
+    let audio_device_name_display = settings().config.advanced.audio_device_name_display.clone();
     let target_label = target_label(
         action,
         hotkey.target.as_deref(),
         hotkey.target_2.as_deref(),
         &devices,
         &output_devices,
+        &audio_device_name_display,
     );
     rsx! {
         div { class: "hotkey-entry",
@@ -1464,9 +1469,10 @@ fn TargetSelect(
     value: String,
     devices: Vec<crate::MicDevice>,
     output_devices: Vec<crate::AudioDevice>,
+    name_display: String,
     onchange: EventHandler<String>,
 ) -> Element {
-    let options = target_options(action, devices, output_devices);
+    let options = target_options(action, devices, output_devices, &name_display);
 
     rsx! {
         div { class: "field-group modal-field target-field",
@@ -1484,20 +1490,27 @@ fn target_options(
     action: crate::HotkeyAction,
     devices: Vec<crate::MicDevice>,
     output_devices: Vec<crate::AudioDevice>,
+    name_display: &str,
 ) -> Vec<SelectOption> {
     match action {
         crate::HotkeyAction::SetDefaultInputDevice
         | crate::HotkeyAction::ToggleDefaultInputDevice => devices
             .into_iter()
-            .map(|device| SelectOption::new(device.id, device.name).icon("icon-mic"))
+            .map(|device| {
+                let name = device.display_name(name_display);
+                SelectOption::new(device.id, name).icon("icon-mic")
+            })
             .collect(),
         crate::HotkeyAction::SetDefaultOutputDevice
         | crate::HotkeyAction::ToggleDefaultOutputDevice => output_devices
             .into_iter()
-            .map(|device| SelectOption::new(device.id, device.name).icon("icon-volume"))
+            .map(|device| {
+                let name = device.display_name(name_display);
+                SelectOption::new(device.id, name).icon("icon-volume")
+            })
             .collect(),
         _ => {
-            let default_detail = default_target_detail(&devices);
+            let default_detail = default_target_detail(&devices, name_display);
             std::iter::once(
                 SelectOption::new("", DEFAULT_TARGET_LABEL)
                     .detail(default_detail)
@@ -1508,11 +1521,10 @@ fn target_options(
                     .detail("Apply the action to every active microphone")
                     .icon("icon-mic"),
             ))
-            .chain(
-                devices
-                    .into_iter()
-                    .map(|device| SelectOption::new(device.id, device.name).icon("icon-mic")),
-            )
+            .chain(devices.into_iter().map(|device| {
+                let name = device.display_name(name_display);
+                SelectOption::new(device.id, name).icon("icon-mic")
+            }))
             .collect()
         }
     }
@@ -1560,14 +1572,15 @@ fn target_label(
     target_2: Option<&str>,
     devices: &[crate::MicDevice],
     output_devices: &[crate::AudioDevice],
+    name_display: &str,
 ) -> String {
     if action.needs_second_target() {
-        let first = device_target_label(action, target, devices, output_devices);
-        let second = device_target_label(action, target_2, devices, output_devices);
+        let first = device_target_label(action, target, devices, output_devices, name_display);
+        let second = device_target_label(action, target_2, devices, output_devices, name_display);
         return format!("{first} / {second}");
     }
 
-    device_target_label(action, target, devices, output_devices)
+    device_target_label(action, target, devices, output_devices, name_display)
 }
 
 fn device_target_label(
@@ -1575,6 +1588,7 @@ fn device_target_label(
     target: Option<&str>,
     devices: &[crate::MicDevice],
     output_devices: &[crate::AudioDevice],
+    name_display: &str,
 ) -> String {
     if matches!(
         action,
@@ -1582,7 +1596,7 @@ fn device_target_label(
     ) {
         return target
             .and_then(|target| devices.iter().find(|device| device.id == target))
-            .map(|device| device.name.clone())
+            .map(|device| device.display_name(name_display))
             .unwrap_or_else(|| "Choose an input device".to_string());
     }
 
@@ -1593,7 +1607,7 @@ fn device_target_label(
     ) {
         return target
             .and_then(|target| output_devices.iter().find(|device| device.id == target))
-            .map(|device| device.name.clone())
+            .map(|device| device.display_name(name_display))
             .unwrap_or_else(|| "Choose an output device".to_string());
     }
 
@@ -1604,7 +1618,7 @@ fn device_target_label(
     target
         .filter(|target| !target.is_empty())
         .and_then(|target| devices.iter().find(|device| device.id == target))
-        .map(|device| device.name.clone())
+        .map(|device| device.display_name(name_display))
         .unwrap_or_else(|| DEFAULT_TARGET_LABEL.to_string())
 }
 
@@ -1670,11 +1684,11 @@ fn default_second_target_for_action(
     }
 }
 
-fn default_target_detail(devices: &[crate::MicDevice]) -> String {
+fn default_target_detail(devices: &[crate::MicDevice], name_display: &str) -> String {
     devices
         .iter()
         .find(|device| device.is_default)
-        .map(|device| device.name.clone())
+        .map(|device| device.display_name(name_display))
         .unwrap_or_else(|| "Use the current Windows default microphone".to_string())
 }
 

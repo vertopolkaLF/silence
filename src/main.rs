@@ -140,8 +140,8 @@ const ID_MENU_EXIT: usize = 1003;
 const ID_MENU_TITLE: usize = 1004;
 const ID_MENU_INPUT_DEVICE_BASE: usize = 2000;
 const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
-const MENU_POS_DEFAULT_INPUT: u32 = 2;
-const MENU_POS_DEFAULT_OUTPUT: u32 = 3;
+const MENU_POS_DEFAULT_OUTPUT: u32 = 2;
+const MENU_POS_DEFAULT_INPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
 const APP_USER_MODEL_ID: &str = "Silence.SilenceV2";
 const APP_PROTOCOL: &str = "silence";
@@ -163,6 +163,9 @@ const MAX_GAMEPAD_COMBO_INPUTS: usize = 2;
 
 pub(crate) const HOTKEY_TARGET_ALL_MICROPHONES: &str = "__all_microphones__";
 pub(crate) const OVERLAY_DISPLAY_PRIMARY: &str = "Primary";
+pub(crate) const AUDIO_DEVICE_NAME_PRETTY: &str = "PrettyName";
+pub(crate) const AUDIO_DEVICE_NAME_SYSTEM: &str = "SystemName";
+pub(crate) const AUDIO_DEVICE_NAME_BOTH: &str = "Both";
 
 const VK_SHIFT: u32 = 0x10;
 const VK_CONTROL: u32 = 0x11;
@@ -529,10 +532,10 @@ impl HotkeyAction {
         Self::HoldToToggle,
         Self::HoldToMute,
         Self::HoldToUnmute,
-        Self::SetDefaultInputDevice,
-        Self::ToggleDefaultInputDevice,
         Self::SetDefaultOutputDevice,
         Self::ToggleDefaultOutputDevice,
+        Self::SetDefaultInputDevice,
+        Self::ToggleDefaultInputDevice,
         Self::OpenSettings,
     ];
 
@@ -737,6 +740,10 @@ fn default_launch_on_startup() -> bool {
 pub struct AdvancedSettings {
     #[serde(default)]
     pub disable_tray_double_click_settings: bool,
+    #[serde(default)]
+    pub ungroup_tray_devices: bool,
+    #[serde(default = "default_audio_device_name_display")]
+    pub audio_device_name_display: String,
     #[serde(default = "default_enable_mica")]
     pub enable_mica: bool,
 }
@@ -745,9 +752,15 @@ impl Default for AdvancedSettings {
     fn default() -> Self {
         Self {
             disable_tray_double_click_settings: false,
+            ungroup_tray_devices: false,
+            audio_device_name_display: default_audio_device_name_display(),
             enable_mica: default_enable_mica(),
         }
     }
+}
+
+fn default_audio_device_name_display() -> String {
+    AUDIO_DEVICE_NAME_PRETTY.to_string()
 }
 
 fn default_enable_mica() -> bool {
@@ -1282,6 +1295,7 @@ pub struct SoundTheme {
 pub struct MicDevice {
     pub id: String,
     pub name: String,
+    pub system_name: String,
     pub is_default: bool,
 }
 
@@ -1289,7 +1303,20 @@ pub struct MicDevice {
 pub struct AudioDevice {
     pub id: String,
     pub name: String,
+    pub system_name: String,
     pub is_default: bool,
+}
+
+impl MicDevice {
+    pub fn display_name(&self, mode: &str) -> String {
+        display_audio_device_name(&self.name, &self.system_name, mode)
+    }
+}
+
+impl AudioDevice {
+    pub fn display_name(&self, mode: &str) -> String {
+        display_audio_device_name(&self.name, &self.system_name, mode)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -3173,7 +3200,14 @@ fn show_tray_menu(hwnd: HWND) {
         let menu = CreatePopupMenu().unwrap_or_default();
         let input_menu = CreatePopupMenu().unwrap_or_default();
         let output_menu = CreatePopupMenu().unwrap_or_default();
-        let muted = STATE.lock().unwrap().muted;
+        let (muted, ungroup_devices, device_name_display) = {
+            let state = STATE.lock().unwrap();
+            (
+                state.muted,
+                state.advanced.ungroup_tray_devices,
+                state.advanced.audio_device_name_display.clone(),
+            )
+        };
         let status = if muted {
             "Unmute Microphone"
         } else {
@@ -3181,19 +3215,12 @@ fn show_tray_menu(hwnd: HWND) {
         };
         let title_w = wide(&format!("silence! - v{}", env!("CARGO_PKG_VERSION")));
         let status_w = wide(status);
-        let input_w = wide("Default Input");
         let output_w = wide("Default Output");
+        let input_w = wide("Default Input");
         let settings_w = wide("Open Settings");
         let exit_w = wide("Exit");
         let input_devices = capture_devices().unwrap_or_default();
         let output_devices = render_devices().unwrap_or_default();
-
-        {
-            let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
-            commands.clear();
-            append_input_device_menu(input_menu, &input_devices, &mut commands);
-            append_output_device_menu(output_menu, &output_devices, &mut commands);
-        }
 
         let _ = AppendMenuW(
             menu,
@@ -3202,18 +3229,49 @@ fn show_tray_menu(hwnd: HWND) {
             PCWSTR(title_w.as_ptr()),
         );
         let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
-        let _ = AppendMenuW(
-            menu,
-            MENU_ITEM_FLAGS(0x0000_0010),
-            input_menu.0 as usize,
-            PCWSTR(input_w.as_ptr()),
-        );
-        let _ = AppendMenuW(
-            menu,
-            MENU_ITEM_FLAGS(0x0000_0010),
-            output_menu.0 as usize,
-            PCWSTR(output_w.as_ptr()),
-        );
+
+        {
+            let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
+            commands.clear();
+            if ungroup_devices {
+                append_output_device_menu(
+                    menu,
+                    &output_devices,
+                    &device_name_display,
+                    &mut commands,
+                );
+                let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+                append_input_device_menu(menu, &input_devices, &device_name_display, &mut commands);
+            } else {
+                append_output_device_menu(
+                    output_menu,
+                    &output_devices,
+                    &device_name_display,
+                    &mut commands,
+                );
+                append_input_device_menu(
+                    input_menu,
+                    &input_devices,
+                    &device_name_display,
+                    &mut commands,
+                );
+            }
+        }
+
+        if !ungroup_devices {
+            let _ = AppendMenuW(
+                menu,
+                MENU_ITEM_FLAGS(0x0000_0010),
+                output_menu.0 as usize,
+                PCWSTR(output_w.as_ptr()),
+            );
+            let _ = AppendMenuW(
+                menu,
+                MENU_ITEM_FLAGS(0x0000_0010),
+                input_menu.0 as usize,
+                PCWSTR(input_w.as_ptr()),
+            );
+        }
         let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         let _ = AppendMenuW(
             menu,
@@ -3264,31 +3322,33 @@ fn show_tray_menu(hwnd: HWND) {
             );
             bitmaps.push(bitmap);
         }
-        if let Some(bitmap) = create_menu_svg_bitmap(
-            include_str!("../assets/icons/microphone-3-linear.svg"),
-            icon_color,
-        ) {
-            let _ = SetMenuItemBitmaps(
-                menu,
-                MENU_POS_DEFAULT_INPUT,
-                MENU_ITEM_FLAGS(0x0000_0400),
-                bitmap,
-                bitmap,
-            );
-            bitmaps.push(bitmap);
-        }
-        if let Some(bitmap) = create_menu_svg_bitmap(
-            include_str!("../assets/icons/volume-loud-linear.svg"),
-            icon_color,
-        ) {
-            let _ = SetMenuItemBitmaps(
-                menu,
-                MENU_POS_DEFAULT_OUTPUT,
-                MENU_ITEM_FLAGS(0x0000_0400),
-                bitmap,
-                bitmap,
-            );
-            bitmaps.push(bitmap);
+        if !ungroup_devices {
+            if let Some(bitmap) = create_menu_svg_bitmap(
+                include_str!("../assets/icons/volume-loud-linear.svg"),
+                icon_color,
+            ) {
+                let _ = SetMenuItemBitmaps(
+                    menu,
+                    MENU_POS_DEFAULT_OUTPUT,
+                    MENU_ITEM_FLAGS(0x0000_0400),
+                    bitmap,
+                    bitmap,
+                );
+                bitmaps.push(bitmap);
+            }
+            if let Some(bitmap) = create_menu_svg_bitmap(
+                include_str!("../assets/icons/microphone-3-linear.svg"),
+                icon_color,
+            ) {
+                let _ = SetMenuItemBitmaps(
+                    menu,
+                    MENU_POS_DEFAULT_INPUT,
+                    MENU_ITEM_FLAGS(0x0000_0400),
+                    bitmap,
+                    bitmap,
+                );
+                bitmaps.push(bitmap);
+            }
         }
         if let Some(bitmap) = create_menu_svg_bitmap(
             include_str!("../assets/icons/settings-bold.svg"),
@@ -3332,6 +3392,10 @@ fn show_tray_menu(hwnd: HWND) {
             handle_tray_menu_command(command_id.0 as usize);
         }
         let _ = DestroyMenu(menu);
+        if ungroup_devices {
+            let _ = DestroyMenu(output_menu);
+            let _ = DestroyMenu(input_menu);
+        }
         TRAY_DEVICE_COMMANDS.lock().unwrap().clear();
         for bitmap in bitmaps {
             let _ = DeleteObject(bitmap);
@@ -3342,6 +3406,7 @@ fn show_tray_menu(hwnd: HWND) {
 fn append_input_device_menu(
     menu: HMENU,
     devices: &[MicDevice],
+    name_display: &str,
     commands: &mut HashMap<usize, TrayDeviceCommand>,
 ) {
     if devices.is_empty() {
@@ -3352,13 +3417,19 @@ fn append_input_device_menu(
     for (index, device) in devices.iter().enumerate() {
         let command_id = ID_MENU_INPUT_DEVICE_BASE + index;
         commands.insert(command_id, TrayDeviceCommand::Input(device.id.clone()));
-        append_device_menu_item(menu, command_id, &device.name, device.is_default);
+        append_device_menu_item(
+            menu,
+            command_id,
+            &device.display_name(name_display),
+            device.is_default,
+        );
     }
 }
 
 fn append_output_device_menu(
     menu: HMENU,
     devices: &[AudioDevice],
+    name_display: &str,
     commands: &mut HashMap<usize, TrayDeviceCommand>,
 ) {
     if devices.is_empty() {
@@ -3369,7 +3440,12 @@ fn append_output_device_menu(
     for (index, device) in devices.iter().enumerate() {
         let command_id = ID_MENU_OUTPUT_DEVICE_BASE + index;
         commands.insert(command_id, TrayDeviceCommand::Output(device.id.clone()));
-        append_device_menu_item(menu, command_id, &device.name, device.is_default);
+        append_device_menu_item(
+            menu,
+            command_id,
+            &device.display_name(name_display),
+            device.is_default,
+        );
     }
 }
 
@@ -4803,6 +4879,7 @@ pub fn capture_devices() -> Result<Vec<MicDevice>> {
             .map(|device| MicDevice {
                 id: device.id,
                 name: device.name,
+                system_name: device.system_name,
                 is_default: device.is_default,
             })
             .collect()
@@ -4833,11 +4910,14 @@ fn endpoint_devices(flow: EDataFlow, fallback_name: &str) -> Result<Vec<AudioDev
         for index in 0..count {
             let device = collection.Item(index).context("get audio endpoint")?;
             let id = endpoint_device_id(&device)?;
-            let name = endpoint_device_name(&device).unwrap_or_else(|| fallback_name.to_string());
+            let raw_name =
+                endpoint_device_name(&device).unwrap_or_else(|| fallback_name.to_string());
+            let (name, system_name) = split_audio_device_name(&raw_name);
             let is_default = default_id.as_deref() == Some(id.as_str());
             devices.push(AudioDevice {
                 id,
                 name,
+                system_name,
                 is_default,
             });
         }
@@ -4901,7 +4981,7 @@ pub fn default_mic_label(devices: &[MicDevice]) -> String {
     devices
         .iter()
         .find(|device| device.is_default)
-        .map(|device| device.name.clone())
+        .map(|device| device.display_name(AUDIO_DEVICE_NAME_PRETTY))
         .unwrap_or_else(|| "Default microphone".to_string())
 }
 
@@ -4917,6 +4997,43 @@ unsafe fn endpoint_device_name(device: &IMMDevice) -> Option<String> {
     let value = unsafe { store.GetValue(&PKEY_Device_FriendlyName).ok()? };
     let name = value.to_string();
     if name.is_empty() { None } else { Some(name) }
+}
+
+fn split_audio_device_name(name: &str) -> (String, String) {
+    let trimmed = name.trim();
+    if trimmed.ends_with(')') {
+        if let Some(open_index) = trimmed.rfind(" (") {
+            let pretty_name = trimmed[..open_index].trim();
+            let system_name = trimmed[open_index + 2..trimmed.len() - 1].trim();
+            if !pretty_name.is_empty() && !system_name.is_empty() {
+                return (pretty_name.to_string(), system_name.to_string());
+            }
+        }
+    }
+
+    (trimmed.to_string(), trimmed.to_string())
+}
+
+fn display_audio_device_name(pretty_name: &str, system_name: &str, mode: &str) -> String {
+    match normalize_audio_device_name_display(mode) {
+        AUDIO_DEVICE_NAME_SYSTEM => system_name.to_string(),
+        AUDIO_DEVICE_NAME_BOTH => {
+            if pretty_name == system_name || system_name.is_empty() {
+                pretty_name.to_string()
+            } else {
+                format!("{pretty_name} ({system_name})")
+            }
+        }
+        _ => pretty_name.to_string(),
+    }
+}
+
+fn normalize_audio_device_name_display(mode: &str) -> &'static str {
+    match mode {
+        AUDIO_DEVICE_NAME_SYSTEM => AUDIO_DEVICE_NAME_SYSTEM,
+        AUDIO_DEVICE_NAME_BOTH => AUDIO_DEVICE_NAME_BOTH,
+        _ => AUDIO_DEVICE_NAME_PRETTY,
+    }
 }
 
 fn refresh_runtime_state() {
@@ -5110,6 +5227,8 @@ fn parse_config_content(content: &str) -> Result<Config> {
     }
     normalize_hotkeys(&mut config.hotkeys);
     migrate_custom_sound_settings(&mut config.sound_settings);
+    config.advanced.audio_device_name_display =
+        normalize_audio_device_name_display(&config.advanced.audio_device_name_display).to_string();
     config.auto_mute.after_inactivity_minutes =
         config.auto_mute.after_inactivity_minutes.clamp(1, 1440);
     Ok(config)

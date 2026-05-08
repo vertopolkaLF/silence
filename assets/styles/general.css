@@ -97,6 +97,20 @@
   gap: 16px;
 }
 
+.devices-select-card,
+.device-settings-card {
+  gap: 20px;
+}
+
+.device-field {
+  display: grid;
+  gap: 16px;
+}
+
+.device-toggle-row {
+  min-height: 44px;
+}
+
 .device-card-copy {
   display: grid;
   gap: 4px;
