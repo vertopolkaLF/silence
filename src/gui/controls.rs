@@ -192,6 +192,7 @@ pub fn Select(
     #[props(default)] class: String,
 ) -> Element {
     let mut open = use_signal(|| false);
+    let mut menu_visible = use_signal(|| false);
     let mut menu_style = use_signal(String::new);
     let mut menu_height = use_signal(|| None::<f64>);
     let mut animate_value = use_signal(|| false);
@@ -222,12 +223,35 @@ pub fn Select(
     } else {
         "ui-select-menu ready"
     };
+    let should_render_menu = open() || menu_visible();
 
     let sync_select_id = select_id.clone();
     use_effect(move || {
         if open() && open_select().as_deref() != Some(sync_select_id.as_str()) {
             open.set(false);
         }
+    });
+
+    use_effect(move || {
+        if open() && !disabled {
+            menu_visible.set(true);
+            return;
+        }
+
+        if !menu_visible() {
+            menu_style.set(String::new());
+            menu_height.set(None);
+            return;
+        }
+
+        spawn(async move {
+            tokio::time::sleep(Duration::from_millis(220)).await;
+            if !open() {
+                menu_visible.set(false);
+                menu_style.set(String::new());
+                menu_height.set(None);
+            }
+        });
     });
 
     let search_select_id = select_id.clone();
@@ -252,7 +276,7 @@ if (input) {{
     });
 
     let mut filtered_options = Vec::<SelectOption>::new();
-    if open() && !disabled {
+    if should_render_menu && !disabled {
         let query = search_query().trim().to_ascii_lowercase();
         filtered_options = options
             .iter()
@@ -277,7 +301,7 @@ if (input) {{
     };
 
     let mut rendered_options = Vec::new();
-    if open() {
+    if should_render_menu {
         let mut current_group = None::<String>;
         for (option_index, option) in filtered_options.iter().cloned().enumerate() {
             if option.group_label != current_group {
@@ -384,8 +408,6 @@ if (input) {{
     use_effect(move || {
         let select_id = position_select_id.clone();
         if !open() || disabled {
-            menu_style.set(String::new());
-            menu_height.set(None);
             return;
         }
         let locked_height = menu_height();
@@ -742,7 +764,7 @@ requestAnimationFrame(() => {{
                 }
             }
 
-            if open() {
+            if should_render_menu {
                 div { class: "{menu_class}", style: "{menu_style}",
                     div { class: "ui-select-scroll-shadow top", aria_hidden: "true" }
                     div { class: "ui-select-scroll-shadow bottom", aria_hidden: "true" }
