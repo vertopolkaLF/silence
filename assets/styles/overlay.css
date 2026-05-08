@@ -224,6 +224,24 @@
   box-shadow: 0 0 0 1px color-mix(in oklch, var(--accent) 18%, transparent);
 }
 
+.overlay-font-controls {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: end;
+}
+
+.overlay-font-controls .overlay-field {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.overlay-font-controls .ui-range-control {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
 .overlay-icon-grid-extra {
   padding-top: 2px;
 }

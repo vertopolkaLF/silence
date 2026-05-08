@@ -49,8 +49,9 @@ use windows::{
             },
             Gdi::{
                 BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection,
-                DIB_RGB_COLORS, DeleteDC, DeleteObject, EnumDisplayMonitors, GetMonitorInfoW,
-                HBITMAP, HDC, HMONITOR, MONITORINFO, SelectObject,
+                DEFAULT_CHARSET, DIB_RGB_COLORS, DeleteDC, DeleteObject, EnumDisplayMonitors,
+                EnumFontFamiliesExW, GetMonitorInfoW, HBITMAP, HDC, HMONITOR, LOGFONTW,
+                MONITORINFO, SelectObject, TEXTMETRICW,
             },
         },
         Media::Audio::{
@@ -886,6 +887,10 @@ pub struct OverlayConfig {
     pub muted_label: String,
     #[serde(default = "default_overlay_unmuted_label")]
     pub unmuted_label: String,
+    #[serde(default = "default_overlay_text_font")]
+    pub text_font: String,
+    #[serde(default = "default_overlay_text_font_weight")]
+    pub text_font_weight: u16,
     #[serde(default = "default_overlay_variant")]
     pub variant: String,
     #[serde(default = "crate::overlay_icons::default_overlay_icon_pair")]
@@ -912,6 +917,11 @@ pub struct OverlayDisplay {
     pub primary: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SystemFont {
+    pub family: String,
+}
+
 impl Default for OverlayConfig {
     fn default() -> Self {
         Self {
@@ -925,6 +935,8 @@ impl Default for OverlayConfig {
             show_text: false,
             muted_label: default_overlay_muted_label(),
             unmuted_label: default_overlay_unmuted_label(),
+            text_font: default_overlay_text_font(),
+            text_font_weight: default_overlay_text_font_weight(),
             variant: default_overlay_variant(),
             icon_pair: crate::overlay_icons::default_overlay_icon_pair(),
             icon_style: default_overlay_icon_style(),
@@ -973,6 +985,14 @@ fn default_overlay_unmuted_label() -> String {
     "Microphone on".to_string()
 }
 
+fn default_overlay_text_font() -> String {
+    "Segoe UI".to_string()
+}
+
+fn default_overlay_text_font_weight() -> u16 {
+    700
+}
+
 fn default_overlay_variant() -> String {
     "MicIcon".to_string()
 }
@@ -999,6 +1019,70 @@ fn default_overlay_border_radius() -> u8 {
 
 fn default_overlay_show_border() -> bool {
     true
+}
+
+pub fn system_fonts() -> Vec<SystemFont> {
+    let mut families = Vec::<String>::new();
+    unsafe {
+        let hdc = CreateCompatibleDC(None);
+        if !hdc.0.is_null() {
+            let mut logfont = LOGFONTW {
+                lfCharSet: DEFAULT_CHARSET,
+                ..Default::default()
+            };
+            let _ = EnumFontFamiliesExW(
+                hdc,
+                &mut logfont,
+                Some(collect_system_font),
+                LPARAM(&mut families as *mut _ as isize),
+                0,
+            );
+            let _ = DeleteDC(hdc);
+        }
+    }
+
+    families.sort_by_key(|family| family.to_ascii_lowercase());
+    families.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+
+    if families.is_empty() {
+        families = vec![
+            "Segoe UI".to_string(),
+            "Arial".to_string(),
+            "Calibri".to_string(),
+            "Tahoma".to_string(),
+            "Verdana".to_string(),
+        ];
+    }
+
+    families
+        .into_iter()
+        .map(|family| SystemFont { family })
+        .collect()
+}
+
+unsafe extern "system" fn collect_system_font(
+    logfont: *const LOGFONTW,
+    _text_metric: *const TEXTMETRICW,
+    _font_type: u32,
+    lparam: LPARAM,
+) -> i32 {
+    if logfont.is_null() || lparam.0 == 0 {
+        return 1;
+    }
+
+    let families = unsafe { &mut *(lparam.0 as *mut Vec<String>) };
+    let face = unsafe { wide_buf_to_string(&(*logfont).lfFaceName) };
+    if face.is_empty() || face.starts_with('@') {
+        return 1;
+    }
+
+    families.push(face);
+    1
+}
+
+fn wide_buf_to_string(buf: &[u16]) -> String {
+    let len = buf.iter().position(|ch| *ch == 0).unwrap_or(buf.len());
+    String::from_utf16_lossy(&buf[..len]).trim().to_string()
 }
 
 pub fn overlay_displays() -> Vec<OverlayDisplay> {

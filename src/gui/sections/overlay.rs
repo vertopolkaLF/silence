@@ -14,6 +14,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let content_opacity = overlay.content_opacity.clamp(20, 100);
     let background_opacity = overlay.background_opacity.min(100);
     let border_radius = overlay.border_radius.min(24);
+    let text_font_weight = overlay.text_font_weight.clamp(100, 900);
     let icon_controls_open = overlay.variant != "Dot";
     let duration_controls_open = overlay.visibility == "AfterToggle";
     let preview_muted = snapshot.muted;
@@ -29,6 +30,8 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
         format!("{:.0}%", (content_opacity as f64 - 20.0) / 80.0 * 100.0);
     let background_opacity_progress = format!("{background_opacity}%");
     let border_radius_progress = format!("{:.0}%", border_radius as f64 / 24.0 * 100.0);
+    let text_font_weight_progress =
+        format!("{:.0}%", (text_font_weight as f64 - 100.0) / 800.0 * 100.0);
     let visibility_options = vec![
         SelectOption::new("Always", "Always visible").icon("icon-widget"),
         SelectOption::new("WhenMuted", "Visible when muted").icon("icon-mic-muted"),
@@ -53,6 +56,21 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
         SelectOption::new("Dark", "Dark").icon("icon-moon"),
         SelectOption::new("Light", "Light").icon("icon-sun"),
     ];
+    let mut font_options = snapshot
+        .system_fonts
+        .iter()
+        .map(|font| SelectOption::new(font.family.clone(), font.family.clone()))
+        .collect::<Vec<_>>();
+    if !overlay.text_font.is_empty()
+        && !font_options
+            .iter()
+            .any(|option| option.value.eq_ignore_ascii_case(&overlay.text_font))
+    {
+        font_options.insert(
+            0,
+            SelectOption::new(overlay.text_font.clone(), overlay.text_font.clone()),
+        );
+    }
 
     rsx! {
         section {
@@ -354,6 +372,36 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                                 let next_label = evt.value();
                                                 super::super::update_settings(settings, move |config| {
                                                     config.overlay.unmuted_label = next_label;
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                                div { class: "overlay-font-controls",
+                                    div { class: "overlay-field",
+                                        label { "Font" }
+                                        Select {
+                                            value: overlay.text_font.clone(),
+                                            options: font_options,
+                                            onchange: move |value: String| {
+                                                super::super::update_settings(settings, |config| {
+                                                    config.overlay.text_font = value;
+                                                });
+                                            }
+                                        }
+                                    }
+                                    Range {
+                                        label: "Font weight".to_string(),
+                                        value_label: text_font_weight.to_string(),
+                                        value: text_font_weight.to_string(),
+                                        min: "100".to_string(),
+                                        max: "900".to_string(),
+                                        step: "100".to_string(),
+                                        progress: text_font_weight_progress.clone(),
+                                        oninput: move |evt: FormEvent| {
+                                            if let Ok(value) = evt.value().parse::<u16>() {
+                                                super::super::update_settings(settings, |config| {
+                                                    config.overlay.text_font_weight = value.clamp(100, 900);
                                                 });
                                             }
                                         }
