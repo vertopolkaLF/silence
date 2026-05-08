@@ -7,10 +7,11 @@
 }
 
 .hotkey-table {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   width: 100%;
   min-width: 0;
-  border-top: 1px solid var(--border);
   overflow: hidden;
   transition: opacity var(--ui-transition), transform var(--ui-transition);
 }
@@ -18,34 +19,23 @@
 .hotkey-table-head,
 .hotkey-main-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) 84px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   min-width: 0;
 }
 
 .hotkey-table-head {
-  height: 38px;
-  color: var(--faint);
-  font-size: 12px;
-  font-weight: 650;
-  text-transform: uppercase;
+  display: none;
 }
 
 .hotkey-entry {
   display: grid;
   min-width: 0;
-  padding: 16px 0;
-  border-top: 1px solid var(--border);
-  transition: background var(--ui-transition), padding var(--ui-transition);
-}
-
-.hotkey-entry:hover {
-  background: color-mix(in oklch, var(--surface-2) 56%, transparent);
-}
-
-.hotkey-entry:first-of-type {
-  border-top: 0;
+  padding: 16px 20px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  transition: background var(--ui-transition), border-color var(--ui-transition), box-shadow var(--ui-transition);
 }
 
 .hotkey-action-cell,
@@ -64,6 +54,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
 }
 
 .hotkey-target-label,
@@ -85,7 +79,25 @@
 .hotkey-row-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  opacity: 0.4;
+  transition: opacity var(--ui-transition);
+}
+
+.hotkey-entry:hover .hotkey-row-actions {
+  opacity: 1;
+}
+
+.hotkey-row-actions .icon-button {
+  height: 36px;
+  width: 36px;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.hotkey-row-actions .icon-button:hover {
+  background: var(--surface-3);
+  border-color: var(--control-border);
 }
 
 .hotkey-modifier-mode {
@@ -100,9 +112,12 @@
 .hotkey-empty {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
-  padding: 22px 0;
-  border-top: 1px solid var(--border);
+  padding: 32px 0;
+  background: var(--surface-1);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
 }
 
 .hotkey-empty .solar-icon {

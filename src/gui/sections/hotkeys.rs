@@ -92,12 +92,6 @@ pub fn render(
             }
 
             div { class: "hotkey-table",
-                div { class: "hotkey-table-head",
-                    span { "Action" }
-                    span { "Hotkey" }
-                    span { "Options" }
-                }
-
                 if hotkeys.is_empty() {
                     div { class: "hotkey-empty",
                         span { class: "solar-icon icon-keyboard-bold" }
