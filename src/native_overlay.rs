@@ -313,15 +313,27 @@ impl NativeOverlay {
         }
 
         self.height = (48.0 * scale).round() as i32;
-        if !self.settings.show_text {
+        let has_icon = overlay_has_icon(&self.settings);
+        let has_text = overlay_has_text(&self.settings);
+        if !has_text {
             return self.height;
         }
 
         let metrics = overlay_metrics(self.height);
         let label = overlay_label(&self.settings, muted);
         let text_width = measure_text_width(&self.settings, label, metrics.text_font_size);
-        let text_gap = if text_width > 0 { metrics.gap } else { 0 };
-        metrics.padding + metrics.icon_size + text_gap + text_width + metrics.right_padding
+        let icon_width = if has_icon { metrics.icon_size } else { 0 };
+        let right_padding = if has_icon {
+            metrics.right_padding
+        } else {
+            metrics.padding
+        };
+        let text_gap = if has_icon && text_width > 0 {
+            metrics.gap
+        } else {
+            0
+        };
+        (metrics.padding + icon_width + text_gap + text_width + right_padding).max(self.height)
     }
 
     fn start_content_transition(&mut self, from_muted: bool, to_muted: bool) {
@@ -760,87 +772,87 @@ impl NativeOverlay {
             _ => state_accent(muted),
         };
 
-        let icon_left = if self.settings.show_text {
+        let has_icon = overlay_has_icon(&self.settings);
+        let has_text = overlay_has_text(&self.settings);
+        let icon_left = if has_text {
             metrics.padding
         } else {
             (self.width - metrics.icon_size) / 2
         };
         let icon_top = (self.height - metrics.icon_size) / 2;
-        if let Some(mask) = overlay_icon_mask(
-            &self.settings.icon_pair,
-            muted,
-            metrics.icon_size.max(1) as u32,
-        ) {
-            composite_masked_subrect(
-                target_bits,
-                self.width,
-                self.height,
-                &mask,
-                metrics.icon_size.max(1),
-                metrics.icon_size.max(1),
-                icon_left.max(0),
-                icon_top.max(0),
-                icon_color,
-                opacity,
-            );
-        } else if let Some(mask) = render_text_mask(self.width, self.height, |hdc| unsafe {
-            let icon_face = crate::wide("Segoe Fluent Icons");
-            let icon_font = CreateFontW(
-                metrics.icon_font_size,
-                0,
-                0,
-                0,
-                FW_MEDIUM.0 as i32,
-                0,
-                0,
-                0,
-                DEFAULT_CHARSET.0 as u32,
-                OUT_DEFAULT_PRECIS.0 as u32,
-                CLIP_DEFAULT_PRECIS.0 as u32,
-                ANTIALIASED_QUALITY.0 as u32,
-                (DEFAULT_PITCH.0 | FF_DONTCARE.0) as u32,
-                PCWSTR(icon_face.as_ptr()),
-            );
-            let old_font = SelectObject(hdc, icon_font);
-            let glyph = if muted { "\u{F781}" } else { "\u{E720}" };
-            let mut icon_text: Vec<u16> = glyph.encode_utf16().collect();
-            let mut icon_rect = RECT {
-                left: if self.settings.show_text {
-                    metrics.padding
-                } else {
-                    0
-                },
-                top: 0,
-                right: if self.settings.show_text {
-                    metrics.padding + metrics.icon_size
-                } else {
-                    self.width
-                },
-                bottom: self.height,
-            };
-            DrawTextW(
-                hdc,
-                &mut icon_text,
-                &mut icon_rect,
-                windows::Win32::Graphics::Gdi::DT_CENTER
-                    | windows::Win32::Graphics::Gdi::DT_VCENTER
-                    | windows::Win32::Graphics::Gdi::DT_SINGLELINE,
-            );
-            let _ = SelectObject(hdc, old_font);
-            let _ = DeleteObject(icon_font);
-        }) {
-            composite_masked_color(
-                target_bits,
-                self.width,
-                self.height,
-                &mask,
-                icon_color,
-                opacity,
-            );
+        if has_icon {
+            if let Some(mask) = overlay_icon_mask(
+                &self.settings.icon_pair,
+                muted,
+                metrics.icon_size.max(1) as u32,
+            ) {
+                composite_masked_subrect(
+                    target_bits,
+                    self.width,
+                    self.height,
+                    &mask,
+                    metrics.icon_size.max(1),
+                    metrics.icon_size.max(1),
+                    icon_left.max(0),
+                    icon_top.max(0),
+                    icon_color,
+                    opacity,
+                );
+            } else if let Some(mask) = render_text_mask(self.width, self.height, |hdc| unsafe {
+                let icon_face = crate::wide("Segoe Fluent Icons");
+                let icon_font = CreateFontW(
+                    metrics.icon_font_size,
+                    0,
+                    0,
+                    0,
+                    FW_MEDIUM.0 as i32,
+                    0,
+                    0,
+                    0,
+                    DEFAULT_CHARSET.0 as u32,
+                    OUT_DEFAULT_PRECIS.0 as u32,
+                    CLIP_DEFAULT_PRECIS.0 as u32,
+                    ANTIALIASED_QUALITY.0 as u32,
+                    (DEFAULT_PITCH.0 | FF_DONTCARE.0) as u32,
+                    PCWSTR(icon_face.as_ptr()),
+                );
+                let old_font = SelectObject(hdc, icon_font);
+                let glyph = if muted { "\u{F781}" } else { "\u{E720}" };
+                let mut icon_text: Vec<u16> = glyph.encode_utf16().collect();
+                let mut icon_rect = RECT {
+                    left: if has_text { metrics.padding } else { 0 },
+                    top: 0,
+                    right: if has_text {
+                        metrics.padding + metrics.icon_size
+                    } else {
+                        self.width
+                    },
+                    bottom: self.height,
+                };
+                DrawTextW(
+                    hdc,
+                    &mut icon_text,
+                    &mut icon_rect,
+                    windows::Win32::Graphics::Gdi::DT_CENTER
+                        | windows::Win32::Graphics::Gdi::DT_VCENTER
+                        | windows::Win32::Graphics::Gdi::DT_SINGLELINE,
+                );
+                let _ = SelectObject(hdc, old_font);
+                let _ = DeleteObject(icon_font);
+            }) {
+                composite_masked_color(
+                    target_bits,
+                    self.width,
+                    self.height,
+                    &mask,
+                    icon_color,
+                    opacity,
+                );
+            }
         }
 
         let label = overlay_label(&self.settings, muted);
-        if self.settings.show_text && !label.is_empty() {
+        if has_text && !label.is_empty() {
             let text_color = if dark_background {
                 (245, 245, 245)
             } else {
@@ -866,10 +878,20 @@ impl NativeOverlay {
                 );
                 let old_font = SelectObject(hdc, text_font);
                 let mut label: Vec<u16> = label.encode_utf16().collect();
+                let text_left = if has_icon {
+                    metrics.padding + metrics.icon_size + metrics.gap
+                } else {
+                    metrics.padding
+                };
+                let text_right_padding = if has_icon {
+                    metrics.right_padding
+                } else {
+                    metrics.padding
+                };
                 let mut text_rect = RECT {
-                    left: metrics.padding + metrics.icon_size + metrics.gap,
+                    left: text_left,
                     top: metrics.text_y_offset,
-                    right: self.width - metrics.right_padding,
+                    right: self.width - text_right_padding,
                     bottom: self.height + metrics.text_y_offset,
                 };
                 DrawTextW(
@@ -1038,6 +1060,15 @@ fn overlay_label(settings: &crate::OverlayConfig, muted: bool) -> &str {
     } else {
         &settings.unmuted_label
     }
+}
+
+fn overlay_has_icon(settings: &crate::OverlayConfig) -> bool {
+    matches!(settings.variant.as_str(), "MicIcon" | "IconText")
+}
+
+fn overlay_has_text(settings: &crate::OverlayConfig) -> bool {
+    matches!(settings.variant.as_str(), "IconText" | "Text")
+        || (settings.variant == "MicIcon" && settings.show_text)
 }
 
 fn measure_text_width(settings: &crate::OverlayConfig, text: &str, font_size: i32) -> i32 {

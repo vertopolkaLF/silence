@@ -5325,11 +5325,26 @@ fn parse_config_content(content: &str) -> Result<Config> {
     }
     normalize_hotkeys(&mut config.hotkeys);
     migrate_custom_sound_settings(&mut config.sound_settings);
+    normalize_overlay_config(&mut config.overlay);
     config.advanced.audio_device_name_display =
         normalize_audio_device_name_display(&config.advanced.audio_device_name_display).to_string();
     config.auto_mute.after_inactivity_minutes =
         config.auto_mute.after_inactivity_minutes.clamp(1, 1440);
     Ok(config)
+}
+
+fn normalize_overlay_config(overlay: &mut OverlayConfig) {
+    if overlay.variant == "MicIcon" && overlay.show_text {
+        overlay.variant = "IconText".to_string();
+    }
+    if !matches!(
+        overlay.variant.as_str(),
+        "MicIcon" | "IconText" | "Text" | "Dot"
+    ) {
+        overlay.variant = default_overlay_variant();
+    }
+    overlay.show_text = false;
+    overlay.text_font_weight = overlay.text_font_weight.clamp(100, 900);
 }
 
 fn migrate_custom_sound_settings(settings: &mut SoundSettings) {
@@ -5489,6 +5504,7 @@ pub fn import_v1_settings() -> Result<()> {
         .min(24);
     config.overlay.show_border =
         value_bool(&settings, "OverlayShowBorder").unwrap_or(config.overlay.show_border);
+    normalize_overlay_config(&mut config.overlay);
 
     config.tray_icon.variant = match value_string(&settings, "TrayIconStyle").as_deref() {
         Some("FilledCircle") => "ColorDot".to_string(),

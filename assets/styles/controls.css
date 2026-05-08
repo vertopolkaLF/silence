@@ -56,6 +56,15 @@
     0 8px 18px var(--shadow-faint);
 }
 
+.ui-select.disabled {
+  opacity: 0.45;
+}
+
+.ui-select.disabled .ui-select-trigger {
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .ui-select-search-trigger {
   cursor: text;
 }

@@ -142,6 +142,7 @@ pub fn Select(
     #[props(default)] on_option_action: Option<EventHandler<String>>,
     #[props(default = true)] show_current_detail: bool,
     #[props(default = false)] searchable: bool,
+    #[props(default = false)] disabled: bool,
     #[props(default)] class: String,
 ) -> Element {
     let mut open = use_signal(|| false);
@@ -163,7 +164,9 @@ pub fn Select(
         .find(|option| option.value == value)
         .cloned()
         .or_else(|| options.first().cloned());
-    let root_class = if open() {
+    let root_class = if disabled {
+        merged_class("ui-select disabled", &class)
+    } else if open() {
         merged_class("ui-select open", &class)
     } else {
         merged_class("ui-select", &class)
@@ -184,7 +187,7 @@ pub fn Select(
     let search_select_id = select_id.clone();
     use_effect(move || {
         let select_id = search_select_id.clone();
-        if !open() || !searchable {
+        if !open() || !searchable || disabled {
             return;
         }
 
@@ -203,7 +206,7 @@ if (input) {{
     });
 
     let mut filtered_options = Vec::<SelectOption>::new();
-    if open() {
+    if open() && !disabled {
         let query = search_query().trim().to_ascii_lowercase();
         filtered_options = options
             .iter()
@@ -334,7 +337,7 @@ if (input) {{
     let position_select_id = select_id.clone();
     use_effect(move || {
         let select_id = position_select_id.clone();
-        if !open() {
+        if !open() || disabled {
             menu_style.set(String::new());
             menu_height.set(None);
             return;
@@ -425,7 +428,7 @@ return `left:${{left}}px;top:${{top}}px;width:${{width}}px;--ui-select-height:${
         let select_id = shadow_select_id.clone();
         let _ = highlighted_index();
         let _ = search_query();
-        if !open() || menu_style().is_empty() {
+        if !open() || disabled || menu_style().is_empty() {
             return;
         }
 
@@ -600,10 +603,14 @@ requestAnimationFrame(() => {{
             } else {
                 button {
                     r#type: "button",
-                    class: "ui-select-trigger",
-                    aria_expanded: if open() { "true" } else { "false" },
-                    onclick: move |_| {
-                        if open() {
+                class: "ui-select-trigger",
+                disabled,
+                aria_expanded: if open() { "true" } else { "false" },
+                onclick: move |_| {
+                    if disabled {
+                        return;
+                    }
+                    if open() {
                             open.set(false);
                             search_query.set(String::new());
                             highlighted_index.set(0);

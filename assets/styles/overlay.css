@@ -19,6 +19,10 @@
   gap: 10px;
 }
 
+.overlay-field.disabled {
+  pointer-events: none;
+}
+
 .overlay-select-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -38,20 +42,24 @@
 .overlay-collapse {
   display: grid;
   grid-template-rows: 0fr;
+  margin-top: 0;
   opacity: 0;
   visibility: hidden;
   transition:
     grid-template-rows 0.2s ease,
+    margin-top 0.2s ease,
     opacity 0.2s ease,
     visibility 0s linear 0.2s;
 }
 
 .overlay-collapse.open {
   grid-template-rows: 1fr;
+  margin-top: 0;
   opacity: 1;
   visibility: visible;
   transition:
     grid-template-rows 0.2s ease,
+    margin-top 0.2s ease,
     opacity 0.2s ease,
     visibility 0ms linear;
 }
@@ -112,6 +120,10 @@
   height: 56px;
   display: grid;
   place-items: center;
+  align-items: center;
+  align-content: center;
+  justify-items: center;
+  justify-content: center;
   border: 1px solid var(--control-border);
   border-radius: 12px;
   background: var(--surface-2);
@@ -148,6 +160,25 @@
   height: 26px;
 }
 
+.overlay-variant-preview.icon-text {
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.overlay-variant-preview.icon-text .solar-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.overlay-variant-preview.text-only {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
 .tray-logo-preview img {
   width: 28px;
   height: 28px;
@@ -176,6 +207,10 @@
 
 .overlay-icon-extra-wrap {
   margin-top: -2px;
+}
+
+.overlay-label-collapse:not(.open) {
+  margin-top: -18px;
 }
 
 .overlay-label-collapse .overlay-collapse-inner {

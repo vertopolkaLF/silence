@@ -15,7 +15,10 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let background_opacity = overlay.background_opacity.min(100);
     let border_radius = overlay.border_radius.min(24);
     let text_font_weight = overlay.text_font_weight.clamp(100, 900);
-    let icon_controls_open = overlay.variant != "Dot";
+    let has_icon = matches!(overlay.variant.as_str(), "MicIcon" | "IconText");
+    let has_text = matches!(overlay.variant.as_str(), "IconText" | "Text");
+    let icon_controls_open = has_icon;
+    let text_controls_open = has_text;
     let duration_controls_open = overlay.visibility == "AfterToggle";
     let preview_muted = snapshot.muted;
     let preview_tone_class = if preview_muted { "muted" } else { "live" };
@@ -220,6 +223,39 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                             span { "Mic Icon" }
                         }
                         button {
+                            class: if overlay.variant == "IconText" {
+                                "overlay-icon-option overlay-variant-option active"
+                            } else {
+                                "overlay-icon-option overlay-variant-option"
+                            },
+                            onclick: move |_| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.variant = "IconText".to_string();
+                                });
+                            },
+                            span { class: "overlay-icon-preview overlay-variant-preview icon-text live",
+                                span { class: "solar-icon icon-mic" }
+                                span { "On" }
+                            }
+                            span { "Icon + Text" }
+                        }
+                        button {
+                            class: if overlay.variant == "Text" {
+                                "overlay-icon-option overlay-variant-option active"
+                            } else {
+                                "overlay-icon-option overlay-variant-option"
+                            },
+                            onclick: move |_| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.variant = "Text".to_string();
+                                });
+                            },
+                            span { class: "overlay-icon-preview overlay-variant-preview text-only",
+                                span { "On" }
+                            }
+                            span { "Text" }
+                        }
+                        button {
                             class: if overlay.variant == "Dot" {
                                 "overlay-icon-option overlay-variant-option active"
                             } else {
@@ -334,18 +370,11 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 }
                             }
                         }
-                        Checkbox {
-                            class: "overlay-checkbox".to_string(),
-                            checked: overlay.show_text,
-                            label: "Show text next to the icon".to_string(),
-                            onchange: move |checked: bool| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.show_text = checked;
-                                });
-                            }
-                        }
+                    }
+                }
+
                         div {
-                            class: if overlay.show_text {
+                    class: if text_controls_open {
                                 "overlay-collapse open overlay-label-collapse"
                             } else {
                                 "overlay-collapse overlay-label-collapse"
@@ -414,58 +443,60 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 }
                             }
                         }
-                        div { class: "overlay-select-grid",
-                            div { class: "overlay-field",
-                                label { "Icon style" }
-                                Select {
-                                    value: overlay.icon_style.clone(),
-                                    options: icon_style_options,
-                                    onchange: move |value: String| {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.icon_style = value;
-                                        });
-                                    }
-                                }
-                            }
-                            div { class: "overlay-field",
-                                label { "Background" }
-                                Select {
-                                    value: overlay.background_style.clone(),
-                                    options: background_options,
-                                    onchange: move |value: String| {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.background_style = value;
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                        Range {
-                            label: "Background opacity".to_string(),
-                            value_label: format!("{background_opacity}%"),
-                            value: background_opacity.to_string(),
-                            min: "0".to_string(),
-                            max: "100".to_string(),
-                            step: "5".to_string(),
-                            progress: background_opacity_progress.clone(),
-                            oninput: move |evt: FormEvent| {
-                                if let Ok(value) = evt.value().parse::<u8>() {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.background_opacity = value.min(100);
-                                    });
-                                }
-                            }
-                        }
-                        Checkbox {
-                            class: "overlay-checkbox".to_string(),
-                            checked: overlay.show_border,
-                            label: "Show border".to_string(),
-                            onchange: move |checked: bool| {
+
+                div { class: "overlay-select-grid",
+                    div { class: if has_icon { "overlay-field" } else { "overlay-field disabled" },
+                        label { "Icon style" }
+                        Select {
+                            value: overlay.icon_style.clone(),
+                            options: icon_style_options,
+                            disabled: !has_icon,
+                            onchange: move |value: String| {
                                 super::super::update_settings(settings, |config| {
-                                    config.overlay.show_border = checked;
+                                    config.overlay.icon_style = value;
                                 });
                             }
                         }
+                    }
+                    div { class: "overlay-field",
+                        label { "Background" }
+                        Select {
+                            value: overlay.background_style.clone(),
+                            options: background_options,
+                            onchange: move |value: String| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.background_style = value;
+                                });
+                            }
+                        }
+                    }
+                }
+
+                Range {
+                    label: "Background opacity".to_string(),
+                    value_label: format!("{background_opacity}%"),
+                    value: background_opacity.to_string(),
+                    min: "0".to_string(),
+                    max: "100".to_string(),
+                    step: "5".to_string(),
+                    progress: background_opacity_progress.clone(),
+                    oninput: move |evt: FormEvent| {
+                        if let Ok(value) = evt.value().parse::<u8>() {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.background_opacity = value.min(100);
+                            });
+                        }
+                    }
+                }
+
+                Checkbox {
+                    class: "overlay-checkbox".to_string(),
+                    checked: overlay.show_border,
+                    label: "Show border".to_string(),
+                    onchange: move |checked: bool| {
+                        super::super::update_settings(settings, |config| {
+                            config.overlay.show_border = checked;
+                        });
                     }
                 }
 
