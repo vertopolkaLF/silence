@@ -322,6 +322,45 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 });
                             }
                         }
+                        div {
+                            class: if overlay.show_text {
+                                "overlay-collapse open overlay-label-collapse"
+                            } else {
+                                "overlay-collapse overlay-label-collapse"
+                            },
+                            div { class: "overlay-collapse-inner",
+                                div { class: "overlay-label-fields",
+                                    label { class: "overlay-text-field",
+                                        span { "Muted label" }
+                                        input {
+                                            class: "overlay-text-input",
+                                            r#type: "text",
+                                            value: "{overlay.muted_label}",
+                                            oninput: move |evt| {
+                                                let next_label = evt.value();
+                                                super::super::update_settings(settings, move |config| {
+                                                    config.overlay.muted_label = next_label;
+                                                });
+                                            }
+                                        }
+                                    }
+                                    label { class: "overlay-text-field",
+                                        span { "Unmuted label" }
+                                        input {
+                                            class: "overlay-text-input",
+                                            r#type: "text",
+                                            value: "{overlay.unmuted_label}",
+                                            oninput: move |evt| {
+                                                let next_label = evt.value();
+                                                super::super::update_settings(settings, move |config| {
+                                                    config.overlay.unmuted_label = next_label;
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         div { class: "overlay-select-grid",
                             div { class: "overlay-field",
                                 label { "Icon style" }

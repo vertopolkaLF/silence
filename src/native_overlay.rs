@@ -334,7 +334,8 @@ impl NativeOverlay {
         }
 
         let metrics = overlay_metrics(self.height);
-        let text_width = measure_text_width(overlay_label(muted), metrics.text_font_size);
+        let text_width =
+            measure_text_width(overlay_label(&self.settings, muted), metrics.text_font_size);
         metrics.padding + metrics.icon_size + metrics.gap + text_width + metrics.right_padding
     }
 
@@ -878,7 +879,9 @@ impl NativeOverlay {
                     PCWSTR(text_face.as_ptr()),
                 );
                 let old_font = SelectObject(hdc, text_font);
-                let mut label: Vec<u16> = overlay_label(muted).encode_utf16().collect();
+                let mut label: Vec<u16> = overlay_label(&self.settings, muted)
+                    .encode_utf16()
+                    .collect();
                 let mut text_rect = RECT {
                     left: metrics.padding + metrics.icon_size + metrics.gap,
                     top: metrics.text_y_offset,
@@ -1045,11 +1048,11 @@ fn overlay_metrics(height: i32) -> OverlayMetrics {
     }
 }
 
-fn overlay_label(muted: bool) -> &'static str {
+fn overlay_label(settings: &crate::OverlayConfig, muted: bool) -> &str {
     if muted {
-        "Microphone muted"
+        &settings.muted_label
     } else {
-        "Microphone on"
+        &settings.unmuted_label
     }
 }
 

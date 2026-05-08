@@ -882,6 +882,10 @@ pub struct OverlayConfig {
     pub scale: u32,
     #[serde(default)]
     pub show_text: bool,
+    #[serde(default = "default_overlay_muted_label")]
+    pub muted_label: String,
+    #[serde(default = "default_overlay_unmuted_label")]
+    pub unmuted_label: String,
     #[serde(default = "default_overlay_variant")]
     pub variant: String,
     #[serde(default = "crate::overlay_icons::default_overlay_icon_pair")]
@@ -919,6 +923,8 @@ impl Default for OverlayConfig {
             duration_secs: default_overlay_duration_secs(),
             scale: default_overlay_scale(),
             show_text: false,
+            muted_label: default_overlay_muted_label(),
+            unmuted_label: default_overlay_unmuted_label(),
             variant: default_overlay_variant(),
             icon_pair: crate::overlay_icons::default_overlay_icon_pair(),
             icon_style: default_overlay_icon_style(),
@@ -957,6 +963,14 @@ fn default_overlay_duration_secs() -> f64 {
 
 fn default_overlay_scale() -> u32 {
     100
+}
+
+fn default_overlay_muted_label() -> String {
+    "Microphone muted".to_string()
+}
+
+fn default_overlay_unmuted_label() -> String {
+    "Microphone on".to_string()
 }
 
 fn default_overlay_variant() -> String {

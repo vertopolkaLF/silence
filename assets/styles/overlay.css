@@ -178,6 +178,52 @@
   margin-top: -2px;
 }
 
+.overlay-label-collapse .overlay-collapse-inner {
+  padding-bottom: 8px;
+}
+
+.overlay-label-fields {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.overlay-text-field {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.overlay-text-input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  outline: none;
+  padding: 0 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  transition:
+    background var(--ui-transition),
+    border-color var(--ui-transition),
+    box-shadow var(--ui-transition);
+}
+
+.overlay-text-input:hover {
+  background: var(--surface-3);
+}
+
+.overlay-text-input:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--accent) 18%, transparent);
+}
+
 .overlay-icon-grid-extra {
   padding-top: 2px;
 }
