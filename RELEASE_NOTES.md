@@ -1,3 +1,36 @@
+# silence! v2.1.0 - volume control and more overlay options
+
+### New stuff
+
+- Added volume control hotkeys
+- New hotkey action picker since it now contains a lot of things :D
+- Updated hotkeys list UI
+
+### Overlay customization
+
+- Added custom overlay labels
+- Added font selector for overlay
+
+### Fixes
+
+- Reduced gamepad polling when it is not needed
+
+--
+
+# silence! v2.0.2 - yeah, i forgot something
+
+- Restored feature to select display for overlay
+
+--
+
+# silence! v2.0.1 - bug fixing already
+
+- Fixed sounds not playing on Windows 10
+- Disabled Mica background on Windows 10
+- Extended allowed keys list for hotkeys
+- Recorded numpad keys now work even with numpad off
+- Probably fixed system color fallback
+
 --
 
 # silence! v2.0.0 - Now in Rust!
