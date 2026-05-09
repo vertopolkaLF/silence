@@ -8,6 +8,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let output_devices = snapshot.output_devices.clone();
     let ungroup_tray_devices = snapshot.config.advanced.ungroup_tray_devices;
     let audio_device_name_display = snapshot.config.advanced.audio_device_name_display.clone();
+    let rename_allowed = audio_device_name_display != crate::AUDIO_DEVICE_NAME_SYSTEM;
 
     rsx! {
         section {
@@ -25,6 +26,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     empty: "No active output devices found",
                     devices: output_rows(output_devices, &audio_device_name_display),
                     flow: DeviceFlow::Output,
+                    rename_allowed,
                     settings
                 }
 
@@ -33,6 +35,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     empty: "No active input devices found",
                     devices: input_rows(input_devices, &audio_device_name_display),
                     flow: DeviceFlow::Input,
+                    rename_allowed,
                     settings
                 }
             }
@@ -79,6 +82,7 @@ fn DeviceList(
     empty: &'static str,
     devices: Vec<DeviceRow>,
     flow: DeviceFlow,
+    rename_allowed: bool,
     mut settings: Signal<super::super::SettingsSnapshot>,
 ) -> Element {
     rsx! {
@@ -96,6 +100,7 @@ fn DeviceList(
                             key: "{device.id}",
                             device,
                             flow,
+                            rename_allowed,
                             settings
                         }
                     }
@@ -109,6 +114,7 @@ fn DeviceList(
 fn DeviceListItem(
     device: DeviceRow,
     flow: DeviceFlow,
+    rename_allowed: bool,
     mut settings: Signal<super::super::SettingsSnapshot>,
 ) -> Element {
     let mut renaming = use_signal(|| false);
@@ -125,55 +131,105 @@ fn DeviceListItem(
     };
     let icon_class = flow.icon_class();
     let device_id_for_default = device.id.clone();
-    let device_id_for_rename_submit = device.id.clone();
     let device_id_for_rename_key = device.id.clone();
+    let device_id_for_rename_confirm = device.id.clone();
     let device_id_for_properties = device.id.clone();
     let current_name_for_rename_blur = device.name.clone();
     let current_name_for_rename_key = device.name.clone();
     let current_name_for_rename_click = device.name.clone();
+    let current_name_for_rename_confirm = device.name.clone();
+    let current_name_for_rename_cancel = device.name.clone();
+    let rename_input_id = format!("device-rename-{}", sanitize_dom_id(&device.id));
+    let rename_input_width = rename_input_width_ch(&draft_name());
+    let item_class = match (device.is_default, renaming()) {
+        (true, true) => "device-list-item active renaming",
+        (true, false) => "device-list-item active",
+        (false, true) => "device-list-item renaming",
+        (false, false) => "device-list-item",
+    };
 
     rsx! {
-        div { class: if device.is_default { "device-list-item active" } else { "device-list-item" },
+        div { class: "{item_class}",
             div { class: "device-leading",
                 span { class: "solar-icon device-kind-icon {icon_class}" }
                 div { class: "device-name-block",
                     if renaming() {
-                        input {
-                            class: "device-rename-input",
-                            value: "{draft_name()}",
-                            autofocus: true,
-                            oninput: move |evt| {
-                                draft_name.set(evt.value());
-                            },
-                            onblur: move |_| {
-                                let next_name = draft_name().trim().to_string();
-                                if !next_name.is_empty() && next_name != current_name_for_rename_blur {
-                                    let _ = crate::rename_audio_device(&device_id_for_rename_submit, &next_name);
-                                    let next = settings.peek().clone().refresh(true);
-                                    settings.set(next);
-                                } else {
-                                    draft_name.set(current_name_for_rename_blur.clone());
+                        div { class: "device-rename-row",
+                            input {
+                                id: "{rename_input_id}",
+                                class: "device-rename-input",
+                                style: "width: {rename_input_width}ch;",
+                                value: "{draft_name()}",
+                                autofocus: true,
+                                onmounted: move |_| {
+                                    let input_id = rename_input_id.clone();
+                                    document::eval(&format!(
+                                        r#"setTimeout(() => {{
+  const input = document.getElementById({input_id:?});
+  if (input) {{
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  }}
+}}, 0);"#
+                                    ));
+                                },
+                                oninput: move |evt| {
+                                    draft_name.set(evt.value());
+                                },
+                                onblur: move |_| {
+                                    if draft_name().trim().is_empty() {
+                                        draft_name.set(current_name_for_rename_blur.clone());
+                                    }
+                                },
+                                onkeydown: move |evt| {
+                                    let key = evt.data().key().to_string();
+                                    if key == "Enter" {
+                                        evt.prevent_default();
+                                        let next_name = draft_name().trim().to_string();
+                                        if !next_name.is_empty() && next_name != current_name_for_rename_key {
+                                            let _ = crate::rename_audio_device(&device_id_for_rename_key, &next_name);
+                                            let next = settings.peek().clone().refresh(true);
+                                            settings.set(next);
+                                        } else {
+                                            draft_name.set(current_name_for_rename_key.clone());
+                                        }
+                                        renaming.set(false);
+                                    } else if key == "Escape" {
+                                        evt.prevent_default();
+                                        draft_name.set(current_name_for_rename_key.clone());
+                                        renaming.set(false);
+                                    }
                                 }
-                                renaming.set(false);
-                            },
-                            onkeydown: move |evt| {
-                                let key = evt.data().key().to_string();
-                                if key == "Enter" {
-                                    evt.prevent_default();
+                            }
+
+                            button {
+                                r#type: "button",
+                                class: "device-inline-action rename-commit-button",
+                                title: "Confirm rename",
+                                onclick: move |_| {
                                     let next_name = draft_name().trim().to_string();
-                                    if !next_name.is_empty() && next_name != current_name_for_rename_key {
-                                        let _ = crate::rename_audio_device(&device_id_for_rename_key, &next_name);
+                                    if !next_name.is_empty() && next_name != current_name_for_rename_confirm {
+                                        let _ = crate::rename_audio_device(&device_id_for_rename_confirm, &next_name);
                                         let next = settings.peek().clone().refresh(true);
                                         settings.set(next);
                                     } else {
-                                        draft_name.set(current_name_for_rename_key.clone());
+                                        draft_name.set(current_name_for_rename_confirm.clone());
                                     }
                                     renaming.set(false);
-                                } else if key == "Escape" {
-                                    evt.prevent_default();
-                                    draft_name.set(current_name_for_rename_key.clone());
+                                },
+                                span { class: "solar-icon icon-check" }
+                            }
+
+                            button {
+                                r#type: "button",
+                                class: "device-inline-action rename-cancel-button",
+                                title: "Cancel rename",
+                                onclick: move |_| {
+                                    draft_name.set(current_name_for_rename_cancel.clone());
                                     renaming.set(false);
-                                }
+                                },
+                                span { class: "solar-icon icon-close" }
                             }
                         }
                     } else {
@@ -207,15 +263,17 @@ fn DeviceListItem(
                     span { class: "solar-icon icon-check" }
                 }
 
-                button {
-                    r#type: "button",
-                    class: "device-action-button",
-                    title: "Rename",
-                    onclick: move |_| {
-                        draft_name.set(current_name_for_rename_click.clone());
-                        renaming.set(true);
-                    },
-                    span { class: "solar-icon icon-pen" }
+                if rename_allowed && !renaming() {
+                    button {
+                        r#type: "button",
+                        class: "device-action-button",
+                        title: "Rename",
+                        onclick: move |_| {
+                            draft_name.set(current_name_for_rename_click.clone());
+                            renaming.set(true);
+                        },
+                        span { class: "solar-icon icon-pen" }
+                    }
                 }
 
                 button {
@@ -230,6 +288,17 @@ fn DeviceListItem(
             }
         }
     }
+}
+
+fn sanitize_dom_id(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect()
+}
+
+fn rename_input_width_ch(value: &str) -> usize {
+    value.chars().count().clamp(2, 32) + 2
 }
 
 #[derive(Clone, PartialEq)]
