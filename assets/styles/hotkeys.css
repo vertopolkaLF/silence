@@ -240,7 +240,7 @@
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--control-border);
-  border-radius: 8px;
+  border-radius: 16px;
   background: var(--surface-2);
 }
 
@@ -251,7 +251,7 @@
   gap: 8px;
   height: 34px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 12px;
   background: transparent;
   color: var(--muted);
   font-size: 13px;

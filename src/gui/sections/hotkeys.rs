@@ -814,6 +814,15 @@ if (viewport && pane) {{
                 tabindex: "0",
                 onclick: move |evt| evt.stop_propagation(),
                 onkeydown: move |evt| {
+                    if evt.data().key().to_string() == "Escape" && !recording() {
+                        evt.prevent_default();
+                        if action_picker_open() {
+                            close_action_picker(action_picker_open, action_picker_closing);
+                        } else {
+                            onclose.call(());
+                        }
+                        return;
+                    }
                     if !recording() || draft_source() != HotkeySource::Keyboard {
                         return;
                     }
