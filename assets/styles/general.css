@@ -107,6 +107,234 @@
   gap: 16px;
 }
 
+.device-list {
+  display: grid;
+  gap: 8px;
+}
+
+.device-list-item {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-radius: 12px;
+  padding: 8px 8px 8px 14px;
+  background: var(--surface-2);
+  transition:
+    background var(--ui-transition),
+    border-color var(--ui-transition),
+    box-shadow var(--ui-transition),
+    opacity var(--ui-transition);
+}
+
+.device-list-item.active {
+  background: var(--surface-color-3);
+}
+
+.device-list-item.renaming {
+  background: var(--surface-2);
+  box-shadow:
+    inset 0 0 0 1px var(--focus),
+    0 0 0 2px color-mix(in oklch, var(--focus) 18%, transparent);
+}
+
+.device-leading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.device-kind-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  color: var(--accent-text);
+}
+
+.device-name-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.device-rename-row {
+  position: relative;
+  min-width: 0;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: start;
+  padding-right: 52px;
+}
+
+.device-name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 14px;
+  transition: color var(--ui-transition);
+}
+
+.device-list-item.active .device-status {
+  color: var(--accent-text);
+}
+
+.device-rename-input {
+  min-width: 0;
+  min-width: 2ch;
+  max-width: 320px;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  caret-color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 18px;
+  box-shadow: none;
+  transition: width var(--ui-transition);
+}
+
+.device-rename-input,
+.device-rename-row {
+  box-sizing: content-box;
+}
+
+.device-inline-action {
+  position: absolute;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  transition:
+    background var(--ui-transition),
+    color var(--ui-transition),
+    opacity var(--ui-transition),
+    transform var(--ui-transition);
+}
+
+.device-inline-action.rename-commit-button {
+  right: 24px;
+}
+
+.device-inline-action.rename-cancel-button {
+  right: 0;
+}
+
+.device-inline-action:hover {
+  background: var(--surface-3);
+}
+
+.device-inline-action .solar-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.device-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.device-action-button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  transition:
+    background var(--ui-transition),
+    border-color var(--ui-transition),
+    box-shadow var(--ui-transition),
+    color var(--ui-transition),
+    opacity var(--ui-transition);
+}
+
+.device-action-button:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--control-border);
+  color: var(--text);
+}
+
+.device-action-button:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.device-action-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.device-action-button:disabled {
+  cursor: default;
+}
+
+.device-action-button.default.active {
+  background: transparent;
+  color: var(--accent-text);
+  box-shadow: none;
+}
+
+.device-action-button.default.active:hover {
+  background: var(--surface-3);
+  color: var(--accent-text);
+}
+
+.device-action-button .solar-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.device-inline-action.rename-commit-button,
+.device-inline-action.rename-cancel-button {
+  animation: device-rename-action-in 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.device-inline-action.rename-commit-button {
+  color: var(--success);
+}
+
+.device-inline-action.rename-cancel-button {
+  color: var(--danger);
+}
+
+.device-inline-action.rename-commit-button:hover {
+  color: var(--success-hover);
+}
+
+.device-inline-action.rename-cancel-button:hover {
+  color: var(--danger-hover);
+}
+
 .device-toggle-row {
   min-height: 44px;
 }
@@ -405,6 +633,13 @@
   to {
     opacity: 0;
     transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes device-rename-action-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
   }
 }
 

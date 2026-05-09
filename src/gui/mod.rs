@@ -49,11 +49,13 @@ const RECORD_BOLD_ICON: Asset = asset!("/assets/icons/record-bold.svg");
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const SETTINGS_BOLD_ICON: Asset = asset!("/assets/icons/settings-bold.svg");
+const SETTINGS_LINEAR_ICON: Asset = asset!("/assets/icons/settings-linear.svg");
 const SUN_2_LINEAR_ICON: Asset = asset!("/assets/icons/sun-2-linear.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
 const TRASH_BIN_TRASH_LINEAR_ICON: Asset = asset!("/assets/icons/trash-bin-trash-linear.svg");
 const VOLUME_LOUD_BOLD_ICON: Asset = asset!("/assets/icons/volume-loud-bold.svg");
+const PEN_LINEAR_ICON: Asset = asset!("/assets/icons/pen-linear.svg");
 const WIDGET_BOLD_ICON: Asset = asset!("/assets/icons/widget-bold.svg");
 const DEVICE_REFRESH_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -146,6 +148,28 @@ html, body, #main, #root {{
 <style>{icon_style}</style>
 <script>
 (() => {{
+  const disableAutofill = (root = document) => {{
+    root.querySelectorAll('input, textarea').forEach((field) => {{
+      field.setAttribute('autocomplete', 'off');
+      field.setAttribute('autocorrect', 'off');
+      field.setAttribute('autocapitalize', 'off');
+      field.setAttribute('spellcheck', 'false');
+      field.setAttribute('data-lpignore', 'true');
+      field.setAttribute('data-1p-ignore', 'true');
+    }});
+  }};
+
+  disableAutofill();
+  new MutationObserver((mutations) => {{
+    for (const mutation of mutations) {{
+      for (const node of mutation.addedNodes) {{
+        if (node.nodeType === Node.ELEMENT_NODE) {{
+          disableAutofill(node);
+        }}
+      }}
+    }}
+  }}).observe(document.documentElement, {{ childList: true, subtree: true }});
+
   const isHotkeyRecording = () =>
     Boolean(document.querySelector('.hotkey-editor-panel .shortcut-display.recording'));
 
@@ -225,7 +249,10 @@ fn settings_icon_style() -> String {
 .icon-contrast {{ --icon: url("{CONTRAST_ICON}"); }}
 .icon-moon {{ --icon: url("{MOON_LINEAR_ICON}"); }}
 .icon-sun {{ --icon: url("{SUN_2_LINEAR_ICON}"); }}
-.icon-trash {{ --icon: url("{TRASH_BIN_TRASH_LINEAR_ICON}"); }}"#
+.icon-trash {{ --icon: url("{TRASH_BIN_TRASH_LINEAR_ICON}"); }}
+.icon-settings {{ --icon: url("{SETTINGS_LINEAR_ICON}"); }}
+.icon-check {{ --icon: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%221em%22%20height%3D%221em%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22currentColor%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22m5%2012l4%204L19%206%22%2F%3E%3C%2Fsvg%3E'); }}
+.icon-pen {{ --icon: url("{PEN_LINEAR_ICON}"); }}"#
     )
 }
 

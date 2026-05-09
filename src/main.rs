@@ -36,7 +36,7 @@ use windows::{
                 DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QDC_ONLY_ACTIVE_PATHS,
                 QueryDisplayConfig,
             },
-            FunctionDiscovery::PKEY_Device_FriendlyName,
+            FunctionDiscovery::{PKEY_Device_DeviceDesc, PKEY_Device_FriendlyName},
         },
         Foundation::{
             BOOL, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError,
@@ -62,7 +62,8 @@ use windows::{
         System::{
             Com::{
                 CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
-                CoTaskMemFree, STGM_READ,
+                CoTaskMemFree, STGM_READ, STGM_READWRITE,
+                StructuredStorage::PropVariantChangeType,
             },
             LibraryLoader::GetModuleHandleW,
             Registry::{
@@ -71,6 +72,7 @@ use windows::{
             },
             SystemInformation::GetTickCount,
             Threading::CreateMutexW,
+            Variant::VT_LPWSTR,
         },
         UI::{
             HiDpi::{
@@ -1576,6 +1578,8 @@ static SETTINGS_MOUSE_PRESSED_SHORTCUT: Lazy<Mutex<Option<Shortcut>>> =
     Lazy::new(|| Mutex::new(None));
 static TRAY_DEVICE_COMMANDS: Lazy<Mutex<HashMap<usize, TrayDeviceCommand>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
+static NORMALIZED_AUDIO_DEVICE_NAMES: Lazy<Mutex<HashSet<(String, String)>>> =
+    Lazy::new(|| Mutex::new(HashSet::new()));
 static PENDING_NOTIFICATION_ACTION: Lazy<Mutex<Option<NotificationAction>>> =
     Lazy::new(|| Mutex::new(None));
 static SETTINGS_ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
@@ -5087,9 +5091,7 @@ fn endpoint_devices(flow: EDataFlow, fallback_name: &str) -> Result<Vec<AudioDev
         for index in 0..count {
             let device = collection.Item(index).context("get audio endpoint")?;
             let id = endpoint_device_id(&device)?;
-            let raw_name =
-                endpoint_device_name(&device).unwrap_or_else(|| fallback_name.to_string());
-            let (name, system_name) = split_audio_device_name(&raw_name);
+            let (name, system_name) = endpoint_device_display_names(&device, &id, fallback_name);
             let is_default = default_id.as_deref() == Some(id.as_str());
             devices.push(AudioDevice {
                 id,
@@ -5109,6 +5111,70 @@ pub fn set_default_capture_device(device_id: &str) -> Result<()> {
 
 pub fn set_default_render_device(device_id: &str) -> Result<()> {
     set_default_audio_device(device_id)
+}
+
+pub fn open_audio_device_properties(_device_id: &str, input: bool) -> Result<()> {
+    if !_device_id.is_empty() {
+        let target = format!("ms-mmsys:,{_device_id},general");
+        if Command::new("rundll32.exe")
+            .args([
+                "shell32.dll,Control_RunDLL",
+                "mmsys.cpl",
+                target.as_str(),
+            ])
+            .spawn()
+            .is_ok()
+        {
+            return Ok(());
+        }
+    }
+
+    open_audio_device_control_panel(input)
+}
+
+pub fn rename_audio_device(device_id: &str, name: &str) -> Result<()> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let device_id = wide(device_id);
+    unsafe {
+        let enumerator: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+                .context("create audio device enumerator")?;
+        let device = enumerator
+            .GetDevice(PCWSTR(device_id.as_ptr()))
+            .context("get audio endpoint")?;
+        let store = device
+            .OpenPropertyStore(STGM_READWRITE)
+            .context("open audio endpoint property store")?;
+        let value = audio_device_name_propvariant(trimmed)?;
+        store
+            .SetValue(&PKEY_Device_DeviceDesc, &value)
+            .context("rename audio endpoint")?;
+        store.Commit().context("commit audio endpoint rename")?;
+    }
+    Ok(())
+}
+
+fn audio_device_name_propvariant(name: &str) -> Result<PROPVARIANT> {
+    let source_value = PROPVARIANT::from(name);
+    let mut value = PROPVARIANT::default();
+    unsafe {
+        PropVariantChangeType(&mut value, &source_value, Default::default(), VT_LPWSTR)
+            .context("convert audio endpoint name to LPWSTR")?;
+    }
+    Ok(value)
+}
+
+fn open_audio_device_control_panel(input: bool) -> Result<()> {
+    let tab = if input { "1" } else { "0" };
+    Command::new("rundll32.exe")
+        .args(["shell32.dll,Control_RunDLL", &format!("mmsys.cpl,,{tab}")])
+        .spawn()
+        .context("open audio device properties")?;
+    Ok(())
 }
 
 fn set_default_audio_device(device_id: &str) -> Result<()> {
@@ -5169,9 +5235,68 @@ unsafe fn endpoint_device_id(device: &IMMDevice) -> Result<String> {
     Ok(text)
 }
 
-unsafe fn endpoint_device_name(device: &IMMDevice) -> Option<String> {
-    let store = unsafe { device.OpenPropertyStore(STGM_READ).ok()? };
-    let value = unsafe { store.GetValue(&PKEY_Device_FriendlyName).ok()? };
+fn endpoint_device_display_names(
+    device: &IMMDevice,
+    device_id: &str,
+    fallback_name: &str,
+) -> (String, String) {
+    unsafe {
+        let Some(store) = device.OpenPropertyStore(STGM_READ).ok() else {
+            return (fallback_name.to_string(), String::new());
+        };
+        let raw_friendly =
+            endpoint_property_string(&store, &PKEY_Device_FriendlyName).unwrap_or_default();
+        let raw_desc =
+            endpoint_property_string(&store, &PKEY_Device_DeviceDesc).unwrap_or_default();
+        let (friendly_name, friendly_system_name) = split_audio_device_name(&raw_friendly);
+        let raw_desc = raw_desc.trim().to_string();
+        if !raw_desc.is_empty() {
+            normalize_audio_device_name_variant(device, device_id, &raw_desc);
+        }
+
+        let name = if raw_desc.is_empty() {
+            if friendly_name.trim().is_empty() {
+                fallback_name.to_string()
+            } else {
+                friendly_name
+            }
+        } else {
+            raw_desc
+        };
+
+        (name, friendly_system_name)
+    }
+}
+
+fn normalize_audio_device_name_variant(device: &IMMDevice, device_id: &str, name: &str) {
+    let normalized_key = (device_id.to_string(), name.to_string());
+    {
+        let mut normalized = NORMALIZED_AUDIO_DEVICE_NAMES
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if normalized.contains(&normalized_key) {
+            return;
+        }
+        normalized.insert(normalized_key);
+    }
+
+    let Ok(value) = audio_device_name_propvariant(name) else {
+        return;
+    };
+
+    unsafe {
+        if let Ok(store) = device.OpenPropertyStore(STGM_READWRITE) {
+            let _ = store.SetValue(&PKEY_Device_DeviceDesc, &value);
+            let _ = store.Commit();
+        }
+    }
+}
+
+fn endpoint_property_string(
+    store: &windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore,
+    key: &windows::Win32::UI::Shell::PropertiesSystem::PROPERTYKEY,
+) -> Option<String> {
+    let value = unsafe { store.GetValue(key).ok()? };
     let name = value.to_string();
     if name.is_empty() { None } else { Some(name) }
 }

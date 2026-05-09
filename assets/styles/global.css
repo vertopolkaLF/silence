@@ -290,6 +290,17 @@ button:disabled {
   box-shadow: none;
 }
 
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text);
+  box-shadow: 0 0 0 1000px transparent inset;
+  transition: background-color 999999s ease-out, color 999999s ease-out;
+}
+
 .button-icon {
   width: 17px;
   height: 17px;
