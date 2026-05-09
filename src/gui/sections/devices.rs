@@ -118,27 +118,23 @@ fn DeviceListItem(
     mut settings: Signal<super::super::SettingsSnapshot>,
 ) -> Element {
     let mut renaming = use_signal(|| false);
-    let mut draft_name = use_signal(|| device.name.clone());
+    let mut draft_name = use_signal(|| device.pretty_name.clone());
     let default_class = if device.is_default {
         "device-action-button default active"
     } else {
         "device-action-button default"
     };
-    let status_text = if device.is_default {
-        "Windows default"
-    } else {
-        "Available"
-    };
+    let status_text = device.is_default.then_some("Default");
     let icon_class = flow.icon_class();
     let device_id_for_default = device.id.clone();
     let device_id_for_rename_key = device.id.clone();
     let device_id_for_rename_confirm = device.id.clone();
     let device_id_for_properties = device.id.clone();
-    let current_name_for_rename_blur = device.name.clone();
-    let current_name_for_rename_key = device.name.clone();
-    let current_name_for_rename_click = device.name.clone();
-    let current_name_for_rename_confirm = device.name.clone();
-    let current_name_for_rename_cancel = device.name.clone();
+    let current_name_for_rename_blur = device.pretty_name.clone();
+    let current_name_for_rename_key = device.pretty_name.clone();
+    let current_name_for_rename_click = device.pretty_name.clone();
+    let current_name_for_rename_confirm = device.pretty_name.clone();
+    let current_name_for_rename_cancel = device.pretty_name.clone();
     let rename_input_id = format!("device-rename-{}", sanitize_dom_id(&device.id));
     let rename_input_width = rename_input_width_em(&draft_name());
     let item_class = match (device.is_default, renaming()) {
@@ -235,7 +231,9 @@ fn DeviceListItem(
                     } else {
                         span { class: "device-name", "{device.name}" }
                     }
-                    span { class: "device-status", "{status_text}" }
+                    if let Some(status) = status_text {
+                        span { class: "device-status", "{status}" }
+                    }
                 }
             }
 
@@ -306,6 +304,7 @@ fn rename_input_width_em(value: &str) -> String {
 struct DeviceRow {
     id: String,
     name: String,
+    pretty_name: String,
     is_default: bool,
 }
 
@@ -333,7 +332,7 @@ fn input_rows(devices: Vec<crate::MicDevice>, name_display: &str) -> Vec<DeviceR
         .into_iter()
         .map(|device| {
             let name = device.display_name(name_display);
-            device_row(device.id, name, device.is_default)
+            device_row(device.id, name, device.name, device.is_default)
         })
         .collect()
 }
@@ -343,7 +342,7 @@ fn output_rows(devices: Vec<crate::AudioDevice>, name_display: &str) -> Vec<Devi
         .into_iter()
         .map(|device| {
             let name = device.display_name(name_display);
-            device_row(device.id, name, device.is_default)
+            device_row(device.id, name, device.name, device.is_default)
         })
         .collect()
 }
@@ -356,10 +355,11 @@ fn audio_device_name_options() -> Vec<SelectOption> {
     ]
 }
 
-fn device_row(id: String, name: String, is_default: bool) -> DeviceRow {
+fn device_row(id: String, name: String, pretty_name: String, is_default: bool) -> DeviceRow {
     DeviceRow {
         id,
         name,
+        pretty_name,
         is_default,
     }
 }

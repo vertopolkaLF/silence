@@ -148,6 +148,28 @@ html, body, #main, #root {{
 <style>{icon_style}</style>
 <script>
 (() => {{
+  const disableAutofill = (root = document) => {{
+    root.querySelectorAll('input, textarea').forEach((field) => {{
+      field.setAttribute('autocomplete', 'off');
+      field.setAttribute('autocorrect', 'off');
+      field.setAttribute('autocapitalize', 'off');
+      field.setAttribute('spellcheck', 'false');
+      field.setAttribute('data-lpignore', 'true');
+      field.setAttribute('data-1p-ignore', 'true');
+    }});
+  }};
+
+  disableAutofill();
+  new MutationObserver((mutations) => {{
+    for (const mutation of mutations) {{
+      for (const node of mutation.addedNodes) {{
+        if (node.nodeType === Node.ELEMENT_NODE) {{
+          disableAutofill(node);
+        }}
+      }}
+    }}
+  }}).observe(document.documentElement, {{ childList: true, subtree: true }});
+
   const isHotkeyRecording = () =>
     Boolean(document.querySelector('.hotkey-editor-panel .shortcut-display.recording'));
 

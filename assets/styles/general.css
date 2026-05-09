@@ -119,7 +119,7 @@
   align-items: center;
   gap: 12px;
   border-radius: 12px;
-  padding: 8px 14px;
+  padding: 8px 8px 8px 14px;
   background: var(--surface-2);
   transition:
     background var(--ui-transition),
@@ -129,7 +129,7 @@
 }
 
 .device-list-item.active {
-  background: var(--surface-2);
+  background: var(--surface-color-3);
 }
 
 .device-list-item.renaming {
@@ -155,10 +155,9 @@
 
 .device-name-block {
   min-width: 0;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
-  grid-template-rows: 18px 14px;
-  align-items: center;
 }
 
 .device-rename-row {
