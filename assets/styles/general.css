@@ -118,31 +118,18 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--control-border);
-  border-radius: 10px;
-  padding: 8px 10px 8px 12px;
+  border-radius: 12px;
+  padding: 12px 14px;
   background: var(--surface-2);
-  box-shadow: 0 1px 1px var(--shadow-soft);
   transition:
     background var(--ui-transition),
+    border-color var(--ui-transition),
     box-shadow var(--ui-transition),
-    opacity var(--ui-transition),
-    transform var(--ui-transition);
-}
-
-.device-list-item:hover {
-  background: var(--surface-hover);
-  box-shadow: 0 4px 10px var(--shadow-faint);
-  transform: translateY(-1px);
+    opacity var(--ui-transition);
 }
 
 .device-list-item.active {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in oklch, var(--accent) 16%, transparent),
-      color-mix(in oklch, var(--surface-2) 92%, transparent)
-    );
+  background: var(--surface-2);
 }
 
 .device-leading {
@@ -187,6 +174,23 @@
   color: var(--accent-text);
 }
 
+.device-rename-input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid var(--focus);
+  border-radius: 6px;
+  outline: none;
+  padding: 0 8px;
+  background: var(--surface-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.25;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--focus) 18%, transparent);
+}
+
 .device-actions {
   display: flex;
   align-items: center;
@@ -194,34 +198,32 @@
 }
 
 .device-action-button {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--control-border);
+  border: 1px solid transparent;
   border-radius: 8px;
   padding: 0;
-  background: color-mix(in oklch, var(--surface-2) 88%, white);
+  background: transparent;
   color: var(--muted);
-  box-shadow: 0 1px 1px var(--shadow-soft);
+  box-shadow: none;
   transition:
     background var(--ui-transition),
+    border-color var(--ui-transition),
     box-shadow var(--ui-transition),
     color var(--ui-transition),
-    opacity var(--ui-transition),
-    transform var(--ui-transition);
+    opacity var(--ui-transition);
 }
 
 .device-action-button:hover:not(:disabled) {
-  background: var(--surface-hover);
+  background: var(--surface-3);
+  border-color: var(--control-border);
   color: var(--text);
-  box-shadow: 0 4px 10px var(--shadow-faint);
-  transform: translateY(-1px);
 }
 
 .device-action-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 1px var(--shadow-soft);
+  background: var(--surface-2);
 }
 
 .device-action-button:focus-visible {
@@ -234,9 +236,14 @@
 }
 
 .device-action-button.default.active {
-  background: var(--accent);
-  color: var(--on-accent);
-  box-shadow: 0 2px 6px color-mix(in oklch, var(--accent) 24%, transparent);
+  background: transparent;
+  color: var(--accent-text);
+  box-shadow: none;
+}
+
+.device-action-button.default.active:hover {
+  background: var(--surface-3);
+  color: var(--accent-text);
 }
 
 .device-action-button .solar-icon {

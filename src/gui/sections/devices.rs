@@ -111,6 +111,8 @@ fn DeviceListItem(
     flow: DeviceFlow,
     mut settings: Signal<super::super::SettingsSnapshot>,
 ) -> Element {
+    let mut renaming = use_signal(|| false);
+    let mut draft_name = use_signal(|| device.name.clone());
     let default_class = if device.is_default {
         "device-action-button default active"
     } else {
@@ -123,15 +125,60 @@ fn DeviceListItem(
     };
     let icon_class = flow.icon_class();
     let device_id_for_default = device.id.clone();
-    let device_id_for_rename = device.id.clone();
+    let device_id_for_rename_submit = device.id.clone();
+    let device_id_for_rename_key = device.id.clone();
     let device_id_for_properties = device.id.clone();
+    let current_name_for_rename_blur = device.name.clone();
+    let current_name_for_rename_key = device.name.clone();
+    let current_name_for_rename_click = device.name.clone();
 
     rsx! {
         div { class: if device.is_default { "device-list-item active" } else { "device-list-item" },
             div { class: "device-leading",
                 span { class: "solar-icon device-kind-icon {icon_class}" }
                 div { class: "device-name-block",
-                    span { class: "device-name", "{device.name}" }
+                    if renaming() {
+                        input {
+                            class: "device-rename-input",
+                            value: "{draft_name()}",
+                            autofocus: true,
+                            oninput: move |evt| {
+                                draft_name.set(evt.value());
+                            },
+                            onblur: move |_| {
+                                let next_name = draft_name().trim().to_string();
+                                if !next_name.is_empty() && next_name != current_name_for_rename_blur {
+                                    let _ = crate::rename_audio_device(&device_id_for_rename_submit, &next_name);
+                                    let next = settings.peek().clone().refresh(true);
+                                    settings.set(next);
+                                } else {
+                                    draft_name.set(current_name_for_rename_blur.clone());
+                                }
+                                renaming.set(false);
+                            },
+                            onkeydown: move |evt| {
+                                let key = evt.data().key().to_string();
+                                if key == "Enter" {
+                                    evt.prevent_default();
+                                    let next_name = draft_name().trim().to_string();
+                                    if !next_name.is_empty() && next_name != current_name_for_rename_key {
+                                        let _ = crate::rename_audio_device(&device_id_for_rename_key, &next_name);
+                                        let next = settings.peek().clone().refresh(true);
+                                        settings.set(next);
+                                    } else {
+                                        draft_name.set(current_name_for_rename_key.clone());
+                                    }
+                                    renaming.set(false);
+                                } else if key == "Escape" {
+                                    evt.prevent_default();
+                                    draft_name.set(current_name_for_rename_key.clone());
+                                    renaming.set(false);
+                                }
+                            }
+                        }
+                    } else {
+                        span { class: "device-name", "{device.name}" }
+                    }
                     span { class: "device-status", "{status_text}" }
                 }
             }
@@ -157,7 +204,7 @@ fn DeviceListItem(
                         let next = settings.peek().clone().refresh(true);
                         settings.set(next);
                     },
-                    span { class: "solar-icon icon-shield-check" }
+                    span { class: "solar-icon icon-check" }
                 }
 
                 button {
@@ -165,7 +212,8 @@ fn DeviceListItem(
                     class: "device-action-button",
                     title: "Rename",
                     onclick: move |_| {
-                        let _ = crate::open_audio_device_rename(&device_id_for_rename, flow.is_input());
+                        draft_name.set(current_name_for_rename_click.clone());
+                        renaming.set(true);
                     },
                     span { class: "solar-icon icon-pen" }
                 }
