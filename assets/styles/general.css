@@ -107,6 +107,143 @@
   gap: 16px;
 }
 
+.device-list {
+  display: grid;
+  gap: 8px;
+}
+
+.device-list-item {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  padding: 8px 10px 8px 12px;
+  background: var(--surface-2);
+  box-shadow: 0 1px 1px var(--shadow-soft);
+  transition:
+    background var(--ui-transition),
+    box-shadow var(--ui-transition),
+    opacity var(--ui-transition),
+    transform var(--ui-transition);
+}
+
+.device-list-item:hover {
+  background: var(--surface-hover);
+  box-shadow: 0 4px 10px var(--shadow-faint);
+  transform: translateY(-1px);
+}
+
+.device-list-item.active {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--accent) 16%, transparent),
+      color-mix(in oklch, var(--surface-2) 92%, transparent)
+    );
+}
+
+.device-leading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.device-kind-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  color: var(--accent-text);
+}
+
+.device-name-block {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.device-name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.2;
+  transition: color var(--ui-transition);
+}
+
+.device-list-item.active .device-status {
+  color: var(--accent-text);
+}
+
+.device-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.device-action-button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  padding: 0;
+  background: color-mix(in oklch, var(--surface-2) 88%, white);
+  color: var(--muted);
+  box-shadow: 0 1px 1px var(--shadow-soft);
+  transition:
+    background var(--ui-transition),
+    box-shadow var(--ui-transition),
+    color var(--ui-transition),
+    opacity var(--ui-transition),
+    transform var(--ui-transition);
+}
+
+.device-action-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+  box-shadow: 0 4px 10px var(--shadow-faint);
+  transform: translateY(-1px);
+}
+
+.device-action-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 1px var(--shadow-soft);
+}
+
+.device-action-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.device-action-button:disabled {
+  cursor: default;
+}
+
+.device-action-button.default.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 2px 6px color-mix(in oklch, var(--accent) 24%, transparent);
+}
+
+.device-action-button .solar-icon {
+  width: 17px;
+  height: 17px;
+}
+
 .device-toggle-row {
   min-height: 44px;
 }

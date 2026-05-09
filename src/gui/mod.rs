@@ -49,11 +49,14 @@ const RECORD_BOLD_ICON: Asset = asset!("/assets/icons/record-bold.svg");
 const SOUNDS_CSS: Asset = asset!("/assets/styles/sounds.css", AssetOptions::css());
 const SETTINGS_ICON: Asset = asset!("/assets/icons/codicon_settings-gear.svg");
 const SETTINGS_BOLD_ICON: Asset = asset!("/assets/icons/settings-bold.svg");
+const SETTINGS_LINEAR_ICON: Asset = asset!("/assets/icons/settings-linear.svg");
+const SHIELD_CHECK_LINEAR_ICON: Asset = asset!("/assets/icons/shield-check-linear.svg");
 const SUN_2_LINEAR_ICON: Asset = asset!("/assets/icons/sun-2-linear.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
 const TRASH_BIN_TRASH_LINEAR_ICON: Asset = asset!("/assets/icons/trash-bin-trash-linear.svg");
 const VOLUME_LOUD_BOLD_ICON: Asset = asset!("/assets/icons/volume-loud-bold.svg");
+const MAGIC_STICK_3_LINEAR_ICON: Asset = asset!("/assets/icons/magic-stick-3-linear.svg");
 const WIDGET_BOLD_ICON: Asset = asset!("/assets/icons/widget-bold.svg");
 const DEVICE_REFRESH_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -225,7 +228,10 @@ fn settings_icon_style() -> String {
 .icon-contrast {{ --icon: url("{CONTRAST_ICON}"); }}
 .icon-moon {{ --icon: url("{MOON_LINEAR_ICON}"); }}
 .icon-sun {{ --icon: url("{SUN_2_LINEAR_ICON}"); }}
-.icon-trash {{ --icon: url("{TRASH_BIN_TRASH_LINEAR_ICON}"); }}"#
+.icon-trash {{ --icon: url("{TRASH_BIN_TRASH_LINEAR_ICON}"); }}
+.icon-settings {{ --icon: url("{SETTINGS_LINEAR_ICON}"); }}
+.icon-shield-check {{ --icon: url("{SHIELD_CHECK_LINEAR_ICON}"); }}
+.icon-pen {{ --icon: url("{MAGIC_STICK_3_LINEAR_ICON}"); }}"#
     )
 }
 

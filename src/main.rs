@@ -5111,6 +5111,23 @@ pub fn set_default_render_device(device_id: &str) -> Result<()> {
     set_default_audio_device(device_id)
 }
 
+pub fn open_audio_device_rename(_device_id: &str, input: bool) -> Result<()> {
+    open_audio_device_control_panel(input)
+}
+
+pub fn open_audio_device_properties(_device_id: &str, input: bool) -> Result<()> {
+    open_audio_device_control_panel(input)
+}
+
+fn open_audio_device_control_panel(input: bool) -> Result<()> {
+    let tab = if input { "1" } else { "0" };
+    Command::new("rundll32.exe")
+        .args(["shell32.dll,Control_RunDLL", &format!("mmsys.cpl,,{tab}")])
+        .spawn()
+        .context("open audio device properties")?;
+    Ok(())
+}
+
 fn set_default_audio_device(device_id: &str) -> Result<()> {
     let device_id = wide(device_id);
     unsafe {
