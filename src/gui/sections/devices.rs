@@ -140,7 +140,7 @@ fn DeviceListItem(
     let current_name_for_rename_confirm = device.name.clone();
     let current_name_for_rename_cancel = device.name.clone();
     let rename_input_id = format!("device-rename-{}", sanitize_dom_id(&device.id));
-    let rename_input_width = rename_input_width_ch(&draft_name());
+    let rename_input_width = rename_input_width_em(&draft_name());
     let item_class = match (device.is_default, renaming()) {
         (true, true) => "device-list-item active renaming",
         (true, false) => "device-list-item active",
@@ -158,7 +158,7 @@ fn DeviceListItem(
                             input {
                                 id: "{rename_input_id}",
                                 class: "device-rename-input",
-                                style: "width: {rename_input_width}ch;",
+                                style: "width: {rename_input_width}em;",
                                 value: "{draft_name()}",
                                 autofocus: true,
                                 onmounted: move |_| {
@@ -297,8 +297,9 @@ fn sanitize_dom_id(value: &str) -> String {
         .collect()
 }
 
-fn rename_input_width_ch(value: &str) -> usize {
-    value.chars().count().clamp(2, 32) + 2
+fn rename_input_width_em(value: &str) -> String {
+    let width = (value.chars().count() as f32 * 0.54 + 0.65).clamp(1.8, 20.0);
+    format!("{width:.2}")
 }
 
 #[derive(Clone, PartialEq)]
