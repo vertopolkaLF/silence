@@ -3,8 +3,8 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     ffi::c_void,
-    fs,
-    io::Cursor,
+    fs::{self, OpenOptions},
+    io::{Cursor, Write},
     mem::size_of,
     path::{Path, PathBuf},
     process::Command,
@@ -14,7 +14,7 @@ use std::{
         atomic::{AtomicBool, AtomicIsize, Ordering},
     },
     thread,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::{Context, Result};
@@ -62,8 +62,7 @@ use windows::{
         System::{
             Com::{
                 CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
-                CoTaskMemFree, STGM_READ, STGM_READWRITE,
-                StructuredStorage::PropVariantChangeType,
+                CoTaskMemFree, STGM_READ, STGM_READWRITE, StructuredStorage::PropVariantChangeType,
             },
             LibraryLoader::GetModuleHandleW,
             Registry::{
@@ -794,6 +793,12 @@ pub(crate) fn settings_mica_available() -> bool {
         .unwrap_or(false)
 }
 
+fn settings_no_redirection_bitmap_available() -> bool {
+    windows_build_number()
+        .map(|build| build >= 22_000)
+        .unwrap_or(false)
+}
+
 pub(crate) fn effective_settings_mica_enabled(config: &Config) -> bool {
     config.advanced.enable_mica && settings_mica_available()
 }
@@ -821,6 +826,25 @@ fn windows_build_number() -> Option<u32> {
         .position(|value| *value == 0)
         .unwrap_or(data.len());
     String::from_utf16_lossy(&data[..len]).parse().ok()
+}
+
+fn log_line(message: impl AsRef<str>) {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| format!("{}.{:03}", duration.as_secs(), duration.subsec_millis()))
+        .unwrap_or_else(|_| "time-error".to_string());
+    let thread_id = format!("{:?}", thread::current().id());
+
+    if let Some(file) = LOG_FILE.as_ref() {
+        if let Ok(mut file) = file.lock() {
+            let _ = writeln!(file, "[{timestamp}] [{thread_id}] {}", message.as_ref());
+            let _ = file.flush();
+        }
+    }
+}
+
+fn log_error(message: impl AsRef<str>, err: impl std::fmt::Debug) {
+    log_line(format!("{}: {err:?}", message.as_ref()));
 }
 
 struct AppState {
@@ -1571,6 +1595,20 @@ static TRAY_ICON_ADDED: AtomicBool = AtomicBool::new(false);
 static SETTINGS_MICA_ENABLED: AtomicBool = AtomicBool::new(false);
 static TASKBAR_CREATED_MESSAGE: Lazy<u32> =
     Lazy::new(|| unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) });
+
+static LOG_FILE: Lazy<Option<Mutex<fs::File>>> = Lazy::new(|| {
+    let path = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|parent| parent.join("log.txt")))
+        .unwrap_or_else(|| PathBuf::from("log.txt"));
+
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .ok()
+        .map(Mutex::new)
+});
 static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
 static SETTINGS_MOUSE_HELD: Lazy<Mutex<Vec<u32>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -1700,12 +1738,19 @@ fn shortcut_is_alt_space(shortcut: &Shortcut) -> bool {
 
 pub(crate) fn install_settings_window_guard(hwnd: isize) {
     if hwnd == 0 || SETTINGS_ORIGINAL_WNDPROC.load(Ordering::Relaxed) != 0 {
+        log_line(format!(
+            "settings window guard skipped; hwnd={hwnd}; original_wndproc={}",
+            SETTINGS_ORIGINAL_WNDPROC.load(Ordering::Relaxed)
+        ));
         return;
     }
 
     let mica_enabled = load_config()
         .map(|config| effective_settings_mica_enabled(&config))
         .unwrap_or_default();
+    log_line(format!(
+        "installing settings window guard; hwnd={hwnd}; mica_enabled={mica_enabled}"
+    ));
     SETTINGS_MICA_ENABLED.store(mica_enabled, Ordering::Relaxed);
     apply_settings_backdrop(HWND(hwnd as *mut c_void), mica_enabled);
 
@@ -1718,6 +1763,11 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
     };
     if previous != 0 {
         SETTINGS_ORIGINAL_WNDPROC.store(previous as isize, Ordering::Relaxed);
+        log_line(format!(
+            "settings window guard installed; previous_wndproc={previous}"
+        ));
+    } else {
+        log_line("settings window guard failed to capture previous wndproc");
     }
 }
 
@@ -1732,6 +1782,10 @@ pub(crate) fn set_settings_mica_enabled(enabled: bool) {
 
 fn apply_settings_backdrop(hwnd: HWND, enabled: bool) {
     let enabled = enabled && settings_mica_available();
+    log_line(format!(
+        "applying settings backdrop; hwnd={:?}; mica_enabled={enabled}",
+        hwnd.0
+    ));
     unsafe {
         let use_dark_mode = 1_i32;
         let _ = DwmSetWindowAttribute(
@@ -1769,6 +1823,13 @@ unsafe extern "system" fn settings_window_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    if matches!(msg, WM_CLOSE | WM_DESTROY) {
+        log_line(format!(
+            "settings_window_proc: msg={msg}; hwnd={:?}; wparam={}; lparam={}",
+            hwnd.0, wparam.0, lparam.0
+        ));
+    }
+
     if msg == WM_SYSCOMMAND && (wparam.0 & 0xfff0) == SC_KEYMENU as usize {
         if SETTINGS_HOTKEY_RECORDING.load(Ordering::Relaxed) {
             SETTINGS_ALT_SPACE_RECORDED.store(true, Ordering::Relaxed);
@@ -1931,18 +1992,42 @@ const SOUND_THEMES: &[SoundTheme] = &[
 ];
 
 fn main() -> Result<()> {
+    let args = std::env::args().collect::<Vec<_>>();
+    log_line(format!(
+        "process start; version={}; exe={:?}; args={:?}; windows_build={:?}",
+        env!("CARGO_PKG_VERSION"),
+        std::env::current_exe().ok(),
+        args,
+        windows_build_number()
+    ));
     set_dpi_awareness();
+    log_line("dpi awareness configured");
 
-    if let Some(action) = notification_action_from_args(std::env::args().skip(1)) {
+    if let Some(action) = notification_action_from_args(args.iter().skip(1).cloned()) {
+        log_line(format!(
+            "notification/protocol action parsed from args: {action:?}"
+        ));
         if dispatch_notification_action(action) {
+            log_line("notification/protocol action dispatched to existing background instance");
             return Ok(());
         }
+        log_line(
+            "no background instance for notification/protocol action; queueing for this process",
+        );
         PENDING_NOTIFICATION_ACTION.lock().unwrap().replace(action);
     }
 
-    if std::env::args().any(|arg| arg == "--settings") {
+    if args.iter().any(|arg| arg == "--settings") {
+        log_line("settings mode requested");
         let settings_mutex = unsafe { CreateMutexW(None, true, w!("SilenceV2SettingsWindow"))? };
-        if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+        let settings_mutex_last_error = unsafe { GetLastError() };
+        log_line(format!(
+            "settings mutex created; last_error={settings_mutex_last_error:?}"
+        ));
+        if settings_mutex_last_error == ERROR_ALREADY_EXISTS {
+            log_line(
+                "settings window mutex already exists; trying to focus existing settings window",
+            );
             focus_settings_window();
             return Ok(());
         }
@@ -1950,8 +2035,14 @@ fn main() -> Result<()> {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
         }
+        log_line("COM initialized for settings process");
         let settings_window_size = LogicalSize::new(760.0, 590.0);
         let settings_window_position = centered_window_position(settings_window_size);
+        let no_redirection_bitmap = settings_no_redirection_bitmap_available();
+        log_line(format!(
+            "settings window config; size=760x590; position=({}, {}); no_redirection_bitmap={}",
+            settings_window_position.x, settings_window_position.y, no_redirection_bitmap
+        ));
         let cfg = DesktopConfig::new()
             .with_window(
                 WindowBuilder::new()
@@ -1959,7 +2050,7 @@ fn main() -> Result<()> {
                     .with_decorations(false)
                     .with_resizable(true)
                     .with_transparent(true)
-                    .with_no_redirection_bitmap(true)
+                    .with_no_redirection_bitmap(no_redirection_bitmap)
                     .with_visible(false)
                     .with_inner_size(settings_window_size)
                     .with_min_inner_size(settings_window_size)
@@ -1973,27 +2064,47 @@ fn main() -> Result<()> {
             .with_background_color((0, 0, 0, 0));
         MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
         install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
+        log_line("settings mouse hook installed; launching Dioxus settings app");
         dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(|| {
             if gamepad_monitoring_needed(false) {
+                log_line("settings app requires gamepad monitors; starting them");
                 ensure_gamepad_monitors(false);
             }
+            log_line("settings app root created");
             gui::settings_app()
         });
+        log_line("settings app event loop exited");
         let _settings_mutex = settings_mutex;
         return Ok(());
     }
 
+    log_line("background mode requested");
     let main_mutex = unsafe { CreateMutexW(None, true, MAIN_INSTANCE_MUTEX)? };
-    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+    let main_mutex_last_error = unsafe { GetLastError() };
+    log_line(format!(
+        "main mutex created; last_error={main_mutex_last_error:?}"
+    ));
+    if main_mutex_last_error == ERROR_ALREADY_EXISTS {
+        log_line("main instance already exists");
         if let Some(action) = PENDING_NOTIFICATION_ACTION.lock().unwrap().take() {
+            log_line(format!(
+                "dispatching pending action to existing instance: {action:?}"
+            ));
             dispatch_notification_action(action);
         } else {
+            log_line("no pending action; asking existing instance to open settings");
             dispatch_notification_action(NotificationAction::OpenSettings);
         }
         return Ok(());
     }
 
+    log_line("starting background app");
     let result = run_background_app();
+    if let Err(err) = &result {
+        log_error("background app exited with error", err);
+    } else {
+        log_line("background app exited cleanly");
+    }
     let _main_mutex = main_mutex;
     result
 }
@@ -2070,6 +2181,9 @@ fn hidden_window() -> Option<HWND> {
 
 fn dispatch_notification_action(action: NotificationAction) -> bool {
     let Some(hwnd) = hidden_window() else {
+        log_line(format!(
+            "dispatch_notification_action: no hidden window for {action:?}"
+        ));
         return false;
     };
     let message = match action {
@@ -2082,9 +2196,14 @@ fn dispatch_notification_action(action: NotificationAction) -> bool {
         NotificationAction::WhatsNew => WM_WHATS_NEW,
         NotificationAction::ExitAll => WM_EXIT_ALL,
     };
+    log_line(format!(
+        "dispatch_notification_action: sending {action:?} as message={message} to hwnd={:?}",
+        hwnd.0
+    ));
     unsafe {
         let _ = SendMessageW(hwnd, message, WPARAM(0), LPARAM(0));
     }
+    log_line(format!("dispatch_notification_action: sent {action:?}"));
     true
 }
 
@@ -2096,6 +2215,7 @@ fn apply_pending_notification_action() {
 }
 
 fn handle_notification_action(action: NotificationAction) {
+    log_line(format!("handling notification action: {action:?}"));
     match action {
         NotificationAction::ToggleMute => toggle_mute(),
         NotificationAction::Mute => set_mute_target(None, true),
@@ -2109,7 +2229,9 @@ fn handle_notification_action(action: NotificationAction) {
 }
 
 fn register_notification_integration() {
+    log_line("registering notification integration");
     if let Err(err) = register_protocol_handler() {
+        log_error("failed to register notification protocol handler", &err);
         eprintln!("failed to register notification protocol handler: {err:?}");
     }
     if let Err(err) = winrt_toast::register(
@@ -2117,8 +2239,10 @@ fn register_notification_integration() {
         "silence!",
         notification_icon_path().as_deref(),
     ) {
+        log_error("failed to register toast app id", &err);
         eprintln!("failed to register toast app id: {err:?}");
     }
+    log_line("notification integration registration finished");
 }
 
 fn notification_icon_path() -> Option<PathBuf> {
@@ -2448,13 +2572,25 @@ fn xinput_button_inputs() -> [(u16, GamepadInput); 14] {
 }
 
 fn run_background_app() -> Result<()> {
+    log_line("run_background_app: begin");
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
     }
+    log_line("run_background_app: COM initialized");
     let instance = unsafe { GetModuleHandleW(None)? };
+    log_line(format!(
+        "run_background_app: module handle={:?}",
+        instance.0
+    ));
     register_class(instance.into())?;
+    log_line("run_background_app: hidden window class registered");
     let hwnd = create_message_window(instance.into())?;
+    log_line(format!(
+        "run_background_app: hidden window created; hwnd={:?}",
+        hwnd.0
+    ));
     let muted = current_mute_state().unwrap_or(false);
+    log_line(format!("run_background_app: initial mute state={muted}"));
     let overlay_config = STATE.lock().unwrap().overlay.clone();
     {
         let mut state = STATE.lock().unwrap();
@@ -2462,30 +2598,46 @@ fn run_background_app() -> Result<()> {
         state.muted = muted;
     }
     register_notification_integration();
+    log_line("run_background_app: cleaning update downloads");
     updater::cleanup_downloads_after_startup();
+    log_line("run_background_app: maybe showing updated notification");
     maybe_show_updated_notification();
     if !launched_from_installer() && !development_tools_enabled() {
+        log_line("run_background_app: starting update check");
         start_update_check();
+    } else {
+        log_line("run_background_app: update check skipped");
     }
     let sound_settings = STATE.lock().unwrap().sound_settings.clone();
+    log_line("run_background_app: initializing native overlay");
     native_overlay::init(instance.into(), muted, &overlay_config)?;
     apply_overlay_visibility();
+    log_line("run_background_app: native overlay initialized and visibility applied");
     prime_sound_assets(&sound_settings);
+    log_line("run_background_app: sound assets primed");
 
     install_keyboard_hook(instance.into())?;
+    log_line("run_background_app: keyboard hook installed");
     install_mouse_hook(instance.into())?;
+    log_line("run_background_app: mouse hook installed");
     if gamepad_monitoring_needed(true) {
+        log_line("run_background_app: starting gamepad monitors");
         ensure_gamepad_monitors(true);
     }
     add_tray_icon(hwnd)?;
+    log_line("run_background_app: tray icon added");
     if !STATE.lock().unwrap().welcome_completed {
+        log_line("run_background_app: welcome not completed; opening settings");
         open_settings_window();
     }
     apply_startup_auto_mute();
+    log_line("run_background_app: startup auto-mute applied");
     apply_pending_notification_action();
+    log_line("run_background_app: pending notification action applied");
     unsafe {
         let _ = SetTimer(hwnd, ID_STATE_TIMER, 250, None);
     }
+    log_line("run_background_app: state timer installed; entering message loop");
 
     unsafe {
         let mut msg = MSG::default();
@@ -2495,7 +2647,9 @@ fn run_background_app() -> Result<()> {
         }
     }
 
+    log_line("run_background_app: message loop exited; cleanup begin");
     cleanup();
+    log_line("run_background_app: cleanup finished");
     Ok(())
 }
 
@@ -2510,10 +2664,12 @@ fn register_class(instance: HINSTANCE) -> Result<()> {
         };
         RegisterClassW(&class);
     }
+    log_line("register_class: RegisterClassW called for SilenceV2Hidden");
     Ok(())
 }
 
 fn create_message_window(instance: HINSTANCE) -> Result<HWND> {
+    log_line("create_message_window: creating hidden window");
     let hwnd = unsafe {
         CreateWindowExW(
             WINDOW_EX_STYLE::default(),
@@ -2531,22 +2687,34 @@ fn create_message_window(instance: HINSTANCE) -> Result<HWND> {
         )
     }?;
     if hwnd.0.is_null() {
+        log_line("create_message_window: CreateWindowExW returned null hwnd");
         anyhow::bail!("failed to create hidden window");
     }
+    log_line(format!(
+        "create_message_window: hidden window hwnd={:?}",
+        hwnd.0
+    ));
     Ok(hwnd)
 }
 
 fn install_keyboard_hook(instance: HINSTANCE) -> Result<()> {
+    log_line("install_keyboard_hook: installing low-level keyboard hook");
     let hook = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), instance, 0) }
         .context("install low-level keyboard hook")?;
     STATE.lock().unwrap().hook = hook;
+    log_line(format!(
+        "install_keyboard_hook: installed hook={:?}",
+        hook.0
+    ));
     Ok(())
 }
 
 fn install_mouse_hook(instance: HINSTANCE) -> Result<()> {
+    log_line("install_mouse_hook: installing low-level mouse hook");
     let hook = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), instance, 0) }
         .context("install low-level mouse hook")?;
     STATE.lock().unwrap().mouse_hook = hook;
+    log_line(format!("install_mouse_hook: installed hook={:?}", hook.0));
     Ok(())
 }
 
@@ -3225,6 +3393,7 @@ unsafe extern "system" fn main_wnd_proc(
 
     match msg {
         WM_TRAY => {
+            log_line(format!("main_wnd_proc: WM_TRAY lparam={}", lparam.0));
             match lparam.0 as u32 {
                 WM_RBUTTONUP => show_tray_menu(hwnd),
                 WM_LBUTTONUP => handle_tray_left_click(hwnd),
@@ -3234,6 +3403,10 @@ unsafe extern "system" fn main_wnd_proc(
             LRESULT(0)
         }
         WM_COMMAND => {
+            log_line(format!(
+                "main_wnd_proc: WM_COMMAND command_id={}",
+                wparam.0 & 0xffff
+            ));
             handle_tray_menu_command(wparam.0 & 0xffff);
             LRESULT(0)
         }
@@ -3268,18 +3441,22 @@ unsafe extern "system" fn main_wnd_proc(
             LRESULT(0)
         }
         WM_OPEN_SETTINGS => {
+            log_line("main_wnd_proc: WM_OPEN_SETTINGS received");
             launch_settings_window(Some("--about"));
             LRESULT(0)
         }
         WM_UPDATE_NOW => {
+            log_line("main_wnd_proc: WM_UPDATE_NOW received");
             launch_settings_window(Some("--about-update"));
             LRESULT(0)
         }
         WM_EXIT_ALL => {
+            log_line("main_wnd_proc: WM_EXIT_ALL received");
             exit_all_processes();
             LRESULT(0)
         }
         WM_WHATS_NEW => {
+            log_line("main_wnd_proc: WM_WHATS_NEW received");
             open_last_update_release();
             LRESULT(0)
         }
@@ -3308,6 +3485,7 @@ unsafe extern "system" fn main_wnd_proc(
             LRESULT(0)
         }
         WM_DESTROY => {
+            log_line("main_wnd_proc: WM_DESTROY received; posting quit");
             unsafe { PostQuitMessage(0) };
             LRESULT(0)
         }
@@ -3615,6 +3793,7 @@ fn handle_tray_device_command(command_id: usize) {
 }
 
 fn handle_tray_menu_command(command_id: usize) {
+    log_line(format!("handle_tray_menu_command: command_id={command_id}"));
     match command_id {
         ID_MENU_TOGGLE => toggle_mute(),
         ID_MENU_SETTINGS => open_settings_window(),
@@ -3626,18 +3805,32 @@ fn handle_tray_menu_command(command_id: usize) {
 }
 
 fn open_settings_window() {
+    log_line("open_settings_window: requested");
     if focus_settings_window() {
+        log_line("open_settings_window: existing settings window focused");
         return;
     }
 
+    log_line("open_settings_window: no existing settings window; launching new process");
     launch_settings_window(None);
 }
 
 fn launch_settings_window(tab_arg: Option<&str>) {
-    let Ok(exe) = std::env::current_exe() else {
-        return;
+    log_line(format!(
+        "launch_settings_window: requested; tab_arg={tab_arg:?}"
+    ));
+    let exe = match std::env::current_exe() {
+        Ok(exe) => exe,
+        Err(err) => {
+            log_error(
+                "launch_settings_window: failed to resolve current exe",
+                &err,
+            );
+            return;
+        }
     };
     if tab_arg == Some("--about-update") {
+        log_line("launch_settings_window: closing existing settings before update tab");
         close_settings_window();
     }
     let mut command = Command::new(exe);
@@ -3645,43 +3838,75 @@ fn launch_settings_window(tab_arg: Option<&str>) {
     if let Some(tab_arg) = tab_arg {
         command.arg(tab_arg);
     }
-    let _ = command.spawn();
+    log_line(format!(
+        "launch_settings_window: spawning command={command:?}"
+    ));
+    match command.spawn() {
+        Ok(child) => log_line(format!(
+            "launch_settings_window: spawned settings process; pid={}",
+            child.id()
+        )),
+        Err(err) => log_error(
+            "launch_settings_window: failed to spawn settings process",
+            &err,
+        ),
+    }
 }
 
 fn focus_settings_window() -> bool {
+    log_line("focus_settings_window: searching settings window by title");
     let title = wide(SETTINGS_WINDOW_TITLE);
     let hwnd = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) };
     let Ok(hwnd) = hwnd else {
+        log_line("focus_settings_window: FindWindowW returned error");
         return false;
     };
 
     if hwnd.0.is_null() {
+        log_line("focus_settings_window: settings window not found");
         return false;
     }
 
+    log_line(format!(
+        "focus_settings_window: found hwnd={:?}; showing and foregrounding",
+        hwnd.0
+    ));
     unsafe {
         let _ = ShowWindow(hwnd, SW_SHOW);
         if IsIconic(hwnd).as_bool() {
+            log_line("focus_settings_window: window is iconic; restoring");
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
-        SetForegroundWindow(hwnd).as_bool()
+        let focused = SetForegroundWindow(hwnd).as_bool();
+        log_line(format!(
+            "focus_settings_window: SetForegroundWindow={focused}"
+        ));
+        focused
     }
 }
 
 fn close_settings_window() {
+    log_line("close_settings_window: requested");
     let title = wide(SETTINGS_WINDOW_TITLE);
     let Ok(hwnd) = (unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }) else {
+        log_line("close_settings_window: FindWindowW returned error");
         return;
     };
     if hwnd.0.is_null() {
+        log_line("close_settings_window: settings window not found");
         return;
     }
+    log_line(format!(
+        "close_settings_window: sending WM_CLOSE to hwnd={:?}",
+        hwnd.0
+    ));
     unsafe {
         let _ = SendMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
     }
 }
 
 pub fn request_exit_all_processes() {
+    log_line("request_exit_all_processes: requested");
     if dispatch_notification_action(NotificationAction::ExitAll) {
         return;
     }
@@ -3689,11 +3914,17 @@ pub fn request_exit_all_processes() {
 }
 
 fn exit_all_processes() {
+    log_line("exit_all_processes: requested");
     close_settings_window();
     let hwnd = STATE.lock().unwrap().hwnd;
     if hwnd.0.is_null() {
+        log_line("exit_all_processes: background hwnd is null");
         return;
     }
+    log_line(format!(
+        "exit_all_processes: destroying background hwnd={:?}",
+        hwnd.0
+    ));
     unsafe {
         let _ = DestroyWindow(hwnd);
     }
@@ -5117,11 +5348,7 @@ pub fn open_audio_device_properties(_device_id: &str, input: bool) -> Result<()>
     if !_device_id.is_empty() {
         let target = format!("ms-mmsys:,{_device_id},general");
         if Command::new("rundll32.exe")
-            .args([
-                "shell32.dll,Control_RunDLL",
-                "mmsys.cpl",
-                target.as_str(),
-            ])
+            .args(["shell32.dll,Control_RunDLL", "mmsys.cpl", target.as_str()])
             .spawn()
             .is_ok()
         {
