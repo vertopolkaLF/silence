@@ -18,11 +18,12 @@ use windows::{
         UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI},
         UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON},
         UI::WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, GWL_EXSTYLE, GetCursorPos,
+            CS_DBLCLKS, CreateWindowExW, DefWindowProcW, DestroyWindow, GWL_EXSTYLE, GetCursorPos,
             GetWindowLongW, HWND_TOPMOST, IDC_ARROW, IDC_SIZEALL, KillTimer, LoadCursorW,
             RegisterClassW, SW_HIDE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
             SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_SHOWWINDOW, SetCursor, SetTimer, SetWindowLongW,
-            SetWindowPos, ShowWindow, ULW_ALPHA, UpdateLayeredWindow, WM_ERASEBKGND, WM_PAINT,
+            SetWindowPos, ShowWindow, ULW_ALPHA, UpdateLayeredWindow, WM_ERASEBKGND,
+            WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_MBUTTONUP, WM_MOUSEWHEEL, WM_PAINT, WM_RBUTTONUP,
             WM_SETCURSOR, WM_TIMER, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
             WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
         },
@@ -37,6 +38,8 @@ const CONTENT_TRANSITION_MS: u32 = 300;
 const CONTENT_TRANSITION_STEPS: u32 = 18;
 const ID_CONTENT_TRANSITION_TIMER: usize = 30;
 const ID_WINDOW_FADE_TIMER: usize = 31;
+const ID_SINGLE_CLICK_TIMER: usize = 32;
+const SINGLE_CLICK_DELAY_MS: u32 = 260;
 static OVERLAY: Lazy<Mutex<Option<NativeOverlay>>> = Lazy::new(|| Mutex::new(None));
 static ICON_MASK_CACHE: Lazy<Mutex<HashMap<(String, bool, u32), Vec<u8>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -75,6 +78,8 @@ struct NativeOverlay {
     was_mouse_down: bool,
     awaiting_initial_release: bool,
     visible: bool,
+    pending_single_click: bool,
+    suppress_next_left_up: bool,
 }
 
 unsafe impl Send for NativeOverlay {}
@@ -87,6 +92,7 @@ pub fn init(instance: HINSTANCE, muted: bool, settings: &crate::OverlayConfig) -
 
     unsafe {
         let class = WNDCLASSW {
+            style: CS_DBLCLKS,
             hCursor: LoadCursorW(None, IDC_ARROW)?,
             hInstance: instance,
             lpszClassName: CLASS_NAME,
@@ -141,8 +147,11 @@ pub fn init(instance: HINSTANCE, muted: bool, settings: &crate::OverlayConfig) -
         was_mouse_down: false,
         awaiting_initial_release: false,
         visible: false,
+        pending_single_click: false,
+        suppress_next_left_up: false,
     };
     native.apply_layout();
+    native.apply_click_through();
     *overlay = Some(native);
     Ok(())
 }
@@ -152,6 +161,7 @@ pub fn update(muted: bool, settings: &crate::OverlayConfig) {
         let next_muted = displayed_mute_state(muted, settings);
         let previous_muted = overlay.muted;
         overlay.settings = settings.clone();
+        overlay.apply_click_through();
         if previous_muted != next_muted {
             overlay.start_content_transition(previous_muted, next_muted);
         } else {
@@ -199,7 +209,7 @@ pub fn set_positioning(active: bool) -> Option<(f64, f64)> {
         overlay.dragging = false;
         overlay.was_mouse_down = false;
         overlay.awaiting_initial_release = active && mouse_down();
-        overlay.set_click_through(!active || overlay.awaiting_initial_release);
+        overlay.apply_click_through();
         if active {
             overlay.apply_layout();
             overlay.show();
@@ -451,7 +461,7 @@ impl NativeOverlay {
         if self.awaiting_initial_release {
             if !mouse_down {
                 self.awaiting_initial_release = false;
-                self.set_click_through(false);
+                self.apply_click_through();
             }
             self.was_mouse_down = mouse_down;
             return None;
@@ -540,6 +550,12 @@ impl NativeOverlay {
                 SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER,
             );
         }
+    }
+
+    fn apply_click_through(&self) {
+        let button_mode = self.settings.behaviour == "Button";
+        let click_through = (!self.positioning && !button_mode) || self.awaiting_initial_release;
+        self.set_click_through(click_through);
     }
 
     fn repaint(&self) {
@@ -965,8 +981,97 @@ unsafe extern "system" fn overlay_wnd_proc(
             }
             LRESULT(0)
         }
+        WM_TIMER if wparam.0 == ID_SINGLE_CLICK_TIMER => {
+            let action = {
+                let mut guard = OVERLAY.lock().unwrap();
+                if let Some(overlay) = guard.as_mut() {
+                    unsafe {
+                        let _ = KillTimer(overlay.hwnd, ID_SINGLE_CLICK_TIMER);
+                    }
+                    if overlay.pending_single_click {
+                        overlay.pending_single_click = false;
+                        overlay.settings.single_click_action
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+            if let Some(action) = action {
+                crate::run_overlay_action(action);
+            }
+            LRESULT(0)
+        }
+        WM_LBUTTONUP => {
+            if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
+                if overlay.settings.behaviour == "Button" && !overlay.positioning {
+                    if overlay.suppress_next_left_up {
+                        overlay.suppress_next_left_up = false;
+                        return LRESULT(0);
+                    }
+                    overlay.pending_single_click = true;
+                    unsafe {
+                        let _ = SetTimer(
+                            overlay.hwnd,
+                            ID_SINGLE_CLICK_TIMER,
+                            SINGLE_CLICK_DELAY_MS,
+                            None,
+                        );
+                    }
+                    return LRESULT(0);
+                }
+            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_LBUTTONDBLCLK => {
+            let action = {
+                let mut guard = OVERLAY.lock().unwrap();
+                if let Some(overlay) = guard.as_mut() {
+                    unsafe {
+                        let _ = KillTimer(overlay.hwnd, ID_SINGLE_CLICK_TIMER);
+                    }
+                    overlay.pending_single_click = false;
+                    if overlay.settings.behaviour == "Button" && !overlay.positioning {
+                        overlay.suppress_next_left_up = true;
+                        overlay.settings.double_click_action
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+            if let Some(action) = action {
+                crate::run_overlay_action(action);
+            }
+            LRESULT(0)
+        }
+        WM_MBUTTONUP | WM_RBUTTONUP | WM_MOUSEWHEEL => {
+            let action = OVERLAY.lock().unwrap().as_ref().and_then(|overlay| {
+                if overlay.settings.behaviour != "Button" || overlay.positioning {
+                    return None;
+                }
+                match msg {
+                    WM_MBUTTONUP => overlay.settings.middle_click_action,
+                    WM_RBUTTONUP => overlay.settings.right_click_action,
+                    WM_MOUSEWHEEL if wheel_delta(wparam) > 0 => overlay.settings.wheel_up_action,
+                    WM_MOUSEWHEEL if wheel_delta(wparam) < 0 => overlay.settings.wheel_down_action,
+                    _ => None,
+                }
+            });
+            if let Some(action) = action {
+                crate::run_overlay_action(action);
+                return LRESULT(0);
+            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }
+}
+
+fn wheel_delta(wparam: WPARAM) -> i16 {
+    ((wparam.0 >> 16) & 0xffff) as u16 as i16
 }
 
 fn percent_to_axis(percent: f64, screen: i32, size: i32) -> i32 {

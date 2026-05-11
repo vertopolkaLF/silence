@@ -62,8 +62,7 @@ use windows::{
         System::{
             Com::{
                 CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
-                CoTaskMemFree, STGM_READ, STGM_READWRITE,
-                StructuredStorage::PropVariantChangeType,
+                CoTaskMemFree, STGM_READ, STGM_READWRITE, StructuredStorage::PropVariantChangeType,
             },
             LibraryLoader::GetModuleHandleW,
             Registry::{
@@ -927,6 +926,20 @@ pub struct OverlayConfig {
     pub border_radius: u8,
     #[serde(default = "default_overlay_show_border")]
     pub show_border: bool,
+    #[serde(default = "default_overlay_behaviour")]
+    pub behaviour: String,
+    #[serde(default = "default_overlay_single_click_action")]
+    pub single_click_action: Option<HotkeyAction>,
+    #[serde(default)]
+    pub double_click_action: Option<HotkeyAction>,
+    #[serde(default)]
+    pub middle_click_action: Option<HotkeyAction>,
+    #[serde(default)]
+    pub right_click_action: Option<HotkeyAction>,
+    #[serde(default)]
+    pub wheel_up_action: Option<HotkeyAction>,
+    #[serde(default)]
+    pub wheel_down_action: Option<HotkeyAction>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -965,6 +978,13 @@ impl Default for OverlayConfig {
             content_opacity: default_overlay_content_opacity(),
             border_radius: default_overlay_border_radius(),
             show_border: default_overlay_show_border(),
+            behaviour: default_overlay_behaviour(),
+            single_click_action: default_overlay_single_click_action(),
+            double_click_action: None,
+            middle_click_action: None,
+            right_click_action: None,
+            wheel_up_action: None,
+            wheel_down_action: None,
         }
     }
 }
@@ -1039,6 +1059,14 @@ fn default_overlay_border_radius() -> u8 {
 
 fn default_overlay_show_border() -> bool {
     true
+}
+
+fn default_overlay_behaviour() -> String {
+    "PassThrough".to_string()
+}
+
+fn default_overlay_single_click_action() -> Option<HotkeyAction> {
+    Some(HotkeyAction::ToggleMute)
 }
 
 pub fn system_fonts() -> Vec<SystemFont> {
@@ -4083,6 +4111,30 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
     }
 }
 
+pub(crate) fn run_overlay_action(action: HotkeyAction) {
+    let request = match action {
+        HotkeyAction::HoldToToggle => HotkeyRequest::ToggleMute { target: None },
+        HotkeyAction::HoldToMute => HotkeyRequest::SetMute {
+            target: None,
+            muted: true,
+        },
+        HotkeyAction::HoldToUnmute => HotkeyRequest::SetMute {
+            target: None,
+            muted: false,
+        },
+        _ => hotkey_action_request(&HotkeyBinding {
+            id: "overlay-action".to_string(),
+            action,
+            shortcut: Shortcut::default(),
+            gamepad: None,
+            ignore_modifiers: false,
+            target: None,
+            target_2: None,
+        }),
+    };
+    run_hotkey_action(request);
+}
+
 fn run_hotkey_action(action: HotkeyRequest) {
     match action {
         HotkeyRequest::ToggleMute { target } => toggle_mute_target(target.as_deref()),
@@ -5117,11 +5169,7 @@ pub fn open_audio_device_properties(_device_id: &str, input: bool) -> Result<()>
     if !_device_id.is_empty() {
         let target = format!("ms-mmsys:,{_device_id},general");
         if Command::new("rundll32.exe")
-            .args([
-                "shell32.dll,Control_RunDLL",
-                "mmsys.cpl",
-                target.as_str(),
-            ])
+            .args(["shell32.dll,Control_RunDLL", "mmsys.cpl", target.as_str()])
             .spawn()
             .is_ok()
         {

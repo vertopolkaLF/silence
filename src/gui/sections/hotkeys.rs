@@ -5,7 +5,9 @@ use std::{
 
 use dioxus::prelude::*;
 
-use crate::gui::controls::{Checkbox, Range, Select, SelectOption};
+use crate::gui::controls::{
+    Checkbox, Range, SegmentedToggle, SegmentedToggleOption, Select, SelectOption,
+};
 
 const XBOX_BUTTON_A_ICON: Asset = asset!("/assets/gamepad/xbox_button_a.png");
 const XBOX_BUTTON_B_ICON: Asset = asset!("/assets/gamepad/xbox_button_b.png");
@@ -919,30 +921,26 @@ if (viewport && pane) {{
 
                 div { class: "hotkey-panel-body",
                     div { class: "hotkey-panel-body-inner",
-                    div { class: "hotkey-source-toggle",
-                        button {
-                            class: if source == HotkeySource::Keyboard { "source-option active" } else { "source-option" },
-                            onclick: move |_| {
+                    SegmentedToggle {
+                        value: if source == HotkeySource::Keyboard { "Keyboard".to_string() } else { "Gamepad".to_string() },
+                        options: vec![
+                            SegmentedToggleOption::new("Keyboard", "Keyboard").icon("icon-keyboard-bold"),
+                            SegmentedToggleOption::new("Gamepad", "Gamepad").icon("icon-gamepad-bold"),
+                        ],
+                        onchange: move |value: String| {
+                            if value == "Keyboard" {
                                 draft_source.set(HotkeySource::Keyboard);
                                 recording.set(false);
                                 recording_gamepad.set(None);
                                 modifier_hold_started.set(None);
                                 hold_progress.set(0.0);
-                            },
-                            span { class: "solar-icon source-option-icon icon-keyboard-bold" }
-                            "Keyboard"
-                        }
-                        button {
-                            class: if source == HotkeySource::Gamepad { "source-option active" } else { "source-option" },
-                            onclick: move |_| {
+                            } else {
                                 draft_source.set(HotkeySource::Gamepad);
                                 recording.set(false);
                                 modifier_hold_started.set(None);
                                 hold_progress.set(0.0);
                                 live_modifier_shortcut.set(None);
-                            },
-                            span { class: "solar-icon source-option-icon icon-gamepad-bold" }
-                            "Gamepad"
+                            }
                         }
                     }
                     div { class: "field-group modal-field",
@@ -1226,6 +1224,41 @@ fn ActionPicker(
         .cloned()
         .or_else(|| options.first().cloned());
 
+    let close_button_id = use_hook(|| {
+        format!(
+            "hotkey-action-close-{}",
+            NEXT_SHORTCUT_DISPLAY_ID.fetch_add(1, Ordering::Relaxed)
+        )
+    });
+    let close_button_id_for_effect = close_button_id.clone();
+    use_effect(use_reactive!(|open| {
+        if !open() {
+            return;
+        }
+
+        let close_button_id = close_button_id_for_effect.clone();
+        spawn(async move {
+            let script = format!(
+                r#"
+window.__silenceActionPickerEscHandler ??= (event) => {{
+  if (event.key !== 'Escape') {{
+    return;
+  }}
+  const closeButton = [...document.querySelectorAll('.hotkey-action-close-proxy[data-open="true"]')].at(-1);
+  if (closeButton) {{
+    event.preventDefault();
+    closeButton.click();
+  }}
+}};
+document.removeEventListener('keydown', window.__silenceActionPickerEscHandler, true);
+document.addEventListener('keydown', window.__silenceActionPickerEscHandler, true);
+document.getElementById('{close_button_id}')?.focus({{ preventScroll: true }});
+"#
+            );
+            let _ = dioxus::document::eval(&script).await;
+        });
+    }));
+
     rsx! {
         div { class: "hotkey-action-picker",
             button {
@@ -1252,6 +1285,22 @@ fn ActionPicker(
             }
 
             if open() {
+                button {
+                    id: "{close_button_id}",
+                    r#type: "button",
+                    class: "hotkey-action-close-proxy",
+                    "data-open": if closing() { "false" } else { "true" },
+                    tabindex: "-1",
+                    aria_label: "Close action picker",
+                    onclick: move |_| close_action_picker(open, closing)
+                }
+                button {
+                    r#type: "button",
+                    class: if closing() { "hotkey-action-backdrop exiting" } else { "hotkey-action-backdrop" },
+                    tabindex: "-1",
+                    aria_label: "Close action picker",
+                    onclick: move |_| close_action_picker(open, closing)
+                }
                 div {
                     class: if closing() { "hotkey-action-sidepanel exiting" } else { "hotkey-action-sidepanel" },
                     onclick: move |evt| evt.stop_propagation(),
@@ -1728,7 +1777,7 @@ fn target_options(
     }
 }
 
-fn action_options() -> Vec<SelectOption> {
+pub(crate) fn action_options() -> Vec<SelectOption> {
     const ORDERED_ACTIONS: &[crate::HotkeyAction] = &[
         crate::HotkeyAction::Mute,
         crate::HotkeyAction::Unmute,

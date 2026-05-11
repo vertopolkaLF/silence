@@ -1,6 +1,10 @@
+use std::time::Duration;
+
 use dioxus::prelude::*;
 
-use crate::gui::controls::{Checkbox, Range, Select, SelectOption};
+use crate::gui::controls::{
+    Checkbox, Range, SegmentedToggle, SegmentedToggleOption, Select, SelectOption,
+};
 
 pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let mut positioning = use_signal(|| false);
@@ -551,6 +555,284 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
             }
+
+            section { class: "sound-card overlay-behaviour",
+                id: "overlay-behaviour",
+                "data-settings-section": "true",
+                div { class: "section-head section-head-row", h1 { "Behaviour" } }
+
+                div { class: "overlay-field",
+                    label { "Click mode" }
+                    SegmentedToggle {
+                        value: overlay.behaviour.clone(),
+                        options: vec![
+                            SegmentedToggleOption::new("PassThrough", "Pass-through").icon("icon-widget"),
+                            SegmentedToggleOption::new("Button", "Button").icon("icon-record"),
+                        ],
+                        onchange: move |value: String| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.behaviour = value;
+                            });
+                        }
+                    }
+                }
+
+                div { class: "overlay-action-grid",
+                    OverlayActionPicker {
+                        label: "Single click",
+                        value: overlay.single_click_action,
+                        onchange: move |action: Option<crate::HotkeyAction>| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.single_click_action = action;
+                            });
+                        }
+                    }
+                    OverlayActionPicker {
+                        label: "Double click",
+                        value: overlay.double_click_action,
+                        onchange: move |action: Option<crate::HotkeyAction>| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.double_click_action = action;
+                            });
+                        }
+                    }
+                    OverlayActionPicker {
+                        label: "Middle click",
+                        value: overlay.middle_click_action,
+                        onchange: move |action: Option<crate::HotkeyAction>| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.middle_click_action = action;
+                            });
+                        }
+                    }
+                    OverlayActionPicker {
+                        label: "Right click",
+                        value: overlay.right_click_action,
+                        onchange: move |action: Option<crate::HotkeyAction>| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.right_click_action = action;
+                            });
+                        }
+                    }
+                    OverlayActionPicker {
+                        label: "Mouse wheel up",
+                        value: overlay.wheel_up_action,
+                        onchange: move |action: Option<crate::HotkeyAction>| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.wheel_up_action = action;
+                            });
+                        }
+                    }
+                    OverlayActionPicker {
+                        label: "Mouse wheel down",
+                        value: overlay.wheel_down_action,
+                        onchange: move |action: Option<crate::HotkeyAction>| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.wheel_down_action = action;
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn OverlayActionPicker(
+    label: &'static str,
+    value: Option<crate::HotkeyAction>,
+    onchange: EventHandler<Option<crate::HotkeyAction>>,
+) -> Element {
+    let mut open = use_signal(|| false);
+    let mut closing = use_signal(|| false);
+    let options = overlay_action_options();
+    let current_value = value
+        .map(|action| action.id().to_string())
+        .unwrap_or_default();
+    let current = options
+        .iter()
+        .find(|option| option.value == current_value)
+        .cloned()
+        .or_else(|| options.first().cloned());
+    let close_button_id = use_hook(|| {
+        static NEXT_OVERLAY_ACTION_PICKER_ID: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(1);
+        format!(
+            "overlay-action-close-{}",
+            NEXT_OVERLAY_ACTION_PICKER_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        )
+    });
+    let close_button_id_for_effect = close_button_id.clone();
+
+    use_effect(use_reactive!(|open| {
+        if !open() {
+            return;
+        }
+
+        let close_button_id = close_button_id_for_effect.clone();
+        spawn(async move {
+            let script = format!(
+                r#"
+window.__silenceActionPickerEscHandler ??= (event) => {{
+  if (event.key !== 'Escape') {{
+    return;
+  }}
+  const closeButton = [...document.querySelectorAll('.hotkey-action-close-proxy[data-open="true"]')].at(-1);
+  if (closeButton) {{
+    event.preventDefault();
+    closeButton.click();
+  }}
+}};
+document.removeEventListener('keydown', window.__silenceActionPickerEscHandler, true);
+document.addEventListener('keydown', window.__silenceActionPickerEscHandler, true);
+document.getElementById('{close_button_id}')?.focus({{ preventScroll: true }});
+"#
+            );
+            let _ = dioxus::document::eval(&script).await;
+        });
+    }));
+
+    rsx! {
+        div { class: "overlay-field",
+            label { "{label}" }
+            div { class: "hotkey-action-picker overlay-action-picker",
+                button {
+                    r#type: "button",
+                    class: if open() { "hotkey-action-trigger open" } else { "hotkey-action-trigger" },
+                    aria_expanded: if open() { "true" } else { "false" },
+                    onclick: move |_| {
+                        closing.set(false);
+                        open.set(true);
+                    },
+                    div { class: "ui-select-current",
+                        if let Some(option) = current.as_ref() {
+                            if let Some(icon_class) = option.icon_class.as_deref() {
+                                span { class: "solar-icon ui-select-current-icon {icon_class}" }
+                            }
+                            div { class: "ui-select-current-copy",
+                                div { class: "ui-select-current-text",
+                                    span { class: "ui-select-current-label", "{option.label}" }
+                                }
+                            }
+                        }
+                    }
+                    span { class: "solar-icon ui-select-chevron icon-down" }
+                }
+
+                if open() {
+                    button {
+                        id: "{close_button_id}",
+                        r#type: "button",
+                        class: "hotkey-action-close-proxy",
+                        "data-open": if closing() { "false" } else { "true" },
+                        tabindex: "-1",
+                        aria_label: "Close action picker",
+                        onclick: move |_| close_overlay_action_picker(open, closing)
+                    }
+                    button {
+                        r#type: "button",
+                        class: if closing() { "hotkey-action-backdrop exiting" } else { "hotkey-action-backdrop" },
+                        tabindex: "-1",
+                        aria_label: "Close action picker",
+                        onclick: move |_| close_overlay_action_picker(open, closing)
+                    }
+                    div {
+                        class: if closing() { "hotkey-action-sidepanel exiting" } else { "hotkey-action-sidepanel" },
+                        onclick: move |evt| evt.stop_propagation(),
+                        div { class: "hotkey-action-groups",
+                            for group in overlay_action_groups(options.clone()) {
+                                section { class: "hotkey-action-group",
+                                    h3 { "{group.label}" }
+                                    div { class: "hotkey-action-card-grid",
+                                        for option in group.options {
+                                            OverlayActionCard {
+                                                option: option.clone(),
+                                                selected: option.value == current_value,
+                                                onselect: move |value: String| {
+                                                    let action = if value.is_empty() {
+                                                        None
+                                                    } else {
+                                                        Some(crate::HotkeyAction::from_id(&value))
+                                                    };
+                                                    onchange.call(action);
+                                                    close_overlay_action_picker(open, closing);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn close_overlay_action_picker(mut open: Signal<bool>, mut closing: Signal<bool>) {
+    if closing() {
+        return;
+    }
+    closing.set(true);
+    spawn(async move {
+        tokio::time::sleep(Duration::from_millis(180)).await;
+        open.set(false);
+        closing.set(false);
+    });
+}
+
+#[derive(Clone, PartialEq)]
+struct OverlayActionGroup {
+    label: String,
+    options: Vec<SelectOption>,
+}
+
+fn overlay_action_groups(options: Vec<SelectOption>) -> Vec<OverlayActionGroup> {
+    let mut groups = Vec::<OverlayActionGroup>::new();
+    for option in options {
+        let label = option
+            .group_label
+            .clone()
+            .unwrap_or_else(|| "Other".to_string());
+        if let Some(group) = groups.iter_mut().find(|group| group.label == label) {
+            group.options.push(option);
+        } else {
+            groups.push(OverlayActionGroup {
+                label,
+                options: vec![option],
+            });
+        }
+    }
+    groups
+}
+
+fn overlay_action_options() -> Vec<SelectOption> {
+    std::iter::once(
+        SelectOption::new("", "Empty")
+            .group("Other")
+            .icon("icon-close"),
+    )
+    .chain(super::hotkeys::action_options())
+    .collect()
+}
+
+#[component]
+fn OverlayActionCard(
+    option: SelectOption,
+    selected: bool,
+    onselect: EventHandler<String>,
+) -> Element {
+    rsx! {
+        button {
+            r#type: "button",
+            class: if selected { "hotkey-action-card selected" } else { "hotkey-action-card" },
+            onclick: move |_| onselect.call(option.value.clone()),
+            if let Some(icon_class) = option.icon_class.as_deref() {
+                span { class: "solar-icon hotkey-action-card-icon {icon_class}" }
+            }
+            span { class: "hotkey-action-card-label", "{option.label}" }
         }
     }
 }

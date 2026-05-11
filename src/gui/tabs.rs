@@ -131,6 +131,10 @@ impl SettingsTab {
                     id: "overlay-appearance",
                     label: "Appearance",
                 },
+                SettingsSection {
+                    id: "overlay-behaviour",
+                    label: "Behaviour",
+                },
             ],
             Self::TrayIcon => &[SettingsSection {
                 id: "tray-icon-overview",

@@ -562,10 +562,11 @@ fn update_active_section(mut active_section: Signal<String>) {
           return '';
         }
 
-        const top = content.getBoundingClientRect().top;
+        const rect = content.getBoundingClientRect();
+        const activationY = rect.top + rect.height * 0.35;
         let active = sections[0];
         for (const section of sections) {
-          if (section.getBoundingClientRect().top - top <= 96) {
+          if (section.getBoundingClientRect().top <= activationY) {
             active = section;
           }
         }

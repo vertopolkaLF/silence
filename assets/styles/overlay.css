@@ -39,6 +39,20 @@
   gap: 18px;
 }
 
+.overlay-behaviour {
+  gap: 16px;
+}
+
+.overlay-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.overlay-action-grid .hotkey-action-trigger {
+  min-height: 48px;
+}
+
 .overlay-collapse {
   display: grid;
   grid-template-rows: 0fr;

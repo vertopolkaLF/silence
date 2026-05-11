@@ -18,6 +18,28 @@ pub struct SelectOption {
     pub font_family: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SegmentedToggleOption {
+    pub value: String,
+    pub label: String,
+    pub icon_class: Option<String>,
+}
+
+impl SegmentedToggleOption {
+    pub fn new(value: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            value: value.into(),
+            label: label.into(),
+            icon_class: None,
+        }
+    }
+
+    pub fn icon(mut self, icon_class: impl Into<String>) -> Self {
+        self.icon_class = Some(icon_class.into());
+        self
+    }
+}
+
 impl SelectOption {
     pub fn new(value: impl Into<String>, label: impl Into<String>) -> Self {
         Self {
@@ -84,6 +106,33 @@ pub fn Checkbox(
                 span { class: "ui-checkbox-mark" }
             }
             span { class: "ui-checkbox-label", "{label}" }
+        }
+    }
+}
+
+#[component]
+pub fn SegmentedToggle(
+    value: String,
+    options: Vec<SegmentedToggleOption>,
+    onchange: EventHandler<String>,
+    #[props(default)] class: String,
+) -> Element {
+    rsx! {
+        div { class: merged_class("hotkey-source-toggle", &class),
+            for option in options {
+                button {
+                    r#type: "button",
+                    class: if option.value == value { "source-option active" } else { "source-option" },
+                    onclick: {
+                        let option_value = option.value.clone();
+                        move |_| onchange.call(option_value.clone())
+                    },
+                    if let Some(icon) = option.icon_class {
+                        span { class: "solar-icon source-option-icon {icon}" }
+                    }
+                    "{option.label}"
+                }
+            }
         }
     }
 }
