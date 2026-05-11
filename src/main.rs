@@ -928,18 +928,40 @@ pub struct OverlayConfig {
     pub show_border: bool,
     #[serde(default = "default_overlay_behaviour")]
     pub behaviour: String,
-    #[serde(default = "default_overlay_single_click_action")]
+    #[serde(default = "default_overlay_single_click")]
+    pub single_click: OverlayActionBinding,
+    #[serde(default)]
+    pub double_click: OverlayActionBinding,
+    #[serde(default)]
+    pub middle_click: OverlayActionBinding,
+    #[serde(default)]
+    pub right_click: OverlayActionBinding,
+    #[serde(default)]
+    pub wheel_up: OverlayActionBinding,
+    #[serde(default)]
+    pub wheel_down: OverlayActionBinding,
+    #[serde(default, skip_serializing)]
     pub single_click_action: Option<HotkeyAction>,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub double_click_action: Option<HotkeyAction>,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub middle_click_action: Option<HotkeyAction>,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub right_click_action: Option<HotkeyAction>,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub wheel_up_action: Option<HotkeyAction>,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub wheel_down_action: Option<HotkeyAction>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct OverlayActionBinding {
+    #[serde(default)]
+    pub action: Option<HotkeyAction>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_2: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -979,7 +1001,13 @@ impl Default for OverlayConfig {
             border_radius: default_overlay_border_radius(),
             show_border: default_overlay_show_border(),
             behaviour: default_overlay_behaviour(),
-            single_click_action: default_overlay_single_click_action(),
+            single_click: default_overlay_single_click(),
+            double_click: OverlayActionBinding::default(),
+            middle_click: OverlayActionBinding::default(),
+            right_click: OverlayActionBinding::default(),
+            wheel_up: OverlayActionBinding::default(),
+            wheel_down: OverlayActionBinding::default(),
+            single_click_action: None,
             double_click_action: None,
             middle_click_action: None,
             right_click_action: None,
@@ -1065,8 +1093,12 @@ fn default_overlay_behaviour() -> String {
     "PassThrough".to_string()
 }
 
-fn default_overlay_single_click_action() -> Option<HotkeyAction> {
-    Some(HotkeyAction::ToggleMute)
+fn default_overlay_single_click() -> OverlayActionBinding {
+    OverlayActionBinding {
+        action: Some(HotkeyAction::ToggleMute),
+        target: None,
+        target_2: None,
+    }
 }
 
 pub fn system_fonts() -> Vec<SystemFont> {
@@ -4111,15 +4143,20 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
     }
 }
 
-pub(crate) fn run_overlay_action(action: HotkeyAction) {
+pub(crate) fn run_overlay_action(binding: OverlayActionBinding) {
+    let Some(action) = binding.action else {
+        return;
+    };
     let request = match action {
-        HotkeyAction::HoldToToggle => HotkeyRequest::ToggleMute { target: None },
+        HotkeyAction::HoldToToggle => HotkeyRequest::ToggleMute {
+            target: binding.target.clone(),
+        },
         HotkeyAction::HoldToMute => HotkeyRequest::SetMute {
-            target: None,
+            target: binding.target.clone(),
             muted: true,
         },
         HotkeyAction::HoldToUnmute => HotkeyRequest::SetMute {
-            target: None,
+            target: binding.target.clone(),
             muted: false,
         },
         _ => hotkey_action_request(&HotkeyBinding {
@@ -4128,8 +4165,8 @@ pub(crate) fn run_overlay_action(action: HotkeyAction) {
             shortcut: Shortcut::default(),
             gamepad: None,
             ignore_modifiers: false,
-            target: None,
-            target_2: None,
+            target: binding.target,
+            target_2: binding.target_2,
         }),
     };
     run_hotkey_action(request);
@@ -5586,6 +5623,32 @@ fn parse_config_content(content: &str) -> Result<Config> {
 }
 
 fn normalize_overlay_config(overlay: &mut OverlayConfig) {
+    if let Some(action) = overlay.single_click_action.take() {
+        overlay.single_click.action = Some(action);
+    }
+    if let Some(action) = overlay.double_click_action.take() {
+        overlay.double_click.action = Some(action);
+    }
+    if let Some(action) = overlay.middle_click_action.take() {
+        overlay.middle_click.action = Some(action);
+    }
+    if let Some(action) = overlay.right_click_action.take() {
+        overlay.right_click.action = Some(action);
+    }
+    if let Some(action) = overlay.wheel_up_action.take() {
+        overlay.wheel_up.action = Some(action);
+    }
+    if let Some(action) = overlay.wheel_down_action.take() {
+        overlay.wheel_down.action = Some(action);
+    }
+
+    normalize_overlay_action_binding(&mut overlay.single_click);
+    normalize_overlay_action_binding(&mut overlay.double_click);
+    normalize_overlay_action_binding(&mut overlay.middle_click);
+    normalize_overlay_action_binding(&mut overlay.right_click);
+    normalize_overlay_action_binding(&mut overlay.wheel_up);
+    normalize_overlay_action_binding(&mut overlay.wheel_down);
+
     if overlay.variant == "MicIcon" && overlay.show_text {
         overlay.variant = "IconText".to_string();
     }
@@ -5597,6 +5660,21 @@ fn normalize_overlay_config(overlay: &mut OverlayConfig) {
     }
     overlay.show_text = false;
     overlay.text_font_weight = overlay.text_font_weight.clamp(100, 900);
+}
+
+fn normalize_overlay_action_binding(binding: &mut OverlayActionBinding) {
+    let Some(action) = binding.action else {
+        binding.target = None;
+        binding.target_2 = None;
+        return;
+    };
+
+    if !action.needs_target() {
+        binding.target = None;
+    }
+    if !action.needs_second_target() {
+        binding.target_2 = None;
+    }
 }
 
 fn migrate_custom_sound_settings(settings: &mut SoundSettings) {

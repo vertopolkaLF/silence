@@ -1733,7 +1733,7 @@ fn VolumeTargetInput(
     }
 }
 
-fn target_options(
+pub(crate) fn target_options(
     action: crate::HotkeyAction,
     devices: Vec<crate::MicDevice>,
     output_devices: Vec<crate::AudioDevice>,
@@ -1894,7 +1894,7 @@ fn device_target_label(
         .unwrap_or_else(|| DEFAULT_TARGET_LABEL.to_string())
 }
 
-fn target_is_valid_for_action(
+pub(crate) fn target_is_valid_for_action(
     action: crate::HotkeyAction,
     target: &str,
     devices: &[crate::MicDevice],
@@ -1918,7 +1918,7 @@ fn target_is_valid_for_action(
     }
 }
 
-fn default_target_for_action(
+pub(crate) fn default_target_for_action(
     action: crate::HotkeyAction,
     devices: &[crate::MicDevice],
     output_devices: &[crate::AudioDevice],
@@ -1951,7 +1951,7 @@ fn default_target_for_action(
     }
 }
 
-fn action_uses_volume_target(action: crate::HotkeyAction) -> bool {
+pub(crate) fn action_uses_volume_target(action: crate::HotkeyAction) -> bool {
     matches!(
         action,
         crate::HotkeyAction::SetVolume
@@ -1960,7 +1960,7 @@ fn action_uses_volume_target(action: crate::HotkeyAction) -> bool {
     )
 }
 
-fn volume_target_value(target: &str, action: crate::HotkeyAction) -> u8 {
+pub(crate) fn volume_target_value(target: &str, action: crate::HotkeyAction) -> u8 {
     target
         .trim()
         .parse::<u8>()
@@ -1974,7 +1974,7 @@ fn volume_target_value(target: &str, action: crate::HotkeyAction) -> u8 {
         .min(100)
 }
 
-fn default_second_target_for_action(
+pub(crate) fn default_second_target_for_action(
     action: crate::HotkeyAction,
     target_1: &str,
     devices: &[crate::MicDevice],

@@ -990,7 +990,7 @@ unsafe extern "system" fn overlay_wnd_proc(
                     }
                     if overlay.pending_single_click {
                         overlay.pending_single_click = false;
-                        overlay.settings.single_click_action
+                        Some(overlay.settings.single_click.clone())
                     } else {
                         None
                     }
@@ -1034,7 +1034,7 @@ unsafe extern "system" fn overlay_wnd_proc(
                     overlay.pending_single_click = false;
                     if overlay.settings.behaviour == "Button" && !overlay.positioning {
                         overlay.suppress_next_left_up = true;
-                        overlay.settings.double_click_action
+                        Some(overlay.settings.double_click.clone())
                     } else {
                         None
                     }
@@ -1053,10 +1053,14 @@ unsafe extern "system" fn overlay_wnd_proc(
                     return None;
                 }
                 match msg {
-                    WM_MBUTTONUP => overlay.settings.middle_click_action,
-                    WM_RBUTTONUP => overlay.settings.right_click_action,
-                    WM_MOUSEWHEEL if wheel_delta(wparam) > 0 => overlay.settings.wheel_up_action,
-                    WM_MOUSEWHEEL if wheel_delta(wparam) < 0 => overlay.settings.wheel_down_action,
+                    WM_MBUTTONUP => Some(overlay.settings.middle_click.clone()),
+                    WM_RBUTTONUP => Some(overlay.settings.right_click.clone()),
+                    WM_MOUSEWHEEL if wheel_delta(wparam) > 0 => {
+                        Some(overlay.settings.wheel_up.clone())
+                    }
+                    WM_MOUSEWHEEL if wheel_delta(wparam) < 0 => {
+                        Some(overlay.settings.wheel_down.clone())
+                    }
                     _ => None,
                 }
             });

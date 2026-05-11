@@ -25,6 +25,10 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let text_controls_open = has_text;
     let duration_controls_open = overlay.visibility == "AfterToggle";
     let preview_muted = snapshot.muted;
+    let devices = snapshot.devices.clone();
+    let output_devices = snapshot.output_devices.clone();
+    let hotkeys = snapshot.config.hotkeys.clone();
+    let audio_device_name_display = snapshot.config.advanced.audio_device_name_display.clone();
     let preview_tone_class = if preview_muted { "muted" } else { "live" };
     let duration_progress = format!(
         "{:.0}%",
@@ -580,55 +584,79 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 div { class: "overlay-action-grid",
                     OverlayActionPicker {
                         label: "Single click",
-                        value: overlay.single_click_action,
-                        onchange: move |action: Option<crate::HotkeyAction>| {
+                        binding: overlay.single_click.clone(),
+                        devices: devices.clone(),
+                        output_devices: output_devices.clone(),
+                        hotkeys: hotkeys.clone(),
+                        name_display: audio_device_name_display.clone(),
+                        onchange: move |binding: crate::OverlayActionBinding| {
                             super::super::update_settings(settings, |config| {
-                                config.overlay.single_click_action = action;
+                                config.overlay.single_click = binding;
                             });
                         }
                     }
                     OverlayActionPicker {
                         label: "Double click",
-                        value: overlay.double_click_action,
-                        onchange: move |action: Option<crate::HotkeyAction>| {
+                        binding: overlay.double_click.clone(),
+                        devices: devices.clone(),
+                        output_devices: output_devices.clone(),
+                        hotkeys: hotkeys.clone(),
+                        name_display: audio_device_name_display.clone(),
+                        onchange: move |binding: crate::OverlayActionBinding| {
                             super::super::update_settings(settings, |config| {
-                                config.overlay.double_click_action = action;
+                                config.overlay.double_click = binding;
                             });
                         }
                     }
                     OverlayActionPicker {
                         label: "Middle click",
-                        value: overlay.middle_click_action,
-                        onchange: move |action: Option<crate::HotkeyAction>| {
+                        binding: overlay.middle_click.clone(),
+                        devices: devices.clone(),
+                        output_devices: output_devices.clone(),
+                        hotkeys: hotkeys.clone(),
+                        name_display: audio_device_name_display.clone(),
+                        onchange: move |binding: crate::OverlayActionBinding| {
                             super::super::update_settings(settings, |config| {
-                                config.overlay.middle_click_action = action;
+                                config.overlay.middle_click = binding;
                             });
                         }
                     }
                     OverlayActionPicker {
                         label: "Right click",
-                        value: overlay.right_click_action,
-                        onchange: move |action: Option<crate::HotkeyAction>| {
+                        binding: overlay.right_click.clone(),
+                        devices: devices.clone(),
+                        output_devices: output_devices.clone(),
+                        hotkeys: hotkeys.clone(),
+                        name_display: audio_device_name_display.clone(),
+                        onchange: move |binding: crate::OverlayActionBinding| {
                             super::super::update_settings(settings, |config| {
-                                config.overlay.right_click_action = action;
+                                config.overlay.right_click = binding;
                             });
                         }
                     }
                     OverlayActionPicker {
                         label: "Mouse wheel up",
-                        value: overlay.wheel_up_action,
-                        onchange: move |action: Option<crate::HotkeyAction>| {
+                        binding: overlay.wheel_up.clone(),
+                        devices: devices.clone(),
+                        output_devices: output_devices.clone(),
+                        hotkeys: hotkeys.clone(),
+                        name_display: audio_device_name_display.clone(),
+                        onchange: move |binding: crate::OverlayActionBinding| {
                             super::super::update_settings(settings, |config| {
-                                config.overlay.wheel_up_action = action;
+                                config.overlay.wheel_up = binding;
                             });
                         }
                     }
                     OverlayActionPicker {
                         label: "Mouse wheel down",
-                        value: overlay.wheel_down_action,
-                        onchange: move |action: Option<crate::HotkeyAction>| {
+                        binding: overlay.wheel_down.clone(),
+                        devices,
+                        output_devices,
+                        hotkeys,
+                        name_display: audio_device_name_display,
+                        onchange: move |binding: crate::OverlayActionBinding| {
                             super::super::update_settings(settings, |config| {
-                                config.overlay.wheel_down_action = action;
+                                config.overlay.wheel_down = binding;
                             });
                         }
                     }
@@ -641,13 +669,18 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
 #[component]
 fn OverlayActionPicker(
     label: &'static str,
-    value: Option<crate::HotkeyAction>,
-    onchange: EventHandler<Option<crate::HotkeyAction>>,
+    binding: crate::OverlayActionBinding,
+    devices: Vec<crate::MicDevice>,
+    output_devices: Vec<crate::AudioDevice>,
+    hotkeys: Vec<crate::HotkeyBinding>,
+    name_display: String,
+    onchange: EventHandler<crate::OverlayActionBinding>,
 ) -> Element {
     let mut open = use_signal(|| false);
     let mut closing = use_signal(|| false);
     let options = overlay_action_options();
-    let current_value = value
+    let current_value = binding
+        .action
         .map(|action| action.id().to_string())
         .unwrap_or_default();
     let current = options
@@ -692,6 +725,10 @@ document.getElementById('{close_button_id}')?.focus({{ preventScroll: true }});
             let _ = dioxus::document::eval(&script).await;
         });
     }));
+
+    let selected_action = binding.action;
+    let target = binding.target.clone().unwrap_or_default();
+    let target_2 = binding.target_2.clone().unwrap_or_default();
 
     rsx! {
         div { class: "overlay-field",
@@ -746,22 +783,112 @@ document.getElementById('{close_button_id}')?.focus({{ preventScroll: true }});
                                     h3 { "{group.label}" }
                                     div { class: "hotkey-action-card-grid",
                                         for option in group.options {
-                                            OverlayActionCard {
-                                                option: option.clone(),
-                                                selected: option.value == current_value,
-                                                onselect: move |value: String| {
-                                                    let action = if value.is_empty() {
-                                                        None
-                                                    } else {
-                                                        Some(crate::HotkeyAction::from_id(&value))
-                                                    };
-                                                    onchange.call(action);
-                                                    close_overlay_action_picker(open, closing);
+                                            {
+                                                let binding_for_card = binding.clone();
+                                                let devices_for_card = devices.clone();
+                                                let output_devices_for_card = output_devices.clone();
+                                                let hotkeys_for_card = hotkeys.clone();
+                                                rsx! {
+                                                    OverlayActionCard {
+                                                        option: option.clone(),
+                                                        selected: option.value == current_value,
+                                                        onselect: move |value: String| {
+                                                            let action = if value.is_empty() {
+                                                                None
+                                                            } else {
+                                                                Some(crate::HotkeyAction::from_id(&value))
+                                                            };
+                                                            let next = overlay_binding_for_action(
+                                                                binding_for_card.clone(),
+                                                                action,
+                                                                &devices_for_card,
+                                                                &output_devices_for_card,
+                                                                &hotkeys_for_card,
+                                                            );
+                                                            onchange.call(next);
+                                                            close_overlay_action_picker(open, closing);
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(action) = selected_action {
+                if action.needs_target() && super::hotkeys::action_uses_volume_target(action) {
+                    {
+                        let binding_for_target = binding.clone();
+                        rsx! {
+                    OverlayVolumeTargetInput {
+                        action,
+                        value: target.clone(),
+                        onchange: move |value: String| {
+                            let mut next = binding_for_target.clone();
+                            next.target = Some(value);
+                            onchange.call(next);
+                        }
+                    }
+                        }
+                    }
+                } else if action.needs_target() {
+                    {
+                        let binding_for_target = binding.clone();
+                        let devices_for_target = devices.clone();
+                        let output_devices_for_target = output_devices.clone();
+                        rsx! {
+                    OverlayTargetSelect {
+                        action,
+                        label: "Target 1",
+                        value: target.clone(),
+                        devices: devices.clone(),
+                        output_devices: output_devices.clone(),
+                        name_display: name_display.clone(),
+                        onchange: move |value: String| {
+                            let mut next = binding_for_target.clone();
+                            next.target = Some(value.clone());
+                            if action.needs_second_target() {
+                                let second = next.target_2.clone().unwrap_or_default();
+                                if !super::hotkeys::target_is_valid_for_action(
+                                    action,
+                                    &second,
+                                    &devices_for_target,
+                                    &output_devices_for_target,
+                                ) || second == value {
+                                    next.target_2 = Some(super::hotkeys::default_second_target_for_action(
+                                        action,
+                                        &value,
+                                        &devices_for_target,
+                                        &output_devices_for_target,
+                                    ));
+                                }
+                            }
+                            onchange.call(next);
+                        }
+                    }
+                        }
+                    }
+                    if action.needs_second_target() {
+                        {
+                            let binding_for_target_2 = binding.clone();
+                            rsx! {
+                        OverlayTargetSelect {
+                            action,
+                            label: "Target 2",
+                            value: target_2.clone(),
+                            devices: devices.clone(),
+                            output_devices: output_devices.clone(),
+                            name_display: name_display.clone(),
+                            onchange: move |value: String| {
+                                let mut next = binding_for_target_2.clone();
+                                next.target_2 = Some(value);
+                                onchange.call(next);
+                            }
+                        }
                             }
                         }
                     }
@@ -781,6 +908,106 @@ fn close_overlay_action_picker(mut open: Signal<bool>, mut closing: Signal<bool>
         open.set(false);
         closing.set(false);
     });
+}
+
+fn overlay_binding_for_action(
+    mut binding: crate::OverlayActionBinding,
+    action: Option<crate::HotkeyAction>,
+    devices: &[crate::MicDevice],
+    output_devices: &[crate::AudioDevice],
+    hotkeys: &[crate::HotkeyBinding],
+) -> crate::OverlayActionBinding {
+    let previous_action = binding.action;
+    binding.action = action;
+    let Some(action) = action else {
+        binding.target = None;
+        binding.target_2 = None;
+        return binding;
+    };
+
+    let mut target = binding.target.clone().unwrap_or_default();
+    if super::hotkeys::action_uses_volume_target(action) && previous_action != Some(action) {
+        target =
+            super::hotkeys::default_target_for_action(action, devices, output_devices, hotkeys);
+    } else if !action.needs_target()
+        || !super::hotkeys::target_is_valid_for_action(action, &target, devices, output_devices)
+    {
+        target =
+            super::hotkeys::default_target_for_action(action, devices, output_devices, hotkeys);
+    }
+    binding.target = action.needs_target().then_some(target.clone());
+
+    let mut target_2 = binding.target_2.clone().unwrap_or_default();
+    if !action.needs_second_target()
+        || !super::hotkeys::target_is_valid_for_action(action, &target_2, devices, output_devices)
+    {
+        target_2 = super::hotkeys::default_second_target_for_action(
+            action,
+            &target,
+            devices,
+            output_devices,
+        );
+    }
+    binding.target_2 = action.needs_second_target().then_some(target_2);
+    binding
+}
+
+#[component]
+fn OverlayTargetSelect(
+    action: crate::HotkeyAction,
+    label: &'static str,
+    value: String,
+    devices: Vec<crate::MicDevice>,
+    output_devices: Vec<crate::AudioDevice>,
+    name_display: String,
+    onchange: EventHandler<String>,
+) -> Element {
+    let options = super::hotkeys::target_options(action, devices, output_devices, &name_display);
+
+    rsx! {
+        div { class: "overlay-field overlay-action-target-field",
+            label { "{label}" }
+            Select {
+                value,
+                options,
+                onchange: move |value: String| onchange.call(value)
+            }
+        }
+    }
+}
+
+#[component]
+fn OverlayVolumeTargetInput(
+    action: crate::HotkeyAction,
+    value: String,
+    onchange: EventHandler<String>,
+) -> Element {
+    let label = match action {
+        crate::HotkeyAction::SetVolume => "Volume",
+        crate::HotkeyAction::IncreaseVolume | crate::HotkeyAction::DecreaseVolume => "Amount",
+        _ => "Target",
+    };
+    let value = super::hotkeys::volume_target_value(&value, action).to_string();
+    let value_label = format!("{value}%");
+
+    rsx! {
+        Range {
+            label: label.to_string(),
+            value_label,
+            value: value.clone(),
+            min: "0".to_string(),
+            max: "100".to_string(),
+            step: "1".to_string(),
+            progress: format!("{value}%"),
+            label_icon: Some("icon-volume".to_string()),
+            class: "overlay-action-target-field".to_string(),
+            oninput: move |evt: FormEvent| {
+                if let Ok(value) = evt.value().parse::<u8>() {
+                    onchange.call(value.min(100).to_string());
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
