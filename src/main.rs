@@ -4642,7 +4642,7 @@ pub fn set_overlay_positioning(active: bool) -> Option<OverlayConfig> {
     }
 }
 
-fn save_overlay_position(position_x: f64, position_y: f64) {
+pub(crate) fn save_overlay_position(position_x: f64, position_y: f64) {
     let mut config = load_config().unwrap_or_default();
     config.overlay.position_x = position_x;
     config.overlay.position_y = position_y;

@@ -535,6 +535,23 @@ impl NativeOverlay {
         x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
     }
 
+    fn finish_button_drag_release(&mut self) -> Option<(f64, f64)> {
+        if self.positioning
+            || self.settings.behaviour != "Button"
+            || !self.dragging
+            || !self.drag_moved
+        {
+            return None;
+        }
+
+        self.dragging = false;
+        self.drag_moved = false;
+        self.was_mouse_down = false;
+        self.suppress_next_click_after_drag = false;
+        self.pending_single_click = false;
+        Some(self.current_percent_position())
+    }
+
     fn drag_enabled(&self) -> bool {
         self.positioning || self.settings.behaviour == "Button"
     }
@@ -1036,31 +1053,57 @@ unsafe extern "system" fn overlay_wnd_proc(
             LRESULT(0)
         }
         WM_LBUTTONUP => {
-            if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
-                if overlay.settings.behaviour == "Button" && !overlay.positioning {
-                    if overlay.suppress_next_click_after_drag {
-                        overlay.suppress_next_click_after_drag = false;
-                        overlay.pending_single_click = false;
-                        unsafe {
-                            let _ = KillTimer(overlay.hwnd, ID_SINGLE_CLICK_TIMER);
+            let finished_drag = {
+                let mut guard = OVERLAY.lock().unwrap();
+                guard
+                    .as_mut()
+                    .and_then(|overlay| overlay.finish_button_drag_release())
+            };
+            if let Some((x, y)) = finished_drag {
+                crate::save_overlay_position(x, y);
+                return LRESULT(0);
+            }
+
+            let immediate_action = {
+                let mut guard = OVERLAY.lock().unwrap();
+                if let Some(overlay) = guard.as_mut() {
+                    if overlay.settings.behaviour == "Button" && !overlay.positioning {
+                        if overlay.suppress_next_click_after_drag {
+                            overlay.suppress_next_click_after_drag = false;
+                            overlay.pending_single_click = false;
+                            unsafe {
+                                let _ = KillTimer(overlay.hwnd, ID_SINGLE_CLICK_TIMER);
+                            }
+                            return LRESULT(0);
                         }
-                        return LRESULT(0);
+                        if overlay.suppress_next_left_up {
+                            overlay.suppress_next_left_up = false;
+                            return LRESULT(0);
+                        }
+                        if overlay.settings.double_click.action.is_none() {
+                            Some(overlay.settings.single_click.clone())
+                        } else {
+                            overlay.pending_single_click = true;
+                            unsafe {
+                                let _ = SetTimer(
+                                    overlay.hwnd,
+                                    ID_SINGLE_CLICK_TIMER,
+                                    SINGLE_CLICK_DELAY_MS,
+                                    None,
+                                );
+                            }
+                            return LRESULT(0);
+                        }
+                    } else {
+                        None
                     }
-                    if overlay.suppress_next_left_up {
-                        overlay.suppress_next_left_up = false;
-                        return LRESULT(0);
-                    }
-                    overlay.pending_single_click = true;
-                    unsafe {
-                        let _ = SetTimer(
-                            overlay.hwnd,
-                            ID_SINGLE_CLICK_TIMER,
-                            SINGLE_CLICK_DELAY_MS,
-                            None,
-                        );
-                    }
-                    return LRESULT(0);
+                } else {
+                    None
                 }
+            };
+            if let Some(action) = immediate_action {
+                crate::run_overlay_action(action);
+                return LRESULT(0);
             }
             unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
