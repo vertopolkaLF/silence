@@ -122,6 +122,8 @@ The app follows the user's Windows accent color, so these screenshots intentiona
 
 No MSIX packaging is required.
 
+If settings doesn't open, then WebView2 is probably not installed. Install from [Microsoft website](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)
+
 ## Build from source
 
 Requirements:
