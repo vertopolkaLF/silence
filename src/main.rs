@@ -4206,13 +4206,13 @@ fn run_hotkey_action(action: HotkeyRequest) {
             }
         }
         HotkeyRequest::SetVolume { target } => {
-            if let Err(err) = set_capture_volume_from_hotkey(target.as_deref()) {
-                eprintln!("failed to set microphone volume from hotkey: {err:?}");
+            if let Err(err) = set_output_volume_from_hotkey(target.as_deref()) {
+                eprintln!("failed to set output volume from hotkey: {err:?}");
             }
         }
         HotkeyRequest::ChangeVolume { target, direction } => {
-            if let Err(err) = change_capture_volume_from_hotkey(target.as_deref(), direction) {
-                eprintln!("failed to change microphone volume from hotkey: {err:?}");
+            if let Err(err) = change_output_volume_from_hotkey(target.as_deref(), direction) {
+                eprintln!("failed to change output volume from hotkey: {err:?}");
             }
         }
         HotkeyRequest::OpenSettings => open_settings_window(),
@@ -4693,21 +4693,21 @@ fn hotkey_volume_target_percent(target: Option<&str>, fallback: u8) -> u8 {
         .min(100)
 }
 
-fn set_capture_volume_from_hotkey(target: Option<&str>) -> Result<()> {
-    set_capture_volume_percent(hotkey_volume_target_percent(target, 100))
+fn set_output_volume_from_hotkey(target: Option<&str>) -> Result<()> {
+    set_output_volume_percent(hotkey_volume_target_percent(target, 100))
 }
 
-fn change_capture_volume_from_hotkey(target: Option<&str>, direction: i32) -> Result<()> {
+fn change_output_volume_from_hotkey(target: Option<&str>, direction: i32) -> Result<()> {
     let amount = i32::from(hotkey_volume_target_percent(target, 10));
-    let volume = capture_volume(None)?;
+    let volume = output_volume()?;
     let current = unsafe { volume.GetMasterVolumeLevelScalar()? };
     let current_percent = (current * 100.0).round() as i32;
     let next = (current_percent + amount * direction).clamp(0, 100) as u8;
-    set_capture_volume_percent(next)
+    set_output_volume_percent(next)
 }
 
-fn set_capture_volume_percent(percent: u8) -> Result<()> {
-    let volume = capture_volume(None)?;
+fn set_output_volume_percent(percent: u8) -> Result<()> {
+    let volume = output_volume()?;
     let scalar = f32::from(percent.min(100)) / 100.0;
     unsafe {
         volume.SetMasterVolumeLevelScalar(scalar, null())?;
@@ -5087,6 +5087,20 @@ fn capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
                 .context("create audio device enumerator")?;
         let device = capture_device(&enumerator, device_id)?;
+        device
+            .Activate(CLSCTX_ALL, None)
+            .context("activate endpoint volume")
+    }
+}
+
+fn output_volume() -> Result<IAudioEndpointVolume> {
+    unsafe {
+        let enumerator: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+                .context("create audio device enumerator")?;
+        let device = enumerator
+            .GetDefaultAudioEndpoint(eRender, eConsole)
+            .context("get default output endpoint")?;
         device
             .Activate(CLSCTX_ALL, None)
             .context("activate endpoint volume")
