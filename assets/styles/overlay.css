@@ -49,6 +49,31 @@
   gap: 14px;
 }
 
+.overlay-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.overlay-action-main-row {
+  grid-template-columns: minmax(0, 1.2fr) minmax(132px, 0.8fr) auto;
+}
+
+.overlay-action-gesture-cell {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.overlay-add-action-button {
+  justify-self: start;
+}
+
 .overlay-action-grid .hotkey-action-trigger {
   min-height: 48px;
 }

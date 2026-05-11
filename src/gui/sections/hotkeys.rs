@@ -1584,7 +1584,7 @@ fn HotkeyRow(
                         class: "icon-button",
                         title: "Edit hotkey",
                         onclick: move |_| onedit.call(hotkey.clone()),
-                        span { class: "solar-icon icon-settings" }
+                        span { class: "solar-icon icon-pen" }
                     }
                     button {
                         class: "icon-button danger-button",
@@ -1596,7 +1596,7 @@ fn HotkeyRow(
                                 sync_legacy_shortcut(config);
                             });
                         },
-                        span { class: "solar-icon icon-close" }
+                        span { class: "solar-icon icon-trash" }
                     }
                 }
             }
