@@ -74,6 +74,29 @@
   justify-self: start;
 }
 
+.overlay-behaviour.pass-through .overlay-action-entry,
+.overlay-behaviour.pass-through .overlay-action-empty,
+.overlay-behaviour.pass-through .overlay-add-action-button {
+  background: color-mix(in oklch, black 22%, var(--surface-2));
+  color: color-mix(in oklch, var(--muted) 72%, black);
+  box-shadow: none;
+  opacity: 0.58;
+}
+
+.overlay-behaviour.pass-through .overlay-action-entry:hover,
+.overlay-behaviour.pass-through .overlay-add-action-button:hover {
+  background: color-mix(in oklch, black 16%, var(--surface-2));
+  box-shadow: none;
+}
+
+.overlay-behaviour.pass-through .overlay-action-entry h3,
+.overlay-behaviour.pass-through .overlay-action-gesture-cell,
+.overlay-behaviour.pass-through .hotkey-target-label,
+.overlay-behaviour.pass-through .overlay-add-action-button .solar-icon,
+.overlay-behaviour.pass-through .hotkey-row-actions .solar-icon {
+  color: color-mix(in oklch, var(--muted) 68%, black);
+}
+
 .overlay-action-grid .hotkey-action-trigger {
   min-height: 48px;
 }

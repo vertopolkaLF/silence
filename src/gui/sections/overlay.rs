@@ -561,7 +561,12 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 }
             }
 
-            section { class: "sound-card overlay-behaviour",
+            section {
+                class: if overlay.behaviour == "PassThrough" {
+                    "sound-card overlay-behaviour pass-through"
+                } else {
+                    "sound-card overlay-behaviour"
+                },
                 id: "overlay-behaviour",
                 "data-settings-section": "true",
                 div { class: "section-head section-head-row", h1 { "Behaviour" } }
