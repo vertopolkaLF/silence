@@ -75,11 +75,15 @@ struct NativeOverlay {
     dragging: bool,
     drag_offset_x: i32,
     drag_offset_y: i32,
+    drag_start_x: i32,
+    drag_start_y: i32,
+    drag_moved: bool,
     was_mouse_down: bool,
     awaiting_initial_release: bool,
     visible: bool,
     pending_single_click: bool,
     suppress_next_left_up: bool,
+    suppress_next_click_after_drag: bool,
 }
 
 unsafe impl Send for NativeOverlay {}
@@ -144,11 +148,15 @@ pub fn init(instance: HINSTANCE, muted: bool, settings: &crate::OverlayConfig) -
         dragging: false,
         drag_offset_x: 0,
         drag_offset_y: 0,
+        drag_start_x: 0,
+        drag_start_y: 0,
+        drag_moved: false,
         was_mouse_down: false,
         awaiting_initial_release: false,
         visible: false,
         pending_single_click: false,
         suppress_next_left_up: false,
+        suppress_next_click_after_drag: false,
     };
     native.apply_layout();
     native.apply_click_through();
@@ -207,6 +215,7 @@ pub fn set_positioning(active: bool) -> Option<(f64, f64)> {
         };
         overlay.positioning = active;
         overlay.dragging = false;
+        overlay.drag_moved = false;
         overlay.was_mouse_down = false;
         overlay.awaiting_initial_release = active && mouse_down();
         overlay.apply_click_through();
@@ -449,7 +458,8 @@ impl NativeOverlay {
     }
 
     fn process_drag(&mut self) -> Option<(f64, f64)> {
-        if !self.positioning {
+        if !self.drag_enabled() {
+            self.suppress_next_click_after_drag = false;
             return None;
         }
 
@@ -471,9 +481,21 @@ impl NativeOverlay {
             self.dragging = true;
             self.drag_offset_x = cursor.x - self.x;
             self.drag_offset_y = cursor.y - self.y;
+            self.drag_start_x = cursor.x;
+            self.drag_start_y = cursor.y;
+            self.drag_moved = false;
         }
 
         if self.dragging && mouse_down {
+            if (cursor.x - self.drag_start_x).abs() >= 3
+                || (cursor.y - self.drag_start_y).abs() >= 3
+            {
+                self.drag_moved = true;
+            }
+            if !self.drag_moved {
+                self.was_mouse_down = mouse_down;
+                return None;
+            }
             let monitor = self.selected_monitor();
             let rect = monitor.rect;
             let max_x = (rect.right - self.width).max(rect.left);
@@ -496,7 +518,13 @@ impl NativeOverlay {
         let mut saved = None;
         if self.dragging && !mouse_down {
             self.dragging = false;
-            saved = Some(self.current_percent_position());
+            if self.drag_moved && !self.positioning {
+                self.suppress_next_click_after_drag = true;
+            }
+            if self.drag_moved {
+                saved = Some(self.current_percent_position());
+            }
+            self.drag_moved = false;
         }
 
         self.was_mouse_down = mouse_down;
@@ -505,6 +533,10 @@ impl NativeOverlay {
 
     fn contains(&self, x: i32, y: i32) -> bool {
         x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+    }
+
+    fn drag_enabled(&self) -> bool {
+        self.positioning || self.settings.behaviour == "Button"
     }
 
     fn current_percent_position(&mut self) -> (f64, f64) {
@@ -1006,6 +1038,14 @@ unsafe extern "system" fn overlay_wnd_proc(
         WM_LBUTTONUP => {
             if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
                 if overlay.settings.behaviour == "Button" && !overlay.positioning {
+                    if overlay.suppress_next_click_after_drag {
+                        overlay.suppress_next_click_after_drag = false;
+                        overlay.pending_single_click = false;
+                        unsafe {
+                            let _ = KillTimer(overlay.hwnd, ID_SINGLE_CLICK_TIMER);
+                        }
+                        return LRESULT(0);
+                    }
                     if overlay.suppress_next_left_up {
                         overlay.suppress_next_left_up = false;
                         return LRESULT(0);

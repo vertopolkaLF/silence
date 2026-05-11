@@ -4558,19 +4558,21 @@ fn show_update_notification(update: &updater::UpdateInfo) {
 }
 
 fn apply_overlay_visibility() {
-    let (muted, overlay) = {
+    let (hwnd, muted, overlay) = {
         let state = STATE.lock().unwrap();
-        (state.muted, state.overlay.clone())
+        (state.hwnd, state.muted, state.overlay.clone())
     };
 
     if native_overlay::is_positioning() {
         native_overlay::update(muted, &overlay);
         native_overlay::show();
+        sync_overlay_drag_timer(hwnd, &overlay);
         return;
     }
 
     if !overlay.enabled {
         native_overlay::hide();
+        sync_overlay_drag_timer(hwnd, &overlay);
         return;
     }
 
@@ -4588,6 +4590,7 @@ fn apply_overlay_visibility() {
     } else {
         native_overlay::hide();
     }
+    sync_overlay_drag_timer(hwnd, &overlay);
 }
 
 fn show_overlay_temporarily(duration_ms: u32) {
@@ -4597,9 +4600,20 @@ fn show_overlay_temporarily(duration_ms: u32) {
     };
     native_overlay::update(muted, &overlay);
     native_overlay::show();
+    sync_overlay_drag_timer(hwnd, &overlay);
     unsafe {
         let _ = KillTimer(hwnd, ID_OVERLAY_HIDE_TIMER);
         let _ = SetTimer(hwnd, ID_OVERLAY_HIDE_TIMER, duration_ms, None);
+    }
+}
+
+fn sync_overlay_drag_timer(hwnd: HWND, overlay: &OverlayConfig) {
+    unsafe {
+        if native_overlay::is_positioning() || (overlay.enabled && overlay.behaviour == "Button") {
+            let _ = SetTimer(hwnd, ID_OVERLAY_DRAG_TIMER, 16, None);
+        } else {
+            let _ = KillTimer(hwnd, ID_OVERLAY_DRAG_TIMER);
+        }
     }
 }
 
