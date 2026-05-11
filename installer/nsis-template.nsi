@@ -4,6 +4,8 @@
 !include "x64.nsh"
 
 !define SILENCE_V1_UNINSTALL_KEY "{8E4D9F2A-3B7C-4E1F-A5D6-9C8B2E7F4A3D}_is1"
+!define WEBVIEW2_CLIENT_KEY "Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+!define WEBVIEW2_BOOTSTRAPPER_URL "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 
 ; Basic installer attributes
 Name "silence!"
@@ -78,6 +80,7 @@ VIAddVersionKey "LegalCopyright" "{{copyright}}"
 ; Installer section
 Section "Install"
     Call RemoveSilenceV1
+    Call EnsureWebView2Runtime
     nsExec::ExecToLog 'taskkill.exe /f /im "silence.exe"'
 
     SetOutPath $INSTDIR
@@ -185,6 +188,66 @@ Function RemoveSilenceV1
         Call RunSilenceV1Uninstaller
     ${EndIf}
     SetRegView lastused
+FunctionEnd
+
+Function IsWebView2RuntimeInstalled
+    Push $0
+    StrCpy $0 "0"
+
+    ReadRegStr $1 HKCU "${WEBVIEW2_CLIENT_KEY}" "pv"
+    ${If} $1 != ""
+        StrCpy $0 "1"
+    ${EndIf}
+
+    ${If} $0 == "0"
+        SetRegView 64
+        ReadRegStr $1 HKLM "${WEBVIEW2_CLIENT_KEY}" "pv"
+        ${If} $1 != ""
+            StrCpy $0 "1"
+        ${EndIf}
+    ${EndIf}
+
+    ${If} $0 == "0"
+        SetRegView 32
+        ReadRegStr $1 HKLM "${WEBVIEW2_CLIENT_KEY}" "pv"
+        ${If} $1 != ""
+            StrCpy $0 "1"
+        ${EndIf}
+    ${EndIf}
+
+    SetRegView lastused
+    Exch $0
+FunctionEnd
+
+Function EnsureWebView2Runtime
+    Call IsWebView2RuntimeInstalled
+    Pop $0
+    ${If} $0 == "1"
+        DetailPrint "Microsoft Edge WebView2 Runtime is already installed."
+        Return
+    ${EndIf}
+
+    DetailPrint "Microsoft Edge WebView2 Runtime was not found. Downloading installer..."
+    NSISdl::download /TIMEOUT=30000 "${WEBVIEW2_BOOTSTRAPPER_URL}" "$TEMP\MicrosoftEdgeWebView2Setup.exe"
+    Pop $0
+    ${If} $0 != "success"
+        DetailPrint "Failed to download WebView2 Runtime installer: $0"
+        MessageBox MB_ICONEXCLAMATION|MB_OK "silence! settings require Microsoft Edge WebView2 Runtime, but the installer could not download it.$\r$\n$\r$\nPlease install WebView2 Runtime manually from Microsoft and run silence! again."
+        Return
+    ${EndIf}
+
+    DetailPrint "Installing Microsoft Edge WebView2 Runtime..."
+    ExecWait '"$TEMP\MicrosoftEdgeWebView2Setup.exe" /silent /install' $0
+    Delete "$TEMP\MicrosoftEdgeWebView2Setup.exe"
+
+    Call IsWebView2RuntimeInstalled
+    Pop $1
+    ${If} $1 == "1"
+        DetailPrint "Microsoft Edge WebView2 Runtime installed successfully."
+    ${Else}
+        DetailPrint "WebView2 Runtime installer exited with code $0, but runtime was not detected."
+        MessageBox MB_ICONEXCLAMATION|MB_OK "silence! was installed, but Microsoft Edge WebView2 Runtime was not detected after installation.$\r$\n$\r$\nSettings may not open until WebView2 Runtime is installed."
+    ${EndIf}
 FunctionEnd
 
 {{#if installer_hooks}}

@@ -663,7 +663,11 @@ pub struct HotkeyBinding {
     #[serde(default)]
     pub target: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_2: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_2_name: Option<String>,
 }
 
 impl Default for HotkeyAction {
@@ -681,7 +685,9 @@ impl Default for HotkeyBinding {
             gamepad: None,
             ignore_modifiers: false,
             target: None,
+            target_name: None,
             target_2: None,
+            target_2_name: None,
         }
     }
 }
@@ -4166,7 +4172,9 @@ pub(crate) fn run_overlay_action(binding: OverlayActionBinding) {
             gamepad: None,
             ignore_modifiers: false,
             target: binding.target,
+            target_name: None,
             target_2: binding.target_2,
+            target_2_name: None,
         }),
     };
     run_hotkey_action(request);
@@ -5906,7 +5914,9 @@ pub fn set_welcome_toggle_shortcut(shortcut: Shortcut) -> Result<()> {
         binding.shortcut = shortcut.clone();
         binding.gamepad = None;
         binding.target = None;
+        binding.target_name = None;
         binding.target_2 = None;
+        binding.target_2_name = None;
     } else {
         config.hotkeys.insert(
             0,
@@ -5915,7 +5925,9 @@ pub fn set_welcome_toggle_shortcut(shortcut: Shortcut) -> Result<()> {
                 shortcut: shortcut.clone(),
                 gamepad: None,
                 target: None,
+                target_name: None,
                 target_2: None,
+                target_2_name: None,
                 ..HotkeyBinding::default()
             },
         );
@@ -6113,7 +6125,9 @@ fn v1_base_hotkey_binding(binding: &Value, action: HotkeyAction) -> Option<Hotke
         gamepad: None,
         ignore_modifiers: false,
         target: None,
+        target_name: None,
         target_2: None,
+        target_2_name: None,
     };
     if v1_input_device_is_gamepad(binding) {
         hotkey.shortcut = Shortcut::default();

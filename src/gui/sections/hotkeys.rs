@@ -73,6 +73,60 @@ pub fn render(
     let hotkeys = snapshot.config.hotkeys.clone();
     let devices = snapshot.devices.clone();
     let output_devices = snapshot.output_devices.clone();
+    let audio_device_name_display = snapshot.config.advanced.audio_device_name_display.clone();
+
+    use_effect(use_reactive!(
+        |hotkeys, devices, output_devices, audio_device_name_display| {
+            let mut updates = Vec::new();
+            for hotkey in &hotkeys {
+                if let Some(target) = hotkey.target.as_deref() {
+                    if let Some(name) = device_name_for_action(
+                        hotkey.action,
+                        target,
+                        &devices,
+                        &output_devices,
+                        &audio_device_name_display,
+                    ) {
+                        if hotkey.target_name.as_deref() != Some(name.as_str()) {
+                            updates.push((hotkey.id.clone(), false, name));
+                        }
+                    }
+                }
+
+                if let Some(target) = hotkey.target_2.as_deref() {
+                    if let Some(name) = device_name_for_action(
+                        hotkey.action,
+                        target,
+                        &devices,
+                        &output_devices,
+                        &audio_device_name_display,
+                    ) {
+                        if hotkey.target_2_name.as_deref() != Some(name.as_str()) {
+                            updates.push((hotkey.id.clone(), true, name));
+                        }
+                    }
+                }
+            }
+
+            if updates.is_empty() {
+                return;
+            }
+
+            super::super::update_settings(settings, |config| {
+                for (id, second, name) in updates {
+                    if let Some(binding) =
+                        config.hotkeys.iter_mut().find(|binding| binding.id == id)
+                    {
+                        if second {
+                            binding.target_2_name = Some(name);
+                        } else {
+                            binding.target_name = Some(name);
+                        }
+                    }
+                }
+            });
+        }
+    ));
 
     rsx! {
         section {
@@ -462,6 +516,25 @@ pub fn modal_host(
                             let action = draft_action();
                             let target = draft_target_for(action, draft_target());
                             let target_2 = draft_second_target_for(action, draft_target_2());
+                            let name_display = settings().config.advanced.audio_device_name_display.clone();
+                            let target_name = target.as_deref().and_then(|target| {
+                                device_name_for_action(
+                                    action,
+                                    target,
+                                    &settings().devices,
+                                    &settings().output_devices,
+                                    &name_display,
+                                )
+                            });
+                            let target_2_name = target_2.as_deref().and_then(|target| {
+                                device_name_for_action(
+                                    action,
+                                    target,
+                                    &settings().devices,
+                                    &settings().output_devices,
+                                    &name_display,
+                                )
+                            });
                             super::super::update_settings(settings, |config| {
                                 config.hotkeys_paused = false;
                                 config.hotkeys.push(crate::HotkeyBinding {
@@ -469,7 +542,9 @@ pub fn modal_host(
                                     gamepad: None,
                                     action,
                                     target,
+                                    target_name,
                                     target_2,
+                                    target_2_name,
                                     ignore_modifiers: draft_ignore_modifiers(),
                                     ..crate::HotkeyBinding::default()
                                 });
@@ -494,13 +569,34 @@ pub fn modal_host(
                             let action = draft_action();
                             let target = draft_target_for(action, draft_target());
                             let target_2 = draft_second_target_for(action, draft_target_2());
+                            let name_display = settings().config.advanced.audio_device_name_display.clone();
+                            let target_name = target.as_deref().and_then(|target| {
+                                device_name_for_action(
+                                    action,
+                                    target,
+                                    &settings().devices,
+                                    &settings().output_devices,
+                                    &name_display,
+                                )
+                            });
+                            let target_2_name = target_2.as_deref().and_then(|target| {
+                                device_name_for_action(
+                                    action,
+                                    target,
+                                    &settings().devices,
+                                    &settings().output_devices,
+                                    &name_display,
+                                )
+                            });
                             super::super::update_settings(settings, |config| {
                                 config.hotkeys_paused = false;
                                 config.hotkeys.push(crate::HotkeyBinding {
                                     gamepad: Some(gamepad),
                                     action,
                                     target,
+                                    target_name,
                                     target_2,
+                                    target_2_name,
                                     ignore_modifiers: false,
                                     ..crate::HotkeyBinding::default()
                                 });
@@ -1391,13 +1487,37 @@ fn apply_draft_to_binding(
     target_2: String,
     ignore_modifiers: bool,
 ) {
+    let snapshot = settings();
+    let devices = snapshot.devices.clone();
+    let output_devices = snapshot.output_devices.clone();
+    let name_display = snapshot.config.advanced.audio_device_name_display.clone();
     super::super::update_settings(settings, |config| {
         if let Some(binding) = config.hotkeys.iter_mut().find(|binding| binding.id == id) {
+            let target_name = draft_target_name_for(
+                action,
+                &target,
+                binding.target.as_deref(),
+                binding.target_name.clone(),
+                &devices,
+                &output_devices,
+                &name_display,
+            );
+            let target_2_name = draft_target_name_for(
+                action,
+                &target_2,
+                binding.target_2.as_deref(),
+                binding.target_2_name.clone(),
+                &devices,
+                &output_devices,
+                &name_display,
+            );
             binding.shortcut = shortcut;
             binding.gamepad = gamepad;
             binding.action = action;
             binding.target = draft_target_for(action, target);
+            binding.target_name = target_name;
             binding.target_2 = draft_second_target_for(action, target_2);
+            binding.target_2_name = target_2_name;
             binding.ignore_modifiers = ignore_modifiers;
         }
         sync_legacy_shortcut(config);
@@ -1418,6 +1538,30 @@ fn draft_target_for(action: crate::HotkeyAction, target: String) -> Option<Strin
     } else {
         None
     }
+}
+
+fn draft_target_name_for(
+    action: crate::HotkeyAction,
+    target: &str,
+    previous_target: Option<&str>,
+    previous_name: Option<String>,
+    devices: &[crate::MicDevice],
+    output_devices: &[crate::AudioDevice],
+    name_display: &str,
+) -> Option<String> {
+    if !action.needs_target()
+        || action_uses_volume_target(action)
+        || target.is_empty()
+        || matches!(target, crate::HOTKEY_TARGET_ALL_MICROPHONES)
+    {
+        return None;
+    }
+
+    device_name_for_action(action, target, devices, output_devices, name_display).or_else(|| {
+        (previous_target == Some(target))
+            .then_some(previous_name)
+            .flatten()
+    })
 }
 
 #[component]
@@ -1550,7 +1694,9 @@ fn HotkeyRow(
     let target_label = target_label(
         action,
         hotkey.target.as_deref(),
+        hotkey.target_name.as_deref(),
         hotkey.target_2.as_deref(),
+        hotkey.target_2_name.as_deref(),
         &devices,
         &output_devices,
         &audio_device_name_display,
@@ -1836,23 +1982,47 @@ pub(crate) fn action_options() -> Vec<SelectOption> {
 fn target_label(
     action: crate::HotkeyAction,
     target: Option<&str>,
+    target_name: Option<&str>,
     target_2: Option<&str>,
+    target_2_name: Option<&str>,
     devices: &[crate::MicDevice],
     output_devices: &[crate::AudioDevice],
     name_display: &str,
 ) -> String {
     if action.needs_second_target() {
-        let first = device_target_label(action, target, devices, output_devices, name_display);
-        let second = device_target_label(action, target_2, devices, output_devices, name_display);
+        let first = device_target_label(
+            action,
+            target,
+            target_name,
+            devices,
+            output_devices,
+            name_display,
+        );
+        let second = device_target_label(
+            action,
+            target_2,
+            target_2_name,
+            devices,
+            output_devices,
+            name_display,
+        );
         return format!("{first} / {second}");
     }
 
-    device_target_label(action, target, devices, output_devices, name_display)
+    device_target_label(
+        action,
+        target,
+        target_name,
+        devices,
+        output_devices,
+        name_display,
+    )
 }
 
 fn device_target_label(
     action: crate::HotkeyAction,
     target: Option<&str>,
+    saved_name: Option<&str>,
     devices: &[crate::MicDevice],
     output_devices: &[crate::AudioDevice],
     name_display: &str,
@@ -1867,8 +2037,14 @@ fn device_target_label(
         crate::HotkeyAction::SetDefaultInputDevice | crate::HotkeyAction::ToggleDefaultInputDevice
     ) {
         return target
-            .and_then(|target| devices.iter().find(|device| device.id == target))
-            .map(|device| device.display_name(name_display))
+            .and_then(|target| {
+                device_name_for_action(action, target, devices, output_devices, name_display)
+            })
+            .or_else(|| {
+                saved_name
+                    .filter(|name| !name.trim().is_empty())
+                    .map(str::to_string)
+            })
             .unwrap_or_else(|| "Choose an input device".to_string());
     }
 
@@ -1878,8 +2054,14 @@ fn device_target_label(
             | crate::HotkeyAction::ToggleDefaultOutputDevice
     ) {
         return target
-            .and_then(|target| output_devices.iter().find(|device| device.id == target))
-            .map(|device| device.display_name(name_display))
+            .and_then(|target| {
+                device_name_for_action(action, target, devices, output_devices, name_display)
+            })
+            .or_else(|| {
+                saved_name
+                    .filter(|name| !name.trim().is_empty())
+                    .map(str::to_string)
+            })
             .unwrap_or_else(|| "Choose an output device".to_string());
     }
 
@@ -1889,9 +2071,39 @@ fn device_target_label(
 
     target
         .filter(|target| !target.is_empty())
-        .and_then(|target| devices.iter().find(|device| device.id == target))
-        .map(|device| device.display_name(name_display))
+        .and_then(|target| {
+            device_name_for_action(action, target, devices, output_devices, name_display)
+        })
+        .or_else(|| {
+            saved_name
+                .filter(|name| !name.trim().is_empty())
+                .map(str::to_string)
+        })
         .unwrap_or_else(|| DEFAULT_TARGET_LABEL.to_string())
+}
+
+fn device_name_for_action(
+    action: crate::HotkeyAction,
+    target: &str,
+    devices: &[crate::MicDevice],
+    output_devices: &[crate::AudioDevice],
+    name_display: &str,
+) -> Option<String> {
+    if matches!(
+        action,
+        crate::HotkeyAction::SetDefaultOutputDevice
+            | crate::HotkeyAction::ToggleDefaultOutputDevice
+    ) {
+        return output_devices
+            .iter()
+            .find(|device| device.id == target)
+            .map(|device| device.display_name(name_display));
+    }
+
+    devices
+        .iter()
+        .find(|device| device.id == target)
+        .map(|device| device.display_name(name_display))
 }
 
 pub(crate) fn target_is_valid_for_action(
