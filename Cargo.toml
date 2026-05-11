@@ -1,6 +1,6 @@
 [package]
 name = "silence"
-version = "2.1.0-testwin10build"
+version = "67.1.1"
 edition = "2024"
 
 [dependencies]

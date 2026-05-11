@@ -106,9 +106,9 @@ use windows::{
                 TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
                 WINDOW_EX_STYLE, WM_APP, WM_CLOSE, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
                 WM_DPICHANGED, WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
-                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN,
-                WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED, WM_TIMER,
-                WM_WINDOWPOSCHANGED, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
+                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEMOVE,
+                WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED,
+                WM_TIMER, WM_WINDOWPOSCHANGED, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
                 WS_OVERLAPPED,
             },
         },
@@ -845,6 +845,75 @@ fn log_line(message: impl AsRef<str>) {
 
 fn log_error(message: impl AsRef<str>, err: impl std::fmt::Debug) {
     log_line(format!("{}: {err:?}", message.as_ref()));
+}
+
+fn install_panic_logger() {
+    std::panic::set_hook(Box::new(|info| {
+        let location = info
+            .location()
+            .map(|location| format!("{}:{}", location.file(), location.line()))
+            .unwrap_or_else(|| "unknown location".to_string());
+        let payload = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|message| (*message).to_string())
+            .or_else(|| {
+                info.payload()
+                    .downcast_ref::<String>()
+                    .map(|message| message.clone())
+            })
+            .unwrap_or_else(|| "non-string panic payload".to_string());
+
+        log_line(format!("PANIC at {location}: {payload}"));
+    }));
+}
+
+fn webview2_runtime_version() -> Option<String> {
+    const WEBVIEW2_CLIENT_GUID: &str = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+    let subkeys = [
+        format!(r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{WEBVIEW2_CLIENT_GUID}"),
+        format!(r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{WEBVIEW2_CLIENT_GUID}"),
+    ];
+
+    for root in [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
+        for subkey in &subkeys {
+            if let Some(version) = registry_string(root, subkey, "pv") {
+                if !version.trim().is_empty() {
+                    return Some(version);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn registry_string(
+    root: windows::Win32::System::Registry::HKEY,
+    subkey: &str,
+    value_name: &str,
+) -> Option<String> {
+    let subkey = wide(subkey);
+    let value_name = wide(value_name);
+    let mut data = [0_u16; 260];
+    let mut data_size = (data.len() * size_of::<u16>()) as u32;
+    let status = unsafe {
+        RegGetValueW(
+            root,
+            PCWSTR(subkey.as_ptr()),
+            PCWSTR(value_name.as_ptr()),
+            RRF_RT_REG_SZ,
+            None,
+            Some(data.as_mut_ptr() as *mut c_void),
+            Some(&mut data_size),
+        )
+    };
+
+    if status != ERROR_SUCCESS || data_size < size_of::<u16>() as u32 {
+        return None;
+    }
+
+    Some(wide_buf_to_string(&data))
 }
 
 struct AppState {
@@ -1992,6 +2061,7 @@ const SOUND_THEMES: &[SoundTheme] = &[
 ];
 
 fn main() -> Result<()> {
+    install_panic_logger();
     let args = std::env::args().collect::<Vec<_>>();
     log_line(format!(
         "process start; version={}; exe={:?}; args={:?}; windows_build={:?}",
@@ -2036,6 +2106,12 @@ fn main() -> Result<()> {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
         }
         log_line("COM initialized for settings process");
+        match webview2_runtime_version() {
+            Some(version) => log_line(format!("WebView2 Runtime detected; version={version}")),
+            None => log_line(
+                "WebView2 Runtime was not found in EdgeUpdate registry keys; settings WebView may fail to start",
+            ),
+        }
         let settings_window_size = LogicalSize::new(760.0, 590.0);
         let settings_window_position = centered_window_position(settings_window_size);
         let no_redirection_bitmap = settings_no_redirection_bitmap_available();
@@ -2065,15 +2141,20 @@ fn main() -> Result<()> {
         MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
         install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
         log_line("settings mouse hook installed; launching Dioxus settings app");
-        dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(|| {
-            if gamepad_monitoring_needed(false) {
-                log_line("settings app requires gamepad monitors; starting them");
-                ensure_gamepad_monitors(false);
-            }
-            log_line("settings app root created");
-            gui::settings_app()
-        });
-        log_line("settings app event loop exited");
+        let launch_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(|| {
+                if gamepad_monitoring_needed(false) {
+                    log_line("settings app requires gamepad monitors; starting them");
+                    ensure_gamepad_monitors(false);
+                }
+                log_line("settings app root created");
+                gui::settings_app()
+            });
+        }));
+        match launch_result {
+            Ok(()) => log_line("settings app event loop exited"),
+            Err(_) => log_line("settings app launch unwound after panic"),
+        }
         let _settings_mutex = settings_mutex;
         return Ok(());
     }
@@ -3393,7 +3474,9 @@ unsafe extern "system" fn main_wnd_proc(
 
     match msg {
         WM_TRAY => {
-            log_line(format!("main_wnd_proc: WM_TRAY lparam={}", lparam.0));
+            if lparam.0 as u32 != WM_MOUSEMOVE {
+                log_line(format!("main_wnd_proc: WM_TRAY lparam={}", lparam.0));
+            }
             match lparam.0 as u32 {
                 WM_RBUTTONUP => show_tray_menu(hwnd),
                 WM_LBUTTONUP => handle_tray_left_click(hwnd),
