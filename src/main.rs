@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
     ffi::c_void,
     fs,
@@ -55,9 +56,10 @@ use windows::{
             },
         },
         Media::Audio::{
-            DEVICE_STATE_ACTIVE, EDataFlow, ERole, Endpoints::IAudioEndpointVolume, IMMDevice,
-            IMMDeviceEnumerator, MMDeviceEnumerator, eCapture, eCommunications, eConsole,
-            eMultimedia, eRender,
+            AUDIO_VOLUME_NOTIFICATION_DATA, DEVICE_STATE, DEVICE_STATE_ACTIVE, EDataFlow, ERole,
+            Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback},
+            IMMDevice, IMMDeviceEnumerator, IMMNotificationClient, MMDeviceEnumerator, eCapture,
+            eCommunications, eConsole, eMultimedia, eRender,
         },
         System::{
             Com::{
@@ -99,17 +101,17 @@ use windows::{
                 DestroyWindow, DispatchMessageW, DrawIconEx, FindWindowW, GWL_WNDPROC,
                 GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON, HMENU, IDC_ARROW,
                 IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW,
-                LoadIconW, MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostQuitMessage, RegisterClassW,
-                RegisterWindowMessageW, SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN, SW_RESTORE, SW_SHOW,
-                SendMessageW, SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
-                SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
-                TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
-                WINDOW_EX_STYLE, WM_APP, WM_CLOSE, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
-                WM_DPICHANGED, WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
-                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN,
-                WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED, WM_TIMER,
-                WM_WINDOWPOSCHANGED, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC,
-                WS_OVERLAPPED,
+                LoadIconW, MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostMessageW, PostQuitMessage,
+                RegisterClassW, RegisterWindowMessageW, SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN,
+                SW_RESTORE, SW_SHOW, SendMessageW, SetForegroundWindow, SetMenuItemBitmaps,
+                SetTimer, SetWindowLongPtrW, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN,
+                TPM_LEFTALIGN, TPM_RETURNCMD, TrackPopupMenu, TranslateMessage,
+                UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE, WM_APP,
+                WM_CLOSE, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED,
+                WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN,
+                WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN, WM_RBUTTONUP,
+                WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_THEMECHANGED, WM_TIMER, WM_WINDOWPOSCHANGED,
+                WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WNDPROC, WS_OVERLAPPED,
             },
         },
     },
@@ -130,6 +132,8 @@ const WM_OPEN_SETTINGS: u32 = WM_APP + 6;
 const WM_UPDATE_NOW: u32 = WM_APP + 7;
 const WM_EXIT_ALL: u32 = WM_APP + 8;
 const WM_WHATS_NEW: u32 = WM_APP + 9;
+const WM_AUDIO_MUTE_STATE_CHANGED: u32 = WM_APP + 10;
+const WM_AUDIO_ENDPOINT_CHANGED: u32 = WM_APP + 11;
 const ID_TRAY: u32 = 1;
 const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
@@ -854,6 +858,169 @@ struct AppState {
     auto_muted_by_inactivity: bool,
     auto_mute_cursor_position: POINT,
     config_modified: Option<SystemTime>,
+}
+
+struct AudioNotificationRegistration {
+    enumerator: IMMDeviceEnumerator,
+    endpoint_callback: IMMNotificationClient,
+    volume_callback: IAudioEndpointVolumeCallback,
+    volume: Option<IAudioEndpointVolume>,
+    device_id: Option<String>,
+}
+
+impl AudioNotificationRegistration {
+    fn new(hwnd: HWND) -> Result<Self> {
+        let enumerator = audio_device_enumerator()?;
+        let endpoint_callback: IMMNotificationClient =
+            windows_core::ComObject::new(AudioDeviceNotificationSink { hwnd }).into_interface();
+        let volume_callback: IAudioEndpointVolumeCallback =
+            windows_core::ComObject::new(AudioEndpointVolumeSink { hwnd }).into_interface();
+        unsafe {
+            enumerator
+                .RegisterEndpointNotificationCallback(&endpoint_callback)
+                .context("register audio endpoint notification callback")?;
+        }
+
+        let mut registration = Self {
+            enumerator,
+            endpoint_callback,
+            volume_callback,
+            volume: None,
+            device_id: None,
+        };
+
+        if let Err(err) = registration.rebind_default_capture_volume() {
+            registration.unregister_endpoint_callback();
+            return Err(err);
+        }
+
+        Ok(registration)
+    }
+
+    fn rebind_default_capture_volume(&mut self) -> Result<()> {
+        let device = unsafe { capture_device(&self.enumerator, None)? };
+        let device_id = unsafe { endpoint_device_id(&device)? };
+        if self.device_id.as_deref() == Some(device_id.as_str()) {
+            return Ok(());
+        }
+
+        let volume: IAudioEndpointVolume = unsafe {
+            device
+                .Activate(CLSCTX_ALL, None)
+                .context("activate endpoint volume for mute notifications")?
+        };
+        unsafe {
+            volume
+                .RegisterControlChangeNotify(&self.volume_callback)
+                .context("register endpoint mute notification callback")?;
+        }
+
+        if let Some(previous_volume) = self.volume.replace(volume) {
+            unsafe {
+                if let Err(err) =
+                    previous_volume.UnregisterControlChangeNotify(&self.volume_callback)
+                {
+                    eprintln!("failed to unregister stale endpoint mute callback: {err:?}");
+                }
+            }
+        }
+
+        self.device_id = Some(device_id);
+        Ok(())
+    }
+
+    fn shutdown(mut self) {
+        self.unregister_volume_callback();
+        self.unregister_endpoint_callback();
+    }
+
+    fn unregister_volume_callback(&mut self) {
+        if let Some(volume) = self.volume.take() {
+            unsafe {
+                if let Err(err) = volume.UnregisterControlChangeNotify(&self.volume_callback) {
+                    eprintln!("failed to unregister endpoint mute callback: {err:?}");
+                }
+            }
+        }
+        self.device_id = None;
+    }
+
+    fn unregister_endpoint_callback(&self) {
+        unsafe {
+            if let Err(err) = self
+                .enumerator
+                .UnregisterEndpointNotificationCallback(&self.endpoint_callback)
+            {
+                eprintln!("failed to unregister audio endpoint notification callback: {err:?}");
+            }
+        }
+    }
+}
+
+#[windows_core::implement(IAudioEndpointVolumeCallback)]
+struct AudioEndpointVolumeSink {
+    hwnd: HWND,
+}
+
+impl windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolumeCallback_Impl
+    for AudioEndpointVolumeSink_Impl
+{
+    fn OnNotify(&self, _pnotify: *mut AUDIO_VOLUME_NOTIFICATION_DATA) -> windows::core::Result<()> {
+        post_audio_window_message(self.hwnd, WM_AUDIO_MUTE_STATE_CHANGED);
+        Ok(())
+    }
+}
+
+#[windows_core::implement(IMMNotificationClient)]
+struct AudioDeviceNotificationSink {
+    hwnd: HWND,
+}
+
+impl AudioDeviceNotificationSink_Impl {
+    fn post_rebind(&self) {
+        post_audio_window_message(self.hwnd, WM_AUDIO_ENDPOINT_CHANGED);
+    }
+}
+
+impl windows::Win32::Media::Audio::IMMNotificationClient_Impl for AudioDeviceNotificationSink_Impl {
+    fn OnDeviceStateChanged(
+        &self,
+        _pwstrdeviceid: &PCWSTR,
+        _dwnewstate: DEVICE_STATE,
+    ) -> windows::core::Result<()> {
+        self.post_rebind();
+        Ok(())
+    }
+
+    fn OnDeviceAdded(&self, _pwstrdeviceid: &PCWSTR) -> windows::core::Result<()> {
+        self.post_rebind();
+        Ok(())
+    }
+
+    fn OnDeviceRemoved(&self, _pwstrdeviceid: &PCWSTR) -> windows::core::Result<()> {
+        self.post_rebind();
+        Ok(())
+    }
+
+    fn OnDefaultDeviceChanged(
+        &self,
+        flow: EDataFlow,
+        _role: ERole,
+        _pwstrdefaultdeviceid: &PCWSTR,
+    ) -> windows::core::Result<()> {
+        if flow == eCapture {
+            self.post_rebind();
+        }
+        Ok(())
+    }
+
+    fn OnPropertyValueChanged(
+        &self,
+        _pwstrdeviceid: &PCWSTR,
+        _key: &windows::Win32::UI::Shell::PropertiesSystem::PROPERTYKEY,
+    ) -> windows::core::Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1637,6 +1804,11 @@ static TRAY_ICON_ADDED: AtomicBool = AtomicBool::new(false);
 static SETTINGS_MICA_ENABLED: AtomicBool = AtomicBool::new(false);
 static TASKBAR_CREATED_MESSAGE: Lazy<u32> =
     Lazy::new(|| unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) });
+
+thread_local! {
+    static AUDIO_NOTIFICATION_REGISTRATION: RefCell<Option<AudioNotificationRegistration>> =
+        const { RefCell::new(None) };
+}
 static SETTINGS_GAMEPAD_HELD: Lazy<Mutex<HashSet<GamepadInput>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
 static SETTINGS_MOUSE_HELD: Lazy<Mutex<Vec<u32>>> = Lazy::new(|| Mutex::new(Vec::new()));
@@ -2174,6 +2346,47 @@ fn handle_notification_action(action: NotificationAction) {
     }
 }
 
+fn post_audio_window_message(hwnd: HWND, message: u32) {
+    if hwnd.0.is_null() {
+        return;
+    }
+
+    unsafe {
+        let _ = PostMessageW(hwnd, message, WPARAM(0), LPARAM(0));
+    }
+}
+
+fn ensure_audio_notification_registration() {
+    let hwnd = STATE.lock().unwrap().hwnd;
+    if hwnd.0.is_null() {
+        return;
+    }
+
+    AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
+        let mut registration = registration.borrow_mut();
+        if let Some(registration) = registration.as_mut() {
+            if let Err(err) = registration.rebind_default_capture_volume() {
+                eprintln!("failed to rebind default capture mute notifications: {err:?}");
+            }
+            return;
+        }
+
+        match AudioNotificationRegistration::new(hwnd) {
+            Ok(value) => *registration = Some(value),
+            Err(err) => eprintln!("failed to initialize audio notifications: {err:?}"),
+        }
+    });
+}
+
+fn shutdown_audio_notification_registration() {
+    AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
+        let registration = registration.borrow_mut().take();
+        if let Some(registration) = registration {
+            registration.shutdown();
+        }
+    });
+}
+
 fn register_notification_integration() {
     if let Err(err) = register_protocol_handler() {
         eprintln!("failed to register notification protocol handler: {err:?}");
@@ -2543,6 +2756,7 @@ fn run_background_app() -> Result<()> {
     if gamepad_monitoring_needed(true) {
         ensure_gamepad_monitors(true);
     }
+    ensure_audio_notification_registration();
     add_tray_icon(hwnd)?;
     if !STATE.lock().unwrap().welcome_completed {
         open_settings_window();
@@ -3347,6 +3561,15 @@ unsafe extern "system" fn main_wnd_proc(
         }
         WM_WHATS_NEW => {
             open_last_update_release();
+            LRESULT(0)
+        }
+        WM_AUDIO_MUTE_STATE_CHANGED => {
+            refresh_mute_state();
+            LRESULT(0)
+        }
+        WM_AUDIO_ENDPOINT_CHANGED => {
+            ensure_audio_notification_registration();
+            refresh_mute_state();
             LRESULT(0)
         }
         WM_OVERLAY_POSITIONING => {
@@ -5103,11 +5326,16 @@ fn target_capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume
     capture_volume(device_id.filter(|id| !id.is_empty()))
 }
 
+fn audio_device_enumerator() -> Result<IMMDeviceEnumerator> {
+    unsafe {
+        CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+            .context("create audio device enumerator")
+    }
+}
+
 fn capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
     unsafe {
-        let enumerator: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-                .context("create audio device enumerator")?;
+        let enumerator = audio_device_enumerator()?;
         let device = capture_device(&enumerator, device_id)?;
         device
             .Activate(CLSCTX_ALL, None)
@@ -5117,9 +5345,7 @@ fn capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
 
 fn output_volume() -> Result<IAudioEndpointVolume> {
     unsafe {
-        let enumerator: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-                .context("create audio device enumerator")?;
+        let enumerator = audio_device_enumerator()?;
         let device = enumerator
             .GetDefaultAudioEndpoint(eRender, eConsole)
             .context("get default output endpoint")?;
@@ -5148,9 +5374,7 @@ unsafe fn capture_device(
 
 fn active_capture_device_volumes() -> Result<Vec<IAudioEndpointVolume>> {
     unsafe {
-        let enumerator: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-                .context("create audio device enumerator")?;
+        let enumerator = audio_device_enumerator()?;
         let collection = enumerator
             .EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
             .context("enumerate capture endpoints")?;
@@ -5198,9 +5422,7 @@ pub fn render_devices() -> Result<Vec<AudioDevice>> {
 
 fn endpoint_devices(flow: EDataFlow, fallback_name: &str) -> Result<Vec<AudioDevice>> {
     unsafe {
-        let enumerator: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-                .context("create audio device enumerator")?;
+        let enumerator = audio_device_enumerator()?;
         let default_id = endpoint_device_id(
             &enumerator
                 .GetDefaultAudioEndpoint(flow, eConsole)
@@ -5261,9 +5483,7 @@ pub fn rename_audio_device(device_id: &str, name: &str) -> Result<()> {
 
     let device_id = wide(device_id);
     unsafe {
-        let enumerator: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-                .context("create audio device enumerator")?;
+        let enumerator = audio_device_enumerator()?;
         let device = enumerator
             .GetDevice(PCWSTR(device_id.as_ptr()))
             .context("get audio endpoint")?;
@@ -5466,8 +5686,13 @@ fn refresh_runtime_state() {
 }
 
 fn refresh_mute_state() {
-    let Ok(muted) = current_mute_state() else {
-        return;
+    let muted = match current_mute_state() {
+        Ok(muted) => muted,
+        Err(err) => {
+            eprintln!("failed to refresh microphone mute state: {err:?}");
+            ensure_audio_notification_registration();
+            return;
+        }
     };
     if !muted && STATE.lock().unwrap().auto_muted_by_inactivity {
         clear_inactivity_auto_mute_flag();
@@ -6333,6 +6558,7 @@ pub(crate) fn sync_startup_registration(enabled: bool) -> Result<()> {
 }
 
 fn cleanup() {
+    shutdown_audio_notification_registration();
     native_overlay::destroy();
     remove_tray_icon();
     let (hook, mouse_hook) = {

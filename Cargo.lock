@@ -4890,7 +4890,7 @@ dependencies = [
 
 [[package]]
 name = "silence"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "anyhow",
  "dioxus",
@@ -4906,6 +4906,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "windows 0.58.0",
+ "windows-core 0.58.0",
  "winrt-toast",
 ]
 

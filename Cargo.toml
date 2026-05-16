@@ -1,6 +1,6 @@
 [package]
 name = "silence"
-version = "2.1.1"
+version = "2.1.2"
 edition = "2024"
 
 [dependencies]
@@ -19,6 +19,7 @@ semver = "1.0"
 tokio = { version = "1.52", features = ["fs", "io-util", "rt-multi-thread", "time"] }
 winrt-toast = "0.1.1"
 windows = { version = "0.58", features = [
+    "implement",
     "Win32_Foundation",
     "Win32_Devices_Display",
     "Win32_Graphics_Dwm",
@@ -41,3 +42,4 @@ windows = { version = "0.58", features = [
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_WindowsAndMessaging",
 ] }
+windows-core = "0.58"
