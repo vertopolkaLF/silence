@@ -48,6 +48,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
         SelectOption::new("Always", "Always visible").icon("icon-widget"),
         SelectOption::new("WhenMuted", "Visible when muted").icon("icon-mic-muted"),
         SelectOption::new("WhenUnmuted", "Visible when unmuted").icon("icon-mic-lucide"),
+        SelectOption::new("WhenMicInUse", "Visible while mic is used").icon("icon-record"),
         SelectOption::new("AfterToggle", "Show after toggle").icon("icon-clock-circle"),
     ];
     let display_options = snapshot

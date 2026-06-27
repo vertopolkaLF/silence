@@ -56,7 +56,8 @@ use windows::{
             },
         },
         Media::Audio::{
-            AUDIO_VOLUME_NOTIFICATION_DATA, DEVICE_STATE, DEVICE_STATE_ACTIVE, EDataFlow, ERole,
+            AUDIO_VOLUME_NOTIFICATION_DATA, AudioSessionStateActive, DEVICE_STATE,
+            DEVICE_STATE_ACTIVE, EDataFlow, ERole, IAudioSessionControl, IAudioSessionManager2,
             Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback},
             IMMDevice, IMMDeviceEnumerator, IMMNotificationClient, MMDeviceEnumerator, eCapture,
             eCommunications, eConsole, eMultimedia, eRender,
@@ -858,6 +859,7 @@ struct AppState {
     auto_muted_by_inactivity: bool,
     auto_mute_cursor_position: POINT,
     config_modified: Option<SystemTime>,
+    mic_in_use: bool,
 }
 
 struct AudioNotificationRegistration {
@@ -1488,6 +1490,8 @@ pub struct TrayIconConfig {
     pub icon_pair: String,
     #[serde(default = "default_tray_icon_status_style")]
     pub status_style: String,
+    #[serde(default)]
+    pub show_mic_in_use: bool,
 }
 
 impl Default for TrayIconConfig {
@@ -1496,6 +1500,7 @@ impl Default for TrayIconConfig {
             variant: default_tray_icon_variant(),
             icon_pair: crate::overlay_icons::default_overlay_icon_pair(),
             status_style: default_tray_icon_status_style(),
+            show_mic_in_use: false,
         }
     }
 }
@@ -1787,6 +1792,7 @@ impl Default for AppState {
             auto_muted_by_inactivity: false,
             auto_mute_cursor_position: POINT::default(),
             config_modified: config_modified_time(),
+            mic_in_use: false,
         }
     }
 }
@@ -2734,11 +2740,13 @@ fn run_background_app() -> Result<()> {
     register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
     let muted = current_mute_state().unwrap_or(false);
+    let mic_in_use = current_mic_in_use().unwrap_or(false);
     let overlay_config = STATE.lock().unwrap().overlay.clone();
     {
         let mut state = STATE.lock().unwrap();
         state.hwnd = hwnd;
         state.muted = muted;
+        state.mic_in_use = mic_in_use;
     }
     register_notification_integration();
     updater::cleanup_downloads_after_startup();
@@ -3034,9 +3042,11 @@ fn add_tray_icon(hwnd: HWND) -> Result<()> {
         return Ok(());
     }
 
-    let config = STATE.lock().unwrap().tray_icon.clone();
-    let muted = STATE.lock().unwrap().muted;
-    let icon = load_tray_icon(&config, muted)
+    let (config, muted, mic_in_use) = {
+        let state = STATE.lock().unwrap();
+        (state.tray_icon.clone(), state.muted, state.mic_in_use)
+    };
+    let icon = load_tray_icon(&config, muted, mic_in_use)
         .or_else(load_app_icon)
         .or_else(|| unsafe { LoadIconW(None, IDI_APPLICATION).ok() });
     let icon = icon.context("load tray icon")?;
@@ -3068,14 +3078,19 @@ fn refresh_tray_icon() {
         return;
     }
 
-    let (hwnd, muted, config) = {
+    let (hwnd, muted, mic_in_use, config) = {
         let state = STATE.lock().unwrap();
         if state.hwnd.0.is_null() {
             return;
         }
-        (state.hwnd, state.muted, state.tray_icon.clone())
+        (
+            state.hwnd,
+            state.muted,
+            state.mic_in_use,
+            state.tray_icon.clone(),
+        )
     };
-    let Some(icon) = load_tray_icon(&config, muted).or_else(load_app_icon) else {
+    let Some(icon) = load_tray_icon(&config, muted, mic_in_use).or_else(load_app_icon) else {
         refresh_tray_tip();
         return;
     };
@@ -3093,11 +3108,11 @@ fn refresh_tray_icon() {
     refresh_tray_tip();
 }
 
-fn load_tray_icon(config: &TrayIconConfig, muted: bool) -> Option<HICON> {
+fn load_tray_icon(config: &TrayIconConfig, muted: bool, mic_in_use: bool) -> Option<HICON> {
     match config.variant.as_str() {
-        "StatusMic" => create_status_mic_icon(config, muted),
-        "ColorDot" => create_color_dot_icon(muted),
-        _ => load_app_icon(),
+        "StatusMic" => create_status_mic_icon(config, muted, mic_in_use),
+        "ColorDot" => create_color_dot_icon(config, muted, mic_in_use),
+        _ => create_badged_app_icon(config, mic_in_use).or_else(load_app_icon),
     }
 }
 
@@ -3109,7 +3124,59 @@ fn load_app_icon() -> Option<HICON> {
     }
 }
 
-fn create_status_mic_icon(config: &TrayIconConfig, muted: bool) -> Option<HICON> {
+fn create_badged_app_icon(config: &TrayIconConfig, mic_in_use: bool) -> Option<HICON> {
+    if !config.show_mic_in_use || !mic_in_use {
+        return load_app_icon();
+    }
+
+    let icon = load_app_icon()?;
+    let mut pixels = icon_pixels(icon, 32, 32)?;
+    draw_mic_in_use_badge(&mut pixels, 32, config, mic_in_use);
+    create_argb_icon(32, 32, &pixels)
+}
+
+fn icon_pixels(icon: HICON, width: i32, height: i32) -> Option<Vec<u8>> {
+    if width <= 0 || height <= 0 {
+        return None;
+    }
+
+    let mut bits: *mut c_void = null_mut();
+    let mut info = BITMAPINFO::default();
+    info.bmiHeader = BITMAPINFOHEADER {
+        biSize: size_of::<BITMAPINFOHEADER>() as u32,
+        biWidth: width,
+        biHeight: -height,
+        biPlanes: 1,
+        biBitCount: 32,
+        biCompression: BI_RGB.0,
+        ..Default::default()
+    };
+
+    unsafe {
+        let hdc = CreateCompatibleDC(None);
+        if hdc.is_invalid() {
+            return None;
+        }
+        let Ok(bitmap) = CreateDIBSection(hdc, &info, DIB_RGB_COLORS, &mut bits, None, 0) else {
+            let _ = DeleteDC(hdc);
+            return None;
+        };
+        let previous = SelectObject(hdc, bitmap);
+        let drawn = DrawIconEx(hdc, 0, 0, icon, width, height, 0, None, DI_NORMAL).is_ok();
+        let byte_len = (width * height * 4) as usize;
+        let pixels = if drawn && !bits.is_null() {
+            Some(std::slice::from_raw_parts(bits as *const u8, byte_len).to_vec())
+        } else {
+            None
+        };
+        let _ = SelectObject(hdc, previous);
+        let _ = DeleteObject(bitmap);
+        let _ = DeleteDC(hdc);
+        pixels
+    }
+}
+
+fn create_status_mic_icon(config: &TrayIconConfig, muted: bool, mic_in_use: bool) -> Option<HICON> {
     let color = match config.status_style.as_str() {
         "Monochrome" => {
             if windows_uses_light_system_theme() {
@@ -3139,10 +3206,11 @@ fn create_status_mic_icon(config: &TrayIconConfig, muted: bool) -> Option<HICON>
         pixels[offset + 2] = color.0;
         pixels[offset + 3] = alpha;
     }
+    draw_mic_in_use_badge(&mut pixels, 32, config, mic_in_use);
     create_argb_icon(32, 32, &pixels)
 }
 
-fn create_color_dot_icon(muted: bool) -> Option<HICON> {
+fn create_color_dot_icon(config: &TrayIconConfig, muted: bool, mic_in_use: bool) -> Option<HICON> {
     let color = state_accent(muted);
     let size = 32usize;
     let center = (size as f64 - 1.0) / 2.0;
@@ -3160,7 +3228,57 @@ fn create_color_dot_icon(muted: bool) -> Option<HICON> {
             pixels[offset + 3] = (alpha * 255.0).round() as u8;
         }
     }
+    draw_mic_in_use_badge(&mut pixels, size, config, mic_in_use);
     create_argb_icon(size as i32, size as i32, &pixels)
+}
+
+fn draw_mic_in_use_badge(
+    pixels: &mut [u8],
+    size: usize,
+    config: &TrayIconConfig,
+    mic_in_use: bool,
+) {
+    if !config.show_mic_in_use || !mic_in_use || size == 0 || pixels.len() < size * size * 4 {
+        return;
+    }
+
+    let light_theme = windows_uses_light_system_theme();
+    let accent = if config.status_style == "SystemColor" {
+        if light_theme { (0, 0, 0) } else { (255, 255, 255) }
+    } else {
+        WindowsAccent::load().accent
+    };
+    let backing = if light_theme {
+        (255, 255, 255)
+    } else {
+        (18, 18, 18)
+    };
+    let center_x = size as f64 - 6.5;
+    let center_y = size as f64 - 6.5;
+    let ring_radius = 7.75;
+    let dot_radius = 5.5;
+
+    for y in 0..size {
+        for x in 0..size {
+            let distance = ((x as f64 + 0.5 - center_x).powi(2)
+                + (y as f64 + 0.5 - center_y).powi(2))
+            .sqrt();
+            let color = if distance <= dot_radius {
+                Some(accent)
+            } else if distance <= ring_radius {
+                Some(backing)
+            } else {
+                None
+            };
+            if let Some((r, g, b)) = color {
+                let offset = (y * size + x) * 4;
+                pixels[offset] = b;
+                pixels[offset + 1] = g;
+                pixels[offset + 2] = r;
+                pixels[offset + 3] = 255;
+            }
+        }
+    }
 }
 
 fn render_svg_alpha(svg: &str, size: u32) -> Option<Vec<u8>> {
@@ -4789,9 +4907,14 @@ fn show_update_notification(update: &updater::UpdateInfo) {
 }
 
 fn apply_overlay_visibility() {
-    let (hwnd, muted, overlay) = {
+    let (hwnd, muted, mic_in_use, overlay) = {
         let state = STATE.lock().unwrap();
-        (state.hwnd, state.muted, state.overlay.clone())
+        (
+            state.hwnd,
+            state.muted,
+            state.mic_in_use,
+            state.overlay.clone(),
+        )
     };
 
     if native_overlay::is_positioning() {
@@ -4811,6 +4934,7 @@ fn apply_overlay_visibility() {
         "Always" => true,
         "WhenMuted" => muted,
         "WhenUnmuted" => !muted,
+        "WhenMicInUse" => mic_in_use,
         "AfterToggle" => false,
         _ => muted,
     };
@@ -4889,6 +5013,58 @@ fn current_mute_state() -> Result<bool> {
     let volume = capture_volume(None)?;
     let muted = unsafe { volume.GetMute()? };
     Ok(muted.as_bool())
+}
+
+fn current_mic_in_use() -> Result<bool> {
+    unsafe {
+        let enumerator = audio_device_enumerator()?;
+        let collection = enumerator
+            .EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
+            .context("enumerate capture endpoints for use state")?;
+        let count = collection
+            .GetCount()
+            .context("count capture endpoints for use state")?;
+
+        for index in 0..count {
+            let device = collection
+                .Item(index)
+                .context("get capture endpoint for use state")?;
+            if capture_device_in_use(&device)? {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+}
+
+unsafe fn capture_device_in_use(device: &IMMDevice) -> Result<bool> {
+    let session_manager: IAudioSessionManager2 = unsafe {
+        device
+            .Activate(CLSCTX_ALL, None)
+            .context("activate capture session manager")?
+    };
+    let session_enumerator = unsafe {
+        session_manager
+            .GetSessionEnumerator()
+            .context("get capture session enumerator")?
+    };
+    let count = unsafe { session_enumerator.GetCount().context("count capture sessions")? };
+
+    for index in 0..count {
+        let session = unsafe {
+            session_enumerator
+                .GetSession(index)
+                .context("get capture session")?
+        };
+        let control: IAudioSessionControl = session.cast().context("cast capture session control")?;
+        let state = unsafe { control.GetState().context("get capture session state")? };
+        if state == AudioSessionStateActive {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
 
 pub fn mic_mute_state(device_id: Option<&str>) -> Result<bool> {
@@ -5682,7 +5858,28 @@ fn normalize_audio_device_name_display(mode: &str) -> &'static str {
 fn refresh_runtime_state() {
     reload_config_if_changed();
     evaluate_auto_mute_inactivity();
+    refresh_mic_in_use_state();
     refresh_mute_state();
+}
+
+fn refresh_mic_in_use_state() {
+    let mic_in_use = match current_mic_in_use() {
+        Ok(mic_in_use) => mic_in_use,
+        Err(err) => {
+            eprintln!("failed to refresh microphone use state: {err:?}");
+            return;
+        }
+    };
+    let changed = {
+        let mut state = STATE.lock().unwrap();
+        let changed = state.mic_in_use != mic_in_use;
+        state.mic_in_use = mic_in_use;
+        changed
+    };
+    if changed {
+        refresh_tray_icon();
+        apply_overlay_visibility();
+    }
 }
 
 fn refresh_mute_state() {
@@ -5912,6 +6109,12 @@ fn normalize_overlay_config(overlay: &mut OverlayConfig) {
 
     if overlay.variant == "MicIcon" && overlay.show_text {
         overlay.variant = "IconText".to_string();
+    }
+    if !matches!(
+        overlay.visibility.as_str(),
+        "Always" | "WhenMuted" | "WhenUnmuted" | "WhenMicInUse" | "AfterToggle"
+    ) {
+        overlay.visibility = default_overlay_visibility();
     }
     if !matches!(
         overlay.variant.as_str(),

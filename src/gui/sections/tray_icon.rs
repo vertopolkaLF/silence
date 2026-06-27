@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::gui::controls::{Select, SelectOption};
+use crate::gui::controls::{Checkbox, Select, SelectOption};
 
 const APP_IMAGE: Asset = asset!("/assets/app.png");
 
@@ -77,6 +77,18 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 span {}
                             }
                             span { "Color dot" }
+                        }
+                    }
+                }
+
+                div { class: "overlay-field",
+                    Checkbox {
+                        checked: tray_icon.show_mic_in_use,
+                        label: "Show when mic is in use by an app".to_string(),
+                        onchange: move |checked| {
+                            super::super::update_settings(settings, |config| {
+                                config.tray_icon.show_mic_in_use = checked;
+                            });
                         }
                     }
                 }
