@@ -40,8 +40,8 @@ use windows::{
             FunctionDiscovery::{PKEY_Device_DeviceDesc, PKEY_Device_FriendlyName},
         },
         Foundation::{
-            BOOL, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError,
-            HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
+            BOOL, CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS,
+            GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
         },
         Graphics::{
             Dwm::{
@@ -57,8 +57,8 @@ use windows::{
         },
         Media::Audio::{
             AUDIO_VOLUME_NOTIFICATION_DATA, AudioSessionStateActive, DEVICE_STATE,
-            DEVICE_STATE_ACTIVE, EDataFlow, ERole, IAudioSessionControl, IAudioSessionManager2,
-            Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback},
+            DEVICE_STATE_ACTIVE, EDataFlow, ERole, IAudioSessionControl, IAudioSessionControl2,
+            IAudioSessionManager2, Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback},
             IMMDevice, IMMDeviceEnumerator, IMMNotificationClient, MMDeviceEnumerator, eCapture,
             eCommunications, eConsole, eMultimedia, eRender,
         },
@@ -73,7 +73,10 @@ use windows::{
                 RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
             },
             SystemInformation::GetTickCount,
-            Threading::CreateMutexW,
+            Threading::{
+                CreateMutexW, OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+                QueryFullProcessImageNameW,
+            },
             Variant::VT_LPWSTR,
         },
         UI::{
@@ -100,13 +103,14 @@ use windows::{
                 AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIcon, CreateIconFromResourceEx,
                 CreatePopupMenu, CreateWindowExW, DI_NORMAL, DefWindowProcW, DestroyMenu,
                 DestroyWindow, DispatchMessageW, DrawIconEx, FindWindowW, GWL_WNDPROC,
-                GetCursorPos, GetMessageW, GetSystemMetrics, HHOOK, HICON, HMENU, IDC_ARROW,
-                IDI_APPLICATION, IsIconic, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE, LoadCursorW,
-                LoadIconW, MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostMessageW, PostQuitMessage,
-                RegisterClassW, RegisterWindowMessageW, SC_KEYMENU, SM_CXSCREEN, SM_CYSCREEN,
-                SW_RESTORE, SW_SHOW, SendMessageW, SetForegroundWindow, SetMenuItemBitmaps,
-                SetTimer, SetWindowLongPtrW, SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN,
-                TPM_LEFTALIGN, TPM_RETURNCMD, TrackPopupMenu, TranslateMessage,
+                EnumWindows, GetCursorPos, GetMessageW, GetSystemMetrics,
+                GetWindowThreadProcessId, HHOOK, HICON, HMENU, IDC_ARROW, IDI_APPLICATION,
+                IsIconic, IsWindowVisible, KBDLLHOOKSTRUCT, KillTimer, LR_DEFAULTSIZE,
+                LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG, MSLLHOOKSTRUCT, PostMessageW,
+                PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SC_KEYMENU, SM_CXSCREEN,
+                SM_CYSCREEN, SW_RESTORE, SW_SHOW, SendMessageW, SetForegroundWindow,
+                SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW, SetWindowsHookExW, ShowWindow,
+                TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, TrackPopupMenu, TranslateMessage,
                 UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE, WM_APP,
                 WM_CLOSE, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED,
                 WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN,
@@ -147,6 +151,7 @@ const ID_MENU_EXIT: usize = 1003;
 const ID_MENU_TITLE: usize = 1004;
 const ID_MENU_INPUT_DEVICE_BASE: usize = 2000;
 const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
+const ID_MENU_MIC_APP_BASE: usize = 4000;
 const MENU_POS_DEFAULT_OUTPUT: u32 = 2;
 const MENU_POS_DEFAULT_INPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
@@ -1885,6 +1890,13 @@ const CLSID_POLICY_CONFIG_CLIENT: GUID = GUID::from_u128(0x870af99c_171d_4f9e_af
 enum TrayDeviceCommand {
     Input(String),
     Output(String),
+    MicApp(u32),
+}
+
+#[derive(Clone, Debug)]
+struct MicUsingApp {
+    pid: u32,
+    name: String,
 }
 
 pub(crate) fn set_settings_hotkey_recording(recording: bool) {
@@ -3727,6 +3739,7 @@ fn show_tray_menu(hwnd: HWND) {
         let menu = CreatePopupMenu().unwrap_or_default();
         let input_menu = CreatePopupMenu().unwrap_or_default();
         let output_menu = CreatePopupMenu().unwrap_or_default();
+        let mic_apps_menu = CreatePopupMenu().unwrap_or_default();
         let (muted, ungroup_devices, device_name_display) = {
             let state = STATE.lock().unwrap();
             (
@@ -3744,10 +3757,12 @@ fn show_tray_menu(hwnd: HWND) {
         let status_w = wide(status);
         let output_w = wide("Default Output");
         let input_w = wide("Default Input");
+        let mic_apps_w = wide("Apps that use mic");
         let settings_w = wide("Open Settings");
         let exit_w = wide("Exit");
         let input_devices = capture_devices().unwrap_or_default();
         let output_devices = render_devices().unwrap_or_default();
+        let mic_apps = mic_using_apps().unwrap_or_default();
 
         let _ = AppendMenuW(
             menu,
@@ -3783,6 +3798,20 @@ fn show_tray_menu(hwnd: HWND) {
                     &mut commands,
                 );
             }
+        }
+
+        if !mic_apps.is_empty() {
+            {
+                let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
+                append_mic_apps_menu(mic_apps_menu, &mic_apps, &mut commands);
+            }
+            let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+            let _ = AppendMenuW(
+                menu,
+                MENU_ITEM_FLAGS(0x0000_0010),
+                mic_apps_menu.0 as usize,
+                PCWSTR(mic_apps_w.as_ptr()),
+            );
         }
 
         if !ungroup_devices {
@@ -3923,6 +3952,9 @@ fn show_tray_menu(hwnd: HWND) {
             let _ = DestroyMenu(output_menu);
             let _ = DestroyMenu(input_menu);
         }
+        if mic_apps.is_empty() {
+            let _ = DestroyMenu(mic_apps_menu);
+        }
         TRAY_DEVICE_COMMANDS.lock().unwrap().clear();
         for bitmap in bitmaps {
             let _ = DeleteObject(bitmap);
@@ -3976,6 +4008,28 @@ fn append_output_device_menu(
     }
 }
 
+fn append_mic_apps_menu(
+    menu: HMENU,
+    apps: &[MicUsingApp],
+    commands: &mut HashMap<usize, TrayDeviceCommand>,
+) {
+    let mut name_counts = HashMap::<&str, usize>::new();
+    for app in apps {
+        *name_counts.entry(app.name.as_str()).or_default() += 1;
+    }
+
+    for (index, app) in apps.iter().enumerate() {
+        let command_id = ID_MENU_MIC_APP_BASE + index;
+        commands.insert(command_id, TrayDeviceCommand::MicApp(app.pid));
+        let label = if name_counts.get(app.name.as_str()).copied().unwrap_or(0) > 1 {
+            format!("{} ({})", app.name, app.pid)
+        } else {
+            app.name.clone()
+        };
+        append_device_menu_item(menu, command_id, &label, false);
+    }
+}
+
 fn append_device_menu_item(menu: HMENU, command_id: usize, label: &str, checked: bool) {
     let label_w = wide(label);
     let flags = if checked {
@@ -4017,6 +4071,11 @@ fn handle_tray_device_command(command_id: usize) {
                 eprintln!("failed to set default output device: {err:?}");
             }
         }
+        Some(TrayDeviceCommand::MicApp(pid)) => {
+            if !focus_process_window(pid) {
+                eprintln!("failed to focus microphone app process {pid}");
+            }
+        }
         None => {}
     }
 }
@@ -4029,6 +4088,52 @@ fn handle_tray_menu_command(command_id: usize) {
             exit_all_processes();
         }
         command_id => handle_tray_device_command(command_id),
+    }
+}
+
+fn focus_process_window(pid: u32) -> bool {
+    #[derive(Default)]
+    struct WindowSearch {
+        pid: u32,
+        hwnd: HWND,
+    }
+
+    unsafe extern "system" fn enum_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let search = unsafe { &mut *(lparam.0 as *mut WindowSearch) };
+        if !unsafe { IsWindowVisible(hwnd).as_bool() } {
+            return BOOL(1);
+        }
+
+        let mut window_pid = 0u32;
+        unsafe {
+            GetWindowThreadProcessId(hwnd, Some(&mut window_pid));
+        }
+        if window_pid != search.pid {
+            return BOOL(1);
+        }
+
+        search.hwnd = hwnd;
+        BOOL(0)
+    }
+
+    let mut search = WindowSearch {
+        pid,
+        hwnd: HWND(null_mut()),
+    };
+    unsafe {
+        let _ = EnumWindows(
+            Some(enum_window),
+            LPARAM((&mut search as *mut WindowSearch) as isize),
+        );
+        if search.hwnd.0.is_null() {
+            return false;
+        }
+        if IsIconic(search.hwnd).as_bool() {
+            let _ = ShowWindow(search.hwnd, SW_RESTORE);
+        } else {
+            let _ = ShowWindow(search.hwnd, SW_SHOW);
+        }
+        SetForegroundWindow(search.hwnd).as_bool()
     }
 }
 
@@ -5016,6 +5121,10 @@ fn current_mute_state() -> Result<bool> {
 }
 
 fn current_mic_in_use() -> Result<bool> {
+    Ok(!active_capture_session_process_ids()?.is_empty())
+}
+
+fn active_capture_session_process_ids() -> Result<Vec<u32>> {
     unsafe {
         let enumerator = audio_device_enumerator()?;
         let collection = enumerator
@@ -5025,20 +5134,21 @@ fn current_mic_in_use() -> Result<bool> {
             .GetCount()
             .context("count capture endpoints for use state")?;
 
+        let mut pids = Vec::new();
+        let mut seen = HashSet::new();
         for index in 0..count {
             let device = collection
                 .Item(index)
                 .context("get capture endpoint for use state")?;
-            if capture_device_in_use(&device)? {
-                return Ok(true);
-            }
+            pids.extend(capture_device_active_session_process_ids(&device)?);
         }
 
-        Ok(false)
+        pids.retain(|pid| *pid != 0 && seen.insert(*pid));
+        Ok(pids)
     }
 }
 
-unsafe fn capture_device_in_use(device: &IMMDevice) -> Result<bool> {
+unsafe fn capture_device_active_session_process_ids(device: &IMMDevice) -> Result<Vec<u32>> {
     let session_manager: IAudioSessionManager2 = unsafe {
         device
             .Activate(CLSCTX_ALL, None)
@@ -5050,6 +5160,7 @@ unsafe fn capture_device_in_use(device: &IMMDevice) -> Result<bool> {
             .context("get capture session enumerator")?
     };
     let count = unsafe { session_enumerator.GetCount().context("count capture sessions")? };
+    let mut pids = Vec::new();
 
     for index in 0..count {
         let session = unsafe {
@@ -5060,11 +5171,61 @@ unsafe fn capture_device_in_use(device: &IMMDevice) -> Result<bool> {
         let control: IAudioSessionControl = session.cast().context("cast capture session control")?;
         let state = unsafe { control.GetState().context("get capture session state")? };
         if state == AudioSessionStateActive {
-            return Ok(true);
+            let control_2: IAudioSessionControl2 = session
+                .cast()
+                .context("cast capture session process control")?;
+            let pid = unsafe { control_2.GetProcessId().context("get capture session pid")? };
+            pids.push(pid);
         }
     }
 
-    Ok(false)
+    Ok(pids)
+}
+
+fn mic_using_apps() -> Result<Vec<MicUsingApp>> {
+    let mut apps = active_capture_session_process_ids()?
+        .into_iter()
+        .map(|pid| MicUsingApp {
+            pid,
+            name: process_display_name(pid),
+        })
+        .collect::<Vec<_>>();
+    apps.sort_by(|left, right| {
+        left.name
+            .to_ascii_lowercase()
+            .cmp(&right.name.to_ascii_lowercase())
+            .then_with(|| left.pid.cmp(&right.pid))
+    });
+    Ok(apps)
+}
+
+fn process_display_name(pid: u32) -> String {
+    process_image_path(pid)
+        .and_then(|path| {
+            path.file_stem()
+                .or_else(|| path.file_name())
+                .and_then(|name| name.to_str())
+                .map(|name| name.to_string())
+        })
+        .unwrap_or_else(|| format!("Process {pid}"))
+}
+
+fn process_image_path(pid: u32) -> Option<PathBuf> {
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
+        let mut buffer = vec![0u16; 32768];
+        let mut len = buffer.len() as u32;
+        let result = QueryFullProcessImageNameW(
+            handle,
+            PROCESS_NAME_FORMAT(0),
+            PWSTR(buffer.as_mut_ptr()),
+            &mut len,
+        );
+        let _ = CloseHandle(handle);
+        result.ok()?;
+        buffer.truncate(len as usize);
+        Some(PathBuf::from(String::from_utf16_lossy(&buffer)))
+    }
 }
 
 pub fn mic_mute_state(device_id: Option<&str>) -> Result<bool> {
