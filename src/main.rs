@@ -1495,7 +1495,7 @@ pub struct TrayIconConfig {
     pub icon_pair: String,
     #[serde(default = "default_tray_icon_status_style")]
     pub status_style: String,
-    #[serde(default)]
+    #[serde(default = "default_tray_icon_show_mic_in_use")]
     pub show_mic_in_use: bool,
 }
 
@@ -1505,7 +1505,7 @@ impl Default for TrayIconConfig {
             variant: default_tray_icon_variant(),
             icon_pair: crate::overlay_icons::default_overlay_icon_pair(),
             status_style: default_tray_icon_status_style(),
-            show_mic_in_use: false,
+            show_mic_in_use: default_tray_icon_show_mic_in_use(),
         }
     }
 }
@@ -1516,6 +1516,10 @@ fn default_tray_icon_variant() -> String {
 
 fn default_tray_icon_status_style() -> String {
     "Colored".to_string()
+}
+
+fn default_tray_icon_show_mic_in_use() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

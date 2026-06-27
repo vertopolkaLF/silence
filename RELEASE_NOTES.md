@@ -1,3 +1,20 @@
+# silence! v2.2.0 - mic in use, finally visible
+
+### New stuff
+
+- Added overlay visibility mode for showing overlay only while an app is using the microphone
+- Added tray icon mic-in-use indicator with a tiny theme color badge
+- Added tray menu submenu that lists apps currently using the microphone
+- Clicking an app in that tray submenu now tries to bring that app to the front
+
+### Tray icon
+
+- Mic-in-use badge is enabled by default
+- Badge works with logo, mic status, and color dot tray icon styles
+- Badge uses a contrast color when the tray mic icon is set to system color
+
+--
+
 # silence! v2.1.0 - volume control and more overlay options
 
 ### New stuff
