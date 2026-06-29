@@ -207,6 +207,20 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
 
+                div { class: "sound-card-title advanced-row device-toggle-row tray-mic-hide-row",
+                    div { class: "device-card-copy",
+                        h2 { "Hide blacklisted apps from tray menu" }
+                    }
+                    super::Toggle {
+                        checked: tray_icon.hide_mic_in_use_ignored_apps,
+                        onchange: move |checked| {
+                            super::super::update_settings(settings, |config| {
+                                config.tray_icon.hide_mic_in_use_ignored_apps = checked;
+                            });
+                        }
+                    }
+                }
+
                 div { class: "tray-mic-app-groups",
                     div { class: "tray-mic-app-group",
                         div { class: "device-card-copy",

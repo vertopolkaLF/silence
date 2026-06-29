@@ -689,13 +689,22 @@ fn show_tray_menu(hwnd: HWND) {
         let input_menu = CreatePopupMenu().unwrap_or_default();
         let output_menu = CreatePopupMenu().unwrap_or_default();
         let mic_apps_menu = CreatePopupMenu().unwrap_or_default();
-        let (muted, ungroup_devices, device_name_display, update_available) = {
+        let (
+            muted,
+            ungroup_devices,
+            device_name_display,
+            update_available,
+            ignored_mic_apps,
+            hide_ignored_mic_apps,
+        ) = {
             let state = STATE.lock().unwrap();
             (
                 state.muted,
                 state.advanced.ungroup_tray_devices,
                 state.advanced.audio_device_name_display.clone(),
                 state.available_update.is_some(),
+                state.tray_icon.mic_in_use_ignored_apps.clone(),
+                state.tray_icon.hide_mic_in_use_ignored_apps,
             )
         };
         let status = if muted {
@@ -713,7 +722,10 @@ fn show_tray_menu(hwnd: HWND) {
         let exit_w = wide("Exit");
         let input_devices = capture_devices().unwrap_or_default();
         let output_devices = render_devices().unwrap_or_default();
-        let mic_apps = mic_using_apps().unwrap_or_default();
+        let mut mic_apps = mic_using_apps().unwrap_or_default();
+        if hide_ignored_mic_apps {
+            mic_apps.retain(|app| !is_process_image_ignored(&app.exe_name, &ignored_mic_apps));
+        }
 
         let _ = AppendMenuW(
             menu,
@@ -759,6 +771,8 @@ fn show_tray_menu(hwnd: HWND) {
             }
         }
 
+        let mic_apps_visible = !mic_apps.is_empty();
+
         if !ungroup_devices {
             let _ = AppendMenuW(
                 menu,
@@ -772,16 +786,14 @@ fn show_tray_menu(hwnd: HWND) {
                 input_menu.0 as usize,
                 PCWSTR(input_w.as_ptr()),
             );
-            let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         }
 
-        if !mic_apps.is_empty() {
+        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+
+        if mic_apps_visible {
             {
                 let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
-                append_mic_apps_menu(mic_apps_menu, &mic_apps, &mut commands);
-            }
-            if ungroup_devices {
-                let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+                append_mic_apps_menu(mic_apps_menu, &mic_apps, &ignored_mic_apps, &mut commands);
             }
             let _ = AppendMenuW(
                 menu,
@@ -789,9 +801,8 @@ fn show_tray_menu(hwnd: HWND) {
                 mic_apps_menu.0 as usize,
                 PCWSTR(mic_apps_w.as_ptr()),
             );
+            let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         }
-
-        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         let _ = AppendMenuW(
             menu,
             MENU_ITEM_FLAGS(0),
@@ -932,7 +943,7 @@ fn show_tray_menu(hwnd: HWND) {
             let _ = DestroyMenu(output_menu);
             let _ = DestroyMenu(input_menu);
         }
-        if mic_apps.is_empty() {
+        if !mic_apps_visible {
             let _ = DestroyMenu(mic_apps_menu);
         }
         TRAY_DEVICE_COMMANDS.lock().unwrap().clear();
@@ -991,6 +1002,7 @@ fn append_output_device_menu(
 fn append_mic_apps_menu(
     menu: HMENU,
     apps: &[MicUsingApp],
+    ignored_apps: &[String],
     commands: &mut HashMap<usize, TrayDeviceCommand>,
 ) {
     let mut name_counts = HashMap::<&str, usize>::new();
@@ -1000,13 +1012,18 @@ fn append_mic_apps_menu(
 
     for (index, app) in apps.iter().enumerate() {
         let command_id = ID_MENU_MIC_APP_BASE + index;
-        commands.insert(command_id, TrayDeviceCommand::MicApp(app.pid));
+        let ignored = is_process_image_ignored(&app.exe_name, ignored_apps);
         let label = if name_counts.get(app.name.as_str()).copied().unwrap_or(0) > 1 {
             format!("{} ({})", app.name, app.pid)
         } else {
             app.name.clone()
         };
-        append_device_menu_item(menu, command_id, &label, false);
+        if ignored {
+            append_disabled_menu_item(menu, &format!("{label} (ignored)"));
+        } else {
+            commands.insert(command_id, TrayDeviceCommand::MicApp(app.pid));
+            append_device_menu_item(menu, command_id, &label, false);
+        }
     }
 }
 
