@@ -99,15 +99,29 @@ fn start_update_check() {
         };
         let result = runtime.block_on(updater::check_for_update());
         match result {
-            Ok(updater::UpdateCheck::Available(update))
-                if updater::should_prompt_update(&update) =>
-            {
-                show_update_notification(&update);
+            Ok(updater::UpdateCheck::Available(update)) => {
+                set_available_update(Some(update.clone()));
+                if !auto_update_notifications_disabled() && updater::should_prompt_update(&update)
+                {
+                    show_update_notification(&update);
+                }
             }
-            Ok(_) => {}
+            Ok(updater::UpdateCheck::UpToDate) => {
+                set_available_update(None);
+            }
             Err(err) => eprintln!("update check failed: {err:?}"),
         }
     });
+}
+
+fn set_available_update(update: Option<updater::UpdateInfo>) {
+    STATE.lock().unwrap().available_update = update;
+}
+
+fn auto_update_notifications_disabled() -> bool {
+    load_config()
+        .map(|config| config.advanced.disable_auto_updates)
+        .unwrap_or(false)
 }
 
 pub(crate) fn development_tools_enabled() -> bool {

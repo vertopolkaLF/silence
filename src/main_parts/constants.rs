@@ -19,6 +19,7 @@ const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
 const ID_MENU_TITLE: usize = 1004;
+const ID_MENU_INSTALL_UPDATE: usize = 1005;
 const ID_MENU_INPUT_DEVICE_BASE: usize = 2000;
 const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
 const ID_MENU_MIC_APP_BASE: usize = 4000;

@@ -4,21 +4,81 @@
   z-index: 10;
   height: 42px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0;
   padding: 0;
   background: transparent;
   user-select: none;
 }
 
+.titlebar-brand {
+  box-sizing: border-box;
+  width: 216px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 12px 12px;
+  padding: 0 12px;
+  color: var(--text);
+  font-family: "Bricolage Grotesque", "Plus Jakarta Sans", "Inter", "Aptos", sans-serif;
+  font-size: 14px;
+  font-weight: 620;
+  letter-spacing: 0;
+}
+
+.titlebar-brand-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.titlebar-brand-name {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.titlebar-update-pill {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 760;
+  cursor: pointer;
+  box-shadow: 0 6px 14px var(--shadow-faint);
+  transition:
+    background var(--ui-transition),
+    box-shadow var(--ui-transition),
+    opacity var(--ui-transition),
+    transform var(--ui-transition);
+}
+
+.titlebar-update-pill:hover {
+  background: color-mix(in oklch, var(--accent) 18%, var(--surface-2));
+  box-shadow: 0 8px 18px var(--shadow-soft);
+  transform: translateY(-1px);
+}
+
+.titlebar-update-pill-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
 .title-spacer {
   flex: 1;
-  height: 100%;
+  height: 42px;
 }
 
 .titlebar-button {
   width: 46px;
-  height: 100%;
+  height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

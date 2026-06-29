@@ -432,7 +432,7 @@ fn dispatch_notification_action(action: NotificationAction) -> bool {
         NotificationAction::Mute => WM_MUTE,
         NotificationAction::Unmute => WM_UNMUTE,
         NotificationAction::OpenSettings => WM_OPEN_SETTINGS,
-        NotificationAction::UpdateNow => WM_OPEN_SETTINGS,
+        NotificationAction::UpdateNow => WM_UPDATE_NOW,
         NotificationAction::ViewUpdate => WM_OPEN_SETTINGS,
         NotificationAction::WhatsNew => WM_WHATS_NEW,
         NotificationAction::ExitAll => WM_EXIT_ALL,
@@ -461,6 +461,10 @@ fn handle_notification_action(action: NotificationAction) {
         NotificationAction::WhatsNew => open_last_update_release(),
         NotificationAction::ExitAll => exit_all_processes(),
     }
+}
+
+pub(crate) fn run_update_now_action() {
+    handle_notification_action(NotificationAction::UpdateNow);
 }
 
 fn post_audio_window_message(hwnd: HWND, message: u32) {

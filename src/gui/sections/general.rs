@@ -77,6 +77,23 @@ pub fn render(
                 }
             }
 
+            section { class: "sound-card advanced-card",
+                div { class: "sound-card-title advanced-row",
+                    div { class: "startup-copy",
+                        h2 { "Disable auto-updates" }
+                        p { "Update checks still run, but Windows update notifications stay quiet" }
+                    }
+                    super::Toggle {
+                        checked: advanced.disable_auto_updates,
+                        onchange: move |checked: bool| {
+                            super::super::update_settings(settings, |config| {
+                                config.advanced.disable_auto_updates = checked;
+                            });
+                        }
+                    }
+                }
+            }
+
             section {
                 class: "general-import-export-panel",
                 id: "general-import-export",

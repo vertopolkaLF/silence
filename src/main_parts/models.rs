@@ -580,6 +580,8 @@ pub struct AdvancedSettings {
     #[serde(default)]
     pub disable_tray_double_click_settings: bool,
     #[serde(default)]
+    pub disable_auto_updates: bool,
+    #[serde(default)]
     pub ungroup_tray_devices: bool,
     #[serde(default = "default_audio_device_name_display")]
     pub audio_device_name_display: String,
@@ -591,6 +593,7 @@ impl Default for AdvancedSettings {
     fn default() -> Self {
         Self {
             disable_tray_double_click_settings: false,
+            disable_auto_updates: false,
             ungroup_tray_devices: false,
             audio_device_name_display: default_audio_device_name_display(),
             enable_mica: default_enable_mica(),
@@ -668,6 +671,7 @@ struct AppState {
     auto_mute_cursor_position: POINT,
     config_modified: Option<SystemTime>,
     mic_in_use: bool,
+    available_update: Option<updater::UpdateInfo>,
 }
 
 struct AudioNotificationRegistration {
@@ -1605,6 +1609,7 @@ impl Default for AppState {
             auto_mute_cursor_position: POINT::default(),
             config_modified: config_modified_time(),
             mic_in_use: false,
+            available_update: None,
         }
     }
 }

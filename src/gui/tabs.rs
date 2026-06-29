@@ -1,7 +1,6 @@
 use dioxus::prelude::*;
 use std::time::{Duration, Instant};
 
-const APP_ICON: Asset = asset!("/assets/app.png");
 const TAB_TRANSITION_DURATION: Duration = Duration::from_millis(300);
 const TAB_TRANSITION_HANDOFF_DELAY: Duration = Duration::from_millis(16);
 
@@ -185,16 +184,6 @@ pub fn render(
         nav {
             class: "sidebar",
             div { class: "sidebar-scroll",
-                div {
-                    class: "sidebar-brand",
-                    img {
-                        class: "sidebar-brand-icon",
-                        src: APP_ICON,
-                        alt: "silence!"
-                    }
-                    span { "silence!" }
-                }
-
                 for &tab in SettingsTab::ALL {
                     button {
                         class: if active_tab() == tab { "nav-item active" } else { "nav-item" },

@@ -11,12 +11,15 @@ mod welcome;
 use tabs::{SettingsTab, TabSlideDirection, TabTransition};
 use welcome::WelcomeSequence;
 
+const APP_IMAGE: Asset = asset!("/assets/app.png");
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
 const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
 const ARROW_RIGHT_LINEAR_ICON: Asset = asset!("/assets/icons/arrow-right-linear.svg");
 const CLOCK_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/clock-circle-bold.svg");
 const CLOCK_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/clock-circle-linear.svg");
 const CLOSE_ICON: Asset = asset!("/assets/icons/codicon_close.svg");
+const DOWNLOAD_MINIMALISTIC_BOLD_ICON: Asset =
+    asset!("/assets/icons/download-minimalistic-bold.svg");
 const EXPORT_LINEAR_ICON: Asset = asset!("/assets/icons/export-linear.svg");
 const GAMEPAD_BOLD_ICON: Asset = asset!("/assets/icons/gamepad-bold.svg");
 const IMPORT_LINEAR_ICON: Asset = asset!("/assets/icons/import-linear.svg");
@@ -306,6 +309,7 @@ pub fn settings_app() -> Element {
     let open_select = use_signal(|| None::<String>);
     let mut closing = use_signal(|| false);
     let main_intro = use_signal(|| false);
+    let mut available_update = use_signal(|| None::<crate::updater::UpdateInfo>);
     use_context_provider(|| open_select);
     use_future(move || {
         let reveal_desktop = reveal_desktop.clone();
@@ -328,6 +332,15 @@ pub fn settings_app() -> Element {
                 settings.set(next);
             }
             tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    });
+    use_future(move || async move {
+        match crate::check_for_update().await {
+            Ok(crate::updater::UpdateCheck::Available(update)) => {
+                available_update.set(Some(update))
+            }
+            Ok(crate::updater::UpdateCheck::UpToDate) => available_update.set(None),
+            Err(err) => eprintln!("settings update check failed: {err:?}"),
         }
     });
     use_future(move || async move {
@@ -370,6 +383,32 @@ pub fn settings_app() -> Element {
             div {
                 class: "titlebar",
                 onmousedown: move |_| drag_desktop.drag(),
+                if settings().config.welcome_completed {
+                    div {
+                        class: "titlebar-brand",
+                        img {
+                            class: "titlebar-brand-icon",
+                            src: APP_IMAGE,
+                            alt: "silence!"
+                        }
+                        span { class: "titlebar-brand-name", "silence!" }
+                        if available_update().is_some() {
+                            button {
+                                class: "titlebar-update-pill",
+                                onmousedown: move |evt| evt.stop_propagation(),
+                                onclick: move |evt| {
+                                    evt.stop_propagation();
+                                    crate::run_update_now_action();
+                                },
+                                span {
+                                    class: "solar-icon titlebar-update-pill-icon",
+                                    style: "--icon: url('{DOWNLOAD_MINIMALISTIC_BOLD_ICON}')"
+                                }
+                                span { "Update" }
+                            }
+                        }
+                    }
+                }
                 div { class: "title-spacer" }
                 if crate::development_tools_enabled() {
                     button {
@@ -437,6 +476,7 @@ pub fn settings_app() -> Element {
                                 pending_tab,
                                 hotkey_modal_request,
                                 pending_hotkey_modal_after_nav,
+                                available_update: available_update(),
                             }
                             ContentPanel {
                                 key: "tab-{transition.to.label()}",
@@ -453,6 +493,7 @@ pub fn settings_app() -> Element {
                                 pending_tab,
                                 hotkey_modal_request,
                                 pending_hotkey_modal_after_nav,
+                                available_update: available_update(),
                             }
                         } else {
                             ContentPanel {
@@ -470,6 +511,7 @@ pub fn settings_app() -> Element {
                                 pending_tab,
                                 hotkey_modal_request,
                                 pending_hotkey_modal_after_nav,
+                                available_update: available_update(),
                             }
                         }
                     }
@@ -513,6 +555,7 @@ fn ContentPanel(
     pending_tab: Signal<Option<SettingsTab>>,
     hotkey_modal_request: Signal<Option<HotkeyModalRequest>>,
     pending_hotkey_modal_after_nav: Signal<Option<HotkeyModalRequest>>,
+    available_update: Option<crate::updater::UpdateInfo>,
 ) -> Element {
     rsx! {
         div { class: "{panel_class}",
@@ -537,6 +580,7 @@ fn ContentPanel(
                         pending_tab,
                         hotkey_modal_request,
                         pending_hotkey_modal_after_nav,
+                        available_update,
                     )}
                 }
             }

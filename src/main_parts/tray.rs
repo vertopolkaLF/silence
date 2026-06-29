@@ -689,12 +689,13 @@ fn show_tray_menu(hwnd: HWND) {
         let input_menu = CreatePopupMenu().unwrap_or_default();
         let output_menu = CreatePopupMenu().unwrap_or_default();
         let mic_apps_menu = CreatePopupMenu().unwrap_or_default();
-        let (muted, ungroup_devices, device_name_display) = {
+        let (muted, ungroup_devices, device_name_display, update_available) = {
             let state = STATE.lock().unwrap();
             (
                 state.muted,
                 state.advanced.ungroup_tray_devices,
                 state.advanced.audio_device_name_display.clone(),
+                state.available_update.is_some(),
             )
         };
         let status = if muted {
@@ -708,6 +709,7 @@ fn show_tray_menu(hwnd: HWND) {
         let input_w = wide("Default Input");
         let mic_apps_w = wide("Apps that use mic");
         let settings_w = wide("Open Settings");
+        let install_update_w = wide("Install Update");
         let exit_w = wide("Exit");
         let input_devices = capture_devices().unwrap_or_default();
         let output_devices = render_devices().unwrap_or_default();
@@ -719,6 +721,14 @@ fn show_tray_menu(hwnd: HWND) {
             ID_MENU_TITLE,
             PCWSTR(title_w.as_ptr()),
         );
+        if update_available {
+            let _ = AppendMenuW(
+                menu,
+                MENU_ITEM_FLAGS(0),
+                ID_MENU_INSTALL_UPDATE,
+                PCWSTR(install_update_w.as_ptr()),
+            );
+        }
         let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
 
         {
@@ -803,6 +813,8 @@ fn show_tray_menu(hwnd: HWND) {
         } else {
             (245, 245, 245)
         };
+        let default_output_pos = MENU_POS_DEFAULT_OUTPUT + u32::from(update_available);
+        let default_input_pos = MENU_POS_DEFAULT_INPUT + u32::from(update_available);
         let mut bitmaps = Vec::new();
         if let Some(bitmap) = create_menu_app_bitmap() {
             let _ = SetMenuItemBitmaps(
@@ -813,6 +825,21 @@ fn show_tray_menu(hwnd: HWND) {
                 bitmap,
             );
             bitmaps.push(bitmap);
+        }
+        if update_available {
+            if let Some(bitmap) = create_menu_svg_bitmap(
+                include_str!("../../assets/icons/download-minimalistic-bold.svg"),
+                icon_color,
+            ) {
+                let _ = SetMenuItemBitmaps(
+                    menu,
+                    ID_MENU_INSTALL_UPDATE as u32,
+                    MENU_ITEM_FLAGS(0),
+                    bitmap,
+                    bitmap,
+                );
+                bitmaps.push(bitmap);
+            }
         }
         if let Some(bitmap) = create_menu_svg_bitmap(
             include_str!("../../assets/icons/microphone-3-bold.svg"),
@@ -834,7 +861,7 @@ fn show_tray_menu(hwnd: HWND) {
             ) {
                 let _ = SetMenuItemBitmaps(
                     menu,
-                    MENU_POS_DEFAULT_OUTPUT,
+                    default_output_pos,
                     MENU_ITEM_FLAGS(0x0000_0400),
                     bitmap,
                     bitmap,
@@ -847,7 +874,7 @@ fn show_tray_menu(hwnd: HWND) {
             ) {
                 let _ = SetMenuItemBitmaps(
                     menu,
-                    MENU_POS_DEFAULT_INPUT,
+                    default_input_pos,
                     MENU_ITEM_FLAGS(0x0000_0400),
                     bitmap,
                     bitmap,
@@ -1033,6 +1060,7 @@ fn handle_tray_menu_command(command_id: usize) {
     match command_id {
         ID_MENU_TOGGLE => toggle_mute(),
         ID_MENU_SETTINGS => open_settings_window(),
+        ID_MENU_INSTALL_UPDATE => run_update_now_action(),
         ID_MENU_EXIT => {
             exit_all_processes();
         }

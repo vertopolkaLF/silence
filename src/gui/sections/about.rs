@@ -18,16 +18,22 @@ const ISSUES_URL: &str = "https://github.com/vertopolkaLF/silence/issues";
 enum UpdateUiState {
     Idle,
     Checking,
-    UpToDate,
+    UpToDate(String),
     Available(crate::updater::UpdateInfo),
     Downloading(f32),
     Installing,
     Failed(String),
 }
 
-pub fn render() -> Element {
+pub fn render(available_update: Option<crate::updater::UpdateInfo>) -> Element {
     let version = format!("v{}", env!("CARGO_PKG_VERSION"));
-    let mut update_state = use_signal(|| UpdateUiState::Idle);
+    let initial_update = available_update.clone();
+    let mut update_state = use_signal(move || {
+        initial_update
+            .clone()
+            .map(UpdateUiState::Available)
+            .unwrap_or(UpdateUiState::Idle)
+    });
     let mut auto_update_started = use_signal(|| false);
 
     if super::super::settings_should_start_update() && !auto_update_started() {
@@ -36,12 +42,16 @@ pub fn render() -> Element {
         spawn(async move {
             check_and_start_update(update_state).await;
         });
+    } else if matches!(*update_state.read(), UpdateUiState::Idle) {
+        if let Some(update) = available_update {
+            update_state.set(UpdateUiState::Available(update));
+        }
     }
 
     let status_text = match update_state.read().clone() {
         UpdateUiState::Idle => "Ready to check for updates.".to_string(),
         UpdateUiState::Checking => "Checking updates...".to_string(),
-        UpdateUiState::UpToDate => "No updates found.".to_string(),
+        UpdateUiState::UpToDate(checked_at) => format!("No updates found at {checked_at}"),
         UpdateUiState::Available(update) => format!("{} is available.", update.version),
         UpdateUiState::Downloading(progress) => {
             format!("Downloading update... {}%", progress.round() as u32)
@@ -98,7 +108,7 @@ pub fn render() -> Element {
                 div { class: "about-update-wrapper",
                     div {
                         class: match *update_state.read() {
-                            UpdateUiState::Idle | UpdateUiState::Checking | UpdateUiState::UpToDate | UpdateUiState::Failed(_) => "about-update-layer active",
+                            UpdateUiState::Idle | UpdateUiState::Checking | UpdateUiState::UpToDate(_) | UpdateUiState::Failed(_) => "about-update-layer active",
                             _ => "about-update-layer exit-up",
                         },
                         button {
@@ -245,7 +255,7 @@ async fn check_for_update_only(mut update_state: Signal<UpdateUiState>) {
             update_state.set(UpdateUiState::Available(update));
         }
         Ok(crate::updater::UpdateCheck::UpToDate) => {
-            update_state.set(UpdateUiState::UpToDate);
+            update_state.set(UpdateUiState::UpToDate(current_check_time_text().await));
         }
         Err(err) => {
             update_state.set(UpdateUiState::Failed(err.to_string()));
@@ -259,12 +269,28 @@ async fn check_and_start_update(mut update_state: Signal<UpdateUiState>) {
             start_update(update_state, update).await;
         }
         Ok(crate::updater::UpdateCheck::UpToDate) => {
-            update_state.set(UpdateUiState::UpToDate);
+            update_state.set(UpdateUiState::UpToDate(current_check_time_text().await));
         }
         Err(err) => {
             update_state.set(UpdateUiState::Failed(err.to_string()));
         }
     }
+}
+
+async fn current_check_time_text() -> String {
+    let script = r#"
+    new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+    "#;
+
+    dioxus::document::eval(script)
+        .await
+        .ok()
+        .and_then(|value| value.as_str().map(ToString::to_string))
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "now".to_string())
 }
 
 async fn start_update(mut update_state: Signal<UpdateUiState>, update: crate::updater::UpdateInfo) {
