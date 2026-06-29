@@ -87,8 +87,9 @@ enum TrayDeviceCommand {
     MicApp(u32),
 }
 
-#[derive(Clone, Debug)]
-struct MicUsingApp {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MicUsingApp {
     pid: u32,
-    name: String,
+    pub name: String,
+    pub exe_name: String,
 }

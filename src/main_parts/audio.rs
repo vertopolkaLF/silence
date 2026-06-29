@@ -5,7 +5,8 @@ fn current_mute_state() -> Result<bool> {
 }
 
 fn current_mic_in_use() -> Result<bool> {
-    Ok(!active_capture_session_process_ids()?.is_empty())
+    let ignored_apps = STATE.lock().unwrap().tray_icon.mic_in_use_ignored_apps.clone();
+    Ok(!mic_using_apps_filtered(&ignored_apps)?.is_empty())
 }
 
 fn active_capture_session_process_ids() -> Result<Vec<u32>> {
@@ -67,11 +68,26 @@ unsafe fn capture_device_active_session_process_ids(device: &IMMDevice) -> Resul
 }
 
 fn mic_using_apps() -> Result<Vec<MicUsingApp>> {
+    mic_using_apps_filtered(&[])
+}
+
+fn mic_using_apps_filtered(ignored_apps: &[String]) -> Result<Vec<MicUsingApp>> {
     let mut apps = active_capture_session_process_ids()?
         .into_iter()
-        .map(|pid| MicUsingApp {
-            pid,
-            name: process_display_name(pid),
+        .filter_map(|pid| {
+            let image_path = process_image_path(pid);
+            let exe_name = image_path
+                .as_deref()
+                .and_then(process_image_name)
+                .unwrap_or_else(|| format!("Process {pid}"));
+            if is_process_image_ignored(&exe_name, ignored_apps) {
+                return None;
+            }
+            Some(MicUsingApp {
+                pid,
+                name: process_display_name_from_path(pid, image_path.as_deref()),
+                exe_name,
+            })
         })
         .collect::<Vec<_>>();
     apps.sort_by(|left, right| {
@@ -83,15 +99,67 @@ fn mic_using_apps() -> Result<Vec<MicUsingApp>> {
     Ok(apps)
 }
 
-fn process_display_name(pid: u32) -> String {
-    process_image_path(pid)
-        .and_then(|path| {
-            path.file_stem()
-                .or_else(|| path.file_name())
-                .and_then(|name| name.to_str())
-                .map(|name| name.to_string())
+pub fn current_mic_using_apps() -> Vec<MicUsingApp> {
+    active_capture_session_process_ids()
+        .map(|pids| {
+            pids.into_iter()
+                .map(|pid| {
+                    let image_path = process_image_path(pid);
+                    let exe_name = image_path
+                        .as_deref()
+                        .and_then(process_image_name)
+                        .unwrap_or_else(|| format!("Process {pid}"));
+                    MicUsingApp {
+                        pid,
+                        name: process_display_name_from_path(pid, image_path.as_deref()),
+                        exe_name,
+                    }
+                })
+                .collect::<Vec<_>>()
         })
-        .unwrap_or_else(|| format!("Process {pid}"))
+        .unwrap_or_default()
+}
+
+fn is_process_image_ignored(exe_name: &str, ignored_apps: &[String]) -> bool {
+    ignored_apps
+        .iter()
+        .any(|ignored| exe_name.eq_ignore_ascii_case(ignored))
+}
+
+fn normalized_process_image_name(name: &str) -> Option<String> {
+    let trimmed = name.trim().trim_matches('"');
+    if trimmed.is_empty() {
+        return None;
+    }
+    let file_name = Path::new(trimmed)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(trimmed)
+        .trim();
+    if file_name.is_empty() {
+        return None;
+    }
+    if file_name.contains('.') {
+        Some(file_name.to_string())
+    } else {
+        Some(format!("{file_name}.exe"))
+    }
+}
+
+fn process_display_name_from_path(pid: u32, path: Option<&Path>) -> String {
+    path.and_then(|path| {
+        path.file_stem()
+            .or_else(|| path.file_name())
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_string())
+    })
+    .unwrap_or_else(|| format!("Process {pid}"))
+}
+
+fn process_image_name(path: &Path) -> Option<String> {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_string())
 }
 
 fn process_image_path(pid: u32) -> Option<PathBuf> {

@@ -216,11 +216,22 @@ fn parse_config_content(content: &str) -> Result<Config> {
     normalize_hotkeys(&mut config.hotkeys);
     migrate_custom_sound_settings(&mut config.sound_settings);
     normalize_overlay_config(&mut config.overlay);
+    normalize_tray_icon_config(&mut config.tray_icon);
     config.advanced.audio_device_name_display =
         normalize_audio_device_name_display(&config.advanced.audio_device_name_display).to_string();
     config.auto_mute.after_inactivity_minutes =
         config.auto_mute.after_inactivity_minutes.clamp(1, 1440);
     Ok(config)
+}
+
+pub(crate) fn normalize_tray_icon_config(tray_icon: &mut TrayIconConfig) {
+    let mut seen = HashSet::new();
+    tray_icon.mic_in_use_ignored_apps = tray_icon
+        .mic_in_use_ignored_apps
+        .iter()
+        .filter_map(|app| normalized_process_image_name(app))
+        .filter(|app| seen.insert(app.to_ascii_lowercase()))
+        .collect();
 }
 
 fn normalize_overlay_config(overlay: &mut OverlayConfig) {

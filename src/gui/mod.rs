@@ -14,6 +14,7 @@ use welcome::WelcomeSequence;
 const APP_IMAGE: Asset = asset!("/assets/app.png");
 pub(crate) const APP_ICO: Asset = asset!("/assets/app.ico");
 const ABOUT_CSS: Asset = asset!("/assets/styles/about.css", AssetOptions::css());
+const ALT_ARROW_DOWN_LINEAR_ICON: Asset = asset!("/assets/icons/alt-arrow-down-linear.svg");
 const ARROW_RIGHT_LINEAR_ICON: Asset = asset!("/assets/icons/arrow-right-linear.svg");
 const CLOCK_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/clock-circle-bold.svg");
 const CLOCK_CIRCLE_LINEAR_ICON: Asset = asset!("/assets/icons/clock-circle-linear.svg");
@@ -67,6 +68,7 @@ pub struct SettingsSnapshot {
     pub config: crate::Config,
     pub devices: Vec<crate::MicDevice>,
     pub output_devices: Vec<crate::AudioDevice>,
+    pub mic_using_apps: Vec<crate::MicUsingApp>,
     pub overlay_displays: Vec<crate::OverlayDisplay>,
     pub system_fonts: Vec<crate::SystemFont>,
     pub muted: bool,
@@ -88,6 +90,7 @@ impl SettingsSnapshot {
             config: crate::load_config().unwrap_or_default(),
             devices: Vec::new(),
             output_devices: Vec::new(),
+            mic_using_apps: crate::current_mic_using_apps(),
             overlay_displays: crate::overlay_displays(),
             system_fonts: crate::system_fonts(),
             muted: false,
@@ -100,6 +103,7 @@ impl SettingsSnapshot {
             self.devices = crate::capture_devices().unwrap_or_default();
             self.output_devices = crate::render_devices().unwrap_or_default();
         }
+        self.mic_using_apps = crate::current_mic_using_apps();
         self.overlay_displays = crate::overlay_displays();
         if self.system_fonts.is_empty() {
             self.system_fonts = crate::system_fonts();
@@ -109,6 +113,7 @@ impl SettingsSnapshot {
             config: self.config,
             devices: self.devices,
             output_devices: self.output_devices,
+            mic_using_apps: self.mic_using_apps,
             overlay_displays: self.overlay_displays,
             system_fonts: self.system_fonts,
             muted: self.muted,
@@ -225,6 +230,7 @@ fn settings_icon_style() -> String {
         r#".titlebar-settings {{ --titlebar-icon: url("{SETTINGS_ICON}"); }}
 .titlebar-close {{ --titlebar-icon: url("{CLOSE_ICON}"); }}
 .icon-clock-circle {{ --icon: url("{CLOCK_CIRCLE_LINEAR_ICON}"); }}
+.icon-chevron-down {{ --icon: url("{ALT_ARROW_DOWN_LINEAR_ICON}"); }}
 .icon-arrow-right {{ --icon: url("{ARROW_RIGHT_LINEAR_ICON}"); }}
 .icon-close {{ --icon: url("{CLOSE_ICON}"); }}
 .icon-export {{ --icon: url("{EXPORT_LINEAR_ICON}"); }}
@@ -268,6 +274,7 @@ pub fn update_settings(
     update(&mut config);
     crate::normalize_hotkeys(&mut config.hotkeys);
     crate::normalize_overlay_config(&mut config.overlay);
+    crate::normalize_tray_icon_config(&mut config.tray_icon);
     let _ = crate::save_config(&config);
     if config.startup.launch_on_startup != startup_was_enabled {
         let _ = crate::sync_startup_registration(config.startup.launch_on_startup);
@@ -277,6 +284,7 @@ pub fn update_settings(
         config,
         devices: settings.peek().devices.clone(),
         output_devices: settings.peek().output_devices.clone(),
+        mic_using_apps: settings.peek().mic_using_apps.clone(),
         overlay_displays: settings.peek().overlay_displays.clone(),
         system_fonts: settings.peek().system_fonts.clone(),
         muted: settings.peek().muted,

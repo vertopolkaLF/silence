@@ -1304,6 +1304,8 @@ pub struct TrayIconConfig {
     pub status_style: String,
     #[serde(default = "default_tray_icon_show_mic_in_use")]
     pub show_mic_in_use: bool,
+    #[serde(default)]
+    pub mic_in_use_ignored_apps: Vec<String>,
 }
 
 impl Default for TrayIconConfig {
@@ -1313,6 +1315,7 @@ impl Default for TrayIconConfig {
             icon_pair: crate::overlay_icons::default_overlay_icon_pair(),
             status_style: default_tray_icon_status_style(),
             show_mic_in_use: default_tray_icon_show_mic_in_use(),
+            mic_in_use_ignored_apps: Vec::new(),
         }
     }
 }

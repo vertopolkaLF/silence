@@ -80,6 +80,33 @@
   scale: 0.5;
 }
 
+.nav-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-section-arrow {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  margin-left: auto;
+  color: currentColor;
+  opacity: 0.72;
+  transform: rotate(-90deg);
+  transition:
+    transform var(--ui-transition),
+    opacity var(--ui-transition),
+    color var(--ui-transition);
+}
+
+.nav-item.active .nav-section-arrow {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
 .nav-item.active .nav-icon-filled {
   opacity: 1;
   scale: 1.1;

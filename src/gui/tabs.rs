@@ -135,10 +135,16 @@ impl SettingsTab {
                     label: "Behaviour",
                 },
             ],
-            Self::TrayIcon => &[SettingsSection {
-                id: "tray-icon-overview",
-                label: "Tray Icon",
-            }],
+            Self::TrayIcon => &[
+                SettingsSection {
+                    id: "tray-icon-overview",
+                    label: "Tray Icon",
+                },
+                SettingsSection {
+                    id: "tray-icon-mic-in-use",
+                    label: "Mic in use",
+                },
+            ],
             Self::AutoMute => &[SettingsSection {
                 id: "auto-mute-overview",
                 label: "Auto-Mute",
@@ -202,7 +208,10 @@ pub fn render(
                             span { class: "solar-icon nav-icon nav-icon-line {tab.icon()}" }
                             span { class: "solar-icon nav-icon nav-icon-filled {tab.active_icon()}" }
                         }
-                        span { "{tab.label()}" }
+                        span { class: "nav-label", "{tab.label()}" }
+                        if tab.sections().len() > 1 {
+                            span { class: "solar-icon nav-section-arrow icon-chevron-down" }
+                        }
                     }
 
                     if tab.sections().len() > 1 {
