@@ -1,4 +1,4 @@
-# silence! v2.2.0 - mic in use, finally visible
+# silence! v2.3.0 - mic in use, finally visible
 
 ### New stuff
 
