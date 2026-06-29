@@ -24,6 +24,7 @@ pub fn render(
     pending_tab: Signal<Option<SettingsTab>>,
     hotkey_modal_request: Signal<Option<super::HotkeyModalRequest>>,
     pending_hotkey_modal_after_nav: Signal<Option<super::HotkeyModalRequest>>,
+    available_update: Option<crate::updater::UpdateInfo>,
 ) -> Element {
     match tab {
         SettingsTab::General => rsx! { GeneralSection { settings, recording } },
@@ -45,7 +46,7 @@ pub fn render(
         SettingsTab::Overlay => rsx! { OverlaySection { settings } },
         SettingsTab::TrayIcon => rsx! { TrayIconSection { settings } },
         SettingsTab::AutoMute => rsx! { AutoMuteSection { settings } },
-        SettingsTab::About => rsx! { AboutSection {} },
+        SettingsTab::About => rsx! { AboutSection { available_update } },
     }
 }
 
@@ -118,8 +119,8 @@ fn AutoMuteSection(settings: Signal<super::SettingsSnapshot>) -> Element {
 }
 
 #[component]
-fn AboutSection() -> Element {
-    about::render()
+fn AboutSection(available_update: Option<crate::updater::UpdateInfo>) -> Element {
+    about::render(available_update)
 }
 
 #[component]
