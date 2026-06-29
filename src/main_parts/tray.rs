@@ -759,20 +759,6 @@ fn show_tray_menu(hwnd: HWND) {
             }
         }
 
-        if !mic_apps.is_empty() {
-            {
-                let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
-                append_mic_apps_menu(mic_apps_menu, &mic_apps, &mut commands);
-            }
-            let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
-            let _ = AppendMenuW(
-                menu,
-                MENU_ITEM_FLAGS(0x0000_0010),
-                mic_apps_menu.0 as usize,
-                PCWSTR(mic_apps_w.as_ptr()),
-            );
-        }
-
         if !ungroup_devices {
             let _ = AppendMenuW(
                 menu,
@@ -786,7 +772,25 @@ fn show_tray_menu(hwnd: HWND) {
                 input_menu.0 as usize,
                 PCWSTR(input_w.as_ptr()),
             );
+            let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         }
+
+        if !mic_apps.is_empty() {
+            {
+                let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
+                append_mic_apps_menu(mic_apps_menu, &mic_apps, &mut commands);
+            }
+            if ungroup_devices {
+                let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+            }
+            let _ = AppendMenuW(
+                menu,
+                MENU_ITEM_FLAGS(0x0000_0010),
+                mic_apps_menu.0 as usize,
+                PCWSTR(mic_apps_w.as_ptr()),
+            );
+        }
+
         let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         let _ = AppendMenuW(
             menu,
