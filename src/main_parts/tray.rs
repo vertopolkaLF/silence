@@ -390,6 +390,25 @@ fn create_argb_bitmap(width: i32, height: i32, pixels: &[u8]) -> Option<HBITMAP>
 
 fn create_menu_app_bitmap() -> Option<HBITMAP> {
     let icon = load_app_icon()?;
+    create_menu_icon_bitmap(icon, false)
+}
+
+fn create_menu_process_bitmap(path: &Path) -> Option<HBITMAP> {
+    let path_w = wide(&path.display().to_string());
+    let mut small_icon = HICON::default();
+    let extracted =
+        unsafe { ExtractIconExW(PCWSTR(path_w.as_ptr()), 0, None, Some(&mut small_icon), 1) };
+    if extracted == 0 || small_icon.is_invalid() {
+        return None;
+    }
+    let bitmap = create_menu_icon_bitmap(small_icon, false);
+    unsafe {
+        let _ = DestroyIcon(small_icon);
+    }
+    bitmap
+}
+
+fn create_menu_icon_bitmap(icon: HICON, destroy_icon: bool) -> Option<HBITMAP> {
     let size = 16;
     let mut bits: *mut c_void = null_mut();
     let mut info = BITMAPINFO::default();
@@ -421,6 +440,9 @@ fn create_menu_app_bitmap() -> Option<HBITMAP> {
         let _ = DrawIconEx(hdc, 0, 0, icon, size, size, 0, None, DI_NORMAL);
         let _ = SelectObject(hdc, old_bitmap);
         let _ = DeleteDC(hdc);
+        if destroy_icon {
+            let _ = DestroyIcon(icon);
+        }
         Some(bitmap)
     }
 }
@@ -726,6 +748,7 @@ fn show_tray_menu(hwnd: HWND) {
         if hide_ignored_mic_apps {
             mic_apps.retain(|app| !is_process_image_ignored(&app.exe_name, &ignored_mic_apps));
         }
+        let mut bitmaps = Vec::new();
 
         let _ = AppendMenuW(
             menu,
@@ -793,7 +816,13 @@ fn show_tray_menu(hwnd: HWND) {
         if mic_apps_visible {
             {
                 let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
-                append_mic_apps_menu(mic_apps_menu, &mic_apps, &ignored_mic_apps, &mut commands);
+                append_mic_apps_menu(
+                    mic_apps_menu,
+                    &mic_apps,
+                    &ignored_mic_apps,
+                    &mut commands,
+                    &mut bitmaps,
+                );
             }
             let _ = AppendMenuW(
                 menu,
@@ -830,7 +859,6 @@ fn show_tray_menu(hwnd: HWND) {
         };
         let default_output_pos = MENU_POS_DEFAULT_OUTPUT + u32::from(update_available);
         let default_input_pos = MENU_POS_DEFAULT_INPUT + u32::from(update_available);
-        let mut bitmaps = Vec::new();
         if let Some(bitmap) = create_menu_app_bitmap() {
             let _ = SetMenuItemBitmaps(
                 menu,
@@ -1004,6 +1032,7 @@ fn append_mic_apps_menu(
     apps: &[MicUsingApp],
     ignored_apps: &[String],
     commands: &mut HashMap<usize, TrayDeviceCommand>,
+    bitmaps: &mut Vec<HBITMAP>,
 ) {
     let mut name_counts = HashMap::<&str, usize>::new();
     for app in apps {
@@ -1019,10 +1048,24 @@ fn append_mic_apps_menu(
             app.name.clone()
         };
         if ignored {
-            append_disabled_menu_item(menu, &format!("{label} (ignored)"));
+            append_disabled_menu_item_with_id(menu, command_id, &format!("{label} (ignored)"));
         } else {
             commands.insert(command_id, TrayDeviceCommand::MicApp(app.pid));
             append_device_menu_item(menu, command_id, &label, false);
+        }
+        if let Some(path) = app.image_path.as_deref()
+            && let Some(bitmap) = create_menu_process_bitmap(path)
+        {
+            unsafe {
+                let _ = SetMenuItemBitmaps(
+                    menu,
+                    command_id as u32,
+                    MENU_ITEM_FLAGS(0),
+                    bitmap,
+                    bitmap,
+                );
+            }
+            bitmaps.push(bitmap);
         }
     }
 }
@@ -1040,12 +1083,16 @@ fn append_device_menu_item(menu: HMENU, command_id: usize, label: &str, checked:
 }
 
 fn append_disabled_menu_item(menu: HMENU, label: &str) {
+    append_disabled_menu_item_with_id(menu, 0, label);
+}
+
+fn append_disabled_menu_item_with_id(menu: HMENU, command_id: usize, label: &str) {
     let label_w = wide(label);
     unsafe {
         let _ = AppendMenuW(
             menu,
             MENU_ITEM_FLAGS(0x0000_0002 | 0x0000_0001),
-            0,
+            command_id,
             PCWSTR(label_w.as_ptr()),
         );
     }

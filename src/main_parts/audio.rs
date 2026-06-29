@@ -87,6 +87,7 @@ fn mic_using_apps_filtered(ignored_apps: &[String]) -> Result<Vec<MicUsingApp>> 
                 pid,
                 name: process_display_name_from_path(pid, image_path.as_deref()),
                 exe_name,
+                image_path,
             })
         })
         .collect::<Vec<_>>();
@@ -113,6 +114,7 @@ pub fn current_mic_using_apps() -> Vec<MicUsingApp> {
                         pid,
                         name: process_display_name_from_path(pid, image_path.as_deref()),
                         exe_name,
+                        image_path,
                     }
                 })
                 .collect::<Vec<_>>()

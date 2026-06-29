@@ -92,4 +92,5 @@ pub struct MicUsingApp {
     pid: u32,
     pub name: String,
     pub exe_name: String,
+    pub image_path: Option<PathBuf>,
 }
