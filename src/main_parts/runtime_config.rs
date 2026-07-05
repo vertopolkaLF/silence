@@ -1,8 +1,20 @@
 fn refresh_runtime_state() {
     reload_config_if_changed();
     evaluate_auto_mute_inactivity();
-    refresh_mic_in_use_state();
     refresh_mute_state();
+    refresh_mic_in_use_state_throttled();
+}
+
+fn refresh_mic_in_use_state_throttled() {
+    let mut last_refresh = LAST_MIC_IN_USE_REFRESH.lock().unwrap();
+    if last_refresh.is_some_and(|last| last.elapsed() < Duration::from_millis(MIC_IN_USE_REFRESH_MS))
+    {
+        return;
+    }
+    *last_refresh = Some(Instant::now());
+    drop(last_refresh);
+
+    refresh_mic_in_use_state();
 }
 
 fn refresh_mic_in_use_state() {
