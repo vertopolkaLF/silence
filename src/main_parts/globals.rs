@@ -23,6 +23,8 @@ static TRAY_DEVICE_COMMANDS: Lazy<Mutex<HashMap<usize, TrayDeviceCommand>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 static NORMALIZED_AUDIO_DEVICE_NAMES: Lazy<Mutex<HashSet<(String, String)>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
+static CAPTURE_PREMUTE_VOLUMES: Lazy<Mutex<HashMap<String, f32>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 static PENDING_NOTIFICATION_ACTION: Lazy<Mutex<Option<NotificationAction>>> =
     Lazy::new(|| Mutex::new(None));
 static SETTINGS_ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
