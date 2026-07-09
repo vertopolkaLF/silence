@@ -38,7 +38,7 @@ fn refresh_mic_in_use_state() {
 }
 
 fn refresh_mute_state() {
-    let muted = match current_mute_state() {
+    let muted = match enforce_default_capture_mute_volume() {
         Ok(muted) => muted,
         Err(err) => {
             eprintln!("failed to refresh microphone mute state: {err:?}");
@@ -822,6 +822,8 @@ pub fn open_external(target: &str) -> Result<()> {
 
 pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     let mut state = STATE.lock().unwrap();
+    let volume_zero_mute_changed =
+        state.advanced.set_mic_volume_to_zero_on_mute != config.advanced.set_mic_volume_to_zero_on_mute;
     state.shortcut = config.shortcut.clone();
     state.hotkeys = config.hotkeys.clone();
     state.hotkeys_paused = config.hotkeys_paused;
@@ -850,6 +852,13 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     refresh_tray_icon();
     apply_overlay_visibility();
     prime_sound_assets(&config.sound_settings);
+    if volume_zero_mute_changed
+        && let Err(err) = sync_capture_volume_zero_mute_setting(
+            config.advanced.set_mic_volume_to_zero_on_mute,
+        )
+    {
+        eprintln!("failed to sync capture volume mute setting: {err:?}");
+    }
 }
 
 fn hotkeys_blocked(state: &AppState) -> bool {

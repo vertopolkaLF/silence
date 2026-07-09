@@ -284,10 +284,20 @@ fn set_mute(device_id: Option<&str>, muted: bool) -> Result<bool> {
 
 fn apply_capture_mute(volume: &IAudioEndpointVolume, device_id: &str, muted: bool) -> Result<()> {
     unsafe {
+        if !capture_volume_zero_mute_enabled() {
+            volume.SetMute(muted, null())?;
+            return Ok(());
+        }
+
         if muted {
-            if !volume.GetMute()?.as_bool() {
+            let was_muted = volume.GetMute()?.as_bool();
+            if !was_muted {
                 let scalar = volume.GetMasterVolumeLevelScalar().unwrap_or(1.0);
-                store_premute_capture_volume(device_id, scalar);
+                ensure_premute_capture_volume(device_id, scalar);
+            } else if let Ok(scalar) = volume.GetMasterVolumeLevelScalar()
+                && scalar > f32::EPSILON
+            {
+                ensure_premute_capture_volume(device_id, scalar);
             }
             volume.SetMute(true, null())?;
             volume.SetMasterVolumeLevelScalar(0.0, null())?;
@@ -307,11 +317,89 @@ fn apply_capture_mute(volume: &IAudioEndpointVolume, device_id: &str, muted: boo
     Ok(())
 }
 
-fn store_premute_capture_volume(device_id: &str, scalar: f32) {
+fn enforce_default_capture_mute_volume() -> Result<bool> {
+    if !capture_volume_zero_mute_enabled() {
+        return current_mute_state();
+    }
+
+    let (volume, id) = capture_volume_with_id(None)?;
+    let muted = enforce_capture_mute_volume(&id, &volume)?;
+
+    match active_capture_device_volumes() {
+        Ok(volumes) => {
+            for (id, volume) in volumes {
+                if let Err(err) = enforce_capture_mute_volume(&id, &volume) {
+                    eprintln!("failed to enforce capture mute volume: {err:?}");
+                }
+            }
+        }
+        Err(err) => eprintln!("failed to enumerate capture devices for mute enforcement: {err:?}"),
+    }
+
+    Ok(muted)
+}
+
+fn enforce_capture_mute_volume(device_id: &str, volume: &IAudioEndpointVolume) -> Result<bool> {
+    unsafe {
+        if !volume.GetMute()?.as_bool() {
+            return Ok(false);
+        }
+
+        let scalar = volume.GetMasterVolumeLevelScalar()?;
+        if scalar > f32::EPSILON {
+            ensure_premute_capture_volume(device_id, scalar);
+            volume.SetMasterVolumeLevelScalar(0.0, null())?;
+        }
+    }
+    Ok(true)
+}
+
+fn sync_capture_volume_zero_mute_setting(enabled: bool) -> Result<()> {
+    if enabled {
+        enforce_default_capture_mute_volume()?;
+    } else {
+        restore_all_premute_capture_volumes()?;
+    }
+    Ok(())
+}
+
+fn restore_all_premute_capture_volumes() -> Result<()> {
+    for (id, volume) in active_capture_device_volumes()? {
+        restore_premute_capture_volume(&id, &volume)?;
+    }
+    Ok(())
+}
+
+fn restore_premute_capture_volume(device_id: &str, volume: &IAudioEndpointVolume) -> Result<()> {
+    let restore = take_premute_capture_volume(device_id).or_else(|| unsafe {
+        match volume.GetMasterVolumeLevelScalar() {
+            Ok(current) if current <= f32::EPSILON => Some(1.0),
+            _ => None,
+        }
+    });
+
+    if let Some(scalar) = restore {
+        unsafe {
+            volume.SetMasterVolumeLevelScalar(scalar, null())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn capture_volume_zero_mute_enabled() -> bool {
+    STATE
+        .lock()
+        .map(|state| state.advanced.set_mic_volume_to_zero_on_mute)
+        .unwrap_or(false)
+}
+
+fn ensure_premute_capture_volume(device_id: &str, scalar: f32) {
     CAPTURE_PREMUTE_VOLUMES
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .insert(device_id.to_string(), scalar);
+        .entry(device_id.to_string())
+        .or_insert(scalar);
 }
 
 fn take_premute_capture_volume(device_id: &str) -> Option<f32> {

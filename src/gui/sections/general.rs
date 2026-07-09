@@ -80,6 +80,23 @@ pub fn render(
             section { class: "sound-card advanced-card",
                 div { class: "sound-card-title advanced-row",
                     div { class: "startup-copy",
+                        h2 { "Set mic volume to 0 in addition to mute" }
+                        p { "Enable this if your mute isn't working" }
+                    }
+                    super::Toggle {
+                        checked: advanced.set_mic_volume_to_zero_on_mute,
+                        onchange: move |checked: bool| {
+                            super::super::update_settings(settings, |config| {
+                                config.advanced.set_mic_volume_to_zero_on_mute = checked;
+                            });
+                        }
+                    }
+                }
+            }
+
+            section { class: "sound-card advanced-card",
+                div { class: "sound-card-title advanced-row",
+                    div { class: "startup-copy",
                         h2 { "Disable auto-updates" }
                         p { "Update checks still run, but Windows update notifications stay quiet" }
                     }
