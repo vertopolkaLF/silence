@@ -75,19 +75,19 @@ fn mic_using_apps_filtered(ignored_apps: &[String]) -> Result<Vec<MicUsingApp>> 
     let mut apps = active_capture_session_process_ids()?
         .into_iter()
         .filter_map(|pid| {
-            let image_path = process_image_path(pid);
-            let exe_name = image_path
-                .as_deref()
-                .and_then(process_image_name)
-                .unwrap_or_else(|| format!("Process {pid}"));
+            let process_image = process_image(pid);
+            let exe_name = process_image
+                .exe_name
+                .clone()
+                .unwrap_or_else(|| unknown_process_name(pid));
             if is_process_image_ignored(&exe_name, ignored_apps) {
                 return None;
             }
             Some(MicUsingApp {
                 pid,
-                name: process_display_name_from_path(pid, image_path.as_deref()),
+                name: process_display_name(pid, process_image.image_path.as_deref(), &exe_name),
                 exe_name,
-                image_path,
+                image_path: process_image.image_path,
             })
         })
         .collect::<Vec<_>>();
@@ -105,16 +105,16 @@ pub fn current_mic_using_apps() -> Vec<MicUsingApp> {
         .map(|pids| {
             pids.into_iter()
                 .map(|pid| {
-                    let image_path = process_image_path(pid);
-                    let exe_name = image_path
-                        .as_deref()
-                        .and_then(process_image_name)
-                        .unwrap_or_else(|| format!("Process {pid}"));
+                    let process_image = process_image(pid);
+                    let exe_name = process_image
+                        .exe_name
+                        .clone()
+                        .unwrap_or_else(|| unknown_process_name(pid));
                     MicUsingApp {
                         pid,
-                        name: process_display_name_from_path(pid, image_path.as_deref()),
+                        name: process_display_name(pid, process_image.image_path.as_deref(), &exe_name),
                         exe_name,
-                        image_path,
+                        image_path: process_image.image_path,
                     }
                 })
                 .collect::<Vec<_>>()
@@ -126,6 +126,26 @@ fn is_process_image_ignored(exe_name: &str, ignored_apps: &[String]) -> bool {
     ignored_apps
         .iter()
         .any(|ignored| exe_name.eq_ignore_ascii_case(ignored))
+}
+
+#[derive(Default)]
+struct ProcessImage {
+    exe_name: Option<String>,
+    image_path: Option<PathBuf>,
+}
+
+fn process_image(pid: u32) -> ProcessImage {
+    if let Some(image_path) = process_image_path(pid) {
+        return ProcessImage {
+            exe_name: process_image_name(&image_path),
+            image_path: Some(image_path),
+        };
+    }
+
+    ProcessImage {
+        exe_name: process_snapshot_image_name(pid),
+        image_path: None,
+    }
 }
 
 fn normalized_process_image_name(name: &str) -> Option<String> {
@@ -148,14 +168,23 @@ fn normalized_process_image_name(name: &str) -> Option<String> {
     }
 }
 
-fn process_display_name_from_path(pid: u32, path: Option<&Path>) -> String {
-    path.and_then(|path| {
+fn process_display_name(pid: u32, path: Option<&Path>, exe_name: &str) -> String {
+    if let Some(name) = path.and_then(|path| {
         path.file_stem()
             .or_else(|| path.file_name())
             .and_then(|name| name.to_str())
             .map(|name| name.to_string())
-    })
-    .unwrap_or_else(|| format!("Process {pid}"))
+    }) {
+        return name;
+    }
+
+    Path::new(exe_name)
+        .file_stem()
+        .or_else(|| Path::new(exe_name).file_name())
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.trim().is_empty())
+        .map(|name| name.to_string())
+        .unwrap_or_else(|| unknown_process_name(pid))
 }
 
 fn process_image_name(path: &Path) -> Option<String> {
@@ -180,6 +209,42 @@ fn process_image_path(pid: u32) -> Option<PathBuf> {
         buffer.truncate(len as usize);
         Some(PathBuf::from(String::from_utf16_lossy(&buffer)))
     }
+}
+
+fn process_snapshot_image_name(pid: u32) -> Option<String> {
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).ok()?;
+        let mut entry = PROCESSENTRY32W {
+            dwSize: size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        let mut found = Process32FirstW(snapshot, &mut entry).is_ok();
+        while found {
+            if entry.th32ProcessID == pid {
+                let _ = CloseHandle(snapshot);
+                return process_entry_image_name(&entry);
+            }
+            found = Process32NextW(snapshot, &mut entry).is_ok();
+        }
+        let _ = CloseHandle(snapshot);
+        None
+    }
+}
+
+fn process_entry_image_name(entry: &PROCESSENTRY32W) -> Option<String> {
+    let len = entry
+        .szExeFile
+        .iter()
+        .position(|ch| *ch == 0)
+        .unwrap_or(entry.szExeFile.len());
+    if len == 0 {
+        return None;
+    }
+    Some(String::from_utf16_lossy(&entry.szExeFile[..len]))
+}
+
+fn unknown_process_name(pid: u32) -> String {
+    format!("Process {pid}")
 }
 
 pub fn mic_mute_state(device_id: Option<&str>) -> Result<bool> {
