@@ -266,13 +266,10 @@ fn set_mute_to_inverse(device_id: Option<&str>) -> Result<bool> {
         set_all_capture_devices_mute(next)?;
         return Ok(next);
     }
-    let volume = target_capture_volume(device_id)?;
-    unsafe {
-        let muted = volume.GetMute()?;
-        let next = !muted.as_bool();
-        volume.SetMute(next, null())?;
-        Ok(next)
-    }
+    let (volume, id) = capture_volume_with_id(device_id.filter(|id| !id.is_empty()))?;
+    let next = unsafe { !volume.GetMute()?.as_bool() };
+    apply_capture_mute(&volume, &id, next)?;
+    Ok(next)
 }
 
 fn set_mute(device_id: Option<&str>, muted: bool) -> Result<bool> {
@@ -280,11 +277,48 @@ fn set_mute(device_id: Option<&str>, muted: bool) -> Result<bool> {
         set_all_capture_devices_mute(muted)?;
         return Ok(muted);
     }
-    let volume = target_capture_volume(device_id)?;
-    unsafe {
-        volume.SetMute(muted, null())?;
-    }
+    let (volume, id) = capture_volume_with_id(device_id.filter(|id| !id.is_empty()))?;
+    apply_capture_mute(&volume, &id, muted)?;
     Ok(muted)
+}
+
+fn apply_capture_mute(volume: &IAudioEndpointVolume, device_id: &str, muted: bool) -> Result<()> {
+    unsafe {
+        if muted {
+            if !volume.GetMute()?.as_bool() {
+                let scalar = volume.GetMasterVolumeLevelScalar().unwrap_or(1.0);
+                store_premute_capture_volume(device_id, scalar);
+            }
+            volume.SetMute(true, null())?;
+            volume.SetMasterVolumeLevelScalar(0.0, null())?;
+        } else {
+            let restore = take_premute_capture_volume(device_id).or_else(|| {
+                match volume.GetMasterVolumeLevelScalar() {
+                    Ok(current) if current <= f32::EPSILON => Some(1.0),
+                    _ => None,
+                }
+            });
+            volume.SetMute(false, null())?;
+            if let Some(scalar) = restore {
+                volume.SetMasterVolumeLevelScalar(scalar, null())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn store_premute_capture_volume(device_id: &str, scalar: f32) {
+    CAPTURE_PREMUTE_VOLUMES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(device_id.to_string(), scalar);
+}
+
+fn take_premute_capture_volume(device_id: &str) -> Option<f32> {
+    CAPTURE_PREMUTE_VOLUMES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .remove(device_id)
 }
 
 fn hotkey_volume_target_percent(target: Option<&str>, fallback: u8) -> u8 {
@@ -678,8 +712,16 @@ fn is_all_microphones_target(device_id: Option<&str>) -> bool {
     matches!(device_id, Some(id) if id == HOTKEY_TARGET_ALL_MICROPHONES)
 }
 
-fn target_capture_volume(device_id: Option<&str>) -> Result<IAudioEndpointVolume> {
-    capture_volume(device_id.filter(|id| !id.is_empty()))
+fn capture_volume_with_id(device_id: Option<&str>) -> Result<(IAudioEndpointVolume, String)> {
+    unsafe {
+        let enumerator = audio_device_enumerator()?;
+        let device = capture_device(&enumerator, device_id)?;
+        let id = endpoint_device_id(&device)?;
+        let volume = device
+            .Activate(CLSCTX_ALL, None)
+            .context("activate endpoint volume")?;
+        Ok((volume, id))
+    }
 }
 
 fn audio_device_enumerator() -> Result<IMMDeviceEnumerator> {
@@ -728,7 +770,7 @@ unsafe fn capture_device(
         .context("get default capture endpoint")
 }
 
-fn active_capture_device_volumes() -> Result<Vec<IAudioEndpointVolume>> {
+fn active_capture_device_volumes() -> Result<Vec<(String, IAudioEndpointVolume)>> {
     unsafe {
         let enumerator = audio_device_enumerator()?;
         let collection = enumerator
@@ -739,10 +781,11 @@ fn active_capture_device_volumes() -> Result<Vec<IAudioEndpointVolume>> {
 
         for index in 0..count {
             let device = collection.Item(index).context("get capture endpoint")?;
+            let id = endpoint_device_id(&device)?;
             let volume = device
                 .Activate(CLSCTX_ALL, None)
                 .context("activate endpoint volume")?;
-            volumes.push(volume);
+            volumes.push((id, volume));
         }
 
         Ok(volumes)
@@ -750,10 +793,8 @@ fn active_capture_device_volumes() -> Result<Vec<IAudioEndpointVolume>> {
 }
 
 fn set_all_capture_devices_mute(muted: bool) -> Result<()> {
-    for volume in active_capture_device_volumes()? {
-        unsafe {
-            volume.SetMute(muted, null())?;
-        }
+    for (id, volume) in active_capture_device_volumes()? {
+        apply_capture_mute(&volume, &id, muted)?;
     }
     Ok(())
 }
