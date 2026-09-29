@@ -261,31 +261,60 @@ fn target_mute_state(device_id: Option<&str>) -> Result<bool> {
 }
 
 fn set_mute_to_inverse(device_id: Option<&str>) -> Result<bool> {
-    if is_all_microphones_target(device_id) {
-        let next = !current_mute_state()?;
-        set_all_capture_devices_mute(next)?;
-        return Ok(next);
-    }
-    let (volume, id) = capture_volume_with_id(device_id.filter(|id| !id.is_empty()))?;
-    let next = unsafe { !volume.GetMute()?.as_bool() };
-    apply_capture_mute(&volume, &id, next)?;
-    Ok(next)
+    change_capture_mute(device_id, None)
 }
 
 fn set_mute(device_id: Option<&str>, muted: bool) -> Result<bool> {
-    if is_all_microphones_target(device_id) {
-        set_all_capture_devices_mute(muted)?;
-        return Ok(muted);
+    change_capture_mute(device_id, Some(muted))
+}
+
+fn change_capture_mute(device_id: Option<&str>, requested: Option<bool>) -> Result<bool> {
+    let mut attempted = requested;
+    let result = (|| -> Result<bool> {
+        if is_all_microphones_target(device_id) {
+            let next = match requested {
+                Some(muted) => muted,
+                None => !current_mute_state()?,
+            };
+            attempted = Some(next);
+            set_all_capture_devices_mute(next)?;
+            return Ok(next);
+        }
+        let (volume, id) = capture_volume_with_id(device_id.filter(|id| !id.is_empty()))?;
+        let next = match requested {
+            Some(muted) => muted,
+            None => unsafe { !volume.GetMute()?.as_bool() },
+        };
+        attempted = Some(next);
+        apply_capture_mute(&volume, &id, next)?;
+        Ok(next)
+    })();
+    match &result {
+        Ok(_) => {
+            // A successful later action must also cancel warning messages still in the queue.
+            MUTE_OPERATION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            clear_mute_failure_notice();
+        }
+        Err(err) => report_mute_failure(attempted, err),
     }
-    let (volume, id) = capture_volume_with_id(device_id.filter(|id| !id.is_empty()))?;
-    apply_capture_mute(&volume, &id, muted)?;
-    Ok(muted)
+    result
+}
+
+fn set_capture_endpoint_mute(volume: &IAudioEndpointVolume, muted: bool) -> Result<()> {
+    unsafe {
+        volume.SetMute(muted, null()).context("set microphone mute")?;
+        anyhow::ensure!(
+            volume.GetMute().context("verify microphone mute")?.as_bool() == muted,
+            "microphone did not accept the requested mute state"
+        );
+    }
+    Ok(())
 }
 
 fn apply_capture_mute(volume: &IAudioEndpointVolume, device_id: &str, muted: bool) -> Result<()> {
     unsafe {
         if !capture_volume_zero_mute_enabled() {
-            volume.SetMute(muted, null())?;
+            set_capture_endpoint_mute(volume, muted)?;
             return Ok(());
         }
 
@@ -299,16 +328,16 @@ fn apply_capture_mute(volume: &IAudioEndpointVolume, device_id: &str, muted: boo
             {
                 ensure_premute_capture_volume(device_id, scalar);
             }
-            volume.SetMute(true, null())?;
+            set_capture_endpoint_mute(volume, true)?;
             volume.SetMasterVolumeLevelScalar(0.0, null())?;
         } else {
+            set_capture_endpoint_mute(volume, false)?;
             let restore = take_premute_capture_volume(device_id).or_else(|| {
                 match volume.GetMasterVolumeLevelScalar() {
                     Ok(current) if current <= f32::EPSILON => Some(1.0),
                     _ => None,
                 }
             });
-            volume.SetMute(false, null())?;
             if let Some(scalar) = restore {
                 volume.SetMasterVolumeLevelScalar(scalar, null())?;
             }

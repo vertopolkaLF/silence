@@ -97,7 +97,8 @@ fn evaluate_auto_mute_inactivity() {
 }
 
 fn apply_auto_mute(play_sound: bool, from_inactivity: bool) -> Result<()> {
-    if current_mute_state()? {
+    let current = current_mute_state().inspect_err(|err| report_mute_failure(Some(true), err))?;
+    if current {
         return Ok(());
     }
 

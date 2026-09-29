@@ -624,6 +624,8 @@ unsafe extern "system" fn main_wnd_proc(
             } else if wparam.0 == ID_OVERLAY_HIDE_TIMER {
                 let _ = unsafe { KillTimer(hwnd, ID_OVERLAY_HIDE_TIMER) };
                 apply_overlay_visibility();
+            } else if wparam.0 == ID_MUTE_FAILURE_TIMER {
+                expire_mute_failure_notice();
             } else if wparam.0 == ID_OVERLAY_DRAG_TIMER {
                 if let Some((x, y)) = native_overlay::process_drag() {
                     save_overlay_position(x, y);
@@ -638,6 +640,10 @@ unsafe extern "system" fn main_wnd_proc(
         }
         WM_TOGGLE_MUTE => {
             toggle_mute();
+            LRESULT(0)
+        }
+        WM_MUTE_FAILED => {
+            show_mute_failure_notice(wparam.0, lparam.0);
             LRESULT(0)
         }
         WM_MUTE => {

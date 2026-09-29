@@ -170,7 +170,13 @@ pub fn update(muted: bool, settings: &crate::OverlayConfig) {
         let previous_muted = overlay.muted;
         overlay.settings = settings.clone();
         overlay.apply_click_through();
-        if previous_muted != next_muted {
+        let next_width = overlay.target_width_for(next_muted);
+        let layout_changed = if overlay.transition_from_muted.is_some() {
+            overlay.transition_target_width != next_width
+        } else {
+            overlay.width != next_width
+        };
+        if previous_muted != next_muted || layout_changed {
             overlay.start_content_transition(previous_muted, next_muted);
         } else {
             overlay.muted = next_muted;
@@ -830,16 +836,20 @@ impl NativeOverlay {
             return;
         }
 
-        let icon_color = match self.settings.icon_style.as_str() {
-            "Monochrome" => {
-                if dark_background {
-                    (255, 255, 255)
-                } else {
-                    (0, 0, 0)
+        let icon_color = if self.settings.icon_pair == crate::MUTE_FAILURE_ICON_PAIR {
+            (255, 174, 66)
+        } else {
+            match self.settings.icon_style.as_str() {
+                "Monochrome" => {
+                    if dark_background {
+                        (255, 255, 255)
+                    } else {
+                        (0, 0, 0)
+                    }
                 }
+                "SystemColor" => crate::WindowsAccent::load().accent,
+                _ => state_accent(muted),
             }
-            "SystemColor" => crate::WindowsAccent::load().accent,
-            _ => state_accent(muted),
         };
 
         let has_icon = overlay_has_icon(&self.settings);
@@ -1531,7 +1541,11 @@ fn overlay_icon_mask(icon_pair: &str, muted: bool, size: u32) -> Option<Vec<u8>>
         return Some(mask);
     }
 
-    let svg = crate::overlay_icons::overlay_icon_svg(icon_pair, muted);
+    let svg = if icon_pair == crate::MUTE_FAILURE_ICON_PAIR {
+        include_str!("../assets/icons/solar-danger-triangle-linear.svg")
+    } else {
+        crate::overlay_icons::overlay_icon_svg(icon_pair, muted)
+    };
     let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).ok()?;
     let svg_size = tree.size().to_int_size();
     let scale = (size as f32 / svg_size.width() as f32).min(size as f32 / svg_size.height() as f32);

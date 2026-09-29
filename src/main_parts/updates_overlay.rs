@@ -171,15 +171,24 @@ fn show_update_notification(update: &updater::UpdateInfo) {
 }
 
 fn apply_overlay_visibility() {
-    let (hwnd, muted, mic_in_use, overlay) = {
+    let (hwnd, muted, mic_in_use, overlay, failure) = {
         let state = STATE.lock().unwrap();
         (
             state.hwnd,
             state.muted,
             state.mic_in_use,
             state.overlay.clone(),
+            state.mute_failure.filter(|notice| notice.expires_at > Instant::now()),
         )
     };
+
+    if let Some(failure) = failure {
+        let warning = mute_failure_overlay(&overlay, failure.label);
+        native_overlay::update(muted, &warning);
+        native_overlay::show();
+        sync_overlay_drag_timer(hwnd, &warning);
+        return;
+    }
 
     if native_overlay::is_positioning() {
         native_overlay::update(muted, &overlay);
@@ -213,6 +222,10 @@ fn apply_overlay_visibility() {
 }
 
 fn show_overlay_temporarily(duration_ms: u32) {
+    if STATE.lock().unwrap().mute_failure.is_some_and(|notice| notice.expires_at > Instant::now()) {
+        apply_overlay_visibility();
+        return;
+    }
     let (hwnd, muted, overlay) = {
         let state = STATE.lock().unwrap();
         (state.hwnd, state.muted, state.overlay.clone())

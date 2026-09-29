@@ -141,6 +141,7 @@ include!("main_parts/gamepad.rs");
 include!("main_parts/tray.rs");
 include!("main_parts/hotkeys_mute.rs");
 include!("main_parts/updates_overlay.rs");
+include!("main_parts/mute_feedback.rs");
 include!("main_parts/audio.rs");
 include!("main_parts/runtime_config.rs");
 include!("main_parts/input_utils.rs");

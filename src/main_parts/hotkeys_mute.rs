@@ -513,6 +513,7 @@ fn start_hold_hotkey(id: &str, target: Option<String>, muted: bool) {
         Ok(previous_muted) => previous_muted,
         Err(err) => {
             eprintln!("failed to read hold hotkey state: {err:?}");
+            report_mute_failure(Some(muted), &err);
             return;
         }
     };
@@ -547,6 +548,7 @@ fn start_hold_toggle_hotkey(id: &str, target: Option<String>) {
         Ok(previous_muted) => previous_muted,
         Err(err) => {
             eprintln!("failed to read hold toggle hotkey state: {err:?}");
+            report_mute_failure(None, &err);
             return;
         }
     };
