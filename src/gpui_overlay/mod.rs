@@ -277,7 +277,9 @@ impl OverlayView {
                     div()
                         .when(icon_only, |icon| icon.size_full().rounded(px(radius)))
                         .when(!icon_only, |icon| {
-                            icon.size(px(32. * scale)).rounded(px(10. * scale))
+                            icon.size(px(32. * scale))
+                                .rounded(px((radius * (32. * scale) / height.max(1.))
+                                    .clamp(0., 16. * scale)))
                         })
                         .flex_shrink_0()
                         .bg(color_alpha(accent, 0.10))
@@ -371,10 +373,8 @@ impl Render for OverlayView {
         let radius = (logical_radius * scale).min(height / 2.);
         let border = if self.state.positioning {
             color_alpha(0x78a8ff, 0.9)
-        } else if settings.background_style == "Light" {
-            color_alpha(0x25354b, 0.16)
         } else {
-            color_alpha(0xe7efff, 0.18)
+            rgba(0xffffff22)
         };
         let mut card = div()
             .absolute()
@@ -388,9 +388,6 @@ impl Render for OverlayView {
             .opacity(alpha)
             .when(settings.background_opacity > 0 || dot, |card| {
                 card.shadow_md()
-            })
-            .when(settings.show_border || self.state.positioning, |card| {
-                card.border_1().border_color(border)
             });
         let mut contents = div()
             .relative()
@@ -411,6 +408,20 @@ impl Render for OverlayView {
             }
         }
         card = card.child(contents);
+        if settings.show_border || self.state.positioning {
+            // Paint inside the existing bounds, independently of content layout.
+            card = card.child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .top_0()
+                    .w(px(width))
+                    .h(px(height))
+                    .rounded(px(radius))
+                    .border_1()
+                    .border_color(border),
+            );
+        }
         div().relative().size_full().child(card)
     }
 }
@@ -524,7 +535,8 @@ fn icon_color(state: &Snapshot, system: (u8, u8, u8)) -> u32 {
     }
 }
 fn mic_state_color(muted: bool) -> u32 {
-    if muted { 0xf07987 } else { 0x6ed6b1 }
+    // Match the settings UI's --danger / --success palette.
+    if muted { 0xef4444 } else { 0x10b981 }
 }
 fn content_changed(old: &Snapshot, new: &Snapshot) -> bool {
     let a = &old.settings;
