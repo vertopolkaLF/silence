@@ -1052,7 +1052,7 @@ fn default_overlay_unmuted_label() -> String {
 }
 
 fn default_overlay_text_font() -> String {
-    "Segoe UI".to_string()
+    gpui_overlay::fonts::DEFAULT.to_string()
 }
 
 fn default_overlay_text_font_weight() -> u16 {
@@ -1119,6 +1119,11 @@ pub fn system_fonts() -> Vec<SystemFont> {
         }
     }
 
+    families.extend(
+        gpui_overlay::fonts::FAMILIES
+            .iter()
+            .map(|family| (*family).to_string()),
+    );
     families.sort_by_key(|family| family.to_ascii_lowercase());
     families.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
 

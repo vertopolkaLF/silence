@@ -3,7 +3,6 @@
 use super::Snapshot;
 use crate::OverlayConfig;
 use gpui::{Rgba, SharedString, rgba};
-use std::sync::OnceLock;
 
 pub(crate) const CUSTOM: &str = "Custom";
 
@@ -156,7 +155,7 @@ fn custom(state: &Snapshot, system: System) -> Look {
         gutter: 0.,
         acrylic: false,
         font: if settings.text_font.trim().is_empty() {
-            "Segoe UI".into()
+            super::fonts::DEFAULT.into()
         } else {
             settings.text_font.clone().into()
         },
@@ -200,7 +199,7 @@ fn windows(state: &Snapshot, system: System) -> Look {
         shadow: Shadow::Soft,
         gutter: 0.,
         acrylic: true,
-        font: pick_font(&["Segoe UI Variable Text", "Segoe UI"]),
+        font: super::fonts::DEFAULT.into(),
         weight: 400,
         text_size: 14.,
         label: label(state, "Microphone muted", "Microphone on"),
@@ -245,7 +244,7 @@ fn material_you(state: &Snapshot, system: System) -> Look {
         shadow: Shadow::Drop(color_alpha(0x000000, 0.30), 2., 8.),
         gutter: 10.,
         acrylic: false,
-        font: pick_font(&["Google Sans", "Roboto", "Segoe UI Variable Text", "Segoe UI"]),
+        font: "Google Sans".into(),
         weight: 500,
         text_size: 15.,
         label: label(state, "Microphone muted", "Microphone on"),
@@ -286,7 +285,7 @@ fn cute(state: &Snapshot) -> Look {
         shadow: Shadow::Hard(color_alpha(0xffb3d3, 1.), 0., 4.),
         gutter: 5.,
         acrylic: false,
-        font: pick_font(&["Nunito", "Quicksand", "Varela Round", "Comic Sans MS"]),
+        font: "Nunito".into(),
         weight: 700,
         text_size: 14.,
         label: label(state, "Shh\u{2026} muted", "Mic is on!"),
@@ -320,7 +319,7 @@ fn neon(state: &Snapshot) -> Look {
         shadow: Shadow::Halo(color_alpha(tube, 0.70), 18.),
         gutter: 58.,
         acrylic: false,
-        font: pick_font(&["Orbitron", "Bahnschrift", "Segoe UI"]),
+        font: "Orbitron".into(),
         weight: 600,
         text_size: 14.,
         label: label(state, "MIC MUTED", "ON AIR"),
@@ -357,8 +356,8 @@ fn brutalism(state: &Snapshot) -> Look {
         shadow: Shadow::Hard(color_alpha(0x000000, 1.), 5., 5.),
         gutter: 6.,
         acrylic: false,
-        font: pick_font(&["Arial Black", "Impact", "Segoe UI"]),
-        weight: 900,
+        font: "Archivo Black".into(),
+        weight: 400, // Archivo Black's regular face already has black-weight outlines.
         text_size: 15.,
         label: label(state, "MUTED", "LIVE"),
         content_opacity: 1.,
@@ -412,24 +411,6 @@ fn label(state: &Snapshot, muted: &'static str, live: &'static str) -> SharedStr
         return user_label(&state.settings, state.muted);
     }
     if state.muted { muted } else { live }.into()
-}
-
-/// First installed family, so themes degrade gracefully on bare systems.
-fn pick_font(candidates: &[&'static str]) -> SharedString {
-    static INSTALLED: OnceLock<Vec<String>> = OnceLock::new();
-    let installed = INSTALLED.get_or_init(|| {
-        crate::system_fonts()
-            .into_iter()
-            .map(|font| font.family.to_ascii_lowercase())
-            .collect()
-    });
-    candidates
-        .iter()
-        .find(|family| installed.contains(&family.to_ascii_lowercase()))
-        .or(candidates.last())
-        .copied()
-        .unwrap_or("Segoe UI")
-        .into()
 }
 
 pub(super) fn color_alpha(color: u32, alpha: f32) -> Rgba {

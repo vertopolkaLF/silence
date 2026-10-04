@@ -54,6 +54,30 @@ path and embedded Solar warning icon.
 
 ## Verification
 
+## Bundled fonts
+
+Before opening the overlay window, GPUI registers TTF bytes embedded in the EXE
+with `include_bytes!`. Preset themes no longer inspect installed font families:
+
+| Overlay | Bundled family |
+| --- | --- |
+| Custom default, Windows, mute-failure warning | Inter |
+| Material You | Google Sans |
+| Cute | Nunito |
+| Neon | Orbitron |
+| Brutalism | Archivo Black |
+
+The Custom picker includes these families and loads their local font assets in
+the settings WebView for previews. User-selected system fonts remain supported;
+they depend on the user's machine and are not redistributed. Existing saved
+custom font selections are preserved.
+
+Font files and their upstream OFL notices are in `assets/fonts/overlay`.
+The notices are also embedded in the settings document's font stylesheet.
+See that directory's README for download provenance.
+
+## Verification
+
 Dependency resolution/download, manifest metadata, Rust formatting/parser checks,
 and standalone animation tests have been checked without building the app.
 These checks do not establish that the full application compiles or that the

@@ -94,7 +94,7 @@ fn mute_failure_overlay(settings: &OverlayConfig, label: &str) -> OverlayConfig 
         show_text: true,
         muted_label: label.to_string(),
         unmuted_label: label.to_string(),
-        text_font: "Segoe UI".to_string(),
+        text_font: gpui_overlay::fonts::DEFAULT.to_string(),
         text_font_weight: 600,
         variant: "MicIcon".to_string(),
         icon_pair: MUTE_FAILURE_ICON_PAIR.to_string(),

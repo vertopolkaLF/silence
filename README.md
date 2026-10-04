@@ -162,6 +162,14 @@ Build all release artifacts used by the project:
 
 The packaging script builds `x64`, `x86`, and `arm64` portable archives and NSIS installers into `dist\<version>`.
 
+### GitHub Actions
+
+The **Build Windows app and draft release** workflow builds all six packages on pushes to `main` and pull requests targeting `main`. Packages and `SHA256SUMS.txt` are available as a workflow artifact for 14 days.
+
+To prepare a release, update the version in `Cargo.toml` and `Cargo.lock`, then push a matching tag (for example, `v2.3.4`). Alternatively, run the workflow from the Actions tab with **Create or update a draft release** enabled; it uses the version from `Cargo.toml` and the selected commit. Disable that option for a manual build without a release.
+
+After all packages build successfully, the workflow creates a **draft** GitHub release with generated release notes and attaches the installers, portable archives, and checksums. Publish it manually after reviewing it. Reruns can replace assets in a draft targeting the same commit; published releases and drafts targeting another commit are protected from replacement. The workflow uses the built-in `GITHUB_TOKEN`; no additional release secret is needed.
+
 ## Contributing
 
 Bug reports, feature requests, and pull requests are welcome.

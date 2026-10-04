@@ -1,5 +1,6 @@
 //! A GPU-composited overlay on its own Windows UI thread.
 //! Dioxus settings and the existing audio/tray message loop remain independent.
+pub(crate) mod fonts;
 mod motion;
 pub(crate) mod theme;
 
@@ -64,6 +65,11 @@ pub(super) fn start(muted: bool, settings: OverlayConfig) -> Result<()> {
                 ))
                 .with_assets(OverlayAssets)
                 .run(move |cx: &mut App| {
+                    if let Err(error) = cx.text_system().add_fonts(fonts::embedded()) {
+                        let _ = ready.send(Err(format!("load bundled overlay fonts: {error:#}")));
+                        cx.quit();
+                        return;
+                    }
                     let initial = Snapshot {
                         muted,
                         settings: settings.clone(),

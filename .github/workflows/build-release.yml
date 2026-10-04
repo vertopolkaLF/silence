@@ -1,0 +1,196 @@
+name: Build Windows app and draft release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      create_draft:
+        description: Create or update a draft release for the Cargo.toml version
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DIOXUS_CLI_VERSION: '0.7.6'
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Package x64, x86 and ARM64
+    runs-on: windows-2022
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      tag: ${{ steps.metadata.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read version and validate release tag
+        id: metadata
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $package = [regex]::Match((Get-Content Cargo.toml -Raw), '(?ms)^\[package\]\s*(.*?)(?:^\[|\z)').Groups[1].Value
+          $version = [regex]::Match($package, '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value
+          if (-not $version) { throw 'Package version not found in Cargo.toml' }
+          $tag = "v$version"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $tag) {
+            throw "Tag $env:GITHUB_REF_NAME does not match Cargo.toml version $tag"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Rust and native build tools
+        run: |
+          $ErrorActionPreference = 'Stop'
+          rustup toolchain install stable --profile minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Rust toolchain installation failed' }
+          rustup default stable
+          if ($LASTEXITCODE -ne 0) { throw 'Rust toolchain selection failed' }
+          'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> $env:GITHUB_ENV
+          'C:\Program Files\LLVM\bin' >> $env:GITHUB_PATH
+          if (-not (Test-Path 'C:\Program Files\LLVM\bin\libclang.dll')) {
+            throw 'The Windows runner is missing libclang.dll'
+          }
+
+      - uses: Swatinem/rust-cache@63fed3e2fecf6f7b51dc6f043341b79ef82a9ae7 # v2.9.2
+        with:
+          # Reuse Dioxus's downloaded bundling tools as well as Cargo dependencies.
+          cache-directories: |
+            ~/.dioxus
+          save-if: ${{ github.event_name != 'pull_request' }}
+
+      - name: Install pinned Dioxus CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $toolDir = Join-Path $env:RUNNER_TEMP 'dioxus-cli'
+          New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
+          $archive = 'dx-x86_64-pc-windows-msvc.zip'
+          gh release download "v$env:DIOXUS_CLI_VERSION" --repo DioxusLabs/dioxus --pattern $archive --pattern 'dx-x86_64-pc-windows-msvc.sha256' --dir $toolDir
+          if ($LASTEXITCODE -ne 0) { throw 'Dioxus CLI download failed' }
+          $expected = ((Get-Content (Join-Path $toolDir 'dx-x86_64-pc-windows-msvc.sha256') -Raw).Trim() -split '\s+')[0]
+          $actual = (Get-FileHash (Join-Path $toolDir $archive) -Algorithm SHA256).Hash
+          if ($expected -notmatch '^[a-fA-F0-9]{64}$' -or $actual -ne $expected) {
+            throw 'Dioxus CLI checksum verification failed'
+          }
+          Expand-Archive (Join-Path $toolDir $archive) -DestinationPath $toolDir
+          $dx = @(Get-ChildItem $toolDir -Filter dx.exe -Recurse -File)
+          if ($dx.Count -ne 1) { throw 'Expected exactly one dx.exe in the CLI archive' }
+          $dx[0].DirectoryName >> $env:GITHUB_PATH
+
+      - name: Build portable archives and NSIS installers
+        run: |
+          dx --version
+          if ($LASTEXITCODE -ne 0) { throw 'Dioxus CLI is unavailable' }
+          ./build.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed' }
+          git diff --exit-code -- Cargo.lock
+          if ($LASTEXITCODE -ne 0) { throw 'Build changed Cargo.lock; commit the updated lockfile before releasing' }
+
+      - name: Verify packages and write checksums
+        env:
+          APP_VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $outputDir = Join-Path 'dist' $env:APP_VERSION
+          $checksums = foreach ($arch in @('x64', 'x86', 'arm64')) {
+            foreach ($suffix in @('portable.zip', 'setup.exe')) {
+              $name = "silence-$env:APP_VERSION-windows-$arch-$suffix"
+              $path = Join-Path $outputDir $name
+              if (-not (Test-Path $path -PathType Leaf) -or (Get-Item $path).Length -eq 0) {
+                throw "Missing or empty release package: $name"
+              }
+              $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $name"
+            }
+          }
+          $checksums | Set-Content (Join-Path $outputDir 'SHA256SUMS.txt') -Encoding utf8NoBOM
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: silence-${{ steps.metadata.outputs.version }}-windows
+          path: |
+            dist/${{ steps.metadata.outputs.version }}/*.zip
+            dist/${{ steps.metadata.outputs.version }}/*.exe
+            dist/${{ steps.metadata.outputs.version }}/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  draft-release:
+    name: Create draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.create_draft)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.build.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: silence-${{ needs.build.outputs.version }}-windows
+          path: release-assets
+
+      - name: Verify downloaded packages
+        working-directory: release-assets
+        run: sha256sum --check SHA256SUMS.txt
+
+      - name: Create or update draft and attach packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          # List drafts as well as published releases; authentication/API errors must fail.
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[]' > releases.jsonl
+          existing=$(jq -s --arg tag "$RELEASE_TAG" 'map(select(.tag_name == $tag)) | first // null' releases.jsonl)
+          if [[ "$existing" != 'null' ]]; then
+            if [[ $(jq -r '.draft' <<< "$existing") != 'true' ]]; then
+              echo "::error::Release $RELEASE_TAG is already published; refusing to replace its assets."
+              exit 1
+            fi
+            if [[ $(jq -r '.target_commitish' <<< "$existing") != "$GITHUB_SHA" ]]; then
+              echo "::error::Existing draft targets another commit. Use a new version or remove that draft before retrying."
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          else
+            # If a tag exists, it must point to the exact commit whose packages were built.
+            gh api --paginate "repos/$GH_REPO/git/matching-refs/tags/$RELEASE_TAG" --jq '.[]' > tags.jsonl
+            tag=$(jq -s --arg ref "refs/tags/$RELEASE_TAG" 'map(select(.ref == $ref)) | first // null' tags.jsonl)
+            if [[ "$tag" != 'null' ]]; then
+              sha=$(jq -r '.object.sha' <<< "$tag")
+              type=$(jq -r '.object.type' <<< "$tag")
+              while [[ "$type" == 'tag' ]]; do
+                object=$(gh api "repos/$GH_REPO/git/tags/$sha")
+                sha=$(jq -r '.object.sha' <<< "$object")
+                type=$(jq -r '.object.type' <<< "$object")
+              done
+              if [[ "$sha" != "$GITHUB_SHA" ]]; then
+                echo "::error::Existing tag $RELEASE_TAG targets another commit."
+                exit 1
+              fi
+            fi
+            gh release create "$RELEASE_TAG" release-assets/* --draft --target "$GITHUB_SHA" --title "silence! v$RELEASE_VERSION" --generate-notes
+          fi
+          gh release view "$RELEASE_TAG" --json url --jq '.url' >> "$GITHUB_STEP_SUMMARY"

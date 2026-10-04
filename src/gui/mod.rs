@@ -36,6 +36,10 @@ const CONTROLS_CSS: Asset = asset!("/assets/styles/controls.css", AssetOptions::
 const GENERAL_CSS: Asset = asset!("/assets/styles/general.css", AssetOptions::css());
 const CONTRAST_ICON: Asset = asset!("/assets/icons/ic-baseline-contrast.svg");
 const INTER_FONT: Asset = asset!("/assets/fonts/InterVariable.woff2");
+const OVERLAY_GOOGLE_SANS_FONT: Asset = asset!("/assets/fonts/overlay/GoogleSans.ttf");
+const OVERLAY_NUNITO_FONT: Asset = asset!("/assets/fonts/overlay/Nunito.ttf");
+const OVERLAY_ORBITRON_FONT: Asset = asset!("/assets/fonts/overlay/Orbitron.ttf");
+const OVERLAY_ARCHIVO_BLACK_FONT: Asset = asset!("/assets/fonts/overlay/ArchivoBlack.ttf");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
@@ -204,7 +208,7 @@ html, body, #main, #root {{
 }
 
 fn settings_font_face() -> String {
-    format!(
+    let settings = format!(
         r#"@font-face {{
   font-family: "Bricolage Grotesque";
   src: url("{BRICOLAGE_GROTESQUE_FONT}") format("woff2");
@@ -228,7 +232,23 @@ fn settings_font_face() -> String {
   font-style: normal;
   font-display: swap;
 }}"#
-    )
+    );
+    let mut styles = settings;
+    // The custom-font picker previews the same bundled families as GPUI.
+    for (family, source, weights) in [
+        ("Google Sans", OVERLAY_GOOGLE_SANS_FONT, "400 700"),
+        ("Nunito", OVERLAY_NUNITO_FONT, "200 1000"),
+        ("Orbitron", OVERLAY_ORBITRON_FONT, "400 900"),
+        ("Archivo Black", OVERLAY_ARCHIVO_BLACK_FONT, "400"),
+    ] {
+        styles.push_str(&format!(
+            "\n@font-face {{ font-family: \"{family}\"; src: url(\"{source}\") format(\"truetype\"); font-weight: {weights}; font-style: normal; font-display: swap; }}\n"
+        ));
+    }
+    styles.push_str("\n/* Bundled overlay font licenses:\n");
+    styles.push_str(&crate::gpui_overlay::fonts::LICENSES.replace("*/", "* /"));
+    styles.push_str("\n*/\n");
+    styles
 }
 
 fn settings_icon_style() -> String {
