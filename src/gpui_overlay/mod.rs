@@ -6,8 +6,8 @@ use crate::{OverlayConfig, native_overlay};
 use anyhow::{Context as _, Result};
 use gpui::{
     App, AssetSource, Bounds, Context, FontWeight, IntoElement, Render, SharedString, TextRun,
-    Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, div, font, point,
-    prelude::*, px, rgb, rgba, size, svg,
+    Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, div, font,
+    linear_color_stop, linear_gradient, point, prelude::*, px, rgb, rgba, size, svg,
 };
 use motion::Motion;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -280,9 +280,11 @@ impl OverlayView {
                             icon.size(px(32. * scale))
                                 .rounded(px((radius * (32. * scale) / height.max(1.))
                                     .clamp(0., 16. * scale)))
+                                .border_1()
+                                .border_color(color_alpha(accent, 0.22))
                         })
                         .flex_shrink_0()
-                        .bg(color_alpha(accent, 0.10))
+                        .when(!icon_only, |icon| icon.bg(color_alpha(accent, 0.14)))
                         .flex()
                         .items_center()
                         .justify_center()
@@ -303,6 +305,31 @@ impl OverlayView {
                         .child(label(state)),
                 )
             })
+    }
+
+    /// State-tinted wash behind the icon side; it fades with its content layer.
+    fn glow(&self, state: &Snapshot, opacity: f32, radius: f32) -> Option<gpui::Div> {
+        let settings = &state.settings;
+        if !has_icon(settings) || !has_text(settings) || settings.background_opacity == 0 {
+            return None;
+        }
+        let accent = icon_color(state, self.accent);
+        let strength = if settings.background_style == "Light" { 0.10 } else { 0.16 };
+        let alpha = strength * settings.background_opacity.min(100) as f32 / 100.;
+        Some(
+            div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .size_full()
+                .rounded(px(radius))
+                .opacity(opacity)
+                .bg(linear_gradient(
+                    90.,
+                    linear_color_stop(color_alpha(accent, alpha), 0.),
+                    linear_color_stop(color_alpha(accent, 0.), 0.7),
+                )),
+        )
     }
 }
 
@@ -371,11 +398,15 @@ impl Render for OverlayView {
         }
         let logical_radius = settings.border_radius.min(24) as f32;
         let radius = (logical_radius * scale).min(height / 2.);
+        let light = settings.background_style == "Light";
         let border = if self.state.positioning {
             color_alpha(0x78a8ff, 0.9)
+        } else if light {
+            color_alpha(0x0f172a, 0.12)
         } else {
-            rgba(0xffffff22)
+            color_alpha(0xffffff, 0.10)
         };
+        let surface = settings.background_opacity.min(100) as f32 / 100.;
         let mut card = div()
             .absolute()
             .left(px(left))
@@ -394,6 +425,28 @@ impl Render for OverlayView {
             .size_full()
             .overflow_hidden()
             .rounded(px(radius));
+        if !dot && surface > 0. {
+            // Soft top sheen gives the flat surface some depth.
+            let sheen = if light { 0.55 } else { 0.06 } * surface;
+            contents = contents.child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .top_0()
+                    .size_full()
+                    .rounded(px(radius))
+                    .bg(linear_gradient(
+                        180.,
+                        linear_color_stop(color_alpha(0xffffff, sheen), 0.),
+                        linear_color_stop(color_alpha(0xffffff, 0.), 0.6),
+                    )),
+            );
+        }
+        for layer in &self.layers {
+            if let Some(glow) = self.glow(&layer.state, layer.opacity.value(now), radius) {
+                contents = contents.child(glow);
+            }
+        }
         for layer in &self.layers {
             if layer.state.settings.variant != "Dot" {
                 contents = contents.child(self.content(
@@ -563,7 +616,7 @@ fn background_color(state: &Snapshot) -> gpui::Rgba {
             if settings.background_style == "Light" {
                 0xf7f9fc
             } else {
-                0x202020
+                0x1b1c21
             },
             settings.background_opacity.min(100) as f32 / 100.,
         )
