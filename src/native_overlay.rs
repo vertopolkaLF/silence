@@ -12,7 +12,12 @@ use std::{
 use windows::Win32::{
     Foundation::{BOOL, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::{
-        Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
+        Dwm::{
+            DWMNCRP_DISABLED, DWMNCRP_ENABLED, DWMWA_NCRENDERING_POLICY, DWMWA_SYSTEMBACKDROP_TYPE,
+            DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
+            DWM_SYSTEMBACKDROP_TYPE, DWM_WINDOW_CORNER_PREFERENCE, DWMSBT_NONE,
+            DWMSBT_TRANSIENTWINDOW, DWMWCP_DONOTROUND, DWMWCP_ROUND, DwmSetWindowAttribute,
+        },
         Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO},
     },
     UI::{
@@ -59,6 +64,8 @@ struct NativeOverlay {
     pending_single_click: bool,
     suppress_next_left_up: bool,
     suppress_next_click_after_drag: bool,
+    acrylic: bool,
+    chrome_dark: bool,
 }
 // HWND is only operated on its GPUI thread, or through asynchronous Win32 positioning.
 unsafe impl Send for NativeOverlay {}
@@ -143,6 +150,8 @@ pub(super) fn attach(
         pending_single_click: false,
         suppress_next_left_up: false,
         suppress_next_click_after_drag: false,
+        acrylic: false,
+        chrome_dark: true,
     };
     native.apply_click_through();
     *OVERLAY.lock().unwrap() = Some(native);
@@ -275,6 +284,16 @@ pub(super) fn present(visible: bool) {
                 let _ = PostMessageW(overlay.hwnd, WM_GPUI_PRESENT, WPARAM(0), LPARAM(0));
             }
         }
+    }
+}
+pub(super) fn set_chrome(acrylic: bool, dark: bool) {
+    if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
+        if overlay.acrylic == acrylic && overlay.chrome_dark == dark {
+            return;
+        }
+        overlay.acrylic = acrylic;
+        overlay.chrome_dark = dark;
+        overlay.apply_chrome();
     }
 }
 
@@ -476,14 +495,71 @@ impl NativeOverlay {
             } else {
                 style & !transparent
             };
-            if style == next_style {
-                return;
+            if style != next_style {
+                let _ = SetWindowLongW(self.hwnd, GWL_EXSTYLE, next_style);
+                if click_through {
+                    // Keep opacity in GPUI; this alpha only enables Win32 hit testing.
+                    let _ = SetLayeredWindowAttributes(self.hwnd, COLORREF(0), 255, LWA_ALPHA);
+                }
             }
-            let _ = SetWindowLongW(self.hwnd, GWL_EXSTYLE, next_style);
-            if click_through {
-                // Keep opacity in GPUI; this alpha only enables Win32 hit testing.
-                let _ = SetLayeredWindowAttributes(self.hwnd, COLORREF(0), 255, LWA_ALPHA);
-            }
+        }
+        if self.acrylic {
+            self.apply_chrome();
+        }
+    }
+
+    fn apply_chrome(&self) {
+        unsafe {
+            let policy = if self.acrylic {
+                DWMNCRP_ENABLED
+            } else {
+                DWMNCRP_DISABLED
+            };
+            let _ = DwmSetWindowAttribute(
+                self.hwnd,
+                DWMWA_NCRENDERING_POLICY,
+                &policy as *const _ as _,
+                size_of_val(&policy) as u32,
+            );
+            let dark_mode = i32::from(self.chrome_dark);
+            let _ = DwmSetWindowAttribute(
+                self.hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &dark_mode as *const _ as _,
+                size_of::<i32>() as u32,
+            );
+            // ROUND is the largest radius DWM will put on a borderless popup.
+            let corners = if self.acrylic {
+                DWMWCP_ROUND
+            } else {
+                DWMWCP_DONOTROUND
+            };
+            let _ = DwmSetWindowAttribute(
+                self.hwnd,
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                &corners as *const _ as _,
+                size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
+            );
+            let backdrop = if self.acrylic {
+                DWMSBT_TRANSIENTWINDOW
+            } else {
+                DWMSBT_NONE
+            };
+            let _ = DwmSetWindowAttribute(
+                self.hwnd,
+                DWMWA_SYSTEMBACKDROP_TYPE,
+                &backdrop as *const _ as _,
+                size_of::<DWM_SYSTEMBACKDROP_TYPE>() as u32,
+            );
+            let _ = SetWindowPos(
+                self.hwnd,
+                None,
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
         }
     }
 

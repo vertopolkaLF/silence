@@ -23,10 +23,13 @@ const DOWNLOAD_MINIMALISTIC_BOLD_ICON: Asset =
     asset!("/assets/icons/download-minimalistic-bold.svg");
 const EXPORT_LINEAR_ICON: Asset = asset!("/assets/icons/export-linear.svg");
 const GAMEPAD_BOLD_ICON: Asset = asset!("/assets/icons/gamepad-bold.svg");
+const HEART_LINEAR_ICON: Asset = asset!("/assets/icons/heart-linear.svg");
 const IMPORT_LINEAR_ICON: Asset = asset!("/assets/icons/import-linear.svg");
 const INFO_CIRCLE_BOLD_ICON: Asset = asset!("/assets/icons/info-circle-bold.svg");
 const KEYBOARD_BOLD_ICON: Asset = asset!("/assets/icons/keyboard-bold.svg");
 const KEYBOARD_LINEAR_ICON: Asset = asset!("/assets/icons/keyboard-linear.svg");
+const BOLT_LINEAR_ICON: Asset = asset!("/assets/icons/bolt-linear.svg");
+const BOX_LINEAR_ICON: Asset = asset!("/assets/icons/box-linear.svg");
 const BRICOLAGE_GROTESQUE_FONT: Asset = asset!("/assets/fonts/BricolageGrotesque-latin.woff2");
 const PLUS_JAKARTA_SANS_FONT: Asset = asset!("/assets/fonts/PlusJakartaSans-latin.woff2");
 const CONTROLS_CSS: Asset = asset!("/assets/styles/controls.css", AssetOptions::css());
@@ -36,10 +39,12 @@ const INTER_FONT: Asset = asset!("/assets/fonts/InterVariable.woff2");
 const GLOBAL_CSS: Asset = asset!("/assets/styles/global.css", AssetOptions::css());
 const HOTKEYS_CSS: Asset = asset!("/assets/styles/hotkeys.css", AssetOptions::css());
 const LAYOUT_CSS: Asset = asset!("/assets/styles/layout.css", AssetOptions::css());
+const MATERIAL_DESIGN_ICON: Asset = asset!("/assets/icons/material-design.svg");
 const MICROPHONE_3_BOLD_ICON: Asset = asset!("/assets/icons/microphone-3-bold.svg");
 const MICROPHONE_3_LINEAR_ICON: Asset = asset!("/assets/icons/microphone-3-linear.svg");
 const MIC_ICON: Asset = asset!("/assets/icons/mic.svg");
 const MIC_OFF_ICON: Asset = asset!("/assets/icons/mic-off.svg");
+const MICROSOFT_WINDOWS_ICON: Asset = asset!("/assets/icons/microsoft-windows.svg");
 const MOON_LINEAR_ICON: Asset = asset!("/assets/icons/moon-linear.svg");
 const MONITOR_BOLD_ICON: Asset = asset!("/assets/icons/monitor-bold.svg");
 const OVEN_MITTS_BOLD_ICON: Asset = asset!("/assets/icons/oven-mitts-bold.svg");
@@ -58,6 +63,7 @@ const SUN_2_LINEAR_ICON: Asset = asset!("/assets/icons/sun-2-linear.svg");
 const TABS_CSS: Asset = asset!("/assets/styles/tabs.css", AssetOptions::css());
 const TITLEBAR_CSS: Asset = asset!("/assets/styles/titlebar.css", AssetOptions::css());
 const TRASH_BIN_TRASH_LINEAR_ICON: Asset = asset!("/assets/icons/trash-bin-trash-linear.svg");
+const TUNING_2_LINEAR_ICON: Asset = asset!("/assets/icons/tuning-2-linear.svg");
 const VOLUME_LOUD_BOLD_ICON: Asset = asset!("/assets/icons/volume-loud-bold.svg");
 const PEN_LINEAR_ICON: Asset = asset!("/assets/icons/pen-linear.svg");
 const WIDGET_BOLD_ICON: Asset = asset!("/assets/icons/widget-bold.svg");
@@ -256,6 +262,12 @@ fn settings_icon_style() -> String {
 .icon-record {{ --icon: url("{RECORD_BOLD_ICON}"); }}
 .icon-palette {{ --icon: url("{PALLETE_2_LINEAR_ICON}"); }}
 .icon-contrast {{ --icon: url("{CONTRAST_ICON}"); }}
+.icon-tuning {{ --icon: url("{TUNING_2_LINEAR_ICON}"); }}
+.icon-windows {{ --icon: url("{MICROSOFT_WINDOWS_ICON}"); }}
+.icon-material {{ --icon: url("{MATERIAL_DESIGN_ICON}"); }}
+.icon-heart {{ --icon: url("{HEART_LINEAR_ICON}"); }}
+.icon-bolt {{ --icon: url("{BOLT_LINEAR_ICON}"); }}
+.icon-box {{ --icon: url("{BOX_LINEAR_ICON}"); }}
 .icon-moon {{ --icon: url("{MOON_LINEAR_ICON}"); }}
 .icon-sun {{ --icon: url("{SUN_2_LINEAR_ICON}"); }}
 .icon-trash {{ --icon: url("{TRASH_BIN_TRASH_LINEAR_ICON}"); }}

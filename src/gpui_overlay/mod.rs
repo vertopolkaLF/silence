@@ -1,15 +1,17 @@
 //! A GPU-composited overlay on its own Windows UI thread.
 //! Dioxus settings and the existing audio/tray message loop remain independent.
 mod motion;
+pub(crate) mod theme;
 
 use crate::{OverlayConfig, native_overlay};
 use anyhow::{Context as _, Result};
 use gpui::{
-    App, AssetSource, Bounds, Context, FontWeight, IntoElement, Render, SharedString, TextRun,
-    Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, div, font,
-    linear_color_stop, linear_gradient, point, prelude::*, px, rgb, rgba, size, svg,
+    App, AssetSource, Bounds, BoxShadow, Context, FontWeight, IntoElement, Render, SharedString,
+    TextRun, Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, div,
+    font, linear_color_stop, linear_gradient, point, prelude::*, px, rgb, size, svg,
 };
 use motion::Motion;
+use theme::{Look, Shadow, System, color_alpha};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{borrow::Cow, rc::Rc, sync::mpsc, thread, time::Instant};
 use windows::Win32::Foundation::HWND;
@@ -169,7 +171,8 @@ struct OverlayView {
     height: Motion,
     visibility: Motion,
     last_dpi: f32,
-    accent: (u8, u8, u8),
+    system: System,
+    last_chrome: Option<(bool, bool)>,
 }
 
 impl OverlayView {
@@ -186,7 +189,8 @@ impl OverlayView {
             height: Motion::new(48., 260),
             visibility: Motion::new(0., 180),
             last_dpi: window.scale_factor(),
-            accent: crate::WindowsAccent::load().accent,
+            system: System::load(),
+            last_chrome: None,
         }
     }
 
@@ -220,7 +224,7 @@ impl OverlayView {
                 }
             }
             self.needs_measure = true;
-            self.accent = crate::WindowsAccent::load().accent;
+            self.system = System::load();
         }
         self.visibility
             .retarget(if next.visible { 1. } else { 0. }, now);
@@ -229,93 +233,82 @@ impl OverlayView {
 
     fn content(
         &self,
-        state: &Snapshot,
+        look: &Look,
         scale: f32,
         height: f32,
         radius: f32,
         opacity: f32,
-        offset: f32,
         window: &Window,
     ) -> gpui::Div {
-        let settings = &state.settings;
-        let has_icon = has_icon(settings);
-        let has_text = has_text(settings);
-        let icon_size = 24. * scale;
-        let icon_only = has_icon && !has_text;
-        let padding = if has_text {
-            if has_icon { 8. * scale } else { 14. * scale }
+        let icon_only = look.has_icon && !look.has_text;
+        let padding = if look.has_text {
+            if look.has_icon { look.pad_icon * scale } else { look.pad * scale }
         } else {
             0.
-        };
-        let foreground = if settings.background_style == "Light" {
-            0x202631
-        } else {
-            0xf1f4f8
-        };
-        let accent = icon_color(state, self.accent);
-        let path = if settings.icon_pair == crate::MUTE_FAILURE_ICON_PAIR {
-            "warning".into()
-        } else {
-            format!(
-                "{}/{}",
-                settings.icon_pair,
-                if state.muted { "muted" } else { "live" }
-            )
         };
         div()
             .absolute()
             .left(px(padding))
             .when(icon_only, |row| row.right_0())
-            .top(px(offset))
+            .top_0()
             .h(px(height))
             .flex()
             .items_center()
-            .gap(px(10. * scale))
-            .opacity(opacity * settings.content_opacity.clamp(20, 100) as f32 / 100.)
-            .when(has_icon, |row| {
-                row.child(
-                    div()
-                        .when(icon_only, |icon| icon.size_full().rounded(px(radius)))
-                        .when(!icon_only, |icon| {
-                            icon.size(px(32. * scale))
-                                .rounded(px((radius * (32. * scale) / height.max(1.))
-                                    .clamp(0., 16. * scale)))
-                                .border_1()
-                                .border_color(color_alpha(accent, 0.22))
-                        })
-                        .flex_shrink_0()
-                        .when(!icon_only, |icon| icon.bg(color_alpha(accent, 0.14)))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(svg().path(path).size(px(icon_size)).text_color(rgb(accent))),
-                )
+            .gap(px(look.gap * scale))
+            .opacity(opacity * look.content_opacity)
+            .when(look.has_icon, |row| {
+                let glyph = svg()
+                    .path(look.icon_path.clone())
+                    .size(px(look.icon_size * scale))
+                    .text_color(rgb(look.icon));
+                let holder = div()
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center();
+                row.child(match (&look.icon_box, icon_only) {
+                    (_, true) => holder.size_full().rounded(px(radius)).child(glyph),
+                    (Some(icon_box), false) => {
+                        let size = icon_box.size * scale;
+                        let corner = match icon_box.radius {
+                            Some(corner) => corner * scale,
+                            // Concentric with the card around it.
+                            None => (radius * size / height.max(1.)).clamp(0., 16. * scale),
+                        };
+                        let mut holder = holder
+                            .size(px(size))
+                            .rounded(px(corner.min(size / 2.)))
+                            .bg(icon_box.fill);
+                        if let Some((color, width)) = icon_box.border {
+                            holder = border_width(holder, width * scale).border_color(color);
+                        }
+                        holder.child(glyph)
+                    }
+                    (None, false) => holder.child(glyph),
+                })
             })
-            .when(has_text, |row| {
+            .when(look.has_text, |row| {
                 row.child(
                     div()
                         .relative()
-                        .top(px(text_center_offset(state, scale, window)))
+                        .top(px(text_center_offset(look, scale, window)))
                         .whitespace_nowrap()
-                        .text_size(px(14. * scale))
-                        .line_height(px(20. * scale))
-                        .font_family(font_family(settings))
-                        .font_weight(FontWeight(settings.text_font_weight.clamp(100, 900) as f32))
-                        .text_color(rgb(foreground))
-                        .child(label(state)),
+                        .text_size(px(look.text_size * scale))
+                        .line_height(px(look.text_size * scale * 20. / 14.))
+                        .font_family(look.font.clone())
+                        .font_weight(FontWeight(look.weight as f32))
+                        .text_color(rgb(look.foreground))
+                        .child(look.label.clone()),
                 )
             })
     }
 
     /// State-tinted wash behind the icon side; it fades with its content layer.
-    fn glow(&self, state: &Snapshot, opacity: f32, radius: f32) -> Option<gpui::Div> {
-        let settings = &state.settings;
-        if !has_icon(settings) || !has_text(settings) || settings.background_opacity == 0 {
+    fn glow(&self, look: &Look, opacity: f32, radius: f32) -> Option<gpui::Div> {
+        if !look.has_icon || !look.has_text || look.glow == 0. || look.surface.a == 0. {
             return None;
         }
-        let accent = icon_color(state, self.accent);
-        let strength = if settings.background_style == "Light" { 0.10 } else { 0.16 };
-        let alpha = strength * settings.background_opacity.min(100) as f32 / 100.;
+        let alpha = look.glow * look.surface.a;
         Some(
             div()
                 .absolute()
@@ -326,8 +319,8 @@ impl OverlayView {
                 .opacity(opacity)
                 .bg(linear_gradient(
                     90.,
-                    linear_color_stop(color_alpha(accent, alpha), 0.),
-                    linear_color_stop(color_alpha(accent, 0.), 0.7),
+                    linear_color_stop(color_alpha(look.icon, alpha), 0.),
+                    linear_color_stop(color_alpha(look.icon, 0.), 0.7),
                 )),
         )
     }
@@ -343,9 +336,20 @@ impl Render for OverlayView {
             self.last_dpi = dpi;
             self.needs_measure = true;
         }
+        let look = Look::resolve(&self.state, self.system);
+        let chrome = (look.acrylic, !self.system.light);
+        if self.last_chrome != Some(chrome) {
+            self.last_chrome = Some(chrome);
+            window.set_background_appearance(if look.acrylic {
+                WindowBackgroundAppearance::Blurred
+            } else {
+                WindowBackgroundAppearance::Transparent
+            });
+            native_overlay::set_chrome(look.acrylic, !self.system.light);
+        }
         if self.needs_measure {
-            let target_width = measure_width(&self.state, scale, window);
-            let target_height = card_height(&self.state.settings) * scale;
+            let target_width = measure_width(&look, scale, window);
+            let target_height = look.height * scale;
             if self.measured {
                 self.width.retarget(target_width, now);
                 self.height.retarget(target_height, now);
@@ -370,64 +374,91 @@ impl Render for OverlayView {
         {
             window.request_animation_frame();
         }
-        // Keep the native surface the same size as the animated card.
-        let left = 0.;
-        let top = 0.;
+        // The surface follows the animated card plus the theme's shadow gutter.
+        let gutter = look.gutter * scale;
         native_overlay::set_geometry(
             (width * dpi).round() as i32,
             (height * dpi).round() as i32,
-            (width * dpi).round() as i32,
-            (height * dpi).round() as i32,
-            (left * dpi).round() as i32,
-            (top * dpi).round() as i32,
+            ((width + gutter * 2.) * dpi).round() as i32,
+            ((height + gutter * 2.) * dpi).round() as i32,
+            (gutter * dpi).round() as i32,
+            (gutter * dpi).round() as i32,
         );
         let should_present = self.state.visible || alpha > 0.001;
         native_overlay::present(should_present);
 
-        let settings = &self.state.settings;
-        let dot = settings.variant == "Dot";
         // Blend the actual on-screen layers, so quick toggles cannot flash a full old state.
-        let mut bg = gpui::Rgba::default();
-        for layer in &self.layers {
-            let color = background_color(&layer.state);
-            let weight = layer.opacity.value(now);
-            bg.r += color.r * weight;
-            bg.g += color.g * weight;
-            bg.b += color.b * weight;
-            bg.a += color.a * weight;
-        }
-        let logical_radius = settings.border_radius.min(24) as f32;
-        let radius = (logical_radius * scale).min(height / 2.);
-        let light = settings.background_style == "Light";
-        let border = if self.state.positioning {
-            color_alpha(0x78a8ff, 0.9)
-        } else if light {
-            color_alpha(0x0f172a, 0.12)
-        } else {
-            color_alpha(0xffffff, 0.10)
+        let layers = self
+            .layers
+            .iter()
+            .map(|layer| {
+                (
+                    Look::resolve(&layer.state, self.system),
+                    layer.opacity.value(now),
+                )
+            })
+            .collect::<Vec<_>>();
+        let blend = |pick: &dyn Fn(&Look) -> Option<gpui::Rgba>| {
+            let mut mixed = gpui::Rgba::default();
+            for (look, weight) in &layers {
+                if let Some(color) = pick(look) {
+                    mixed.r += color.r * weight;
+                    mixed.g += color.g * weight;
+                    mixed.b += color.b * weight;
+                    mixed.a += color.a * weight;
+                }
+            }
+            mixed
         };
-        let surface = settings.background_opacity.min(100) as f32 / 100.;
+        let bg = blend(&|look| Some(look.surface));
+        let radius = (look.radius * scale).min(height / 2.);
+        let shadow = |offset: (f32, f32), blur: f32, pick: &dyn Fn(&Shadow) -> Option<gpui::Rgba>| {
+            BoxShadow {
+                color: blend(&|look| pick(&look.shadow)).into(),
+                offset: point(px(offset.0 * scale), px(offset.1 * scale)),
+                blur_radius: px(blur * scale),
+                spread_radius: px(0.),
+                inset: false,
+            }
+        };
+        let shadow = match look.shadow {
+            Shadow::Soft => None,
+            Shadow::Drop(_, y, blur) => Some(shadow((0., y), blur, &|shadow| match shadow {
+                Shadow::Drop(color, ..) => Some(*color),
+                _ => None,
+            })),
+            Shadow::Hard(_, x, y) => Some(shadow((x, y), 0., &|shadow| match shadow {
+                Shadow::Hard(color, ..) => Some(*color),
+                _ => None,
+            })),
+            Shadow::Halo(_, blur) => Some(shadow((0., 0.), blur, &|shadow| match shadow {
+                Shadow::Halo(color, _) => Some(*color),
+                _ => None,
+            })),
+        };
         let mut card = div()
             .absolute()
-            .left(px(left))
-            .top(px(top))
+            .left(px(gutter))
+            .top(px(gutter))
             .w(px(width))
             .h(px(height))
             .rounded(px(radius))
-            .overflow_hidden()
-            .bg(bg)
-            .opacity(alpha)
-            .when(settings.background_opacity > 0 || dot, |card| {
-                card.shadow_md()
-            });
+            .opacity(alpha);
+        if look.surface.a > 0. {
+            card = card.bg(bg);
+        }
+        card = match shadow {
+            Some(shadow) => card.shadow(vec![shadow]),
+            None if look.surface.a > 0. && !look.acrylic => card.shadow_md(),
+            None => card,
+        };
         let mut contents = div()
             .relative()
             .size_full()
             .overflow_hidden()
             .rounded(px(radius));
-        if !dot && surface > 0. {
+        if look.sheen > 0. && look.surface.a > 0. {
             // Soft top sheen gives the flat surface some depth.
-            let sheen = if light { 0.55 } else { 0.06 } * surface;
             contents = contents.child(
                 div()
                     .absolute()
@@ -437,97 +468,83 @@ impl Render for OverlayView {
                     .rounded(px(radius))
                     .bg(linear_gradient(
                         180.,
-                        linear_color_stop(color_alpha(0xffffff, sheen), 0.),
+                        linear_color_stop(color_alpha(0xffffff, look.sheen * look.surface.a), 0.),
                         linear_color_stop(color_alpha(0xffffff, 0.), 0.6),
                     )),
             );
         }
-        for layer in &self.layers {
-            if let Some(glow) = self.glow(&layer.state, layer.opacity.value(now), radius) {
+        for (layer_look, weight) in &layers {
+            if let Some(glow) = self.glow(layer_look, *weight, radius) {
                 contents = contents.child(glow);
             }
         }
-        for layer in &self.layers {
-            if layer.state.settings.variant != "Dot" {
+        for (layer_look, weight) in &layers {
+            if !layer_look.dot {
                 contents = contents.child(self.content(
-                    &layer.state,
-                    scale,
-                    height,
-                    radius,
-                    layer.opacity.value(now),
-                    0.,
-                    window,
+                    layer_look, scale, height, radius, *weight, window,
                 ));
             }
         }
         card = card.child(contents);
-        if settings.show_border || self.state.positioning {
+        let border = if self.state.positioning {
+            Some((color_alpha(0x78a8ff, 0.9), 1.))
+        } else {
+            look.border.map(|(_, width)| {
+                (blend(&|look| look.border.map(|(color, _)| color)), width)
+            })
+        };
+        if let Some((color, border_px)) = border {
             // Paint inside the existing bounds, independently of content layout.
             card = card.child(
-                div()
-                    .absolute()
-                    .left_0()
-                    .top_0()
-                    .w(px(width))
-                    .h(px(height))
-                    .rounded(px(radius))
-                    .border_1()
-                    .border_color(border),
+                border_width(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .w(px(width))
+                        .h(px(height))
+                        .rounded(px(radius)),
+                    (border_px * scale).max(1.),
+                )
+                .border_color(color),
             );
         }
         div().relative().size_full().child(card)
     }
 }
 
-fn has_icon(settings: &OverlayConfig) -> bool {
-    matches!(settings.variant.as_str(), "MicIcon" | "IconText")
-}
-fn has_text(settings: &OverlayConfig) -> bool {
-    matches!(settings.variant.as_str(), "IconText" | "Text")
-        || (settings.variant == "MicIcon" && settings.show_text)
-}
-fn card_height(settings: &OverlayConfig) -> f32 {
-    if settings.variant == "Dot" { 24. } else { 48. }
-}
-fn font_family(settings: &OverlayConfig) -> SharedString {
-    if settings.text_font.trim().is_empty() {
-        "Segoe UI".into()
-    } else {
-        settings.text_font.clone().into()
-    }
-}
-fn label(state: &Snapshot) -> SharedString {
-    let text = if state.muted {
-        &state.settings.muted_label
-    } else {
-        &state.settings.unmuted_label
-    };
-    // GPUI shape_line requires one line; custom labels may contain pasted line breaks.
-    text.replace(['\r', '\n'], " ").into()
-}
-fn measure_width(state: &Snapshot, scale: f32, window: &mut Window) -> f32 {
-    let settings = &state.settings;
-    let height = card_height(settings) * scale;
-    if !has_text(settings) {
-        return height;
-    }
-    let line = shape_label(state, scale, window);
-    // Icon + text: 8px left matches the icon's vertical inset; 14px right.
-    (if has_icon(settings) {
-        64. * scale
-    } else {
-        28. * scale
-    } + f32::from(line.width))
-    .max(height)
+fn border_width<E: Styled>(mut element: E, width: f32) -> E {
+    let widths = &mut element.style().border_widths;
+    widths.top = Some(px(width).into());
+    widths.right = Some(px(width).into());
+    widths.bottom = Some(px(width).into());
+    widths.left = Some(px(width).into());
+    element
 }
 
-fn shape_label(state: &Snapshot, scale: f32, window: &Window) -> gpui::ShapedLine {
-    let settings = &state.settings;
-    let text = label(state);
-    let mut text_font = font(font_family(settings));
-    text_font.weight = FontWeight(settings.text_font_weight.clamp(100, 900) as f32);
+fn measure_width(look: &Look, scale: f32, window: &mut Window) -> f32 {
+    let height = look.height * scale;
+    if !look.has_text {
+        return height;
+    }
+    let text = f32::from(shape_label(look, scale, window).width);
+    let chrome = if look.has_icon {
+        let icon = look
+            .icon_box
+            .as_ref()
+            .map_or(look.icon_size, |icon_box| icon_box.size);
+        look.pad_icon + icon + look.gap + look.pad
+    } else {
+        look.pad * 2.
+    };
+    (chrome * scale + text).max(height)
+}
+
+fn shape_label(look: &Look, scale: f32, window: &Window) -> gpui::ShapedLine {
+    let mut text_font = font(look.font.clone());
+    text_font.weight = FontWeight(look.weight as f32);
     let run = TextRun {
-        len: text.len(),
+        len: look.label.len(),
         font: text_font,
         color: rgb(0xffffff).into(),
         background_color: None,
@@ -536,11 +553,12 @@ fn shape_label(state: &Snapshot, scale: f32, window: &Window) -> gpui::ShapedLin
     };
     window
         .text_system()
-        .shape_line(text, px(14. * scale), &[run], None)
+        .shape_line(look.label.clone(), px(look.text_size * scale), &[run], None)
 }
 
-fn text_center_offset(state: &Snapshot, scale: f32, window: &Window) -> f32 {
-    let line = shape_label(state, scale, window);
+fn text_center_offset(look: &Look, scale: f32, window: &Window) -> f32 {
+    let line = shape_label(look, scale, window);
+    let size = px(look.text_size * scale);
     let mut bottom = f32::INFINITY;
     let mut top = f32::NEG_INFINITY;
     for (index, ch) in line
@@ -551,10 +569,7 @@ fn text_center_offset(state: &Snapshot, scale: f32, window: &Window) -> f32 {
         let Some(font_id) = line.font_id_for_index(index) else {
             continue;
         };
-        let Ok(bounds) = window
-            .text_system()
-            .typographic_bounds(font_id, px(14. * scale), ch)
-        else {
+        let Ok(bounds) = window.text_system().typographic_bounds(font_id, size, ch) else {
             continue;
         };
         if bounds.size.height <= px(0.) {
@@ -571,30 +586,12 @@ fn text_center_offset(state: &Snapshot, scale: f32, window: &Window) -> f32 {
     // visible letters, including accents and descenders, are centered instead.
     (top + bottom - f32::from(line.ascent) + f32::from(line.descent)) / 2.
 }
-fn icon_color(state: &Snapshot, system: (u8, u8, u8)) -> u32 {
-    if state.settings.icon_pair == crate::MUTE_FAILURE_ICON_PAIR {
-        return 0xffb454;
-    }
-    match state.settings.icon_style.as_str() {
-        "Monochrome" => {
-            if state.settings.background_style == "Light" {
-                0x202631
-            } else {
-                0xf1f4f8
-            }
-        }
-        "SystemColor" => (system.0 as u32) << 16 | (system.1 as u32) << 8 | system.2 as u32,
-        _ => mic_state_color(state.muted),
-    }
-}
-fn mic_state_color(muted: bool) -> u32 {
-    // Match the settings UI's --danger / --success palette.
-    if muted { 0xef4444 } else { 0x10b981 }
-}
+
 fn content_changed(old: &Snapshot, new: &Snapshot) -> bool {
     let a = &old.settings;
     let b = &new.settings;
     old.muted != new.muted
+        || a.theme != b.theme
         || a.variant != b.variant
         || a.show_text != b.show_text
         || a.icon_pair != b.icon_pair
@@ -603,25 +600,4 @@ fn content_changed(old: &Snapshot, new: &Snapshot) -> bool {
         || a.unmuted_label != b.unmuted_label
         || a.text_font != b.text_font
         || a.text_font_weight != b.text_font_weight
-}
-fn background_color(state: &Snapshot) -> gpui::Rgba {
-    let settings = &state.settings;
-    if settings.variant == "Dot" {
-        color_alpha(
-            mic_state_color(state.muted),
-            settings.content_opacity.clamp(20, 100) as f32 / 100.,
-        )
-    } else {
-        color_alpha(
-            if settings.background_style == "Light" {
-                0xf7f9fc
-            } else {
-                0x1b1c21
-            },
-            settings.background_opacity.min(100) as f32 / 100.,
-        )
-    }
-}
-fn color_alpha(color: u32, alpha: f32) -> gpui::Rgba {
-    rgba((color << 8) | (alpha.clamp(0., 1.) * 255.).round() as u32)
 }

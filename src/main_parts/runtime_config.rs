@@ -289,6 +289,12 @@ fn normalize_overlay_config(overlay: &mut OverlayConfig) {
     ) {
         overlay.variant = default_overlay_variant();
     }
+    if !crate::gpui_overlay::theme::THEMES
+        .iter()
+        .any(|(id, _)| *id == overlay.theme)
+    {
+        overlay.theme = default_overlay_theme();
+    }
     overlay.show_text = false;
     overlay.text_font_weight = overlay.text_font_weight.clamp(100, 900);
 }

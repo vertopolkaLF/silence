@@ -69,6 +69,21 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
         SelectOption::new("Dark", "Dark").icon("icon-moon"),
         SelectOption::new("Light", "Light").icon("icon-sun"),
     ];
+    let custom_theme = overlay.theme == crate::gpui_overlay::theme::CUSTOM;
+    let theme_options = crate::gpui_overlay::theme::THEMES
+        .iter()
+        .map(|(id, label)| {
+            let (icon, detail) = match *id {
+                "Windows" => ("icon-windows", "Native acrylic flyout"),
+                "MaterialYou" => ("icon-material", "Tonal colors from your accent"),
+                "Cute" => ("icon-heart", "Pastel sticker"),
+                "Neon" => ("icon-bolt", "Glowing tube sign"),
+                "Brutalism" => ("icon-box", "Flat slab, hard shadow"),
+                _ => ("icon-tuning", "Your own style, icons and labels"),
+            };
+            SelectOption::new(*id, *label).detail(detail).icon(icon)
+        })
+        .collect::<Vec<_>>();
     let mut font_options = snapshot
         .system_fonts
         .iter()
@@ -214,137 +229,99 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 div { class: "section-head section-head-row", h1 { "Appearance" } }
 
                 div { class: "overlay-field",
-                    label { "Overlay style" }
-                    div { class: "overlay-variant-grid",
-                        button {
-                            class: if overlay.variant == "MicIcon" {
-                                "overlay-icon-option overlay-variant-option active"
-                            } else {
-                                "overlay-icon-option overlay-variant-option"
-                            },
-                            onclick: move |_| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.variant = "MicIcon".to_string();
-                                });
-                            },
-                            span { class: "overlay-icon-preview overlay-variant-preview live",
-                                span { class: "solar-icon icon-mic" }
-                            }
-                            span { "Mic Icon" }
-                        }
-                        button {
-                            class: if overlay.variant == "IconText" {
-                                "overlay-icon-option overlay-variant-option active"
-                            } else {
-                                "overlay-icon-option overlay-variant-option"
-                            },
-                            onclick: move |_| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.variant = "IconText".to_string();
-                                });
-                            },
-                            span { class: "overlay-icon-preview overlay-variant-preview icon-text live",
-                                span { class: "solar-icon icon-mic" }
-                                span { "On" }
-                            }
-                            span { "Icon + Text" }
-                        }
-                        button {
-                            class: if overlay.variant == "Text" {
-                                "overlay-icon-option overlay-variant-option active"
-                            } else {
-                                "overlay-icon-option overlay-variant-option"
-                            },
-                            onclick: move |_| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.variant = "Text".to_string();
-                                });
-                            },
-                            span { class: "overlay-icon-preview overlay-variant-preview text-only",
-                                span { "On" }
-                            }
-                            span { "Text" }
-                        }
-                        button {
-                            class: if overlay.variant == "Dot" {
-                                "overlay-icon-option overlay-variant-option active"
-                            } else {
-                                "overlay-icon-option overlay-variant-option"
-                            },
-                            onclick: move |_| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.variant = "Dot".to_string();
-                                });
-                            },
-                            span { class: "overlay-icon-preview overlay-variant-preview dot",
-                                span {}
-                            }
-                            span { "Dot" }
+                    label { "Theme" }
+                    Select {
+                        value: overlay.theme.clone(),
+                        options: theme_options,
+                        onchange: move |value: String| {
+                            super::super::update_settings(settings, |config| {
+                                config.overlay.theme = value;
+                            });
                         }
                     }
                 }
 
                 div {
-                    class: if icon_controls_open { "overlay-collapse open" } else { "overlay-collapse" },
-                    div { class: "overlay-collapse-inner",
-                        div { class: "overlay-field overlay-icon-field",
-                            label { "Mic icons" }
-                            div { class: "overlay-icon-grid overlay-icon-grid-primary",
-                                for pair in crate::overlay_icons::featured_overlay_icon_pairs().iter() {
-                                    button {
-                                        class: if overlay.icon_pair == pair.id {
-                                            "overlay-icon-option active"
-                                        } else {
-                                            "overlay-icon-option"
-                                        },
-                                        onclick: {
-                                            let id = pair.id.to_string();
-                                            move |_| {
-                                                let next_id = id.clone();
-                                                super::super::update_settings(settings, move |config| {
-                                                    config.overlay.icon_pair = next_id;
-                                                });
-                                            }
-                                        },
-                                        title: "{pair.label}",
-                                        span { class: "overlay-icon-preview {preview_tone_class}",
-                                            span {
-                                                class: "solar-icon",
-                                                style: format!(
-                                                    "--icon: url('{}');",
-                                                    crate::overlay_icons::overlay_icon_css_url(
-                                                        pair.id,
-                                                        preview_muted,
-                                                    ),
-                                                )
-                                            }
-                                        }
-                                        span { "{pair.label}" }
+                    class: if custom_theme { "overlay-collapse open" } else { "overlay-collapse" },
+                    div { class: "overlay-collapse-inner overlay-custom-theme",
+                        div { class: "overlay-field",
+                            label { "Overlay style" }
+                            div { class: "overlay-variant-grid",
+                                button {
+                                    class: if overlay.variant == "MicIcon" {
+                                        "overlay-icon-option overlay-variant-option active"
+                                    } else {
+                                        "overlay-icon-option overlay-variant-option"
+                                    },
+                                    onclick: move |_| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.variant = "MicIcon".to_string();
+                                        });
+                                    },
+                                    span { class: "overlay-icon-preview overlay-variant-preview live",
+                                        span { class: "solar-icon icon-mic" }
                                     }
+                                    span { "Mic Icon" }
                                 }
                                 button {
-                                    class: if icons_expanded() {
-                                        "overlay-icon-option overlay-icon-toggle expanded"
+                                    class: if overlay.variant == "IconText" {
+                                        "overlay-icon-option overlay-variant-option active"
                                     } else {
-                                        "overlay-icon-option overlay-icon-toggle"
+                                        "overlay-icon-option overlay-variant-option"
                                     },
-                                    title: if icons_expanded() { "Collapse icons" } else { "Expand icons" },
-                                    onclick: move |_| icons_expanded.set(!icons_expanded()),
-                                    span { class: "overlay-icon-preview",
-                                        span { class: "solar-icon icon-down overlay-icon-toggle-glyph" }
+                                    onclick: move |_| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.variant = "IconText".to_string();
+                                        });
+                                    },
+                                    span { class: "overlay-icon-preview overlay-variant-preview icon-text live",
+                                        span { class: "solar-icon icon-mic" }
+                                        span { "On" }
                                     }
-                                    span { if icons_expanded() { "Collapse" } else { "Expand" } }
+                                    span { "Icon + Text" }
+                                }
+                                button {
+                                    class: if overlay.variant == "Text" {
+                                        "overlay-icon-option overlay-variant-option active"
+                                    } else {
+                                        "overlay-icon-option overlay-variant-option"
+                                    },
+                                    onclick: move |_| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.variant = "Text".to_string();
+                                        });
+                                    },
+                                    span { class: "overlay-icon-preview overlay-variant-preview text-only",
+                                        span { "On" }
+                                    }
+                                    span { "Text" }
+                                }
+                                button {
+                                    class: if overlay.variant == "Dot" {
+                                        "overlay-icon-option overlay-variant-option active"
+                                    } else {
+                                        "overlay-icon-option overlay-variant-option"
+                                    },
+                                    onclick: move |_| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.variant = "Dot".to_string();
+                                        });
+                                    },
+                                    span { class: "overlay-icon-preview overlay-variant-preview dot",
+                                        span {}
+                                    }
+                                    span { "Dot" }
                                 }
                             }
-                            div {
-                                class: if icons_expanded() {
-                                    "overlay-collapse open overlay-icon-extra-wrap"
-                                } else {
-                                    "overlay-collapse overlay-icon-extra-wrap"
-                                },
-                                div { class: "overlay-collapse-inner",
-                                    div { class: "overlay-icon-grid overlay-icon-grid-extra",
-                                        for pair in crate::overlay_icons::extra_overlay_icon_pairs().iter() {
+                        }
+
+                        div {
+                            class: if icon_controls_open { "overlay-collapse open" } else { "overlay-collapse" },
+                            div { class: "overlay-collapse-inner",
+                                div { class: "overlay-field overlay-icon-field",
+                                    label { "Mic icons" }
+                                    div { class: "overlay-icon-grid overlay-icon-grid-primary",
+                                        for pair in crate::overlay_icons::featured_overlay_icon_pairs().iter() {
                                             button {
                                                 class: if overlay.icon_pair == pair.id {
                                                     "overlay-icon-option active"
@@ -376,77 +353,60 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                                 span { "{pair.label}" }
                                             }
                                         }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                        div {
-                    class: if text_controls_open {
-                                "overlay-collapse open overlay-label-collapse"
-                            } else {
-                                "overlay-collapse overlay-label-collapse"
-                            },
-                            div { class: "overlay-collapse-inner",
-                                div { class: "overlay-label-fields",
-                                    label { class: "overlay-text-field",
-                                        span { "Muted label" }
-                                        input {
-                                            class: "overlay-text-input",
-                                            r#type: "text",
-                                            value: "{overlay.muted_label}",
-                                            oninput: move |evt| {
-                                                let next_label = evt.value();
-                                                super::super::update_settings(settings, move |config| {
-                                                    config.overlay.muted_label = next_label;
-                                                });
+                                        button {
+                                            class: if icons_expanded() {
+                                                "overlay-icon-option overlay-icon-toggle expanded"
+                                            } else {
+                                                "overlay-icon-option overlay-icon-toggle"
+                                            },
+                                            title: if icons_expanded() { "Collapse icons" } else { "Expand icons" },
+                                            onclick: move |_| icons_expanded.set(!icons_expanded()),
+                                            span { class: "overlay-icon-preview",
+                                                span { class: "solar-icon icon-down overlay-icon-toggle-glyph" }
                                             }
+                                            span { if icons_expanded() { "Collapse" } else { "Expand" } }
                                         }
                                     }
-                                    label { class: "overlay-text-field",
-                                        span { "Unmuted label" }
-                                        input {
-                                            class: "overlay-text-input",
-                                            r#type: "text",
-                                            value: "{overlay.unmuted_label}",
-                                            oninput: move |evt| {
-                                                let next_label = evt.value();
-                                                super::super::update_settings(settings, move |config| {
-                                                    config.overlay.unmuted_label = next_label;
-                                                });
-                                            }
-                                        }
-                                    }
-                                }
-                                div { class: "overlay-font-controls",
-                                    div { class: "overlay-field",
-                                        label { "Font" }
-                                        Select {
-                                            value: overlay.text_font.clone(),
-                                            options: font_options,
-                                            searchable: true,
-                                            onchange: move |value: String| {
-                                                super::super::update_settings(settings, |config| {
-                                                    config.overlay.text_font = value;
-                                                });
-                                            }
-                                        }
-                                    }
-                                    Range {
-                                        label: "Font weight".to_string(),
-                                        value_label: text_font_weight.to_string(),
-                                        value: text_font_weight.to_string(),
-                                        min: "100".to_string(),
-                                        max: "900".to_string(),
-                                        step: "100".to_string(),
-                                        progress: text_font_weight_progress.clone(),
-                                        oninput: move |evt: FormEvent| {
-                                            if let Ok(value) = evt.value().parse::<u16>() {
-                                                super::super::update_settings(settings, |config| {
-                                                    config.overlay.text_font_weight = value.clamp(100, 900);
-                                                });
+                                    div {
+                                        class: if icons_expanded() {
+                                            "overlay-collapse open overlay-icon-extra-wrap"
+                                        } else {
+                                            "overlay-collapse overlay-icon-extra-wrap"
+                                        },
+                                        div { class: "overlay-collapse-inner",
+                                            div { class: "overlay-icon-grid overlay-icon-grid-extra",
+                                                for pair in crate::overlay_icons::extra_overlay_icon_pairs().iter() {
+                                                    button {
+                                                        class: if overlay.icon_pair == pair.id {
+                                                            "overlay-icon-option active"
+                                                        } else {
+                                                            "overlay-icon-option"
+                                                        },
+                                                        onclick: {
+                                                            let id = pair.id.to_string();
+                                                            move |_| {
+                                                                let next_id = id.clone();
+                                                                super::super::update_settings(settings, move |config| {
+                                                                    config.overlay.icon_pair = next_id;
+                                                                });
+                                                            }
+                                                        },
+                                                        title: "{pair.label}",
+                                                        span { class: "overlay-icon-preview {preview_tone_class}",
+                                                            span {
+                                                                class: "solar-icon",
+                                                                style: format!(
+                                                                    "--icon: url('{}');",
+                                                                    crate::overlay_icons::overlay_icon_css_url(
+                                                                        pair.id,
+                                                                        preview_muted,
+                                                                    ),
+                                                                )
+                                                            }
+                                                        }
+                                                        span { "{pair.label}" }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -454,75 +414,165 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                             }
                         }
 
-                div { class: "overlay-select-grid",
-                    div { class: if has_icon { "overlay-field" } else { "overlay-field disabled" },
-                        label { "Icon style" }
-                        Select {
-                            value: overlay.icon_style.clone(),
-                            options: icon_style_options,
-                            disabled: !has_icon,
-                            onchange: move |value: String| {
+                                div {
+                            class: if text_controls_open {
+                                        "overlay-collapse open overlay-label-collapse"
+                                    } else {
+                                        "overlay-collapse overlay-label-collapse"
+                                    },
+                                    div { class: "overlay-collapse-inner",
+                                        div { class: "overlay-label-fields",
+                                            label { class: "overlay-text-field",
+                                                span { "Muted label" }
+                                                input {
+                                                    class: "overlay-text-input",
+                                                    r#type: "text",
+                                                    value: "{overlay.muted_label}",
+                                                    oninput: move |evt| {
+                                                        let next_label = evt.value();
+                                                        super::super::update_settings(settings, move |config| {
+                                                            config.overlay.muted_label = next_label;
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                            label { class: "overlay-text-field",
+                                                span { "Unmuted label" }
+                                                input {
+                                                    class: "overlay-text-input",
+                                                    r#type: "text",
+                                                    value: "{overlay.unmuted_label}",
+                                                    oninput: move |evt| {
+                                                        let next_label = evt.value();
+                                                        super::super::update_settings(settings, move |config| {
+                                                            config.overlay.unmuted_label = next_label;
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        div { class: "overlay-font-controls",
+                                            div { class: "overlay-field",
+                                                label { "Font" }
+                                                Select {
+                                                    value: overlay.text_font.clone(),
+                                                    options: font_options,
+                                                    searchable: true,
+                                                    onchange: move |value: String| {
+                                                        super::super::update_settings(settings, |config| {
+                                                            config.overlay.text_font = value;
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                            Range {
+                                                label: "Font weight".to_string(),
+                                                value_label: text_font_weight.to_string(),
+                                                value: text_font_weight.to_string(),
+                                                min: "100".to_string(),
+                                                max: "900".to_string(),
+                                                step: "100".to_string(),
+                                                progress: text_font_weight_progress.clone(),
+                                                oninput: move |evt: FormEvent| {
+                                                    if let Ok(value) = evt.value().parse::<u16>() {
+                                                        super::super::update_settings(settings, |config| {
+                                                            config.overlay.text_font_weight = value.clamp(100, 900);
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                        div { class: "overlay-select-grid",
+                            div { class: if has_icon { "overlay-field" } else { "overlay-field disabled" },
+                                label { "Icon style" }
+                                Select {
+                                    value: overlay.icon_style.clone(),
+                                    options: icon_style_options,
+                                    disabled: !has_icon,
+                                    onchange: move |value: String| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.icon_style = value;
+                                        });
+                                    }
+                                }
+                            }
+                            div { class: "overlay-field",
+                                label { "Background" }
+                                Select {
+                                    value: overlay.background_style.clone(),
+                                    options: background_options,
+                                    onchange: move |value: String| {
+                                        super::super::update_settings(settings, |config| {
+                                            config.overlay.background_style = value;
+                                        });
+                                    }
+                                }
+                            }
+                        }
+
+                        Range {
+                            label: "Background opacity".to_string(),
+                            value_label: format!("{background_opacity}%"),
+                            value: background_opacity.to_string(),
+                            min: "0".to_string(),
+                            max: "100".to_string(),
+                            step: "5".to_string(),
+                            progress: background_opacity_progress.clone(),
+                            oninput: move |evt: FormEvent| {
+                                if let Ok(value) = evt.value().parse::<u8>() {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.background_opacity = value.min(100);
+                                    });
+                                }
+                            }
+                        }
+
+                        Checkbox {
+                            class: "overlay-checkbox".to_string(),
+                            checked: overlay.show_border,
+                            label: "Show border".to_string(),
+                            onchange: move |checked: bool| {
                                 super::super::update_settings(settings, |config| {
-                                    config.overlay.icon_style = value;
+                                    config.overlay.show_border = checked;
                                 });
                             }
                         }
-                    }
-                    div { class: "overlay-field",
-                        label { "Background" }
-                        Select {
-                            value: overlay.background_style.clone(),
-                            options: background_options,
-                            onchange: move |value: String| {
-                                super::super::update_settings(settings, |config| {
-                                    config.overlay.background_style = value;
-                                });
+
+                        Range {
+                            label: "Border radius".to_string(),
+                            value_label: format!("{border_radius}px"),
+                            value: border_radius.to_string(),
+                            min: "0".to_string(),
+                            max: "24".to_string(),
+                            step: "1".to_string(),
+                            progress: border_radius_progress.clone(),
+                            oninput: move |evt: FormEvent| {
+                                if let Ok(value) = evt.value().parse::<u8>() {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.border_radius = value.min(24);
+                                    });
+                                }
                             }
                         }
-                    }
-                }
 
-                Range {
-                    label: "Background opacity".to_string(),
-                    value_label: format!("{background_opacity}%"),
-                    value: background_opacity.to_string(),
-                    min: "0".to_string(),
-                    max: "100".to_string(),
-                    step: "5".to_string(),
-                    progress: background_opacity_progress.clone(),
-                    oninput: move |evt: FormEvent| {
-                        if let Ok(value) = evt.value().parse::<u8>() {
-                            super::super::update_settings(settings, |config| {
-                                config.overlay.background_opacity = value.min(100);
-                            });
-                        }
-                    }
-                }
-
-                Checkbox {
-                    class: "overlay-checkbox".to_string(),
-                    checked: overlay.show_border,
-                    label: "Show border".to_string(),
-                    onchange: move |checked: bool| {
-                        super::super::update_settings(settings, |config| {
-                            config.overlay.show_border = checked;
-                        });
-                    }
-                }
-
-                Range {
-                    label: "Border radius".to_string(),
-                    value_label: format!("{border_radius}px"),
-                    value: border_radius.to_string(),
-                    min: "0".to_string(),
-                    max: "24".to_string(),
-                    step: "1".to_string(),
-                    progress: border_radius_progress.clone(),
-                    oninput: move |evt: FormEvent| {
-                        if let Ok(value) = evt.value().parse::<u8>() {
-                            super::super::update_settings(settings, |config| {
-                                config.overlay.border_radius = value.min(24);
-                            });
+                        Range {
+                            label: "Opacity".to_string(),
+                            value_label: format!("{content_opacity}%"),
+                            value: content_opacity.to_string(),
+                            min: "20".to_string(),
+                            max: "100".to_string(),
+                            step: "5".to_string(),
+                            progress: content_opacity_progress.clone(),
+                            oninput: move |evt: FormEvent| {
+                                if let Ok(value) = evt.value().parse::<u8>() {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.content_opacity = value.clamp(20, 100);
+                                    });
+                                }
+                            }
                         }
                     }
                 }
@@ -539,23 +589,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         if let Ok(value) = evt.value().parse::<u32>() {
                             super::super::update_settings(settings, |config| {
                                 config.overlay.scale = value.clamp(10, 400);
-                            });
-                        }
-                    }
-                }
-
-                Range {
-                    label: "Opacity".to_string(),
-                    value_label: format!("{content_opacity}%"),
-                    value: content_opacity.to_string(),
-                    min: "20".to_string(),
-                    max: "100".to_string(),
-                    step: "5".to_string(),
-                    progress: content_opacity_progress.clone(),
-                    oninput: move |evt: FormEvent| {
-                        if let Ok(value) = evt.value().parse::<u8>() {
-                            super::super::update_settings(settings, |config| {
-                                config.overlay.content_opacity = value.clamp(20, 100);
                             });
                         }
                     }

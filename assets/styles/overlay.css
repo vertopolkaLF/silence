@@ -404,3 +404,18 @@
     transform: translateY(0);
   }
 }
+
+.overlay-custom-theme {
+  gap: 18px;
+}
+
+/* Once expanded, stop clipping focus rings and slider thumbs at the edges. */
+.overlay-collapse.open > .overlay-custom-theme {
+  animation: overlay-reveal-overflow 0s linear 0.2s forwards;
+}
+
+@keyframes overlay-reveal-overflow {
+  to {
+    overflow: visible;
+  }
+}

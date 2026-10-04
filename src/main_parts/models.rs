@@ -891,6 +891,8 @@ pub struct OverlayConfig {
     pub duration_secs: f64,
     #[serde(default = "default_overlay_scale")]
     pub scale: u32,
+    #[serde(default = "default_overlay_theme")]
+    pub theme: String,
     #[serde(default)]
     pub show_text: bool,
     #[serde(default = "default_overlay_muted_label")]
@@ -978,6 +980,7 @@ impl Default for OverlayConfig {
             position_y: default_overlay_position_y(),
             duration_secs: default_overlay_duration_secs(),
             scale: default_overlay_scale(),
+            theme: default_overlay_theme(),
             show_text: false,
             muted_label: default_overlay_muted_label(),
             unmuted_label: default_overlay_unmuted_label(),
@@ -1034,6 +1037,10 @@ fn default_overlay_duration_secs() -> f64 {
 
 fn default_overlay_scale() -> u32 {
     100
+}
+
+fn default_overlay_theme() -> String {
+    crate::gpui_overlay::theme::CUSTOM.to_string()
 }
 
 fn default_overlay_muted_label() -> String {
