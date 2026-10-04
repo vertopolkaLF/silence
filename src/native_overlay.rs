@@ -13,14 +13,16 @@ use windows::Win32::{
     Foundation::{BOOL, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::{
         Dwm::{
-            DWMNCRP_DISABLED, DWMNCRP_ENABLED, DWMWA_NCRENDERING_POLICY, DWMWA_SYSTEMBACKDROP_TYPE,
-            DWMWA_USE_IMMERSIVE_DARK_MODE, DWMWA_WINDOW_CORNER_PREFERENCE,
-            DWM_SYSTEMBACKDROP_TYPE, DWM_WINDOW_CORNER_PREFERENCE, DWMSBT_NONE,
-            DWMSBT_TRANSIENTWINDOW, DWMWCP_DONOTROUND, DWMWCP_ROUND, DwmSetWindowAttribute,
+            DWMNCRP_DISABLED, DWMNCRP_ENABLED, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_NCRENDERING_POLICY,
+            DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
+            DWMWA_WINDOW_CORNER_PREFERENCE, DWM_SYSTEMBACKDROP_TYPE, DWM_WINDOW_CORNER_PREFERENCE,
+            DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWCP_DONOTROUND, DWMWCP_ROUND,
+            DwmExtendFrameIntoClientArea, DwmSetWindowAttribute,
         },
         Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO},
     },
     UI::{
+        Controls::MARGINS,
         HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI},
         Input::KeyboardAndMouse::{GetAsyncKeyState, GetDoubleClickTime, VK_LBUTTON},
         WindowsAndMessaging::*,
@@ -286,15 +288,18 @@ pub(super) fn present(visible: bool) {
         }
     }
 }
-pub(super) fn set_chrome(acrylic: bool, dark: bool) {
-    if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
-        if overlay.acrylic == acrylic && overlay.chrome_dark == dark {
-            return;
-        }
+/// Returns false while the HWND is not attached yet.
+pub(super) fn set_chrome(acrylic: bool, dark: bool) -> bool {
+    let mut guard = OVERLAY.lock().unwrap();
+    let Some(overlay) = guard.as_mut() else {
+        return false;
+    };
+    if overlay.acrylic != acrylic || overlay.chrome_dark != dark {
         overlay.acrylic = acrylic;
         overlay.chrome_dark = dark;
         overlay.apply_chrome();
     }
+    true
 }
 
 fn queue_action(binding: crate::OverlayActionBinding) {
@@ -510,6 +515,40 @@ impl NativeOverlay {
 
     fn apply_chrome(&self) {
         unsafe {
+            // DWM only gives a borderless popup its shadow when it has a sizing
+            // frame; WM_NCCALCSIZE keeps that frame out of the client area.
+            // No WS_CAPTION: DWM would paint an accent-colored title bar.
+            let frame = WS_THICKFRAME.0 as i32;
+            let style = GetWindowLongW(self.hwnd, GWL_STYLE);
+            let next_style = if self.acrylic {
+                style | frame
+            } else {
+                style & !frame
+            };
+            if style != next_style {
+                SetWindowLongW(self.hwnd, GWL_STYLE, next_style);
+            }
+            let extend = if self.acrylic { -1 } else { 0 };
+            let _ = DwmExtendFrameIntoClientArea(
+                self.hwnd,
+                &MARGINS {
+                    cxLeftWidth: extend,
+                    cxRightWidth: extend,
+                    cyTopHeight: extend,
+                    cyBottomHeight: extend,
+                },
+            );
+            // DWMWA_COLOR_NONE drops the hairline and any caption tint;
+            // DWMWA_COLOR_DEFAULT restores them.
+            let color: u32 = if self.acrylic { 0xFFFF_FFFE } else { 0xFFFF_FFFF };
+            for attribute in [DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR] {
+                let _ = DwmSetWindowAttribute(
+                    self.hwnd,
+                    attribute,
+                    &color as *const _ as _,
+                    size_of::<u32>() as u32,
+                );
+            }
             let policy = if self.acrylic {
                 DWMNCRP_ENABLED
             } else {
@@ -560,6 +599,9 @@ impl NativeOverlay {
                 0,
                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
             );
+            // Backdrops fall back to a flat fill on inactive frames, and this
+            // window never activates; the wndproc keeps the frame "active".
+            let _ = PostMessageW(self.hwnd, WM_NCACTIVATE, WPARAM(1), LPARAM(0));
         }
     }
 
@@ -579,6 +621,12 @@ unsafe extern "system" fn overlay_wnd_proc(
     match msg {
         // Every pixel, including the shadow gutter, belongs to GPUI.
         WM_NCCALCSIZE => LRESULT(0),
+        WM_GETMINMAXINFO => {
+            // The acrylic theme's sizing frame must not impose a minimum window size.
+            let info = unsafe { &mut *(lparam.0 as *mut MINMAXINFO) };
+            info.ptMinTrackSize = windows::Win32::Foundation::POINT { x: 1, y: 1 };
+            LRESULT(0)
+        }
         WM_GPUI_SURFACE => {
             let bounds = OVERLAY
                 .lock()
@@ -610,6 +658,15 @@ unsafe extern "system" fn overlay_wnd_proc(
             LRESULT(0)
         }
         WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
+        WM_NCACTIVATE => {
+            let acrylic = OVERLAY
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|overlay| overlay.acrylic);
+            let wparam = if acrylic { WPARAM(1) } else { wparam };
+            unsafe { forward_window_message(hwnd, msg, wparam, lparam) }
+        }
         WM_NCHITTEST => {
             // The transparent shadow gutter must never steal clicks from another app.
             let x = lparam.0 as i16 as i32;

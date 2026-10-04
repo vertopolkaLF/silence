@@ -75,7 +75,7 @@ pub(super) struct Look {
     pub shadow: Shadow,
     /// Transparent margin around the card so shadows are not clipped.
     pub gutter: f32,
-    /// Fill comes from the HWND (acrylic + DWM corners), not a painted card.
+    /// Fill, corners and shadow come from the HWND (DWM acrylic), not a painted card.
     pub acrylic: bool,
     pub font: SharedString,
     pub weight: u16,
@@ -171,27 +171,29 @@ fn custom(state: &Snapshot, system: System) -> Look {
 }
 
 /// Mirrors the Windows 11 volume/brightness flyout: the HWND itself is the
-/// surface (acrylic + DWM rounding), with no painted card behind the content.
+/// surface (DWM acrylic, rounding and shadow); GPUI only paints a tint over it.
 fn windows(state: &Snapshot, system: System) -> Look {
-    let foreground = if system.light { 0x1b1b1b } else { 0xffffff };
+    // DWM's transient acrylic is lighter than the shell flyout's; this tint
+    // over it lands on the flyout's AcrylicBackgroundFillColorDefault.
+    let (tint, foreground) = if system.light {
+        (color_alpha(0xfcfcfc, 0.5), 0x1b1b1b)
+    } else {
+        (color_alpha(0x1c1c1c, 0.5), 0xffffff)
+    };
     Look {
-        height: 46.,
+        height: 48.,
         radius: 8.,
-        pad_icon: 14.,
-        pad: 16.,
-        gap: 12.,
+        pad_icon: 15.,
+        pad: 18.,
+        gap: 14.,
         icon_size: 18.,
         icon_path: icon_path(state, "fluent"),
         // The flyout reserves the accent for its active control.
         icon: if state.muted { foreground } else { system.accent() },
         icon_box: None,
-        surface: color_alpha(0x000000, 0.),
+        surface: tint,
         foreground,
-        border: Some(if system.light {
-            (color_alpha(0x000000, 0.10), 1.)
-        } else {
-            (color_alpha(0xffffff, 0.10), 1.)
-        }),
+        border: None,
         sheen: 0.,
         glow: 0.,
         shadow: Shadow::Soft,

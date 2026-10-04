@@ -339,13 +339,18 @@ impl Render for OverlayView {
         let look = Look::resolve(&self.state, self.system);
         let chrome = (look.acrylic, !self.system.light);
         if self.last_chrome != Some(chrome) {
-            self.last_chrome = Some(chrome);
-            window.set_background_appearance(if look.acrylic {
-                WindowBackgroundAppearance::Blurred
+            if look.acrylic {
+                // GPUI's Blurred accent ignores DWM corners and paints a square;
+                // clear the accent and let DWM's own backdrop show through instead.
+                window.set_background_appearance(WindowBackgroundAppearance::Opaque);
+                window.set_background_appearance(WindowBackgroundAppearance::MicaBackdrop);
             } else {
-                WindowBackgroundAppearance::Transparent
-            });
-            native_overlay::set_chrome(look.acrylic, !self.system.light);
+                window.set_background_appearance(WindowBackgroundAppearance::Transparent);
+            }
+            // The first frame renders before the HWND is attached; retry until it lands.
+            if native_overlay::set_chrome(look.acrylic, !self.system.light) {
+                self.last_chrome = Some(chrome);
+            }
         }
         if self.needs_measure {
             let target_width = measure_width(&look, scale, window);
@@ -411,7 +416,12 @@ impl Render for OverlayView {
             mixed
         };
         let bg = blend(&|look| Some(look.surface));
-        let radius = (look.radius * scale).min(height / 2.);
+        // DWM already clips acrylic windows to its own corner radius.
+        let radius = if look.acrylic {
+            0.
+        } else {
+            (look.radius * scale).min(height / 2.)
+        };
         let shadow = |offset: (f32, f32), blur: f32, pick: &dyn Fn(&Shadow) -> Option<gpui::Rgba>| {
             BoxShadow {
                 color: blend(&|look| pick(&look.shadow)).into(),
@@ -576,14 +586,16 @@ fn text_center_offset(look: &Look, scale: f32, window: &Window) -> f32 {
             continue;
         }
         // DirectWrite typographic bounds use a baseline origin with Y upwards.
-        bottom = bottom.min(f32::from(bounds.origin.y));
+        // Descenders hang below the baseline, like in system UI, so they do not
+        // pull the letters off the icon's center line.
+        bottom = bottom.min(f32::from(bounds.origin.y).max(0.));
         top = top.max(f32::from(bounds.origin.y + bounds.size.height));
     }
     if !bottom.is_finite() || !top.is_finite() {
         return 0.;
     }
     // GPUI centers ascent + descent in the line box. Move that baseline so the
-    // visible letters, including accents and descenders, are centered instead.
+    // visible letters above it, including accents, are centered instead.
     (top + bottom - f32::from(line.ascent) + f32::from(line.descent)) / 2.
 }
 
