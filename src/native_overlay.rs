@@ -105,8 +105,10 @@ pub(super) fn attach(
             &policy as *const _ as _,
             size_of_val(&policy) as u32,
         )?;
-        let class_style = GetClassLongPtrW(hwnd, GCL_STYLE) as usize;
-        SetClassLongPtrW(hwnd, GCL_STYLE, (class_style | CS_DBLCLKS.0 as usize) as _);
+        // GCL_STYLE is a 32-bit value on every architecture; the Ptr bindings
+        // are unavailable on x86 in windows-rs.
+        let class_style = GetClassLongW(hwnd, GCL_STYLE);
+        SetClassLongW(hwnd, GCL_STYLE, (class_style | CS_DBLCLKS.0) as i32);
         let style = GetWindowLongW(hwnd, GWL_EXSTYLE);
         SetWindowLongW(
             hwnd,
