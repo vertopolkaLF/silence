@@ -47,6 +47,14 @@ impl Motion {
         self.started = now;
     }
 
+    pub fn retarget_with_duration(&mut self, value: f32, now: Instant, duration_ms: u64) {
+        if (self.to - value).abs() < 0.001 {
+            return;
+        }
+        self.retarget(value, now);
+        self.duration = Duration::from_millis(duration_ms);
+    }
+
     pub fn active(&self, now: Instant) -> bool {
         (self.to - self.from).abs() > 0.001 && self.progress(now) < 1.0
     }
@@ -55,6 +63,19 @@ impl Motion {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sticker_reversal_keeps_position_when_duration_changes() {
+        let mut motion = Motion::decelerate(1., 560);
+        let start = Instant::now();
+        motion.retarget_with_duration(0., start, 560);
+        let reverse = start + Duration::from_millis(140);
+        let before = motion.value(reverse);
+        motion.retarget_with_duration(1., reverse, 440);
+        assert!((before - motion.value(reverse)).abs() < 0.0001);
+        assert!(motion.value(reverse + Duration::from_millis(60)) > before);
+        assert_eq!(motion.value(reverse + Duration::from_millis(440)), 1.);
+    }
 
     #[test]
     fn reversing_does_not_jump_or_wait_for_the_old_animation() {

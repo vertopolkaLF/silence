@@ -77,6 +77,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 "Windows" => ("icon-windows", "Native acrylic flyout"),
                 "MaterialYou" => ("icon-material", "Tonal colors from your accent"),
                 "Cute" => ("icon-heart", "Pastel sticker"),
+                "CuteSticker" => ("icon-heart", "Die-cut sticker, stick & peel motion"),
                 "Neon" => ("icon-bolt", "Glowing tube sign"),
                 "Brutalism" => ("icon-box", "Flat slab, hard shadow"),
                 _ => ("icon-tuning", "Your own style, icons and labels"),

@@ -12,6 +12,7 @@ pub(crate) const THEMES: &[(&str, &str)] = &[
     ("Windows", "Windows"),
     ("MaterialYou", "Material You"),
     ("Cute", "Cute"),
+    ("CuteSticker", "Cute Sticker"),
     ("Neon", "Neon"),
     ("Brutalism", "Brutalism"),
 ];
@@ -97,6 +98,7 @@ impl Look {
             "Windows" => windows(state, system),
             "MaterialYou" => material_you(state, system),
             "Cute" => cute(state),
+            "CuteSticker" => cute_sticker(state),
             "Neon" => neon(state),
             "Brutalism" => brutalism(state),
             _ => custom(state, system),
@@ -321,6 +323,33 @@ fn cute(state: &Snapshot) -> Look {
         has_text: true,
         dot: false,
     }
+}
+
+/// Die-cut artwork has its own stacked composition rather than a card surface.
+fn cute_sticker(state: &Snapshot) -> Look {
+    let mut look = cute(state);
+    look.height = 146.;
+    look.icon_size = 88.;
+    look.icon_path = if state.muted {
+        "cute-sticker/muted"
+    } else {
+        "cute-sticker/live"
+    }
+    .into();
+    look.surface = color_alpha(0xffffff, 0.);
+    look.border = None;
+    look.gutter = 44.;
+    look.text_size = 26.;
+    look.weight = 900;
+    look.icon = if state.muted { 0xf49ac2 } else { 0x73cbb1 };
+    look.foreground = look.icon;
+    // Theme copy follows the reference; explicitly customized labels still win.
+    if state.muted && state.settings.muted_label == "Microphone muted" {
+        look.label = "silence!".into();
+    } else if !state.muted && state.settings.unmuted_label == "Microphone on" {
+        look.label = "on air!".into();
+    }
+    look
 }
 
 /// Glowing tube sign: hot pink while muted, cyan on air.

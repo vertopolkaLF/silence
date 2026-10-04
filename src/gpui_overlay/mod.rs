@@ -2,6 +2,7 @@
 //! Dioxus settings and the existing audio/tray message loop remain independent.
 pub(crate) mod fonts;
 mod motion;
+mod sticker;
 pub(crate) mod theme;
 
 use crate::{OverlayConfig, native_overlay};
@@ -12,9 +13,9 @@ use gpui::{
     font, linear_color_stop, linear_gradient, point, prelude::*, px, rgb, size, svg,
 };
 use motion::Motion;
-use theme::{Look, Shadow, System, color_alpha};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{borrow::Cow, rc::Rc, sync::mpsc, thread, time::Instant};
+use theme::{Look, Shadow, System, color_alpha};
 use windows::Win32::Foundation::HWND;
 
 pub(super) enum Command {
@@ -237,7 +238,16 @@ impl OverlayView {
         }
         self.visibility
             .retarget(if next.visible { 1. } else { 0. }, now);
-        self.slide.retarget(if next.visible { 0. } else { 1. }, now);
+        // Preserve the current interpolated lift if visibility reverses mid-peel.
+        self.slide.retarget_with_duration(
+            if next.visible { 0. } else { 1. },
+            now,
+            if next.settings.theme == "CuteSticker" {
+                if next.visible { 560 } else { 440 }
+            } else {
+                420
+            },
+        );
         self.state = next;
     }
 
@@ -250,9 +260,23 @@ impl OverlayView {
         opacity: f32,
         window: &Window,
     ) -> gpui::Div {
+        if look.icon_path.starts_with("cute-sticker/") {
+            return sticker::render(
+                look,
+                self.width.value(Instant::now()),
+                height,
+                scale,
+                0.,
+                opacity,
+            );
+        }
         let icon_only = look.has_icon && !look.has_text;
         let padding = if look.has_text {
-            if look.has_icon { look.pad_icon * scale } else { look.pad * scale }
+            if look.has_icon {
+                look.pad_icon * scale
+            } else {
+                look.pad * scale
+            }
         } else {
             0.
         };
@@ -271,11 +295,7 @@ impl OverlayView {
                     .path(look.icon_path.clone())
                     .size(px(look.icon_size * scale))
                     .text_color(rgb(look.icon));
-                let holder = div()
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center();
+                let holder = div().flex_shrink_0().flex().items_center().justify_center();
                 row.child(match (&look.icon_box, icon_only) {
                     (_, true) => holder.size_full().rounded(px(radius)).child(glyph),
                     (Some(icon_box), false) => {
@@ -364,7 +384,12 @@ impl Render for OverlayView {
         }
         if self.needs_measure {
             let target_width = measure_width(&look, scale, window);
-            let target_height = look.height * scale;
+            let target_height = look.height * scale
+                + if look.icon_path.starts_with("cute-sticker/") {
+                    (target_width - 132. * scale).max(0.) * 0.18
+                } else {
+                    0.
+                };
             if self.measured {
                 self.width.retarget(target_width, now);
                 self.height.retarget(target_height, now);
@@ -379,20 +404,29 @@ impl Render for OverlayView {
         let width = self.width.value(now);
         let height = self.height.value(now);
         let alpha = self.visibility.value(now);
-        let slide = if look.acrylic { self.slide.value(now) } else { 0. };
+        let is_sticker = look.icon_path.starts_with("cute-sticker/");
+        let slide = if look.acrylic {
+            self.slide.value(now)
+        } else {
+            0.
+        };
         self.layers
             .retain(|layer| layer.opacity.to > 0. || layer.opacity.active(now));
         let content_animating = self.layers.iter().any(|layer| layer.opacity.active(now));
         if self.width.active(now)
             || self.height.active(now)
             || self.visibility.active(now)
-            || (look.acrylic && self.slide.active(now))
+            || ((look.acrylic || is_sticker) && self.slide.active(now))
             || content_animating
         {
             window.request_animation_frame();
         }
         // The surface follows the animated card plus the theme's shadow gutter.
-        let gutter = look.gutter * scale;
+        let gutter = if is_sticker {
+            (look.gutter * scale).max(width * 0.20)
+        } else {
+            look.gutter * scale
+        };
         native_overlay::set_geometry(
             (width * dpi).round() as i32,
             (height * dpi).round() as i32,
@@ -403,7 +437,13 @@ impl Render for OverlayView {
             slide,
         );
         let should_present = self.state.visible
-            || if look.acrylic { slide < 0.999 } else { alpha > 0.001 };
+            || if look.acrylic {
+                slide < 0.999
+            } else if is_sticker {
+                self.slide.value(now) < 0.999
+            } else {
+                alpha > 0.001
+            };
         native_overlay::present(should_present);
 
         // Blend the actual on-screen layers, so quick toggles cannot flash a full old state.
@@ -417,6 +457,36 @@ impl Render for OverlayView {
                 )
             })
             .collect::<Vec<_>>();
+        if is_sticker {
+            let lift = self.slide.value(now);
+            let mut artwork = div()
+                .absolute()
+                .left(px(gutter))
+                .top(px(gutter))
+                .w(px(width))
+                .h(px(height));
+            for (layer_look, weight) in &layers {
+                if layer_look.icon_path.starts_with("cute-sticker/") {
+                    artwork = artwork.child(sticker::render(
+                        layer_look, width, height, scale, lift, *weight,
+                    ));
+                } else {
+                    artwork =
+                        artwork.child(self.content(layer_look, scale, height, 0., *weight, window));
+                }
+            }
+            if self.state.positioning {
+                artwork = artwork.child(
+                    div()
+                        .absolute()
+                        .size_full()
+                        .border_1()
+                        .border_color(color_alpha(0x78a8ff, 0.9))
+                        .rounded(px(12. * scale)),
+                );
+            }
+            return div().relative().size_full().child(artwork);
+        }
         let blend = |pick: &dyn Fn(&Look) -> Option<gpui::Rgba>| {
             let mut mixed = gpui::Rgba::default();
             for (look, weight) in &layers {
@@ -436,15 +506,16 @@ impl Render for OverlayView {
         } else {
             (look.radius * scale).min(height / 2.)
         };
-        let shadow = |offset: (f32, f32), blur: f32, pick: &dyn Fn(&Shadow) -> Option<gpui::Rgba>| {
-            BoxShadow {
-                color: blend(&|look| pick(&look.shadow)).into(),
-                offset: point(px(offset.0 * scale), px(offset.1 * scale)),
-                blur_radius: px(blur * scale),
-                spread_radius: px(0.),
-                inset: false,
-            }
-        };
+        let shadow =
+            |offset: (f32, f32), blur: f32, pick: &dyn Fn(&Shadow) -> Option<gpui::Rgba>| {
+                BoxShadow {
+                    color: blend(&|look| pick(&look.shadow)).into(),
+                    offset: point(px(offset.0 * scale), px(offset.1 * scale)),
+                    blur_radius: px(blur * scale),
+                    spread_radius: px(0.),
+                    inset: false,
+                }
+            };
         let shadow = match look.shadow {
             Shadow::Soft => None,
             Shadow::Drop(_, y, blur) => Some(shadow((0., y), blur, &|shadow| match shadow {
@@ -505,18 +576,16 @@ impl Render for OverlayView {
         }
         for (layer_look, weight) in &layers {
             if !layer_look.dot {
-                contents = contents.child(self.content(
-                    layer_look, scale, height, radius, *weight, window,
-                ));
+                contents = contents
+                    .child(self.content(layer_look, scale, height, radius, *weight, window));
             }
         }
         card = card.child(contents);
         let border = if self.state.positioning {
             Some((color_alpha(0x78a8ff, 0.9), 1.))
         } else {
-            look.border.map(|(_, width)| {
-                (blend(&|look| look.border.map(|(color, _)| color)), width)
-            })
+            look.border
+                .map(|(_, width)| (blend(&|look| look.border.map(|(color, _)| color)), width))
         };
         if let Some((color, border_px)) = border {
             // Paint inside the existing bounds, independently of content layout.
@@ -548,6 +617,14 @@ fn border_width<E: Styled>(mut element: E, width: f32) -> E {
 }
 
 fn measure_width(look: &Look, scale: f32, window: &mut Window) -> f32 {
+    if look.icon_path.starts_with("cute-sticker/") {
+        return if look.has_text {
+            let padding = if look.has_icon { 90. } else { 30. };
+            (f32::from(shape_label(look, scale, window).width) + padding * scale).max(132. * scale)
+        } else {
+            118. * scale
+        };
+    }
     let height = look.height * scale;
     if !look.has_text {
         return height;

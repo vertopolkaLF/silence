@@ -62,6 +62,7 @@ with `include_bytes!`. Preset themes no longer inspect installed font families:
 | Custom default, Windows, mute-failure warning | Inter |
 | Material You | Google Sans |
 | Cute | Nunito |
+| Cute Sticker | Nunito (outlined SVG lettering) |
 | Neon | Orbitron |
 | Brutalism | Archivo Black |
 
@@ -73,6 +74,21 @@ custom font selections are preserved.
 Font files and their upstream OFL notices are in `assets/fonts/overlay`.
 The notices are also embedded in the settings document's font stylesheet.
 See that directory's README for download provenance.
+
+## Cute Sticker
+
+`src/gpui_overlay/sticker.rs` composes the existing Iconify mic artwork with
+stacked, tilted lettering and sparkles. Separate paper and ink SVG masks give
+the artwork a white die-cut contour. Text is converted to paths with the bundled
+Nunito font; custom labels are XML-escaped and preserved. Default labels become
+`silence!` while muted and `on air!` while live. Content mode and scaling keep
+their existing reactive controls.
+
+The sticker lands in 560 ms and peels away in 440 ms, with perspective compression,
+rotation, a lifted paper corner, and a separating shadow. It remains opaque
+until lifted. Interrupted transitions retarget from their current value, even
+when the new direction has a different duration. Transparent gutters reserve
+space for the lift and shadow; long labels also reserve vertical tilt space.
 
 ## Verification
 
