@@ -642,6 +642,10 @@ unsafe extern "system" fn main_wnd_proc(
             toggle_mute();
             LRESULT(0)
         }
+        WM_OVERLAY_ACTION => {
+            native_overlay::drain_actions();
+            LRESULT(0)
+        }
         WM_MUTE_FAILED => {
             show_mute_failure_notice(wparam.0, lparam.0);
             LRESULT(0)

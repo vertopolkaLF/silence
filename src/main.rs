@@ -130,6 +130,7 @@ use windows::{
 
 mod gui;
 mod native_overlay;
+mod gpui_overlay;
 pub(crate) mod overlay_icons;
 pub mod updater;
 
