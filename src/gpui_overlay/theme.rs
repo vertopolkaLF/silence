@@ -1,5 +1,5 @@
 //! Overlay themes. "Custom" maps the user's appearance controls; every other
-//! theme is a fixed look that only borrows placement, scale and visibility.
+//! theme supplies its look while sharing labels, content mode and placement.
 use super::Snapshot;
 use crate::OverlayConfig;
 use gpui::{Rgba, SharedString, rgba};
@@ -93,14 +93,21 @@ impl Look {
         if settings.icon_pair == crate::MUTE_FAILURE_ICON_PAIR {
             return custom(state, system);
         }
-        match settings.theme.as_str() {
+        let mut look = match settings.theme.as_str() {
             "Windows" => windows(state, system),
             "MaterialYou" => material_you(state, system),
             "Cute" => cute(state),
             "Neon" => neon(state),
             "Brutalism" => brutalism(state),
             _ => custom(state, system),
+        };
+        // Content is a persistent user preference, independent of the theme.
+        if settings.theme != CUSTOM && settings.variant != "Dot" {
+            look.has_icon = matches!(settings.variant.as_str(), "MicIcon" | "IconText");
+            look.has_text = matches!(settings.variant.as_str(), "IconText" | "Text")
+                || (settings.variant == "MicIcon" && settings.show_text);
         }
+        look
     }
 }
 
@@ -149,7 +156,13 @@ fn custom(state: &Snapshot, system: System) -> Look {
                 1.,
             )
         }),
-        sheen: if dot { 0. } else if light { 0.55 } else { 0.06 },
+        sheen: if dot {
+            0.
+        } else if light {
+            0.55
+        } else {
+            0.06
+        },
         glow: if light { 0.10 } else { 0.16 },
         shadow: Shadow::Soft,
         gutter: 0.,
@@ -189,7 +202,11 @@ fn windows(state: &Snapshot, system: System) -> Look {
         icon_size: 18.,
         icon_path: icon_path(state, "fluent"),
         // The flyout reserves the accent for its active control.
-        icon: if state.muted { foreground } else { system.accent() },
+        icon: if state.muted {
+            foreground
+        } else {
+            system.accent()
+        },
         icon_box: None,
         surface: tint,
         foreground,
@@ -202,7 +219,7 @@ fn windows(state: &Snapshot, system: System) -> Look {
         font: super::fonts::DEFAULT.into(),
         weight: 400,
         text_size: 14.,
-        label: label(state, "Microphone muted", "Microphone on"),
+        label: user_label(&state.settings, state.muted),
         content_opacity: 1.,
         has_icon: true,
         has_text: true,
@@ -216,9 +233,19 @@ fn material_you(state: &Snapshot, system: System) -> Look {
     let (hue, saturation, _) = hsl(system.accent());
     let tone = |s: f32, l: f32| from_hsl(hue, s.min(saturation.max(0.18)), l);
     let (surface, foreground, container, on_container) = match (system.light, state.muted) {
-        (false, false) => (tone(0.12, 0.13), tone(0.10, 0.90), tone(0.45, 0.30), tone(0.80, 0.90)),
+        (false, false) => (
+            tone(0.12, 0.13),
+            tone(0.10, 0.90),
+            tone(0.45, 0.30),
+            tone(0.80, 0.90),
+        ),
         (false, true) => (tone(0.12, 0.13), tone(0.10, 0.90), 0x8c1d18, 0xf9dedc),
-        (true, false) => (tone(0.40, 0.95), tone(0.10, 0.12), tone(0.80, 0.88), tone(0.60, 0.18)),
+        (true, false) => (
+            tone(0.40, 0.95),
+            tone(0.10, 0.12),
+            tone(0.80, 0.88),
+            tone(0.60, 0.18),
+        ),
         (true, true) => (tone(0.40, 0.95), tone(0.10, 0.12), 0xf9dedc, 0x410e0b),
     };
     Look {
@@ -247,7 +274,7 @@ fn material_you(state: &Snapshot, system: System) -> Look {
         font: "Google Sans".into(),
         weight: 500,
         text_size: 15.,
-        label: label(state, "Microphone muted", "Microphone on"),
+        label: user_label(&state.settings, state.muted),
         content_opacity: 1.,
         has_icon: true,
         has_text: true,
@@ -288,7 +315,7 @@ fn cute(state: &Snapshot) -> Look {
         font: "Nunito".into(),
         weight: 700,
         text_size: 14.,
-        label: label(state, "Shh\u{2026} muted", "Mic is on!"),
+        label: user_label(&state.settings, state.muted),
         content_opacity: 1.,
         has_icon: true,
         has_text: true,
@@ -322,7 +349,7 @@ fn neon(state: &Snapshot) -> Look {
         font: "Orbitron".into(),
         weight: 600,
         text_size: 14.,
-        label: label(state, "MIC MUTED", "ON AIR"),
+        label: user_label(&state.settings, state.muted),
         content_opacity: 1.,
         has_icon: true,
         has_text: true,
@@ -359,7 +386,7 @@ fn brutalism(state: &Snapshot) -> Look {
         font: "Archivo Black".into(),
         weight: 400, // Archivo Black's regular face already has black-weight outlines.
         text_size: 15.,
-        label: label(state, "MUTED", "LIVE"),
+        label: user_label(&state.settings, state.muted),
         content_opacity: 1.,
         has_icon: true,
         has_text: true,
@@ -404,13 +431,6 @@ fn user_label(settings: &OverlayConfig, muted: bool) -> SharedString {
     };
     // GPUI shape_line requires one line; custom labels may contain pasted line breaks.
     text.replace(['\r', '\n'], " ").into()
-}
-
-fn label(state: &Snapshot, muted: &'static str, live: &'static str) -> SharedString {
-    if state.settings.icon_pair == crate::MUTE_FAILURE_ICON_PAIR {
-        return user_label(&state.settings, state.muted);
-    }
-    if state.muted { muted } else { live }.into()
 }
 
 pub(super) fn color_alpha(color: u32, alpha: f32) -> Rgba {

@@ -241,79 +241,114 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
 
+                div { class: "overlay-field",
+                    label { "Overlay style" }
+                    div {
+                        class: "overlay-variant-grid",
+                        button {
+                            class: if overlay.variant == "MicIcon" {
+                                "overlay-icon-option overlay-variant-option active"
+                            } else {
+                                "overlay-icon-option overlay-variant-option"
+                            },
+                            onclick: move |_| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.variant = "MicIcon".to_string();
+                                });
+                            },
+                            span { class: "overlay-icon-preview overlay-variant-preview live",
+                                span { class: "solar-icon icon-mic" }
+                            }
+                            span { "Icon" }
+                        }
+                        button {
+                            class: if overlay.variant == "IconText" || (!custom_theme && overlay.variant == "Dot") {
+                                "overlay-icon-option overlay-variant-option active"
+                            } else {
+                                "overlay-icon-option overlay-variant-option"
+                            },
+                            onclick: move |_| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.variant = "IconText".to_string();
+                                });
+                            },
+                            span { class: "overlay-icon-preview overlay-variant-preview icon-text live",
+                                span { class: "solar-icon icon-mic" }
+                                span { "On" }
+                            }
+                            span { "Icon + Text" }
+                        }
+                        button {
+                            class: if overlay.variant == "Text" {
+                                "overlay-icon-option overlay-variant-option active"
+                            } else {
+                                "overlay-icon-option overlay-variant-option"
+                            },
+                            onclick: move |_| {
+                                super::super::update_settings(settings, |config| {
+                                    config.overlay.variant = "Text".to_string();
+                                });
+                            },
+                            span { class: "overlay-icon-preview overlay-variant-preview text-only",
+                                span { "On" }
+                            }
+                            span { "Text" }
+                        }
+                        if custom_theme {
+                            button {
+                                class: if overlay.variant == "Dot" {
+                                    "overlay-icon-option overlay-variant-option active"
+                                } else {
+                                    "overlay-icon-option overlay-variant-option"
+                                },
+                                onclick: move |_| {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.variant = "Dot".to_string();
+                                    });
+                                },
+                                span { class: "overlay-icon-preview overlay-variant-preview dot",
+                                    span {}
+                                }
+                                span { "Dot" }
+                            }
+                        }
+                    }
+                }
+
+                div { class: "overlay-label-fields",
+                    label { class: "overlay-text-field",
+                        span { "Muted label" }
+                        input {
+                            class: "overlay-text-input",
+                            r#type: "text",
+                            value: "{overlay.muted_label}",
+                            oninput: move |evt| {
+                                let next_label = evt.value();
+                                super::super::update_settings(settings, move |config| {
+                                    config.overlay.muted_label = next_label;
+                                });
+                            }
+                        }
+                    }
+                    label { class: "overlay-text-field",
+                        span { "Unmuted label" }
+                        input {
+                            class: "overlay-text-input",
+                            r#type: "text",
+                            value: "{overlay.unmuted_label}",
+                            oninput: move |evt| {
+                                let next_label = evt.value();
+                                super::super::update_settings(settings, move |config| {
+                                    config.overlay.unmuted_label = next_label;
+                                });
+                            }
+                        }
+                    }
+                }
+
                 div {
                     class: if custom_theme { "overlay-collapse open" } else { "overlay-collapse" },
                     div { class: "overlay-collapse-inner overlay-custom-theme",
-                        div { class: "overlay-field",
-                            label { "Overlay style" }
-                            div { class: "overlay-variant-grid",
-                                button {
-                                    class: if overlay.variant == "MicIcon" {
-                                        "overlay-icon-option overlay-variant-option active"
-                                    } else {
-                                        "overlay-icon-option overlay-variant-option"
-                                    },
-                                    onclick: move |_| {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.variant = "MicIcon".to_string();
-                                        });
-                                    },
-                                    span { class: "overlay-icon-preview overlay-variant-preview live",
-                                        span { class: "solar-icon icon-mic" }
-                                    }
-                                    span { "Mic Icon" }
-                                }
-                                button {
-                                    class: if overlay.variant == "IconText" {
-                                        "overlay-icon-option overlay-variant-option active"
-                                    } else {
-                                        "overlay-icon-option overlay-variant-option"
-                                    },
-                                    onclick: move |_| {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.variant = "IconText".to_string();
-                                        });
-                                    },
-                                    span { class: "overlay-icon-preview overlay-variant-preview icon-text live",
-                                        span { class: "solar-icon icon-mic" }
-                                        span { "On" }
-                                    }
-                                    span { "Icon + Text" }
-                                }
-                                button {
-                                    class: if overlay.variant == "Text" {
-                                        "overlay-icon-option overlay-variant-option active"
-                                    } else {
-                                        "overlay-icon-option overlay-variant-option"
-                                    },
-                                    onclick: move |_| {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.variant = "Text".to_string();
-                                        });
-                                    },
-                                    span { class: "overlay-icon-preview overlay-variant-preview text-only",
-                                        span { "On" }
-                                    }
-                                    span { "Text" }
-                                }
-                                button {
-                                    class: if overlay.variant == "Dot" {
-                                        "overlay-icon-option overlay-variant-option active"
-                                    } else {
-                                        "overlay-icon-option overlay-variant-option"
-                                    },
-                                    onclick: move |_| {
-                                        super::super::update_settings(settings, |config| {
-                                            config.overlay.variant = "Dot".to_string();
-                                        });
-                                    },
-                                    span { class: "overlay-icon-preview overlay-variant-preview dot",
-                                        span {}
-                                    }
-                                    span { "Dot" }
-                                }
-                            }
-                        }
 
                         div {
                             class: if icon_controls_open { "overlay-collapse open" } else { "overlay-collapse" },
@@ -421,36 +456,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                         "overlay-collapse overlay-label-collapse"
                                     },
                                     div { class: "overlay-collapse-inner",
-                                        div { class: "overlay-label-fields",
-                                            label { class: "overlay-text-field",
-                                                span { "Muted label" }
-                                                input {
-                                                    class: "overlay-text-input",
-                                                    r#type: "text",
-                                                    value: "{overlay.muted_label}",
-                                                    oninput: move |evt| {
-                                                        let next_label = evt.value();
-                                                        super::super::update_settings(settings, move |config| {
-                                                            config.overlay.muted_label = next_label;
-                                                        });
-                                                    }
-                                                }
-                                            }
-                                            label { class: "overlay-text-field",
-                                                span { "Unmuted label" }
-                                                input {
-                                                    class: "overlay-text-input",
-                                                    r#type: "text",
-                                                    value: "{overlay.unmuted_label}",
-                                                    oninput: move |evt| {
-                                                        let next_label = evt.value();
-                                                        super::super::update_settings(settings, move |config| {
-                                                            config.overlay.unmuted_label = next_label;
-                                                        });
-                                                    }
-                                                }
-                                            }
-                                        }
                                         div { class: "overlay-font-controls",
                                             div { class: "overlay-field",
                                                 label { "Font" }
