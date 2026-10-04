@@ -168,8 +168,6 @@ struct OverlayView {
     width: Motion,
     height: Motion,
     visibility: Motion,
-    surface_width: f32,
-    surface_height: f32,
     last_dpi: f32,
     accent: (u8, u8, u8),
 }
@@ -187,8 +185,6 @@ impl OverlayView {
             width: Motion::new(48., 260),
             height: Motion::new(48., 260),
             visibility: Motion::new(0., 180),
-            surface_width: 48.,
-            surface_height: 48.,
             last_dpi: window.scale_factor(),
             accent: crate::WindowsAccent::load().accent,
         }
@@ -329,12 +325,6 @@ impl Render for OverlayView {
                 self.height = Motion::new(target_height, 260);
                 self.measured = true;
             }
-            let mut alternate = self.state.clone();
-            alternate.muted = !alternate.muted;
-            self.surface_width = target_width
-                .max(measure_width(&alternate, scale, window))
-                .max(self.width.from);
-            self.surface_height = target_height.max(self.height.from);
             self.needs_measure = false;
         }
 
@@ -351,20 +341,14 @@ impl Render for OverlayView {
         {
             window.request_animation_frame();
         }
-        // A stable GPU surface avoids resizing the swapchain on every animation frame.
-        let gutter = 14. * scale;
-        let left = gutter
-            + (self.surface_width - width) * self.state.settings.position_x.clamp(0., 100.) as f32
-                / 100.;
-        let top = gutter
-            + (self.surface_height - height)
-                * self.state.settings.position_y.clamp(0., 100.) as f32
-                / 100.;
+        // Keep the native surface the same size as the animated card.
+        let left = 0.;
+        let top = 0.;
         native_overlay::set_geometry(
             (width * dpi).round() as i32,
             (height * dpi).round() as i32,
-            ((self.surface_width + gutter * 2.) * dpi).ceil() as i32,
-            ((self.surface_height + gutter * 2.) * dpi).ceil() as i32,
+            (width * dpi).round() as i32,
+            (height * dpi).round() as i32,
             (left * dpi).round() as i32,
             (top * dpi).round() as i32,
         );
@@ -383,7 +367,8 @@ impl Render for OverlayView {
             bg.b += color.b * weight;
             bg.a += color.a * weight;
         }
-        let radius = (settings.border_radius.min(24) as f32 * scale).min(height / 2.);
+        let logical_radius = settings.border_radius.min(24) as f32;
+        let radius = (logical_radius * scale).min(height / 2.);
         let border = if self.state.positioning {
             color_alpha(0x78a8ff, 0.9)
         } else if settings.background_style == "Light" {
@@ -394,7 +379,7 @@ impl Render for OverlayView {
         let mut card = div()
             .absolute()
             .left(px(left))
-            .top(px(top + (1. - alpha) * 6. * scale))
+            .top(px(top))
             .w(px(width))
             .h(px(height))
             .rounded(px(radius))

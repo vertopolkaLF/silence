@@ -35,9 +35,8 @@ there is no renderer polling loop. Updates in a burst are coalesced to the lates
 snapshot. The inactive frame throttle is disabled because an overlay should
 animate smoothly without taking focus.
 
-The GPU surface includes a transparent shadow gutter and reserves room for
-both mute labels. The card animates within that surface, keeping its percentage
-anchor stable and avoiding swapchain resizing on each animation frame.
+The GPU surface follows the animated card size and keeps its percentage anchor
+stable. There is no extra window backdrop or shadow gutter.
 Native surface/show operations are posted to the GPUI thread so they do not
 re-enter its renderer during a frame.
 
