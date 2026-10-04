@@ -239,6 +239,7 @@ impl OverlayView {
         radius: f32,
         opacity: f32,
         offset: f32,
+        window: &Window,
     ) -> gpui::Div {
         let settings = &state.settings;
         let has_icon = has_icon(settings);
@@ -293,6 +294,8 @@ impl OverlayView {
             .when(has_text, |row| {
                 row.child(
                     div()
+                        .relative()
+                        .top(px(text_center_offset(state, scale, window)))
                         .whitespace_nowrap()
                         .text_size(px(14. * scale))
                         .line_height(px(20. * scale))
@@ -418,6 +421,7 @@ impl Render for OverlayView {
                     radius,
                     layer.opacity.value(now),
                     0.,
+                    window,
                 ));
             }
         }
@@ -458,6 +462,18 @@ fn measure_width(state: &Snapshot, scale: f32, window: &mut Window) -> f32 {
     if !has_text(settings) {
         return height;
     }
+    let line = shape_label(state, scale, window);
+    // Icon + text: 8px left matches the icon's vertical inset; 14px right.
+    (if has_icon(settings) {
+        64. * scale
+    } else {
+        28. * scale
+    } + f32::from(line.width))
+    .max(height)
+}
+
+fn shape_label(state: &Snapshot, scale: f32, window: &Window) -> gpui::ShapedLine {
+    let settings = &state.settings;
     let text = label(state);
     let mut text_font = font(font_family(settings));
     text_font.weight = FontWeight(settings.text_font_weight.clamp(100, 900) as f32);
@@ -469,16 +485,42 @@ fn measure_width(state: &Snapshot, scale: f32, window: &mut Window) -> f32 {
         underline: None,
         strikethrough: None,
     };
-    let line = window
+    window
         .text_system()
-        .shape_line(text, px(14. * scale), &[run], None);
-    // Icon + text: 8px left matches the icon's vertical inset; 14px right.
-    (if has_icon(settings) {
-        64. * scale
-    } else {
-        28. * scale
-    } + f32::from(line.width))
-    .max(height)
+        .shape_line(text, px(14. * scale), &[run], None)
+}
+
+fn text_center_offset(state: &Snapshot, scale: f32, window: &Window) -> f32 {
+    let line = shape_label(state, scale, window);
+    let mut bottom = f32::INFINITY;
+    let mut top = f32::NEG_INFINITY;
+    for (index, ch) in line
+        .text
+        .char_indices()
+        .filter(|(_, ch)| !ch.is_whitespace())
+    {
+        let Some(font_id) = line.font_id_for_index(index) else {
+            continue;
+        };
+        let Ok(bounds) = window
+            .text_system()
+            .typographic_bounds(font_id, px(14. * scale), ch)
+        else {
+            continue;
+        };
+        if bounds.size.height <= px(0.) {
+            continue;
+        }
+        // DirectWrite typographic bounds use a baseline origin with Y upwards.
+        bottom = bottom.min(f32::from(bounds.origin.y));
+        top = top.max(f32::from(bounds.origin.y + bounds.size.height));
+    }
+    if !bottom.is_finite() || !top.is_finite() {
+        return 0.;
+    }
+    // GPUI centers ascent + descent in the line box. Move that baseline so the
+    // visible letters, including accents and descenders, are centered instead.
+    (top + bottom - f32::from(line.ascent) + f32::from(line.descent)) / 2.
 }
 fn icon_color(state: &Snapshot, system: (u8, u8, u8)) -> u32 {
     if state.settings.icon_pair == crate::MUTE_FAILURE_ICON_PAIR {
