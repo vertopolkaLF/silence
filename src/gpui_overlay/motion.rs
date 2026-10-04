@@ -6,6 +6,7 @@ pub(super) struct Motion {
     pub to: f32,
     started: Instant,
     duration: Duration,
+    ease: fn(f32) -> f32,
 }
 
 impl Motion {
@@ -15,6 +16,15 @@ impl Motion {
             to: value,
             started: Instant::now(),
             duration: Duration::from_millis(duration_ms),
+            ease: |t| 1.0 - (1.0 - t).powi(3),
+        }
+    }
+
+    /// Long, soft landing for travel across large distances.
+    pub fn decelerate(value: f32, duration_ms: u64) -> Self {
+        Self {
+            ease: |t| 1.0 - (1.0 - t).powi(5),
+            ..Self::new(value, duration_ms)
         }
     }
 
@@ -25,8 +35,7 @@ impl Motion {
 
     pub fn value(&self, now: Instant) -> f32 {
         let t = self.progress(now);
-        let eased = 1.0 - (1.0 - t).powi(3);
-        self.from + (self.to - self.from) * eased
+        self.from + (self.to - self.from) * (self.ease)(t)
     }
 
     pub fn retarget(&mut self, value: f32, now: Instant) {

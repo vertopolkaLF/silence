@@ -173,12 +173,13 @@ fn custom(state: &Snapshot, system: System) -> Look {
 /// Mirrors the Windows 11 volume/brightness flyout: the HWND itself is the
 /// surface (DWM acrylic, rounding and shadow); GPUI only paints a tint over it.
 fn windows(state: &Snapshot, system: System) -> Look {
-    // DWM's transient acrylic is lighter than the shell flyout's; this tint
-    // over it lands on the flyout's AcrylicBackgroundFillColorDefault.
+    // DWM's transient acrylic is lighter than the shell flyout's. Pure black
+    // darkens it without graying out the wallpaper hue that shows through,
+    // which is what makes the shell flyout read as "deep".
     let (tint, foreground) = if system.light {
         (color_alpha(0xfcfcfc, 0.5), 0x1b1b1b)
     } else {
-        (color_alpha(0x1c1c1c, 0.5), 0xffffff)
+        (color_alpha(0x000000, 0.45), 0xffffff)
     };
     Look {
         height: 48.,

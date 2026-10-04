@@ -170,6 +170,8 @@ struct OverlayView {
     width: Motion,
     height: Motion,
     visibility: Motion,
+    /// Acrylic's stand-in for fading: 0 = in place, 1 = past the screen edge.
+    slide: Motion,
     last_dpi: f32,
     system: System,
     last_chrome: Option<(bool, bool)>,
@@ -188,6 +190,7 @@ impl OverlayView {
             width: Motion::new(48., 260),
             height: Motion::new(48., 260),
             visibility: Motion::new(0., 180),
+            slide: Motion::decelerate(1., 420),
             last_dpi: window.scale_factor(),
             system: System::load(),
             last_chrome: None,
@@ -228,6 +231,7 @@ impl OverlayView {
         }
         self.visibility
             .retarget(if next.visible { 1. } else { 0. }, now);
+        self.slide.retarget(if next.visible { 0. } else { 1. }, now);
         self.state = next;
     }
 
@@ -369,12 +373,14 @@ impl Render for OverlayView {
         let width = self.width.value(now);
         let height = self.height.value(now);
         let alpha = self.visibility.value(now);
+        let slide = if look.acrylic { self.slide.value(now) } else { 0. };
         self.layers
             .retain(|layer| layer.opacity.to > 0. || layer.opacity.active(now));
         let content_animating = self.layers.iter().any(|layer| layer.opacity.active(now));
         if self.width.active(now)
             || self.height.active(now)
             || self.visibility.active(now)
+            || (look.acrylic && self.slide.active(now))
             || content_animating
         {
             window.request_animation_frame();
@@ -388,8 +394,10 @@ impl Render for OverlayView {
             ((height + gutter * 2.) * dpi).round() as i32,
             (gutter * dpi).round() as i32,
             (gutter * dpi).round() as i32,
+            slide,
         );
-        let should_present = self.state.visible || alpha > 0.001;
+        let should_present = self.state.visible
+            || if look.acrylic { slide < 0.999 } else { alpha > 0.001 };
         native_overlay::present(should_present);
 
         // Blend the actual on-screen layers, so quick toggles cannot flash a full old state.
@@ -453,7 +461,8 @@ impl Render for OverlayView {
             .w(px(width))
             .h(px(height))
             .rounded(px(radius))
-            .opacity(alpha);
+            // Acrylic slides away whole instead (see set_geometry); it cannot fade.
+            .opacity(if look.acrylic { 1. } else { alpha });
         if look.surface.a > 0. {
             card = card.bg(bg);
         }

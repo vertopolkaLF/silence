@@ -13,7 +13,7 @@ use windows::Win32::{
     Foundation::{BOOL, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::{
         Dwm::{
-            DWMNCRP_DISABLED, DWMNCRP_ENABLED, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_NCRENDERING_POLICY,
+            DWMNCRP_DISABLED, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_NCRENDERING_POLICY,
             DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
             DWMWA_WINDOW_CORNER_PREFERENCE, DWM_SYSTEMBACKDROP_TYPE, DWM_WINDOW_CORNER_PREFERENCE,
             DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWCP_DONOTROUND, DWMWCP_ROUND,
@@ -51,6 +51,8 @@ struct NativeOverlay {
     surface_height: i32,
     inset_x: i32,
     inset_y: i32,
+    /// 0 = in place, 1 = fully past the nearest top/bottom monitor edge.
+    slide: f32,
     x: i32,
     y: i32,
     positioning: bool,
@@ -137,6 +139,7 @@ pub(super) fn attach(
         surface_height: 72,
         inset_x: 12,
         inset_y: 12,
+        slide: 0.,
         x: 100,
         y: 100,
         positioning: false,
@@ -267,8 +270,10 @@ pub(super) fn set_geometry(
     surface_height: i32,
     inset_x: i32,
     inset_y: i32,
+    slide: f32,
 ) {
     if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
+        overlay.slide = slide;
         overlay.width = width;
         overlay.height = height;
         overlay.surface_width = surface_width;
@@ -350,7 +355,7 @@ impl NativeOverlay {
     fn place_surface(&mut self) {
         let bounds = (
             self.x - self.inset_x,
-            self.y - self.inset_y,
+            self.y - self.inset_y + self.slide_offset(),
             self.surface_width,
             self.surface_height,
         );
@@ -362,6 +367,23 @@ impl NativeOverlay {
             }
         }
     }
+    /// Acrylic cannot fade, so that theme leaves through the nearest top or
+    /// bottom monitor edge instead, like the shell's own flyouts.
+    fn slide_offset(&self) -> i32 {
+        if self.slide <= 0. {
+            return 0;
+        }
+        let rect = self.selected_monitor().rect;
+        let surface_top = self.y - self.inset_y;
+        let surface_bottom = surface_top + self.surface_height;
+        let distance = if surface_top - rect.top < rect.bottom - surface_bottom {
+            rect.top - surface_bottom
+        } else {
+            rect.bottom - surface_top
+        };
+        (distance as f32 * self.slide).round() as i32
+    }
+
     fn saved_x(&self) -> i32 {
         let monitor = self.selected_monitor();
         let rect = monitor.rect;
@@ -515,19 +537,6 @@ impl NativeOverlay {
 
     fn apply_chrome(&self) {
         unsafe {
-            // DWM only gives a borderless popup its shadow when it has a sizing
-            // frame; WM_NCCALCSIZE keeps that frame out of the client area.
-            // No WS_CAPTION: DWM would paint an accent-colored title bar.
-            let frame = WS_THICKFRAME.0 as i32;
-            let style = GetWindowLongW(self.hwnd, GWL_STYLE);
-            let next_style = if self.acrylic {
-                style | frame
-            } else {
-                style & !frame
-            };
-            if style != next_style {
-                SetWindowLongW(self.hwnd, GWL_STYLE, next_style);
-            }
             let extend = if self.acrylic { -1 } else { 0 };
             let _ = DwmExtendFrameIntoClientArea(
                 self.hwnd,
@@ -549,17 +558,6 @@ impl NativeOverlay {
                     size_of::<u32>() as u32,
                 );
             }
-            let policy = if self.acrylic {
-                DWMNCRP_ENABLED
-            } else {
-                DWMNCRP_DISABLED
-            };
-            let _ = DwmSetWindowAttribute(
-                self.hwnd,
-                DWMWA_NCRENDERING_POLICY,
-                &policy as *const _ as _,
-                size_of_val(&policy) as u32,
-            );
             let dark_mode = i32::from(self.chrome_dark);
             let _ = DwmSetWindowAttribute(
                 self.hwnd,
@@ -601,6 +599,8 @@ impl NativeOverlay {
             );
             // Backdrops fall back to a flat fill on inactive frames, and this
             // window never activates; the wndproc keeps the frame "active".
+            // NC rendering stays disabled (see attach), which keeps DWM's
+            // compact inactive shadow instead of the large active-window one.
             let _ = PostMessageW(self.hwnd, WM_NCACTIVATE, WPARAM(1), LPARAM(0));
         }
     }
@@ -621,12 +621,6 @@ unsafe extern "system" fn overlay_wnd_proc(
     match msg {
         // Every pixel, including the shadow gutter, belongs to GPUI.
         WM_NCCALCSIZE => LRESULT(0),
-        WM_GETMINMAXINFO => {
-            // The acrylic theme's sizing frame must not impose a minimum window size.
-            let info = unsafe { &mut *(lparam.0 as *mut MINMAXINFO) };
-            info.ptMinTrackSize = windows::Win32::Foundation::POINT { x: 1, y: 1 };
-            LRESULT(0)
-        }
         WM_GPUI_SURFACE => {
             let bounds = OVERLAY
                 .lock()
