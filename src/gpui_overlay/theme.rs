@@ -90,14 +90,12 @@ pub(super) struct Look {
 impl Look {
     pub fn resolve(state: &Snapshot, system: System) -> Self {
         let settings = &state.settings;
-        // The mute-failure warning always keeps its own forced look.
-        if settings.icon_pair == crate::MUTE_FAILURE_ICON_PAIR {
-            return custom(state, system);
-        }
+        let warning = settings.icon_pair == crate::MUTE_FAILURE_ICON_PAIR;
         let mut look = match settings.theme.as_str() {
             "Windows" => windows(state, system),
             "MaterialYou" => material_you(state, system),
             "Cute" => cute(state),
+            "CuteSticker" if warning => cute(state),
             "CuteSticker" => cute_sticker(state),
             "Neon" => neon(state),
             "Brutalism" => brutalism(state),
@@ -108,6 +106,20 @@ impl Look {
             look.has_icon = matches!(settings.variant.as_str(), "MicIcon" | "IconText");
             look.has_text = matches!(settings.variant.as_str(), "IconText" | "Text")
                 || (settings.variant == "MicIcon" && settings.show_text);
+        }
+        if warning {
+            // Keep theme chrome and typography, but never hide or mislabel a failure.
+            look.icon_path = "warning".into();
+            look.label = user_label(settings, state.muted);
+            look.has_icon = true;
+            look.has_text = true;
+            look.dot = false;
+            // Use the themed foreground for reliable contrast on every surface.
+            look.icon = look.foreground;
+            if let Some(icon_box) = &mut look.icon_box {
+                icon_box.fill = color_alpha(look.foreground, 0.10);
+                icon_box.border = None;
+            }
         }
         look
     }
