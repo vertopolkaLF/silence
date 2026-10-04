@@ -52,8 +52,6 @@ Overlay actions return to the existing background message loop through
 own thread. The forced mute-failure warning continues to use the same visibility
 path and embedded Solar warning icon.
 
-## Verification
-
 ## Bundled fonts
 
 Before opening the overlay window, GPUI registers TTF bytes embedded in the EXE
