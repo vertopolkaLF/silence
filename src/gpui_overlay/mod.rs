@@ -1,5 +1,6 @@
 //! A GPU-composited overlay on its own Windows UI thread.
 //! Dioxus settings and the existing audio/tray message loop remain independent.
+mod details;
 pub(crate) mod fonts;
 mod motion;
 mod sticker;
@@ -182,6 +183,8 @@ struct OverlayView {
     last_dpi: f32,
     system: System,
     last_chrome: Option<(bool, bool)>,
+    /// A stable clock for ambient details; state updates never restart the pulse.
+    detail_epoch: Instant,
 }
 
 impl OverlayView {
@@ -201,6 +204,7 @@ impl OverlayView {
             last_dpi: window.scale_factor(),
             system: System::load(),
             last_chrome: None,
+            detail_epoch: Instant::now(),
         }
     }
 
@@ -271,7 +275,10 @@ impl OverlayView {
             );
         }
         let icon_only = look.has_icon && !look.has_text;
-        let padding = if look.has_text {
+        let terminal = matches!(look.detail, theme::Detail::Terminal);
+        let padding = if terminal {
+            0.
+        } else if look.has_text {
             if look.has_icon {
                 look.pad_icon * scale
             } else {
@@ -283,7 +290,9 @@ impl OverlayView {
         div()
             .absolute()
             .left(px(padding))
-            .when(icon_only, |row| row.right_0())
+            .when(icon_only || terminal, |row| {
+                row.w(px(self.width.value(Instant::now()))).justify_center()
+            })
             .top_0()
             .h(px(height))
             .flex()
@@ -296,9 +305,8 @@ impl OverlayView {
                     .size(px(look.icon_size * scale))
                     .text_color(rgb(look.icon));
                 let holder = div().flex_shrink_0().flex().items_center().justify_center();
-                row.child(match (&look.icon_box, icon_only) {
-                    (_, true) => holder.size_full().rounded(px(radius)).child(glyph),
-                    (Some(icon_box), false) => {
+                row.child(match &look.icon_box {
+                    Some(icon_box) => {
                         let size = icon_box.size * scale;
                         let corner = match icon_box.radius {
                             Some(corner) => corner * scale,
@@ -314,7 +322,7 @@ impl OverlayView {
                         }
                         holder.child(glyph)
                     }
-                    (None, false) => holder.child(glyph),
+                    None => holder.size(px(look.icon_size * scale)).child(glyph),
                 })
             })
             .when(look.has_text, |row| {
@@ -328,7 +336,27 @@ impl OverlayView {
                         .font_family(look.font.clone())
                         .font_weight(FontWeight(look.weight as f32))
                         .text_color(rgb(look.foreground))
-                        .child(look.label.clone()),
+                        .when(terminal, |text| {
+                            // Include the cursor in the flex item's width so the
+                            // complete icon + label + cursor group is centered.
+                            text.w(px(terminal_text_width(look, scale, window)))
+                                .flex_shrink_0()
+                        })
+                        .child(look.label.clone())
+                        .when(terminal, |text| {
+                            // The cursor follows the shaped label, not the card edge.
+                            // Keep its slot while hidden so blinking never resizes the card.
+                            let label_width = f32::from(shape_label(look, scale, window).width);
+                            let visible = self.detail_epoch.elapsed().as_millis() % 1000 < 500;
+                            text.child(
+                                div()
+                                    .absolute()
+                                    .left(px(label_width))
+                                    .top_0()
+                                    .opacity(if visible { 1. } else { 0. })
+                                    .child("_"),
+                            )
+                        }),
                 )
             })
     }
@@ -413,11 +441,18 @@ impl Render for OverlayView {
         self.layers
             .retain(|layer| layer.opacity.to > 0. || layer.opacity.active(now));
         let content_animating = self.layers.iter().any(|layer| layer.opacity.active(now));
+        let detail_animating = (self.state.visible || alpha > 0.001)
+            && self.layers.iter().any(|layer| {
+                matches!(layer.state.settings.theme.as_str(), "Radar" | "Terminal")
+                    && layer.opacity.value(now) > 0.001
+            });
+        let detail_phase = now.duration_since(self.detail_epoch).as_secs_f32() / 2.4;
         if self.width.active(now)
             || self.height.active(now)
             || self.visibility.active(now)
             || ((look.acrylic || is_sticker) && self.slide.active(now))
             || content_animating
+            || detail_animating
         {
             window.request_animation_frame();
         }
@@ -576,6 +611,18 @@ impl Render for OverlayView {
         }
         for (layer_look, weight) in &layers {
             if !layer_look.dot {
+                contents = contents.child(details::render(
+                    layer_look,
+                    width,
+                    height,
+                    scale,
+                    *weight,
+                    detail_phase,
+                ));
+            }
+        }
+        for (layer_look, weight) in &layers {
+            if !layer_look.dot {
                 contents = contents
                     .child(self.content(layer_look, scale, height, radius, *weight, window));
             }
@@ -629,7 +676,11 @@ fn measure_width(look: &Look, scale: f32, window: &mut Window) -> f32 {
     if !look.has_text {
         return height;
     }
-    let text = f32::from(shape_label(look, scale, window).width);
+    let text = if matches!(look.detail, theme::Detail::Terminal) {
+        terminal_text_width(look, scale, window)
+    } else {
+        f32::from(shape_label(look, scale, window).width)
+    };
     let chrome = if look.has_icon {
         let icon = look
             .icon_box
@@ -642,11 +693,20 @@ fn measure_width(look: &Look, scale: f32, window: &mut Window) -> f32 {
     (chrome * scale + text).max(height)
 }
 
+fn terminal_text_width(look: &Look, scale: f32, window: &Window) -> f32 {
+    f32::from(shape_label(look, scale, window).width)
+        + f32::from(shape_text(look, "_".into(), scale, window).width)
+}
+
 fn shape_label(look: &Look, scale: f32, window: &Window) -> gpui::ShapedLine {
+    shape_text(look, look.label.clone(), scale, window)
+}
+
+fn shape_text(look: &Look, text: SharedString, scale: f32, window: &Window) -> gpui::ShapedLine {
     let mut text_font = font(look.font.clone());
     text_font.weight = FontWeight(look.weight as f32);
     let run = TextRun {
-        len: look.label.len(),
+        len: text.len(),
         font: text_font,
         color: rgb(0xffffff).into(),
         background_color: None,
@@ -655,7 +715,7 @@ fn shape_label(look: &Look, scale: f32, window: &Window) -> gpui::ShapedLine {
     };
     window
         .text_system()
-        .shape_line(look.label.clone(), px(look.text_size * scale), &[run], None)
+        .shape_line(text, px(look.text_size * scale), &[run], None)
 }
 
 fn text_center_offset(look: &Look, scale: f32, window: &Window) -> f32 {

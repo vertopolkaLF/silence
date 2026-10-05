@@ -22,7 +22,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let text_font_weight = overlay.text_font_weight.clamp(100, 900);
     let has_icon = matches!(overlay.variant.as_str(), "MicIcon" | "IconText");
     let has_text = matches!(overlay.variant.as_str(), "IconText" | "Text");
-    let icon_controls_open = has_icon;
     let text_controls_open = has_text;
     let duration_controls_open = overlay.visibility == "AfterToggle";
     let preview_muted = snapshot.muted;
@@ -80,6 +79,14 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                 "CuteSticker" => ("icon-heart", "Die-cut sticker, stick & peel motion"),
                 "Neon" => ("icon-bolt", "Glowing tube sign"),
                 "Brutalism" => ("icon-box", "Flat slab, hard shadow"),
+                "Terminal" => ("icon-monitor", "Upward scan lines, blinking underscore"),
+                "Blueprint" => ("icon-tuning", "Drafting grid, precise square frame"),
+                "Cassette" => ("icon-box", "Tape label, bare mic, vintage cream"),
+                "Arcade" => ("icon-bolt", "Pixel edge, violet cabinet, hard shadow"),
+                "Paper" => ("icon-box", "Ruled note, red margin, ink lettering"),
+                "Frosted" => ("icon-sun", "Icy translucent surface, glass highlights"),
+                "Porcelain" => ("icon-palette", "Blue ceramic medallion, double rim"),
+                "Radar" => ("icon-monitor", "Instrument panel, pulsing signal rings"),
                 _ => ("icon-tuning", "Your own style, icons and labels"),
             };
             SelectOption::new(*id, *label).detail(detail).icon(icon)
@@ -236,6 +243,8 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         options: theme_options,
                         onchange: move |value: String| {
                             super::super::update_settings(settings, |config| {
+                                config.overlay.icon_pair =
+                                    crate::gpui_overlay::theme::default_icon_pair(&value).to_string();
                                 config.overlay.theme = value;
                             });
                         }
@@ -347,12 +356,8 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                     }
                 }
 
-                div {
-                    class: if custom_theme { "overlay-collapse open" } else { "overlay-collapse" },
-                    div { class: "overlay-collapse-inner overlay-custom-theme",
-
                         div {
-                            class: if icon_controls_open { "overlay-collapse open" } else { "overlay-collapse" },
+                            class: "overlay-collapse open",
                             div { class: "overlay-collapse-inner",
                                 div { class: "overlay-field overlay-icon-field",
                                     label { "Mic icons" }
@@ -449,6 +454,11 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                                 }
                             }
                         }
+
+
+                div {
+                    class: if custom_theme { "overlay-collapse open" } else { "overlay-collapse" },
+                    div { class: "overlay-collapse-inner overlay-custom-theme",
 
                                 div {
                             class: if text_controls_open {

@@ -13,6 +13,7 @@ const CAPTION_BASELINE: f32 = 94.;
 struct Key {
     label: String,
     muted: bool,
+    icon_pair: String,
     icon: bool,
     text: bool,
     width: u32,
@@ -45,6 +46,12 @@ fn artwork(look: &Look, logical_width: f32) -> Artwork {
     let key = Key {
         label: look.label.to_string(),
         muted: look.icon_path.ends_with("muted"),
+        icon_pair: look
+            .icon_path
+            .strip_prefix("cute-sticker/")
+            .and_then(|path| path.split_once('/'))
+            .map_or("lucide", |(pair, _)| pair)
+            .to_string(),
         icon: look.has_icon,
         text: look.has_text,
         width: logical_width.ceil() as u32,
@@ -101,12 +108,21 @@ fn mask(key: &Key, paper: bool) -> Vec<u8> {
     let stroke = if paper { 5.6 } else { 2.6 };
     let mut body = String::new();
     if key.icon {
-        // Existing Iconify Lucide assets match the tall mic/slash in the layout reference.
-        let icon = if key.muted {
-            include_str!("../../assets/icons/overlay/lucide-mic-off.svg")
-        } else {
-            include_str!("../../assets/icons/overlay/lucide-mic.svg")
-        };
+        let icon = crate::overlay_icons::overlay_icon_svg(&key.icon_pair, key.muted);
+        let root = icon.split_once('>').unwrap().0;
+        let view_box = root
+            .split_once("viewBox=\"")
+            .unwrap()
+            .1
+            .split('"')
+            .next()
+            .unwrap();
+        let view_width = view_box
+            .split_whitespace()
+            .nth(2)
+            .and_then(|width| width.parse::<f32>().ok())
+            .unwrap_or(24.);
+        let stroke_width = stroke * view_width / 24.;
         let inner = icon
             .split_once('>')
             .unwrap()
@@ -114,8 +130,22 @@ fn mask(key: &Key, paper: bool) -> Vec<u8> {
             .rsplit_once("</svg>")
             .unwrap()
             .0
-            .replace("currentColor", "#000")
-            .replace("stroke-width=\"2\"", &format!("stroke-width=\"{stroke}\""));
+            .replace("currentColor", "#000");
+        // Normalize every Iconify viewBox (including Phosphor's 256-unit grid)
+        // and give filled and outlined icons the same paper cut-edge treatment.
+        let mut normalized = String::new();
+        let mut remaining = inner.as_str();
+        while let Some((before, after)) = remaining.split_once("stroke-width=\"") {
+            normalized.push_str(before);
+            let Some((_, rest)) = after.split_once('"') else {
+                break;
+            };
+            remaining = rest;
+        }
+        normalized.push_str(remaining);
+        let inner = format!(
+            "<svg width='24' height='24' viewBox='{view_box}' overflow='visible'><g stroke='#000' stroke-width='{stroke_width}' stroke-linejoin='round'>{normalized}</g></svg>"
+        );
         let top = if key.text { 4. } else { 18. };
         body.push_str(&format!(
             "<g transform=\"translate({} {top}) scale(3.5)\">{inner}</g>",

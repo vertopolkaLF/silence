@@ -15,7 +15,29 @@ pub(crate) const THEMES: &[(&str, &str)] = &[
     ("CuteSticker", "Cute Sticker"),
     ("Neon", "Neon"),
     ("Brutalism", "Brutalism"),
+    ("Terminal", "Terminal"),
+    ("Blueprint", "Blueprint"),
+    ("Cassette", "Cassette"),
+    ("Arcade", "Arcade"),
+    ("Paper", "Paper"),
+    ("Frosted", "Frosted"),
+    ("Porcelain", "Porcelain"),
+    ("Radar", "Radar"),
 ];
+
+/// Applied on each explicit theme selection; later icon edits remain independent.
+pub(crate) fn default_icon_pair(theme: &str) -> &'static str {
+    match theme {
+        "Windows" | CUSTOM => "fluent",
+        "MaterialYou" => "material",
+        "Cute" => "mingcute-fill",
+        "CuteSticker" | "Neon" => "lucide",
+        "Brutalism" | "Arcade" => "mdi",
+        "Cassette" => "phosphor",
+        "Paper" => "tabler",
+        _ => "solar",
+    }
+}
 
 /// Windows-provided colors that the native-looking themes follow.
 #[derive(Clone, Copy, PartialEq)]
@@ -48,6 +70,19 @@ pub(super) enum Shadow {
     Halo(Rgba, f32),
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum Detail {
+    None,
+    Terminal,
+    Blueprint,
+    Cassette,
+    Arcade,
+    Paper,
+    Frosted,
+    Porcelain,
+    Radar,
+}
+
 pub(super) struct IconBox {
     pub size: f32,
     /// Logical radius; `None` keeps the box concentric with the card.
@@ -58,6 +93,7 @@ pub(super) struct IconBox {
 
 /// Everything the renderer needs, in logical pixels before overlay scale.
 pub(super) struct Look {
+    pub detail: Detail,
     pub height: f32,
     pub radius: f32,
     pub pad_icon: f32,
@@ -99,6 +135,14 @@ impl Look {
             "CuteSticker" => cute_sticker(state),
             "Neon" => neon(state),
             "Brutalism" => brutalism(state),
+            "Terminal" => terminal(state),
+            "Blueprint" => blueprint(state),
+            "Cassette" => cassette(state),
+            "Arcade" => arcade(state),
+            "Paper" => paper(state),
+            "Frosted" => frosted(state),
+            "Porcelain" => porcelain(state),
+            "Radar" => radar(state),
             _ => custom(state, system),
         };
         // Content is a persistent user preference, independent of the theme.
@@ -144,6 +188,7 @@ fn custom(state: &Snapshot, system: System) -> Look {
         color_alpha(if light { 0xf7f9fc } else { 0x1b1c21 }, surface)
     };
     Look {
+        detail: Detail::None,
         height: if dot { 24. } else { 48. },
         radius: settings.border_radius.min(24) as f32,
         pad_icon: 8.,
@@ -208,13 +253,14 @@ fn windows(state: &Snapshot, system: System) -> Look {
         (color_alpha(0x000000, 0.45), 0xffffff)
     };
     Look {
+        detail: Detail::None,
         height: 48.,
         radius: 8.,
         pad_icon: 15.,
         pad: 18.,
         gap: 14.,
         icon_size: 18.,
-        icon_path: icon_path(state, "fluent"),
+        icon_path: icon_path(state, &state.settings.icon_pair),
         // The flyout reserves the accent for its active control.
         icon: if state.muted {
             foreground
@@ -263,13 +309,14 @@ fn material_you(state: &Snapshot, system: System) -> Look {
         (true, true) => (tone(0.40, 0.95), tone(0.10, 0.12), 0xf9dedc, 0x410e0b),
     };
     Look {
+        detail: Detail::None,
         height: 56.,
         radius: 28.,
         pad_icon: 8.,
         pad: 24.,
         gap: 12.,
         icon_size: 22.,
-        icon_path: icon_path(state, "material"),
+        icon_path: icon_path(state, &state.settings.icon_pair),
         icon: on_container,
         icon_box: Some(IconBox {
             size: 40.,
@@ -304,13 +351,14 @@ fn cute(state: &Snapshot) -> Look {
         (0xc8f4e3, 0x1fb383)
     };
     Look {
+        detail: Detail::None,
         height: 50.,
         radius: 25.,
         pad_icon: 7.,
         pad: 20.,
         gap: 10.,
         icon_size: 20.,
-        icon_path: icon_path(state, "mingcute-fill"),
+        icon_path: icon_path(state, &state.settings.icon_pair),
         icon,
         icon_box: Some(IconBox {
             size: 36.,
@@ -342,11 +390,11 @@ fn cute_sticker(state: &Snapshot) -> Look {
     let mut look = cute(state);
     look.height = 146.;
     look.icon_size = 88.;
-    look.icon_path = if state.muted {
-        "cute-sticker/muted"
-    } else {
-        "cute-sticker/live"
-    }
+    look.icon_path = format!(
+        "cute-sticker/{}/{}",
+        crate::overlay_icons::overlay_icon_pair(&state.settings.icon_pair).id,
+        if state.muted { "muted" } else { "live" },
+    )
     .into();
     look.surface = color_alpha(0xffffff, 0.);
     look.border = None;
@@ -368,13 +416,14 @@ fn cute_sticker(state: &Snapshot) -> Look {
 fn neon(state: &Snapshot) -> Look {
     let tube = if state.muted { 0xff2e88 } else { 0x19f0ff };
     Look {
+        detail: Detail::None,
         height: 46.,
         radius: 12.,
         pad_icon: 14.,
         pad: 18.,
         gap: 10.,
         icon_size: 22.,
-        icon_path: icon_path(state, "lucide"),
+        icon_path: icon_path(state, &state.settings.icon_pair),
         icon: tube,
         icon_box: None,
         surface: color_alpha(0x0b0614, 0.94),
@@ -402,13 +451,14 @@ fn neon(state: &Snapshot) -> Look {
 fn brutalism(state: &Snapshot) -> Look {
     let slab = if state.muted { 0xff5a5f } else { 0xc6ff3d };
     Look {
+        detail: Detail::None,
         height: 50.,
         radius: 0.,
         pad_icon: 8.,
         pad: 16.,
         gap: 12.,
         icon_size: 22.,
-        icon_path: icon_path(state, "mdi"),
+        icon_path: icon_path(state, &state.settings.icon_pair),
         icon: slab,
         icon_box: Some(IconBox {
             size: 34.,
@@ -433,6 +483,166 @@ fn brutalism(state: &Snapshot) -> Look {
         has_text: true,
         dot: false,
     }
+}
+
+/// Presets share content semantics, but never inherit Custom appearance controls.
+fn preset(state: &Snapshot, surface: u32, foreground: u32, signal: u32) -> Look {
+    let mut look = cute(state);
+    look.height = 48.;
+    look.radius = 10.;
+    look.pad_icon = 12.;
+    look.pad = 20.;
+    look.gap = 12.;
+    look.icon_size = 22.;
+    look.icon_path = icon_path(state, &state.settings.icon_pair);
+    look.icon = signal;
+    look.icon_box = None;
+    look.surface = color_alpha(surface, 1.);
+    look.foreground = foreground;
+    look.border = None;
+    look.shadow = Shadow::Drop(color_alpha(0x000000, 0.24), 3., 6.);
+    look.gutter = 22.;
+    look.font = super::fonts::DEFAULT.into();
+    look.weight = 600;
+    look.text_size = 14.;
+    look
+}
+
+fn terminal(state: &Snapshot) -> Look {
+    let signal = if state.muted { 0xffbd69 } else { 0x7cf7b4 };
+    let mut look = preset(state, 0x0d1914, signal, signal);
+    look.detail = Detail::Terminal;
+    look.height = 42.;
+    look.radius = 3.;
+    look.font = "Orbitron".into();
+    look.text_size = 12.;
+    look.pad = 26.;
+    look.border = Some((color_alpha(signal, 0.35), 1.));
+    look.shadow = Shadow::Hard(color_alpha(0x06100b, 1.), 3., 3.);
+    look.gutter = 5.;
+    look
+}
+
+fn blueprint(state: &Snapshot) -> Look {
+    let signal = if state.muted { 0xffcf9c } else { 0xa7e5ff };
+    let mut look = preset(state, 0x153c72, 0xebf5ff, signal);
+    look.detail = Detail::Blueprint;
+    look.height = 50.;
+    look.radius = 0.;
+    look.font = "Orbitron".into();
+    look.text_size = 12.;
+    look.pad_icon = 16.;
+    look.border = Some((color_alpha(0xa7d6ff, 0.65), 1.));
+    look.shadow = Shadow::Hard(color_alpha(0x082244, 0.9), 4., 4.);
+    look.gutter = 6.;
+    look
+}
+
+fn cassette(state: &Snapshot) -> Look {
+    let signal = if state.muted { 0xa6463d } else { 0x2c726e };
+    let mut look = preset(state, 0xe9dcc1, 0x39352e, signal);
+    look.detail = Detail::Cassette;
+    look.height = 58.;
+    look.radius = 9.;
+    look.pad_icon = 16.;
+    look.pad = 24.;
+    look.icon_path = icon_path(state, &state.settings.icon_pair);
+    look.icon_box = None;
+    look.border = Some((color_alpha(0x75664e, 0.8), 1.));
+    look.font = "Google Sans".into();
+    look
+}
+
+fn arcade(state: &Snapshot) -> Look {
+    let signal = if state.muted { 0xff7fa9 } else { 0x8fe8ff };
+    let mut look = preset(state, 0x30204d, 0xffefab, signal);
+    look.detail = Detail::Arcade;
+    look.height = 46.;
+    look.radius = 0.;
+    look.font = "Orbitron".into();
+    look.weight = 800;
+    look.text_size = 13.;
+    look.icon_path = icon_path(state, &state.settings.icon_pair);
+    look.pad_icon = 14.;
+    look.border = Some((color_alpha(0xb997ed, 1.), 2.));
+    look.shadow = Shadow::Hard(color_alpha(0x170e2c, 1.), 5., 5.);
+    look.gutter = 7.;
+    look
+}
+
+fn paper(state: &Snapshot) -> Look {
+    let signal = if state.muted { 0xa23748 } else { 0x28634f };
+    let mut look = preset(state, 0xfffdf5, 0x343b48, signal);
+    look.detail = Detail::Paper;
+    look.height = 54.;
+    look.radius = 2.;
+    look.pad_icon = 20.;
+    look.font = "Nunito".into();
+    look.weight = 700;
+    look.icon_path = icon_path(state, &state.settings.icon_pair);
+    look.shadow = Shadow::Hard(color_alpha(0xd6d0be, 1.), 2., 3.);
+    look.gutter = 5.;
+    look
+}
+
+fn frosted(state: &Snapshot) -> Look {
+    let signal = if state.muted { 0x9a476d } else { 0x245c8a };
+    let mut look = preset(state, 0xdcecf7, 0x253e58, signal);
+    look.detail = Detail::Frosted;
+    look.height = 56.;
+    look.radius = 18.;
+    look.surface = color_alpha(0xdcecf7, 0.94);
+    look.sheen = 0.8;
+    look.icon_box = Some(IconBox {
+        size: 34.,
+        radius: Some(10.),
+        fill: color_alpha(0xffffff, 0.6),
+        border: Some((color_alpha(0xffffff, 0.9), 1.)),
+    });
+    look.border = Some((color_alpha(0xffffff, 0.9), 1.));
+    look.font = "Google Sans".into();
+    look.weight = 500;
+    look.shadow = Shadow::Drop(color_alpha(0x4b779d, 0.28), 4., 10.);
+    look.gutter = 34.;
+    look
+}
+
+fn porcelain(state: &Snapshot) -> Look {
+    let signal = if state.muted { 0x9d3b43 } else { 0x315cad };
+    let mut look = preset(state, 0xf5f6f9, 0x283d69, signal);
+    look.detail = Detail::Porcelain;
+    look.height = 60.;
+    look.radius = 30.;
+    look.pad_icon = 10.;
+    look.pad = 26.;
+    look.gap = 14.;
+    look.icon_box = Some(IconBox {
+        size: 40.,
+        radius: Some(20.),
+        fill: color_alpha(0xe5eaf5, 1.),
+        border: Some((color_alpha(0x8ca1c9, 0.6), 1.)),
+    });
+    look.font = "Nunito".into();
+    look.weight = 800;
+    look.border = Some((color_alpha(0x8ca1c9, 0.7), 1.));
+    look.shadow = Shadow::Drop(color_alpha(0x253c65, 0.20), 4., 8.);
+    look.gutter = 28.;
+    look
+}
+
+fn radar(state: &Snapshot) -> Look {
+    let signal = if state.muted { 0xefb775 } else { 0x98dba0 };
+    let mut look = preset(state, 0x182d29, 0xdae9d9, signal);
+    look.detail = Detail::Radar;
+    look.height = 54.;
+    look.radius = 8.;
+    look.pad_icon = 12.;
+    look.pad = 24.;
+    look.icon_box = None;
+    look.font = "Orbitron".into();
+    look.text_size = 12.;
+    look.border = Some((color_alpha(0x7a9c86, 0.4), 1.));
+    look
 }
 
 fn icon_path(state: &Snapshot, pair: &str) -> SharedString {

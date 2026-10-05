@@ -75,9 +75,46 @@ Font files and their upstream OFL notices are in `assets/fonts/overlay`.
 The notices are also embedded in the settings document's font stylesheet.
 See that directory's README for download provenance.
 
+## Additional presets
+
+The theme picker also includes eight presets, each with a distinct material detail:
+
+| Theme | Appearance | Bundled family |
+| --- | --- | --- |
+| Terminal | Upward-moving phosphor scan lines and a blinking underscore | Orbitron |
+| Blueprint | Drafting grid with square registration marks | Orbitron |
+| Cassette | Cream tape label, bare microphone and screw rings | Google Sans |
+| Arcade | Violet cabinet with pixel trim and an offset shadow | Orbitron |
+| Paper | Ruled paper, red margin and ink colors | Nunito |
+| Frosted | Translucent ice-blue surface with glass highlights | Google Sans |
+| Porcelain | Ceramic pill, medallion and double blue rim | Nunito |
+| Radar | Green instrument panel with expanding, fading signal rings | Orbitron |
+
+`details.rs` paints these details behind the content and crossfades them with
+existing state layers. Radar runs three staggered expanding rings on a stable
+2.4-second clock. Terminal scrolls its scan lines upward at five logical pixels
+per second, wrapping seamlessly every four pixels. Its underscore cursor sits
+immediately after the shaped label and blinks every 500 ms; its measured width
+is always reserved, so blinking does not move the text or resize the overlay. Both use a stable clock
+and request animation frames only while visible or fading.
+Icon-only content uses an explicitly sized centered row, retaining themed icon
+containers where their fill provides contrast (such as Brutalism).
+Cassette and Radar use bare microphone icons. All presets retain custom labels, content selection,
+placement and scale, with separate live/muted palettes. Mute-failure warnings
+retain the themed foreground for contrast and always display their warning
+icon and failure label. No additional fonts or icon downloads are required.
+
+## Theme icons
+
+The microphone icon picker is available for every theme, including Cute Sticker.
+Selecting a theme always resets the icon pair to that theme's default; subsequent
+icon selections update immediately and persist until another theme selection.
+Font and background customization remain specific to Custom. Failure feedback
+continues to force the warning icon independently of the selected microphone pair.
+
 ## Cute Sticker
 
-`src/gpui_overlay/sticker.rs` composes the existing Iconify mic artwork with
+`src/gpui_overlay/sticker.rs` composes the selected Iconify mic artwork with
 stacked, tilted lettering and sparkles. Separate paper and ink SVG masks give
 the artwork a white die-cut contour. Text is converted to paths with the bundled
 Nunito font; custom labels are XML-escaped and preserved. Default labels become
