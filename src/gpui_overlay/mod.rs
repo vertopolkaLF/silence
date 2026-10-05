@@ -1,5 +1,7 @@
 //! A GPU-composited overlay on its own Windows UI thread.
 //! Dioxus settings and the existing audio/tray message loop remain independent.
+// Rounded decoration clipping also handles coincident arc endpoints at full pill radius.
+mod clip;
 mod details;
 pub(crate) mod fonts;
 mod motion;
@@ -443,10 +445,15 @@ impl Render for OverlayView {
         let content_animating = self.layers.iter().any(|layer| layer.opacity.active(now));
         let detail_animating = (self.state.visible || alpha > 0.001)
             && self.layers.iter().any(|layer| {
-                matches!(layer.state.settings.theme.as_str(), "Radar" | "Terminal")
-                    && layer.opacity.value(now) > 0.001
+                matches!(
+                    layer.state.settings.theme.as_str(),
+                    "Radar" | "Terminal" | "Neon"
+                ) && layer.opacity.value(now) > 0.001
             });
-        let detail_phase = now.duration_since(self.detail_epoch).as_secs_f32() / 2.4;
+        let detail_seconds = now.duration_since(self.detail_epoch).as_secs_f32();
+        let detail_phase = detail_seconds / 2.4;
+        // Four-second breathing cycle, never extinguishing the neon halo.
+        let neon_pulse = 0.825 + 0.175 * (std::f32::consts::TAU * detail_seconds / 4.).cos();
         if self.width.active(now)
             || self.height.active(now)
             || self.visibility.active(now)
@@ -539,7 +546,7 @@ impl Render for OverlayView {
         let radius = if look.acrylic {
             0.
         } else {
-            (look.radius * scale).min(height / 2.)
+            (look.radius * scale).min(height / 2.).min(width / 2.)
         };
         let shadow =
             |offset: (f32, f32), blur: f32, pick: &dyn Fn(&Shadow) -> Option<gpui::Rgba>| {
@@ -562,7 +569,11 @@ impl Render for OverlayView {
                 _ => None,
             })),
             Shadow::Halo(_, blur) => Some(shadow((0., 0.), blur, &|shadow| match shadow {
-                Shadow::Halo(color, _) => Some(*color),
+                Shadow::Halo(color, _) => {
+                    let mut color = *color;
+                    color.a *= neon_pulse;
+                    Some(color)
+                }
                 _ => None,
             })),
         };
@@ -618,6 +629,7 @@ impl Render for OverlayView {
                     scale,
                     *weight,
                     detail_phase,
+                    radius,
                 ));
             }
         }

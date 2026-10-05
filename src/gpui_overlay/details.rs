@@ -1,6 +1,9 @@
 //! Small, state-aware material details painted behind the readable content.
-use super::theme::{Detail, Look, color_alpha};
-use gpui::{Div, div, prelude::*, px};
+use super::{
+    clip,
+    theme::{Detail, Look, color_alpha},
+};
+use gpui::{Div, PathBuilder, canvas, div, point, prelude::*, px};
 
 pub(super) fn render(
     look: &Look,
@@ -9,6 +12,7 @@ pub(super) fn render(
     scale: f32,
     opacity: f32,
     phase: f32,
+    radius: f32,
 ) -> Div {
     let w = width / scale;
     let h = height / scale;
@@ -19,24 +23,32 @@ pub(super) fn render(
         .top_0()
         .size_full()
         .opacity(opacity);
-    let line = |x: f32, y: f32, width: f32, height: f32, color: u32, alpha: f32| {
-        div()
-            .absolute()
-            .left(px(x * scale))
-            .top(px(y * scale))
-            .w(px(width.max(0.) * scale))
-            .h(px(height.max(0.) * scale))
-            .bg(color_alpha(color, alpha))
+    // Clip before tessellation. Rounded Div backgrounds do not round GPUI's
+    // descendant content mask; painting clipped paths also avoids an SVG cache
+    // entry for every animation frame.
+    let boundary = clip::rounded_rect(w, h, radius / scale);
+    let line = |x: f32, y: f32, line_width: f32, line_height: f32, color: u32, alpha: f32| {
+        let points = clip::polygon(
+            vec![
+                (x, y),
+                (x + line_width.max(0.), y),
+                (x + line_width.max(0.), y + line_height.max(0.)),
+                (x, y + line_height.max(0.)),
+            ],
+            &boundary,
+        );
+        painted(vec![points], width, height, scale, color, alpha)
     };
     let ring = |x: f32, y: f32, diameter: f32, color: u32, alpha: f32| {
-        div()
-            .absolute()
-            .left(px(x * scale))
-            .top(px(y * scale))
-            .size(px(diameter * scale))
-            .rounded(px(diameter * scale / 2.))
-            .border_1()
-            .border_color(color_alpha(color, alpha))
+        let center = (x + diameter / 2., y + diameter / 2.);
+        // Border strokes sit inside the bounds, like the original GPUI ring.
+        let outer = clip::polygon(clip::circle(center.0, center.1, diameter / 2.), &boundary);
+        let mut inner = clip::polygon(
+            clip::circle(center.0, center.1, (diameter / 2. - 1. / scale).max(0.)),
+            &boundary,
+        );
+        inner.reverse();
+        painted(vec![outer, inner], width, height, scale, color, alpha)
     };
     match look.detail {
         Detail::None => {}
@@ -104,7 +116,7 @@ pub(super) fn render(
                     .top(px(4. * scale))
                     .w(px((width - 8. * scale).max(0.)))
                     .h(px((height - 8. * scale).max(0.)))
-                    .rounded(px(26. * scale))
+                    .rounded(px((look.radius - 4.).max(0.) * scale))
                     .border_1()
                     .border_color(color_alpha(0x8ca1c9, 0.3)),
             );
@@ -130,12 +142,47 @@ pub(super) fn render(
                     alpha,
                 ));
             }
-            if look.has_text {
-                for y in [8., h - 9.] {
-                    layer = layer.child(line(w - 16., y, 7., 1., ink, 0.55));
-                }
-            }
         }
     }
     layer
+}
+
+fn painted(
+    contours: Vec<Vec<clip::Vertex>>,
+    width: f32,
+    height: f32,
+    scale: f32,
+    color: u32,
+    alpha: f32,
+) -> impl gpui::IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let mut path = PathBuilder::fill();
+            let mut has_geometry = false;
+            for points in &contours {
+                if points.len() < 3 {
+                    continue;
+                }
+                let to_point =
+                    |&(x, y): &clip::Vertex| bounds.origin + point(px(x * scale), px(y * scale));
+                path.move_to(to_point(&points[0]));
+                for vertex in &points[1..] {
+                    path.line_to(to_point(vertex));
+                }
+                path.close();
+                has_geometry = true;
+            }
+            if has_geometry {
+                if let Ok(path) = path.build() {
+                    window.paint_path(path, color_alpha(color, alpha));
+                }
+            }
+        },
+    )
+    .absolute()
+    .left_0()
+    .top_0()
+    .w(px(width))
+    .h(px(height))
 }

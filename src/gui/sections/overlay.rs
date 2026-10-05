@@ -18,7 +18,8 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let scale = overlay.scale.clamp(10, 400);
     let content_opacity = overlay.content_opacity.clamp(20, 100);
     let background_opacity = overlay.background_opacity.min(100);
-    let border_radius = overlay.border_radius.min(24);
+    let border_radius = crate::gpui_overlay::theme::corner_radius(&overlay);
+    let supports_corner_radius = crate::gpui_overlay::theme::supports_corner_radius(&overlay.theme);
     let text_font_weight = overlay.text_font_weight.clamp(100, 900);
     let has_icon = matches!(overlay.variant.as_str(), "MicIcon" | "IconText");
     let has_text = matches!(overlay.variant.as_str(), "IconText" | "Text");
@@ -40,7 +41,7 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let content_opacity_progress =
         format!("{:.0}%", (content_opacity as f64 - 20.0) / 80.0 * 100.0);
     let background_opacity_progress = format!("{background_opacity}%");
-    let border_radius_progress = format!("{:.0}%", border_radius as f64 / 24.0 * 100.0);
+    let border_radius_progress = format!("{:.0}%", border_radius as f64 / 32.0 * 100.0);
     let text_font_weight_progress =
         format!("{:.0}%", (text_font_weight as f64 - 100.0) / 800.0 * 100.0);
     let visibility_options = vec![
@@ -558,23 +559,6 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                         }
 
                         Range {
-                            label: "Border radius".to_string(),
-                            value_label: format!("{border_radius}px"),
-                            value: border_radius.to_string(),
-                            min: "0".to_string(),
-                            max: "24".to_string(),
-                            step: "1".to_string(),
-                            progress: border_radius_progress.clone(),
-                            oninput: move |evt: FormEvent| {
-                                if let Ok(value) = evt.value().parse::<u8>() {
-                                    super::super::update_settings(settings, |config| {
-                                        config.overlay.border_radius = value.min(24);
-                                    });
-                                }
-                            }
-                        }
-
-                        Range {
                             label: "Opacity".to_string(),
                             value_label: format!("{content_opacity}%"),
                             value: content_opacity.to_string(),
@@ -591,6 +575,28 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
                             }
                         }
                     }
+                }
+
+                if supports_corner_radius {
+                        Range {
+                            label: "Border radius".to_string(),
+                            value_label: format!("{border_radius}px"),
+                            value: border_radius.to_string(),
+                            min: "0".to_string(),
+                            max: "32".to_string(),
+                            step: "1".to_string(),
+                            progress: border_radius_progress.clone(),
+                            oninput: move |evt: FormEvent| {
+                                if let Ok(value) = evt.value().parse::<u8>() {
+                                    super::super::update_settings(settings, |config| {
+                                        config.overlay.corner_radii.insert(
+                                            config.overlay.theme.clone(), value.min(32),
+                                        );
+                                    });
+                                }
+                            }
+                        }
+
                 }
 
                 Range {

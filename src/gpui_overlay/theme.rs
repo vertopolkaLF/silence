@@ -39,6 +39,30 @@ pub(crate) fn default_icon_pair(theme: &str) -> &'static str {
     }
 }
 
+pub(crate) fn supports_corner_radius(theme: &str) -> bool {
+    !matches!(theme, "Windows" | "CuteSticker")
+}
+
+/// UI fallback matches the preset geometry; it does not alter untouched themes.
+pub(crate) fn corner_radius(settings: &OverlayConfig) -> u8 {
+    if let Some(radius) = settings.corner_radii.get(&settings.theme) {
+        return (*radius).min(32);
+    }
+    match settings.theme.as_str() {
+        "MaterialYou" => 28,
+        "Cute" => 25,
+        "Neon" => 12,
+        "Brutalism" | "Blueprint" | "Arcade" => 0,
+        "Terminal" => 3,
+        "Cassette" => 9,
+        "Paper" => 2,
+        "Frosted" => 18,
+        "Porcelain" => 30,
+        "Radar" => 8,
+        _ => settings.border_radius.min(24),
+    }
+}
+
 /// Windows-provided colors that the native-looking themes follow.
 #[derive(Clone, Copy, PartialEq)]
 pub(super) struct System {
@@ -145,6 +169,11 @@ impl Look {
             "Radar" => radar(state),
             _ => custom(state, system),
         };
+        if supports_corner_radius(&settings.theme) {
+            if let Some(radius) = settings.corner_radii.get(&settings.theme) {
+                look.radius = f32::from((*radius).min(32));
+            }
+        }
         // Content is a persistent user preference, independent of the theme.
         if settings.theme != CUSTOM && settings.variant != "Dot" {
             look.has_icon = matches!(settings.variant.as_str(), "MicIcon" | "IconText");

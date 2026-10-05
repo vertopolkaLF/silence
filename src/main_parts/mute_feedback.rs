@@ -86,6 +86,7 @@ fn mute_failure_overlay(settings: &OverlayConfig, label: &str) -> OverlayConfig 
     // Keep placement, but never let icon-only, invisible, or click bindings hide the warning.
     OverlayConfig {
         theme: settings.theme.clone(),
+        corner_radii: settings.corner_radii.clone(),
         enabled: true,
         visibility: "Always".to_string(),
         display: settings.display.clone(),

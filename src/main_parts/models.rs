@@ -917,6 +917,9 @@ pub struct OverlayConfig {
     pub content_opacity: u8,
     #[serde(default = "default_overlay_border_radius")]
     pub border_radius: u8,
+    /// Per-theme overrides; absent entries retain the theme's original geometry.
+    #[serde(default)]
+    pub corner_radii: std::collections::BTreeMap<String, u8>,
     #[serde(default = "default_overlay_show_border")]
     pub show_border: bool,
     #[serde(default = "default_overlay_behaviour")]
@@ -993,6 +996,7 @@ impl Default for OverlayConfig {
             background_opacity: default_overlay_background_opacity(),
             content_opacity: default_overlay_content_opacity(),
             border_radius: default_overlay_border_radius(),
+            corner_radii: std::collections::BTreeMap::new(),
             show_border: default_overlay_show_border(),
             behaviour: default_overlay_behaviour(),
             single_click: default_overlay_single_click(),
@@ -1638,4 +1642,3 @@ impl Default for AppState {
 }
 
 unsafe impl Send for AppState {}
-

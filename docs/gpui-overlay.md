@@ -90,7 +90,8 @@ The theme picker also includes eight presets, each with a distinct material deta
 | Porcelain | Ceramic pill, medallion and double blue rim | Nunito |
 | Radar | Green instrument panel with expanding, fading signal rings | Orbitron |
 
-`details.rs` paints these details behind the content and crossfades them with
+`details.rs` clips line and ring geometry to the actual rounded card contour
+before GPU tessellation, then paints these details behind the content and crossfades them with
 existing state layers. Radar runs three staggered expanding rings on a stable
 2.4-second clock. Terminal scrolls its scan lines upward at five logical pixels
 per second, wrapping seamlessly every four pixels. Its underscore cursor sits
@@ -111,6 +112,18 @@ Selecting a theme always resets the icon pair to that theme's default; subsequen
 icon selections update immediately and persist until another theme selection.
 Font and background customization remain specific to Custom. Failure feedback
 continues to force the warning icon independently of the selected microphone pair.
+
+## Corner radius and Neon motion
+
+Painted card themes expose a 0?32 px corner-radius slider. Overrides are saved
+per theme; themes with no override retain their original geometry. Windows
+acrylic and Cute Sticker retain their existing forms and do not show this slider.
+Legacy Custom radius settings remain the fallback when no override is saved.
+Porcelain's inner rim follows its outer radius.
+
+Neon's halo breathes over a four-second cycle, from 65% to 100% of its original
+alpha, with its color, blur and gutter unchanged. Animation uses the same stable
+clock as the other ambient details and requests frames only while visible or fading.
 
 ## Cute Sticker
 
