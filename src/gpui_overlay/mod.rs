@@ -12,12 +12,20 @@ use crate::{OverlayConfig, native_overlay};
 use anyhow::{Context as _, Result};
 use gpui::{
     App, AssetSource, Bounds, BoxShadow, Context, FontWeight, IntoElement, Render, SharedString,
-    TextRun, Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, div,
-    font, linear_color_stop, linear_gradient, point, prelude::*, px, rgb, size, svg,
+    TextRun, Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions,
+    WindowingRequest, div, font, linear_color_stop, linear_gradient, point, prelude::*, px, rgb,
+    size, svg,
 };
 use motion::Motion;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use std::{borrow::Cow, rc::Rc, sync::mpsc, thread, time::Instant};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Mutex},
+    thread,
+    time::{Duration, Instant},
+};
 use theme::{Look, Shadow, System, color_alpha};
 use windows::Win32::Foundation::HWND;
 
@@ -57,122 +65,234 @@ impl AssetSource for OverlayAssets {
 
 pub(super) fn start(muted: bool, settings: OverlayConfig) -> Result<()> {
     let (sender, receiver) = flume::unbounded();
-    let (ready, startup) = mpsc::sync_channel(1);
+    native_overlay::prepare(muted, settings, sender.clone())?;
     thread::Builder::new()
         .name("silence-gpui-overlay".into())
         .spawn(move || {
-            let failure = ready.clone();
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                gpui::Application::with_platform(Rc::new(
-                    gpui_windows::WindowsPlatform::new(false)
-                        .expect("initialize GPUI Windows platform"),
-                ))
-                .with_assets(OverlayAssets)
-                .run(move |cx: &mut App| {
-                    if let Err(error) = cx.text_system().add_fonts(fonts::embedded()) {
-                        let _ = ready.send(Err(format!("load bundled overlay fonts: {error:#}")));
-                        cx.quit();
-                        return;
-                    }
-                    let initial = Snapshot {
-                        muted,
-                        settings: settings.clone(),
-                        visible: false,
-                        positioning: false,
+                let checkpoint = Arc::new(Mutex::new(None));
+                loop {
+                    // No GPUI platform, DirectX device, fonts or atlas while hidden.
+                    let Some(snapshot) = native_overlay::snapshot() else {
+                        break;
                     };
-                    let opened = cx.open_window(
-                        WindowOptions {
-                            window_bounds: Some(WindowBounds::Windowed(Bounds::new(
-                                point(px(100.), px(100.)),
-                                size(px(72.), px(72.)),
-                            ))),
-                            titlebar: None,
-                            inactive_frame_interval: None,
-                            focus: false,
-                            show: false,
-                            kind: WindowKind::PopUp,
-                            is_movable: false,
-                            is_resizable: false,
-                            is_minimizable: false,
-                            window_background: WindowBackgroundAppearance::Transparent,
-                            ..Default::default()
-                        },
-                        |window, cx| cx.new(|_| OverlayView::new(initial, window)),
-                    );
-                    let result = opened.and_then(|handle| {
-                        handle.update(cx, |_, window, _| -> Result<()> {
-                            let RawWindowHandle::Win32(raw) =
-                                HasWindowHandle::window_handle(window)?.as_raw()
-                            else {
-                                anyhow::bail!("GPUI overlay requires a Windows window");
-                            };
-                            native_overlay::attach(
-                                HWND(raw.hwnd.get() as *mut _),
-                                muted,
-                                settings,
-                                sender.clone(),
-                            )?;
-                            let _ = sender.send(Command::Refresh);
-                            Ok(())
-                        })??;
-                        cx.spawn(async move |cx| {
-                            while let Ok(command) = receiver.recv_async().await {
-                                let mut shutdown = matches!(command, Command::Shutdown);
-                                // Coalesce bursts of slider/settings updates into the latest state.
-                                while let Ok(command) = receiver.try_recv() {
-                                    shutdown |= matches!(command, Command::Shutdown);
-                                }
-                                if shutdown {
-                                    let _ = cx.update(|cx| cx.quit());
-                                    break;
-                                }
-                                let Some(snapshot) = native_overlay::snapshot() else {
-                                    break;
-                                };
-                                if snapshot.visible {
-                                    native_overlay::present(true);
-                                }
-                                if handle
-                                    .update(cx, |view, _, cx| {
-                                        view.accept(snapshot);
-                                        cx.notify();
-                                    })
-                                    .is_err()
-                                {
-                                    break;
-                                }
-                            }
-                        })
-                        .detach();
-                        Ok(())
-                    });
-                    let failed = result.is_err();
-                    let _ = ready.send(result.map_err(|error| format!("{error:#}")));
-                    if failed {
-                        cx.quit();
+                    if !snapshot.visible {
+                        match receiver.recv() {
+                            Ok(Command::Refresh) => continue,
+                            _ => break,
+                        }
                     }
-                });
+                    let resumed = checkpoint.lock().unwrap().take();
+                    let surface_checkpoint = checkpoint.clone();
+                    let surface_sender = sender.clone();
+                    let surface_receiver = receiver.clone();
+                    // Finish the OS thread too: COM/DirectWrite/driver TLS caches
+                    // must not survive into the next theme's renderer.
+                    thread::Builder::new()
+                        .name("silence-gpui-surface".into())
+                        .spawn(move || {
+                            run_surface(
+                                snapshot,
+                                resumed,
+                                surface_checkpoint,
+                                surface_sender,
+                                surface_receiver,
+                            )
+                        })
+                        .expect("start GPUI surface thread")
+                        .join()
+                        .expect("GPUI surface thread panicked");
+                    native_overlay::suspend_surface();
+                    release_unused_heap_pages();
+                    if checkpoint.lock().unwrap().is_none() {
+                        break;
+                    }
+                }
+                checkpoint.lock().unwrap().take();
+                sticker::clear_cache();
             }));
             if outcome.is_err() {
-                let _ = failure.send(Err(
-                    "GPUI overlay initialization panicked; see stderr".into()
-                ));
+                eprintln!("GPUI overlay initialization panicked; see stderr");
             }
             native_overlay::detach();
         })
         .context("start GPUI overlay UI thread")?;
-    startup
-        .recv()
-        .context("GPUI overlay stopped during startup")?
-        .map_err(anyhow::Error::msg)
+    Ok(())
 }
 
+fn run_surface(
+    initial: Snapshot,
+    resumed: Option<ResumeState>,
+    checkpoint: Arc<Mutex<Option<ResumeState>>>,
+    sender: flume::Sender<Command>,
+    receiver: flume::Receiver<Command>,
+) {
+    // Dropping this task cancels its pending recv before the next platform starts.
+    // A detached receiver could otherwise steal commands from the new surface.
+    let commands = Rc::new(RefCell::new(None));
+    let app_commands = commands.clone();
+    let platform = Rc::new(
+        gpui_windows::WindowsPlatform::new(false).expect("initialize GPUI Windows platform"),
+    );
+    gpui::Application::with_platform(platform)
+        .with_quit_mode(gpui::QuitMode::Explicit)
+        .with_assets(OverlayAssets)
+        .run(move |cx: &mut App| {
+            let opened = cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(Bounds::new(
+                        point(px(100.), px(100.)),
+                        size(px(72.), px(72.)),
+                    ))),
+                    titlebar: None,
+                    inactive_frame_interval: None,
+                    focus: false,
+                    show: false,
+                    kind: WindowKind::PopUp,
+                    is_movable: false,
+                    is_resizable: false,
+                    is_minimizable: false,
+                    window_background: WindowBackgroundAppearance::Transparent,
+                    ..Default::default()
+                },
+                |window, cx| {
+                    cx.new(|_| {
+                        let mut view =
+                            OverlayView::new(initial.clone(), window, checkpoint.clone());
+                        if let Some(resumed) = resumed {
+                            view.state = resumed.state;
+                            view.layers = resumed.layers;
+                            view.width = resumed.width;
+                            view.height = resumed.height;
+                            view.visibility = resumed.visibility;
+                            view.slide = resumed.slide;
+                            view.measured = resumed.measured;
+                            view.detail_epoch = resumed.detail_epoch;
+                        }
+                        view.accept(initial.clone());
+                        view.runtime_theme = initial.settings.theme.clone();
+                        view.runtime_font = required_font(&Look::resolve(&initial, view.system));
+                        view.loaded_fonts.clear();
+                        view.recycle_requested = false;
+                        view.needs_measure = true;
+                        view.last_chrome = None;
+                        view
+                    })
+                },
+            );
+            let result = opened.and_then(|handle| {
+                handle.update(cx, |_, window, _| -> Result<()> {
+                    let RawWindowHandle::Win32(raw) =
+                        HasWindowHandle::window_handle(window)?.as_raw()
+                    else {
+                        anyhow::bail!("GPUI overlay requires a Windows window");
+                    };
+                    native_overlay::attach(
+                        HWND(raw.hwnd.get() as *mut _),
+                        initial.muted,
+                        initial.settings,
+                        sender.clone(),
+                    )?;
+                    // A hidden GPUI window may not receive its first paint. Present
+                    // the native surface before requesting the initial render.
+                    if native_overlay::snapshot().is_some_and(|snapshot| snapshot.visible) {
+                        native_overlay::present(true);
+                    }
+                    let _ = sender.send(Command::Refresh);
+                    Ok(())
+                })??;
+                *app_commands.borrow_mut() = Some(cx.spawn(async move |cx| {
+                    while let Ok(command) = receiver.recv_async().await {
+                        let mut shutdown = matches!(command, Command::Shutdown);
+                        while let Ok(command) = receiver.try_recv() {
+                            shutdown |= matches!(command, Command::Shutdown);
+                        }
+                        if shutdown {
+                            checkpoint.lock().unwrap().take();
+                            let _ = cx.update(|cx| cx.quit());
+                            break;
+                        }
+                        let Some(snapshot) = native_overlay::snapshot() else {
+                            break;
+                        };
+                        if snapshot.visible {
+                            native_overlay::present(true);
+                        }
+                        if handle
+                            .update(cx, |view, _, cx| {
+                                view.accept(snapshot);
+                                cx.notify();
+                            })
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                }));
+                Ok(())
+            });
+            if let Err(error) = result {
+                eprintln!("GPUI overlay startup: {error:#}");
+                cx.quit();
+            }
+        });
+    commands.borrow_mut().take();
+}
+
+fn required_font(look: &Look) -> Option<SharedString> {
+    look.has_text.then(|| look.font.clone())
+}
+
+fn release_unused_heap_pages() {
+    use windows::Win32::{
+        Foundation::HANDLE,
+        System::{
+            Memory::{HeapOptimizeResources, HeapSetInformation},
+            SystemServices::{
+                HEAP_OPTIMIZE_RESOURCES_CURRENT_VERSION, HEAP_OPTIMIZE_RESOURCES_INFORMATION,
+            },
+        },
+    };
+    // Return genuinely freed LFH allocations after destroying a renderer/font
+    // collection. This decommits unused heap pages; it does not trim the working
+    // set or page out live resources to make Task Manager look smaller.
+    let info = HEAP_OPTIMIZE_RESOURCES_INFORMATION {
+        Version: HEAP_OPTIMIZE_RESOURCES_CURRENT_VERSION,
+        Flags: 0,
+    };
+    unsafe {
+        let _ = HeapSetInformation(
+            HANDLE::default(),
+            HeapOptimizeResources,
+            Some((&info as *const HEAP_OPTIMIZE_RESOURCES_INFORMATION).cast()),
+            std::mem::size_of_val(&info),
+        );
+    }
+}
+
+#[derive(Clone)]
 struct ContentLayer {
     state: Snapshot,
     opacity: Motion,
 }
 
+struct ResumeState {
+    state: Snapshot,
+    layers: Vec<ContentLayer>,
+    width: Motion,
+    height: Motion,
+    visibility: Motion,
+    slide: Motion,
+    measured: bool,
+    detail_epoch: Instant,
+}
+
 struct OverlayView {
+    checkpoint: Arc<Mutex<Option<ResumeState>>>,
+    runtime_theme: String,
+    runtime_font: Option<SharedString>,
+    loaded_fonts: Vec<SharedString>,
+    recycle_requested: bool,
     state: Snapshot,
     layers: Vec<ContentLayer>,
     needs_measure: bool,
@@ -190,8 +310,13 @@ struct OverlayView {
 }
 
 impl OverlayView {
-    fn new(state: Snapshot, window: &Window) -> Self {
+    fn new(state: Snapshot, window: &Window, checkpoint: Arc<Mutex<Option<ResumeState>>>) -> Self {
         Self {
+            checkpoint,
+            runtime_theme: state.settings.theme.clone(),
+            runtime_font: required_font(&Look::resolve(&state, System::load())),
+            loaded_fonts: Vec::new(),
+            recycle_requested: false,
             layers: vec![ContentLayer {
                 state: state.clone(),
                 opacity: Motion::new(1., 220),
@@ -387,7 +512,7 @@ impl OverlayView {
 }
 
 impl Render for OverlayView {
-    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let now = Instant::now();
         let dpi = window.scale_factor();
         // Respect selected-monitor DPI even before WM_DPICHANGED reaches the new window.
@@ -395,6 +520,20 @@ impl Render for OverlayView {
         if self.last_dpi != dpi {
             self.last_dpi = dpi;
             self.needs_measure = true;
+        }
+        // Only live crossfade layers may need fonts. Icon-only themes need none.
+        for layer in &self.layers {
+            let look = Look::resolve(&layer.state, self.system);
+            if let Some(family) = required_font(&look) {
+                if !self.loaded_fonts.contains(&family) {
+                    if let Some(data) = fonts::embedded(&family) {
+                        if let Err(error) = cx.text_system().add_fonts(vec![data]) {
+                            eprintln!("load overlay font {family}: {error:#}");
+                        }
+                    }
+                    self.loaded_fonts.push(family);
+                }
+            }
         }
         let look = Look::resolve(&self.state, self.system);
         let chrome = (look.acrylic, !self.system.light);
@@ -487,6 +626,62 @@ impl Render for OverlayView {
                 alpha > 0.001
             };
         native_overlay::present(should_present);
+        // Hidden HWNDs stop receiving paint/vsync. Once opacity/lift makes the
+        // surface invisible, retire on this frame rather than waiting for an
+        // animation's final tick that the hidden window may never receive.
+        let settled = !should_present
+            || (!self.width.active(now)
+                && !self.height.active(now)
+                && !self.visibility.active(now)
+                && (!(look.acrylic || is_sticker) || !self.slide.active(now))
+                && !content_animating);
+        if settled {
+            let sticker_active = self.layers.iter().any(|layer| {
+                Look::resolve(&layer.state, self.system)
+                    .icon_path
+                    .starts_with("cute-sticker/")
+            });
+            if !sticker_active {
+                sticker::clear_cache();
+            }
+            // DirectWrite has no font removal API in GPUI. Retire the whole platform
+            // after the crossfade, retaining geometry and animation clocks only.
+            if !self.recycle_requested
+                && (!should_present
+                    || self.runtime_theme != self.state.settings.theme
+                    || self.runtime_font != required_font(&look))
+            {
+                self.recycle_requested = true;
+                cx.defer_in(window, |view, window, cx| {
+                    *view.checkpoint.lock().unwrap() = Some(ResumeState {
+                        state: view.state.clone(),
+                        layers: view.layers.clone(),
+                        width: view.width.clone(),
+                        height: view.height.clone(),
+                        visibility: view.visibility.clone(),
+                        slide: view.slide.clone(),
+                        measured: view.measured,
+                        detail_epoch: view.detail_epoch,
+                    });
+                    // WindowsWindow::drop schedules RevokeDragDrop/DestroyWindow
+                    // on GPUI's executor. Keep pumping it before quitting; quitting
+                    // first strands the HWND and its renderer behind COM references.
+                    window.remove_window();
+                    cx.defer(|cx| {
+                        cx.spawn(async move |cx| {
+                            cx.background_executor()
+                                .timer(Duration::from_millis(100))
+                                .await;
+                            let _ = cx.update(|cx| {
+                                cx.request_windowing(WindowingRequest::Headless).detach();
+                                cx.quit();
+                            });
+                        })
+                        .detach();
+                    });
+                });
+            }
+        }
 
         // Blend the actual on-screen layers, so quick toggles cannot flash a full old state.
         let layers = self

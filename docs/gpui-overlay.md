@@ -6,12 +6,17 @@ their existing message loop.
 
 ## Dependency choice
 
-`gpui` and `gpui_windows` come from the same pinned Zed revision
-`a84689073d296dfd39987bc7dd478e43ef76d83a`.
+`gpui` remains on pinned Zed revision
+`a84689073d296dfd39987bc7dd478e43ef76d83a`. The small Windows backend is
+vendored in `vendor/gpui_windows` from that same revision, with the
+`small-overlay` feature enabled. It defers unused render/font resources and
+reduces driver-thread overhead. GPUI core is not vendored.
+See [the memory investigation](research/gpui-memory.md) for measurements and
+[the backend notes](../vendor/gpui_windows/README.md) for the exact changes.
 The published `gpui 0.2.2` requires `cocoa =0.26.0`, while Dioxus requires
 `cocoa ^0.26.1`. Cargo resolves those constraints even for Windows targets.
 Using the upstream core with its Windows backend avoids the conflict without
-patching Dioxus or vendoring either framework. Do not replace `gpui_windows`
+patching Dioxus. Do not replace `gpui_windows`
 with the all-platform `gpui_platform` loader: that reintroduces `gpui_macos`
 and its conflicting dependency.
 
@@ -29,8 +34,11 @@ the legacy `comctl32.dll` and aborts before `main` with `0xC0000139`.
 - `src/native_overlay.rs` owns Windows placement, DPI/monitor selection,
   non-activating/topmost behavior, click-through policy, and drag/click handling.
 
-A dedicated Windows UI thread runs GPUI, with OLE initialization provided by
-its Windows platform. Settings/state updates wake an async channel receiver;
+A controller keeps the latest overlay state; a dedicated Windows UI thread runs
+GPUI only while a surface is needed, with OLE initialization provided by its
+Windows platform. After hiding or changing themes/fonts, the old surface is
+removed, its event loop drains destruction work, and the platform/thread retire.
+Only plain settings and animation state transfer to the next surface. Settings/state updates wake an async channel receiver;
 there is no renderer polling loop. Updates in a burst are coalesced to the latest
 snapshot. The inactive frame throttle is disabled because an overlay should
 animate smoothly without taking focus.
@@ -39,6 +47,13 @@ The GPU surface follows the animated card size and keeps its percentage anchor
 stable. There is no extra window backdrop or shadow gutter.
 Native surface/show operations are posted to the GPUI thread so they do not
 re-enter its renderer during a frame.
+
+Every native surface is made topmost on attachment and again when shown. While
+visible, a one-second Win32 timer reasserts `HWND_TOPMOST` without changing
+geometry, taking focus, or requesting a GPUI frame. This repairs z-order drift
+even when the overlay's bounds are unchanged or another topmost window covers
+it. Hiding or destroying the surface stops the timer; recreated surfaces start
+their own timer when shown.
 
 The native window explicitly uses `WS_POPUP`, removes caption/frame styles,
 and disables DWM non-client decoration. `WM_NCCALCSIZE` leaves the entire
@@ -54,8 +69,12 @@ path and embedded Solar warning icon.
 
 ## Bundled fonts
 
-Before opening the overlay window, GPUI registers TTF bytes embedded in the EXE
-with `include_bytes!`. Preset themes no longer inspect installed font families:
+TTF bytes remain embedded in the EXE with `include_bytes!`, but GPUI registers
+only the font required by a live text layer. Icon-only themes register no bundled
+fonts. Crossfades briefly retain the fonts of their live layers; retiring the
+platform frees the old collection. Cute Sticker's outlining font database is
+transient, its artwork cache holds at most two variants, and it is cleared when
+no sticker layer remains. Preset themes no longer inspect installed font families:
 
 | Overlay | Bundled family |
 | --- | --- |

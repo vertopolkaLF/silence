@@ -1,6 +1,6 @@
 //! Windows overlay behavior. All pixels and frame timing belong to GPUI.
 use crate::gpui_overlay::{Command, Snapshot};
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use once_cell::sync::Lazy;
 use std::{
     mem::size_of,
@@ -13,10 +13,10 @@ use windows::Win32::{
     Foundation::{BOOL, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
     Graphics::{
         Dwm::{
-            DWMNCRP_DISABLED, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_NCRENDERING_POLICY,
-            DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
-            DWMWA_WINDOW_CORNER_PREFERENCE, DWM_SYSTEMBACKDROP_TYPE, DWM_WINDOW_CORNER_PREFERENCE,
-            DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWCP_DONOTROUND, DWMWCP_ROUND,
+            DWM_SYSTEMBACKDROP_TYPE, DWM_WINDOW_CORNER_PREFERENCE, DWMNCRP_DISABLED, DWMSBT_NONE,
+            DWMSBT_TRANSIENTWINDOW, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR,
+            DWMWA_NCRENDERING_POLICY, DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
+            DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND, DWMWCP_ROUND,
             DwmExtendFrameIntoClientArea, DwmSetWindowAttribute,
         },
         Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO},
@@ -33,6 +33,8 @@ const WM_GPUI_SURFACE: u32 = WM_APP + 50;
 const WM_GPUI_PRESENT: u32 = WM_APP + 51;
 const WM_GPUI_POLICY: u32 = WM_APP + 52;
 const ID_SINGLE_CLICK_TIMER: usize = 32;
+const ID_TOPMOST_TIMER: usize = 33;
+const TOPMOST_INTERVAL_MS: u32 = 1_000;
 static OVERLAY: Lazy<Mutex<Option<NativeOverlay>>> = Lazy::new(|| Mutex::new(None));
 static ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
 static ACTIONS: Lazy<Mutex<Vec<crate::OverlayActionBinding>>> =
@@ -83,8 +85,8 @@ pub fn init(_instance: HINSTANCE, muted: bool, settings: &crate::OverlayConfig) 
 
 pub(super) fn attach(
     hwnd: HWND,
-    muted: bool,
-    settings: crate::OverlayConfig,
+    _muted: bool,
+    _settings: crate::OverlayConfig,
     sender: flume::Sender<Command>,
 ) -> Result<()> {
     unsafe {
@@ -120,16 +122,33 @@ pub(super) fn attach(
         ORIGINAL_WNDPROC.store(previous as isize, Ordering::Release);
         SetWindowPos(
             hwnd,
-            None,
+            HWND_TOPMOST,
             0,
             0,
             0,
             0,
-            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         )?;
     }
+    let mut guard = OVERLAY.lock().unwrap();
+    let native = guard.as_mut().context("overlay control state missing")?;
+    native.hwnd = hwnd;
+    native.sender = sender;
+    // Keep the latest audio/settings/positioning state received during recreation.
+    native.last_surface = None;
+    native.presented = false;
+    native.acrylic = false;
+    native.apply_click_through();
+    Ok(())
+}
+
+pub(super) fn prepare(
+    muted: bool,
+    settings: crate::OverlayConfig,
+    sender: flume::Sender<Command>,
+) -> Result<()> {
     let native = NativeOverlay {
-        hwnd,
+        hwnd: HWND::default(),
         sender,
         muted,
         settings,
@@ -160,7 +179,6 @@ pub(super) fn attach(
         acrylic: false,
         chrome_dark: true,
     };
-    native.apply_click_through();
     *OVERLAY.lock().unwrap() = Some(native);
     Ok(())
 }
@@ -180,7 +198,9 @@ pub fn update(muted: bool, settings: &crate::OverlayConfig) {
             }
         }
         unsafe {
-            let _ = PostMessageW(overlay.hwnd, WM_GPUI_POLICY, WPARAM(0), LPARAM(0));
+            if !overlay.hwnd.0.is_null() {
+                let _ = PostMessageW(overlay.hwnd, WM_GPUI_POLICY, WPARAM(0), LPARAM(0));
+            }
         }
         overlay.notify();
     }
@@ -224,7 +244,9 @@ pub fn set_positioning(active: bool) -> Option<(f64, f64)> {
         overlay.visible = true;
     }
     unsafe {
-        let _ = PostMessageW(overlay.hwnd, WM_GPUI_POLICY, WPARAM(0), LPARAM(0));
+        if !overlay.hwnd.0.is_null() {
+            let _ = PostMessageW(overlay.hwnd, WM_GPUI_POLICY, WPARAM(0), LPARAM(0));
+        }
     }
     overlay.notify();
     position
@@ -245,6 +267,16 @@ pub fn destroy() {
         let _ = overlay.sender.send(Command::Shutdown);
     }
 }
+pub(super) fn suspend_surface() {
+    if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
+        overlay.hwnd = HWND::default();
+        overlay.presented = false;
+        overlay.last_surface = None;
+        overlay.pending_single_click = false;
+        overlay.dragging = false;
+    }
+}
+
 pub(super) fn detach() {
     OVERLAY.lock().unwrap().take();
 }
@@ -343,6 +375,24 @@ unsafe fn forward_window_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: L
         )
     }
 }
+
+fn restore_topmost(hwnd: HWND) {
+    // Z-order maintenance must run on the window thread, outside OVERLAY's lock:
+    // SetWindowPos synchronously dispatches window messages back into this wndproc.
+    // Reassert even when WS_EX_TOPMOST is set: another topmost window can cover us.
+    unsafe {
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+        );
+    }
+}
+
 impl NativeOverlay {
     fn notify(&self) {
         let _ = self.sender.send(Command::Refresh);
@@ -401,6 +451,9 @@ impl NativeOverlay {
     }
 
     fn process_drag(&mut self) -> Option<(f64, f64)> {
+        if self.hwnd.0.is_null() {
+            return None;
+        }
         if !self.drag_enabled() {
             self.suppress_next_click_after_drag = false;
             return None;
@@ -551,7 +604,11 @@ impl NativeOverlay {
             );
             // DWMWA_COLOR_NONE drops the hairline and any caption tint;
             // DWMWA_COLOR_DEFAULT restores them.
-            let color: u32 = if self.acrylic { 0xFFFF_FFFE } else { 0xFFFF_FFFF };
+            let color: u32 = if self.acrylic {
+                0xFFFF_FFFE
+            } else {
+                0xFFFF_FFFF
+            };
             for attribute in [DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR] {
                 let _ = DwmSetWindowAttribute(
                     self.hwnd,
@@ -644,6 +701,14 @@ unsafe extern "system" fn overlay_wnd_proc(
                 .is_some_and(|overlay| overlay.presented);
             unsafe {
                 let _ = ShowWindow(hwnd, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE });
+                if visible {
+                    restore_topmost(hwnd);
+                    if SetTimer(hwnd, ID_TOPMOST_TIMER, TOPMOST_INTERVAL_MS, None) == 0 {
+                        eprintln!("overlay: failed to start topmost maintenance timer");
+                    }
+                } else {
+                    let _ = KillTimer(hwnd, ID_TOPMOST_TIMER);
+                }
             }
             LRESULT(0)
         }
@@ -696,6 +761,18 @@ unsafe extern "system" fn overlay_wnd_proc(
             }
             unsafe { forward_window_message(hwnd, msg, wparam, lparam) }
         }
+        WM_TIMER if wparam.0 == ID_TOPMOST_TIMER => {
+            // A timer message may already be queued when the surface is hidden.
+            // Never show it again or wake the GPUI renderer from this maintenance path.
+            if unsafe { IsWindowVisible(hwnd).as_bool() } {
+                restore_topmost(hwnd);
+            }
+            LRESULT(0)
+        }
+        WM_DESTROY => unsafe {
+            let _ = KillTimer(hwnd, ID_TOPMOST_TIMER);
+            forward_window_message(hwnd, msg, wparam, lparam)
+        },
         WM_TIMER if wparam.0 == ID_SINGLE_CLICK_TIMER => {
             let action = {
                 let mut guard = OVERLAY.lock().unwrap();

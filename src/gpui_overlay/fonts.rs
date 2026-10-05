@@ -10,16 +10,16 @@ pub(crate) const FAMILIES: &[&str] = &[
     "Archivo Black",
 ];
 
-pub(super) fn embedded() -> Vec<Cow<'static, [u8]>> {
-    vec![
-        Cow::Borrowed(include_bytes!("../../assets/fonts/overlay/Inter.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/overlay/GoogleSans.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/overlay/Nunito.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/overlay/Orbitron.ttf")),
-        Cow::Borrowed(include_bytes!(
-            "../../assets/fonts/overlay/ArchivoBlack.ttf"
-        )),
-    ]
+pub(super) fn embedded(family: &str) -> Option<Cow<'static, [u8]>> {
+    let data: &'static [u8] = match family {
+        "Inter" => include_bytes!("../../assets/fonts/overlay/Inter.ttf"),
+        "Google Sans" => include_bytes!("../../assets/fonts/overlay/GoogleSans.ttf"),
+        "Nunito" => include_bytes!("../../assets/fonts/overlay/Nunito.ttf"),
+        "Orbitron" => include_bytes!("../../assets/fonts/overlay/Orbitron.ttf"),
+        "Archivo Black" => include_bytes!("../../assets/fonts/overlay/ArchivoBlack.ttf"),
+        _ => return None,
+    };
+    Some(Cow::Borrowed(data))
 }
 
 // Include the copyright notices and licenses in the distributed settings document.

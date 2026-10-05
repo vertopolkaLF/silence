@@ -3,7 +3,7 @@
 use super::theme::Look;
 use gpui::{Transformation, div, point, prelude::*, px, radians, rgb, size, svg};
 use resvg::usvg;
-use std::{cell::RefCell, collections::VecDeque, sync::OnceLock};
+use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 const MIC_CENTER_X: f32 = 58.;
 const CAPTION_OFFSET_X: f32 = 18.;
@@ -28,21 +28,24 @@ struct Artwork {
 
 thread_local! {
     // Slider changes and frame ticks reuse paths; bound memory for edited labels.
-    static ART: RefCell<VecDeque<(Key, Artwork)>> = const { RefCell::new(VecDeque::new()) };
+    static ART: RefCell<VecDeque<(Key, Rc<Artwork>)>> = const { RefCell::new(VecDeque::new()) };
 }
 
-fn options() -> &'static usvg::Options<'static> {
-    static OPTIONS: OnceLock<usvg::Options<'static>> = OnceLock::new();
-    OPTIONS.get_or_init(|| {
-        let mut options = usvg::Options::default();
+pub(super) fn clear_cache() {
+    ART.with(|cache| cache.borrow_mut().clear());
+}
+
+fn options(text: bool) -> usvg::Options<'static> {
+    let mut options = usvg::Options::default();
+    if text {
         options
             .fontdb_mut()
             .load_font_data(include_bytes!("../../assets/fonts/overlay/Nunito.ttf").to_vec());
-        options
-    })
+    }
+    options
 }
 
-fn artwork(look: &Look, logical_width: f32) -> Artwork {
+fn artwork(look: &Look, logical_width: f32) -> Rc<Artwork> {
     let key = Key {
         label: look.label.to_string(),
         muted: look.icon_path.ends_with("muted"),
@@ -61,12 +64,15 @@ fn artwork(look: &Look, logical_width: f32) -> Artwork {
         if let Some((_, art)) = cache.iter().find(|(cached, _)| *cached == key) {
             return art.clone();
         }
-        let art = Artwork {
-            paper: mask(&key, true),
-            ink: mask(&key, false),
+        // The font database is needed only while converting this caption to paths.
+        // Keep it out of a process-lifetime OnceLock and share it for both masks.
+        let options = options(key.text);
+        let art = Rc::new(Artwork {
+            paper: mask(&key, true, &options),
+            ink: mask(&key, false, &options),
             fold: fold(&key),
-        };
-        if cache.len() == 16 {
+        });
+        if cache.len() == 2 {
             cache.pop_front();
         }
         cache.push_back((key, art.clone()));
@@ -97,7 +103,7 @@ fn fold(key: &Key) -> Vec<u8> {
     format!("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width} {height}'><g transform='translate({} {})'><path d='M2 29 Q9 6 29 2 Q30 18 2 29Z' fill='black'/></g></svg>", x - 20., y - 28.).into_bytes()
 }
 
-fn mask(key: &Key, paper: bool) -> Vec<u8> {
+fn mask(key: &Key, paper: bool, options: &usvg::Options<'_>) -> Vec<u8> {
     let width = key.width as f32;
     // Caption origin is fixed relative to the mic, independent of label width.
     let center = if key.icon && key.text {
@@ -178,7 +184,7 @@ fn mask(key: &Key, paper: bool) -> Vec<u8> {
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\">{body}</svg>"
     );
     // GPUI's SVG masks contain paths only. usvg shapes and converts our text first.
-    match usvg::Tree::from_str(&source, options()) {
+    match usvg::Tree::from_str(&source, options) {
         Ok(tree) => tree.to_string(&usvg::WriteOptions::default()).into_bytes(),
         Err(error) => {
             eprintln!("Cute Sticker artwork: {error}");

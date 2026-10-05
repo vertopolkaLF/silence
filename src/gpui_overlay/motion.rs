@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 /// Retarget from the value currently on screen, including interrupted transitions.
+#[derive(Clone)]
 pub(super) struct Motion {
     pub from: f32,
     pub to: f32,
