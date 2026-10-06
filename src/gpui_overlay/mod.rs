@@ -31,6 +31,7 @@ use windows::Win32::Foundation::HWND;
 
 pub(super) enum Command {
     Refresh,
+    SurfaceReady,
     Shutdown,
 }
 
@@ -72,11 +73,13 @@ pub(super) fn start(muted: bool, settings: OverlayConfig) -> Result<()> {
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let checkpoint = Arc::new(Mutex::new(None));
                 loop {
-                    // No GPUI platform, DirectX device, fonts or atlas while hidden.
+                    // An enabled overlay stays warm between visibility changes.
+                    // Only disabling it releases the platform/DirectX resources;
+                    // rebuilding them on every show delays the first pixels.
                     let Some(snapshot) = native_overlay::snapshot() else {
                         break;
                     };
-                    if !snapshot.visible {
+                    if !snapshot.visible && !snapshot.settings.enabled {
                         match receiver.recv() {
                             Ok(Command::Refresh) => continue,
                             _ => break,
@@ -203,9 +206,11 @@ fn run_surface(
                 })??;
                 *app_commands.borrow_mut() = Some(cx.spawn(async move |cx| {
                     while let Ok(command) = receiver.recv_async().await {
+                        let mut surface_ready = matches!(command, Command::SurfaceReady);
                         let mut shutdown = matches!(command, Command::Shutdown);
                         while let Ok(command) = receiver.try_recv() {
                             shutdown |= matches!(command, Command::Shutdown);
+                            surface_ready |= matches!(command, Command::SurfaceReady);
                         }
                         if shutdown {
                             checkpoint.lock().unwrap().take();
@@ -220,6 +225,7 @@ fn run_surface(
                         }
                         if handle
                             .update(cx, |view, _, cx| {
+                                view.surface_ready |= surface_ready;
                                 view.accept(snapshot);
                                 cx.notify();
                             })
@@ -293,6 +299,7 @@ struct OverlayView {
     runtime_font: Option<SharedString>,
     loaded_fonts: Vec<SharedString>,
     recycle_requested: bool,
+    surface_ready: bool,
     state: Snapshot,
     layers: Vec<ContentLayer>,
     needs_measure: bool,
@@ -317,6 +324,7 @@ impl OverlayView {
             runtime_font: required_font(&Look::resolve(&state, System::load())),
             loaded_fonts: Vec::new(),
             recycle_requested: false,
+            surface_ready: false,
             layers: vec![ContentLayer {
                 state: state.clone(),
                 opacity: Motion::new(1., 220),
@@ -367,18 +375,20 @@ impl OverlayView {
             self.needs_measure = true;
             self.system = System::load();
         }
-        self.visibility
-            .retarget(if next.visible { 1. } else { 0. }, now);
-        // Preserve the current interpolated lift if visibility reverses mid-peel.
-        self.slide.retarget_with_duration(
-            if next.visible { 0. } else { 1. },
-            now,
-            if next.settings.theme == "CuteSticker" {
-                if next.visible { 560 } else { 440 }
-            } else {
-                420
-            },
-        );
+        if self.surface_ready {
+            self.visibility
+                .retarget(if next.visible { 1. } else { 0. }, now);
+            // Preserve the current interpolated lift if visibility reverses mid-peel.
+            self.slide.retarget_with_duration(
+                if next.visible { 0. } else { 1. },
+                now,
+                if next.settings.theme == "CuteSticker" {
+                    if next.visible { 560 } else { 440 }
+                } else {
+                    420
+                },
+            );
+        }
         self.state = next;
     }
 
@@ -572,9 +582,18 @@ impl Render for OverlayView {
 
         let width = self.width.value(now);
         let height = self.height.value(now);
-        let alpha = self.visibility.value(now);
+        // Prepare the complete scene at full opacity offscreen. A transparent
+        // warm-up frame skips GPU primitives, leaving their cold allocation to
+        // consume the entrance animation instead.
+        let alpha = if self.surface_ready {
+            self.visibility.value(now)
+        } else {
+            1.
+        };
         let is_sticker = look.icon_path.starts_with("cute-sticker/");
-        let slide = if look.acrylic {
+        let slide = if !self.surface_ready {
+            1.
+        } else if look.acrylic {
             self.slide.value(now)
         } else {
             0.
@@ -582,7 +601,7 @@ impl Render for OverlayView {
         self.layers
             .retain(|layer| layer.opacity.to > 0. || layer.opacity.active(now));
         let content_animating = self.layers.iter().any(|layer| layer.opacity.active(now));
-        let detail_animating = (self.state.visible || alpha > 0.001)
+        let detail_animating = (self.state.visible || (self.surface_ready && alpha > 0.001))
             && self.layers.iter().any(|layer| {
                 matches!(
                     layer.state.settings.theme.as_str(),
@@ -618,24 +637,24 @@ impl Render for OverlayView {
             slide,
         );
         let should_present = self.state.visible
-            || if look.acrylic {
-                slide < 0.999
-            } else if is_sticker {
-                self.slide.value(now) < 0.999
-            } else {
-                alpha > 0.001
-            };
+            || (self.surface_ready
+                && if look.acrylic {
+                    slide < 0.999
+                } else if is_sticker {
+                    self.slide.value(now) < 0.999
+                } else {
+                    alpha > 0.001
+                });
         native_overlay::present(should_present);
-        // Hidden HWNDs stop receiving paint/vsync. Once opacity/lift makes the
-        // surface invisible, retire on this frame rather than waiting for an
-        // animation's final tick that the hidden window may never receive.
+        // A hidden, enabled surface stays ready for its next entrance. A disabled
+        // overlay can retire as soon as its exit stops contributing pixels.
         let settled = !should_present
             || (!self.width.active(now)
                 && !self.height.active(now)
                 && !self.visibility.active(now)
                 && (!(look.acrylic || is_sticker) || !self.slide.active(now))
                 && !content_animating);
-        if settled {
+        if settled && (self.surface_ready || !self.state.settings.enabled) {
             let sticker_active = self.layers.iter().any(|layer| {
                 Look::resolve(&layer.state, self.system)
                     .icon_path
@@ -647,7 +666,7 @@ impl Render for OverlayView {
             // DirectWrite has no font removal API in GPUI. Retire the whole platform
             // after the crossfade, retaining geometry and animation clocks only.
             if !self.recycle_requested
-                && (!should_present
+                && ((!should_present && !self.state.settings.enabled)
                     || self.runtime_theme != self.state.settings.theme
                     || self.runtime_font != required_font(&look))
             {
@@ -695,7 +714,11 @@ impl Render for OverlayView {
             })
             .collect::<Vec<_>>();
         if is_sticker {
-            let lift = self.slide.value(now);
+            let lift = if self.surface_ready {
+                self.slide.value(now)
+            } else {
+                0.
+            };
             let mut artwork = div()
                 .absolute()
                 .left(px(gutter))

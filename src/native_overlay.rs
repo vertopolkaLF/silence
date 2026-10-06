@@ -49,6 +49,7 @@ struct NativeOverlay {
     height: i32,
     last_surface: Option<(i32, i32, i32, i32)>,
     presented: bool,
+    awaiting_first_paint: bool,
     surface_width: i32,
     surface_height: i32,
     inset_x: i32,
@@ -137,8 +138,11 @@ pub(super) fn attach(
     // Keep the latest audio/settings/positioning state received during recreation.
     native.last_surface = None;
     native.presented = false;
+    native.awaiting_first_paint = true;
     native.acrylic = false;
     native.apply_click_through();
+    // Apply the measured warm-up position before ShowWindow can expose it.
+    native.apply_layout();
     Ok(())
 }
 
@@ -156,6 +160,7 @@ pub(super) fn prepare(
         height: 48,
         last_surface: None,
         presented: false,
+        awaiting_first_paint: true,
         surface_width: 72,
         surface_height: 72,
         inset_x: 12,
@@ -680,6 +685,21 @@ unsafe extern "system" fn overlay_wnd_proc(
     match msg {
         // Every pixel, including the shadow gutter, belongs to GPUI.
         WM_NCCALCSIZE => LRESULT(0),
+        WM_PAINT => {
+            // GPUI's next-frame callback can run before ShowWindow and the
+            // first GPU presentation. Start entrance motion only after a paint
+            // of the attached, visible HWND has returned to Windows.
+            let result = unsafe { forward_window_message(hwnd, msg, wparam, lparam) };
+            if unsafe { IsWindowVisible(hwnd).as_bool() } {
+                if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
+                    if overlay.awaiting_first_paint && overlay.presented {
+                        overlay.awaiting_first_paint = false;
+                        let _ = overlay.sender.send(Command::SurfaceReady);
+                    }
+                }
+            }
+            result
+        }
         WM_GPUI_SURFACE => {
             let bounds = OVERLAY
                 .lock()
