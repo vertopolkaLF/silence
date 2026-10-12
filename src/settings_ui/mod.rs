@@ -109,7 +109,11 @@ impl SettingsApp {
             _tasks: Vec::new(),
         };
         app._tasks.extend(live::start(window, cx));
-        app._tasks.push(check_for_update(cx));
+        if settings_should_start_update() {
+            sections::about::check(&mut app, true, cx);
+        } else {
+            app._tasks.push(check_for_update(cx));
+        }
         app.focus_handle.focus(window, cx);
         app
     }
@@ -247,13 +251,7 @@ fn check_for_update(cx: &mut Context<SettingsApp>) -> gpui::Task<()> {
             return;
         };
         let _ = this.update(cx, |app, cx| {
-            match result {
-                Ok(crate::updater::UpdateCheck::Available(update)) => {
-                    app.available_update = Some(update)
-                }
-                Ok(crate::updater::UpdateCheck::UpToDate) => app.available_update = None,
-                Err(error) => eprintln!("settings update check failed: {error:?}"),
-            }
+            sections::about::background_check_completed(app, result);
             cx.notify();
         });
     })

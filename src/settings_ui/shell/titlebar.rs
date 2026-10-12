@@ -123,7 +123,10 @@ fn update_pill(window: &mut Window, cx: &mut Context<SettingsApp>) -> impl IntoE
         }])
         .on_hover(move |hovered, _, cx| anim::set_hovered(&pointer, *hovered, cx))
         .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .on_click(|_, _, _| crate::run_update_now_action())
+        .on_click(cx.listener(|app, _, _, cx| {
+            app.nav.select(super::nav::SettingsTab::About);
+            crate::settings_ui::sections::about::check(app, true, cx);
+        }))
         .child(
             svg()
                 .path(icon("download-minimalistic-bold"))
