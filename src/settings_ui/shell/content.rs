@@ -28,6 +28,12 @@ pub(crate) fn render(
     if animating {
         window.request_animation_frame();
     }
+    // A hotkey editor requested from another tab opens once Hotkeys has slid in.
+    if app.nav.transition.is_none() && app.nav.displayed_tab == SettingsTab::Hotkeys {
+        if let Some(request) = app.pending_hotkey_modal_after_nav.take() {
+            app.hotkey_modal_request = Some(request);
+        }
+    }
     apply_smooth_scroll(app, window);
     track_active_section(app);
 
