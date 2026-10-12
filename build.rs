@@ -1,9 +1,21 @@
 //! Embeds the settings UI's image assets. Every file in the listed asset
-//! directories is reachable from GPUI as "<dir>/<file name>".
+//! directories (including subdirectories) is reachable from GPUI by its
+//! assets-relative path, e.g. "icons/overlay/fluent-mic.svg".
 use std::{env, fmt::Write as _, fs, path::Path};
 
 const EMBEDDED_DIRS: &[&str] = &["icons", "gamepad", "flags"];
 const EMBEDDED_FILES: &[&str] = &["app.png"];
+
+fn asset_files(directory: &Path, files: &mut Vec<std::path::PathBuf>) {
+    for entry in fs::read_dir(directory).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            asset_files(&path, files);
+        } else if path.is_file() {
+            files.push(path);
+        }
+    }
+}
 
 fn main() {
     let root = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -17,15 +29,16 @@ fn main() {
     for dir in EMBEDDED_DIRS {
         let path = assets.join(dir);
         println!("cargo:rerun-if-changed={}", path.display());
-        let mut entries: Vec<_> = fs::read_dir(&path)
-            .unwrap()
-            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-            .filter(|path| path.is_file())
-            .collect();
+        let mut entries = Vec::new();
+        asset_files(&path, &mut entries);
         entries.sort();
         for file in entries {
-            let name = file.file_name().unwrap().to_string_lossy().into_owned();
-            add(format!("{dir}/{name}"), &file);
+            let name = file
+                .strip_prefix(&assets)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            add(name, &file);
         }
     }
     for file in EMBEDDED_FILES {
