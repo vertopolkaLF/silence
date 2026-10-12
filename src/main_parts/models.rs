@@ -66,6 +66,11 @@ impl Shortcut {
         }
 
         if self.vk == 0 {
+            // Empty/legacy bindings are inert. Modifier-only bindings must be
+            // triggered by a modifier event, never by an unrelated mouse click.
+            if !(self.ctrl || self.alt || self.shift || self.win) || !is_modifier(vk) {
+                return false;
+            }
             if ignore_modifiers {
                 return (!self.ctrl || modifiers.ctrl)
                     && (!self.alt || modifiers.alt)
@@ -119,6 +124,106 @@ impl Shortcut {
             parts.push(vk_name(self.vk));
         }
         parts
+    }
+}
+
+#[cfg(test)]
+mod shortcut_matching_tests {
+    use super::*;
+
+    fn empty_shortcut() -> Shortcut {
+        Shortcut {
+            ctrl: false,
+            alt: false,
+            shift: false,
+            win: false,
+            vk: 0,
+            mouse_buttons: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn empty_binding_never_matches_input() {
+        let shortcut = empty_shortcut();
+        for ignore_modifiers in [false, true] {
+            for mask in 0..16 {
+                let modifiers = ModifierState {
+                    ctrl: mask & 1 != 0,
+                    alt: mask & 2 != 0,
+                    shift: mask & 4 != 0,
+                    win: mask & 8 != 0,
+                };
+                for vk in [
+                    VK_LBUTTON,
+                    VK_RBUTTON,
+                    VK_CONTROL,
+                    VK_SHIFT,
+                    b'M' as u32,
+                    0x7E,
+                ] {
+                    assert!(!shortcut.is_pressed(
+                        vk,
+                        ignore_modifiers,
+                        &modifiers,
+                        &HashSet::new()
+                    ));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn modifier_only_binding_does_not_fire_on_mouse_clicks() {
+        let shortcut = Shortcut {
+            ctrl: true,
+            ..empty_shortcut()
+        };
+        let modifiers = ModifierState {
+            ctrl: true,
+            ..Default::default()
+        };
+        for ignore_modifiers in [false, true] {
+            assert!(shortcut.is_pressed(VK_CONTROL, ignore_modifiers, &modifiers, &HashSet::new()));
+            for vk in [VK_LBUTTON, VK_RBUTTON, b'M' as u32] {
+                assert!(!shortcut.is_pressed(vk, ignore_modifiers, &modifiers, &HashSet::new()));
+            }
+        }
+    }
+
+    #[test]
+    fn mouse_combo_requires_its_buttons_and_modifiers() {
+        let shortcut = Shortcut {
+            ctrl: true,
+            mouse_buttons: vec![VK_LBUTTON, VK_RBUTTON],
+            ..empty_shortcut()
+        };
+        let modifiers = ModifierState {
+            ctrl: true,
+            ..Default::default()
+        };
+        let held = HashSet::from([VK_LBUTTON, VK_RBUTTON]);
+        assert!(shortcut.is_pressed(VK_RBUTTON, false, &modifiers, &held));
+        assert!(shortcut.is_pressed(VK_CONTROL, false, &modifiers, &held));
+        assert!(!shortcut.is_pressed(VK_LBUTTON, false, &modifiers, &HashSet::from([VK_LBUTTON])));
+        assert!(!shortcut.is_pressed(VK_RBUTTON, false, &ModifierState::default(), &held));
+        assert!(shortcut.is_pressed(VK_RBUTTON, true, &ModifierState::default(), &held));
+        assert!(!shortcut.is_pressed(b'M' as u32, true, &modifiers, &held));
+    }
+
+    #[test]
+    fn keyboard_binding_keeps_exact_and_ignored_modifier_behavior() {
+        let shortcut = Shortcut {
+            vk: 0x7E,
+            ..empty_shortcut()
+        }; // F15
+        let modifiers = ModifierState {
+            shift: true,
+            ..Default::default()
+        };
+        assert!(shortcut.is_pressed(0x7E, false, &ModifierState::default(), &HashSet::new()));
+        assert!(!shortcut.is_pressed(0x7E, false, &modifiers, &HashSet::new()));
+        assert!(shortcut.is_pressed(0x7E, true, &modifiers, &HashSet::new()));
+        assert!(!shortcut.is_pressed(VK_LBUTTON, true, &modifiers, &HashSet::new()));
     }
 }
 
