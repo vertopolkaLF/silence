@@ -4,6 +4,16 @@
 //!
 //! Callbacks receive the app, so sections can call `app.update_config(...)`:
 //! `toggle(id, checked, window, cx, |app, checked, _, cx| app.update_config(cx, |c| ...))`.
+mod range;
+mod segmented_toggle;
+mod select;
+mod text_input;
+
+pub(crate) use range::{RangeOptions, range};
+pub(crate) use segmented_toggle::{SegmentedToggleOption, segmented_toggle};
+pub(crate) use select::{SelectOption, SelectOptions, select};
+pub(crate) use text_input::{NumericInput, TextInput, TextInputEvent, TextInputOptions, text_input, text_input_container};
+
 use super::{
     SettingsApp,
     anim::{self, UI},
@@ -16,6 +26,15 @@ use gpui::{
     SharedString, Stateful, Styled, Transformation, Window, div, point, prelude::*, px, size, svg,
     Div,
 };
+
+/// CSS `outline: 2px solid var(--focus); outline-offset: -1px` without
+/// changing layout or hover borders. One pixel paints on either side.
+pub(crate) fn focus_outline(style: gpui::StyleRefinement, color: gpui::Hsla) -> gpui::StyleRefinement {
+    style.shadow(vec![
+        BoxShadow { color, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: true },
+        BoxShadow { color, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
+    ])
+}
 
 /// Hover state plus a 0..1 hover tween for an element keyed by `id`.
 pub(crate) fn hover_tween(
