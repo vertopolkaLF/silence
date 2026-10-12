@@ -36,6 +36,8 @@ const SETTINGS_FONTS: &[&[u8]] = settings_fonts![
     "PlusJakartaSans-500.ttf",
     "PlusJakartaSans-560.ttf",
     "PlusJakartaSans-600.ttf",
+    "PlusJakartaSans-700.ttf",
+    "PlusJakartaSans-800.ttf",
     "BricolageGrotesque-500.ttf",
     "BricolageGrotesque-600.ttf",
     "BricolageGrotesque-620.ttf",
@@ -46,6 +48,9 @@ const SETTINGS_FONTS: &[&[u8]] = settings_fonts![
     "BricolageGrotesqueDisplay-650.ttf",
     "BricolageGrotesqueDisplay-700.ttf",
     "BricolageGrotesqueDisplay-800.ttf",
+    "BricolageGrotesqueWelcome-650.ttf",
+    "BricolageGrotesqueWelcomeLogo-800.ttf",
+    "BricolageGrotesqueWelcomeCard-600.ttf",
 ];
 
 /// Registers the UI fonts plus the bundled overlay families, which the
