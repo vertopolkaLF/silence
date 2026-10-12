@@ -60,6 +60,32 @@ pub(crate) fn track_pointer(element: Stateful<Div>, pointer: gpui::Entity<anim::
         .on_mouse_up(gpui::MouseButton::Left, move |_, _, cx| anim::set_pressed(&up, false, cx))
 }
 
+/// Native replacement for a button's HTML `title`. Use with
+/// `.tooltip(move |_, cx| controls::tooltip(title.clone(), cx))`.
+pub(crate) fn tooltip(text: impl Into<SharedString>, cx: &mut gpui::App) -> gpui::AnyView {
+    let text = text.into();
+    cx.new(|_| Tooltip(text)).into()
+}
+
+struct Tooltip(SharedString);
+
+impl gpui::Render for Tooltip {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let palette = palette(cx);
+        div()
+            .max_w(px(280.))
+            .px(px(10.))
+            .py(px(6.))
+            .rounded(px(6.))
+            .bg(palette.select_menu_bg.hsla())
+            .text_color(palette.text.hsla())
+            .font_family(crate::settings_ui::theme::FONT_TEXT)
+            .text_size(px(12.))
+            .line_height(gpui::relative(1.35))
+            .child(self.0.clone())
+    }
+}
+
 /// `.toggle`: 46x26 pill switch; the knob slides 20px.
 pub(crate) fn toggle(
     id: impl Into<ElementId>,
