@@ -212,7 +212,8 @@ pub(crate) fn scroll_to_section(
     };
     let max = scroll.max_offset().y.as_f32();
     let current = -scroll.offset().y.as_f32();
-    let target = (top - SCROLL_MARGIN_TOP).clamp(0., max);
+    // `max_offset` can be negative before the first layout; clamp would panic.
+    let target = (top - SCROLL_MARGIN_TOP).clamp(0., max.max(0.));
     app.nav.smooth_scroll = Some((current, target, Instant::now()));
     window.request_animation_frame();
     cx.notify();
