@@ -21,11 +21,17 @@ OUT = SOURCE / "settings"
 
 # (source woff2, family name, file stem, fixed axes, weights)
 FACES = [
-    ("PlusJakartaSans-latin.woff2", "Plus Jakarta Sans", "PlusJakartaSans", {}, [400, 500, 560, 600]),
+    ("PlusJakartaSans-latin.woff2", "Plus Jakarta Sans", "PlusJakartaSans", {}, [400, 500, 560, 600, 700, 800]),
     ("BricolageGrotesque-latin.woff2", "Bricolage Grotesque", "BricolageGrotesque", {"opsz": 14},
      [500, 600, 620, 650, 700, 760, 800]),
     ("BricolageGrotesque-latin.woff2", "Bricolage Grotesque Display", "BricolageGrotesqueDisplay",
      {"opsz": 24}, [650, 700, 800]),
+    ("BricolageGrotesque-latin.woff2", "Bricolage Grotesque Welcome", "BricolageGrotesqueWelcome",
+     {"opsz": 56}, [650]),
+    ("BricolageGrotesque-latin.woff2", "Bricolage Grotesque Welcome Logo", "BricolageGrotesqueWelcomeLogo",
+     {"opsz": 38}, [800]),
+    ("BricolageGrotesque-latin.woff2", "Bricolage Grotesque Welcome Card", "BricolageGrotesqueWelcomeCard",
+     {"opsz": 19}, [600]),
 ]
 
 
