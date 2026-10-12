@@ -76,6 +76,35 @@ pub(crate) fn install_settings_window_guard(hwnd: isize) {
     }
 }
 
+/// Tells the tray and the settings window that `config.json` changed, so
+/// each reloads immediately instead of waiting for its fallback check.
+pub(crate) fn notify_config_changed() {
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    let settings = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }
+        .ok()
+        .filter(|hwnd| !hwnd.0.is_null());
+    for hwnd in [hidden_window(), settings].into_iter().flatten() {
+        unsafe {
+            let _ = PostMessageW(hwnd, WM_CONFIG_CHANGED, WPARAM(0), LPARAM(0));
+        }
+    }
+}
+
+/// Mute/endpoint callbacks for the settings window, posted to its procedure.
+pub(crate) fn register_settings_audio_notifications(hwnd: isize) {
+    ensure_audio_notification_registration_for(HWND(hwnd as *mut c_void));
+}
+
+pub(crate) fn rebind_settings_audio_notifications() {
+    AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
+        if let Some(registration) = registration.borrow_mut().as_mut() {
+            if let Err(err) = registration.rebind_default_capture_volume() {
+                eprintln!("failed to rebind settings mute notifications: {err:?}");
+            }
+        }
+    });
+}
+
 pub(crate) fn set_settings_mica_enabled(enabled: bool) {
     let enabled = enabled && settings_mica_available();
     SETTINGS_MICA_ENABLED.store(enabled, Ordering::Relaxed);
@@ -132,6 +161,36 @@ unsafe extern "system" fn settings_window_proc(
         if has_alt_space_hotkey() {
             return LRESULT(0);
         }
+    }
+
+    // Raw virtual-key codes while a shortcut is being recorded. They never
+    // reach GPUI, so Tab/Alt/F10 cannot move focus or open system menus.
+    if SETTINGS_HOTKEY_RECORDING.load(Ordering::Relaxed)
+        && matches!(msg, WM_KEYDOWN | WM_KEYUP | WM_SYSKEYDOWN | WM_SYSKEYUP)
+    {
+        settings_ui::live::push_key(settings_ui::live::RawKey {
+            vk: wparam.0 as u32,
+            extended: (lparam.0 >> 24) & 1 == 1,
+            down: matches!(msg, WM_KEYDOWN | WM_SYSKEYDOWN),
+        });
+        return LRESULT(0);
+    }
+
+    match msg {
+        WM_AUDIO_MUTE_STATE_CHANGED => {
+            settings_ui::live::push(settings_ui::live::LiveEvent::MuteChanged);
+            return LRESULT(0);
+        }
+        WM_AUDIO_ENDPOINT_CHANGED => {
+            settings_ui::live::push(settings_ui::live::LiveEvent::EndpointsChanged);
+            return LRESULT(0);
+        }
+        WM_CONFIG_CHANGED => {
+            settings_ui::live::push(settings_ui::live::LiveEvent::ConfigChanged);
+            return LRESULT(0);
+        }
+        WM_DISPLAYCHANGE => settings_ui::live::push(settings_ui::live::LiveEvent::DisplaysChanged),
+        _ => {}
     }
 
     let refresh_backdrop = matches!(
@@ -295,7 +354,7 @@ fn main() -> Result<()> {
         PENDING_NOTIFICATION_ACTION.lock().unwrap().replace(action);
     }
 
-    if std::env::args().any(|arg| arg == "--settings") {
+    if std::env::args().any(|arg| arg == "--settings" || arg == "--settings-gpui") {
         let settings_mutex = unsafe { CreateMutexW(None, true, w!("SilenceV2SettingsWindow"))? };
         if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
             focus_settings_window();
@@ -304,6 +363,17 @@ fn main() -> Result<()> {
 
         unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
+        }
+        // Temporary during the GPUI migration: compare against the Dioxus window.
+        if std::env::args().any(|arg| arg == "--settings-gpui") {
+            MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
+            install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
+            if gamepad_monitoring_needed(false) {
+                ensure_gamepad_monitors(false);
+            }
+            settings_ui::run()?;
+            let _settings_mutex = settings_mutex;
+            return Ok(());
         }
         let settings_window_size = LogicalSize::new(760.0, 590.0);
         let settings_window_position = centered_window_position(settings_window_size);
@@ -479,6 +549,10 @@ fn post_audio_window_message(hwnd: HWND, message: u32) {
 
 fn ensure_audio_notification_registration() {
     let hwnd = STATE.lock().unwrap().hwnd;
+    ensure_audio_notification_registration_for(hwnd);
+}
+
+fn ensure_audio_notification_registration_for(hwnd: HWND) {
     if hwnd.0.is_null() {
         return;
     }
