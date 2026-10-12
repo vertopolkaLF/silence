@@ -58,21 +58,38 @@ function Assert-NoRunningRepoBuilds {
     }
 }
 
-function Invoke-Dx {
+function Find-Makensis {
+    $command = Get-Command makensis -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+    foreach ($candidate in @(
+        "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+        "$env:ProgramFiles\NSIS\makensis.exe",
+        "$env:LOCALAPPDATA\tauri\NSIS\makensis.exe"
+    )) {
+        if ($candidate -and (Test-Path $candidate)) {
+            return $candidate
+        }
+    }
+    throw "makensis was not found. Install NSIS 3 (https://nsis.sourceforge.io) or add it to PATH."
+}
+
+function Invoke-Checked {
     param(
-        [string]$RepoRoot,
+        [string]$FilePath,
         [string[]]$Arguments
     )
 
-    & dx @Arguments
+    & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "dx $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+        throw "$FilePath $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
     }
 }
 
 function Copy-PortableApp {
     param(
-        [string]$SourceAppDir,
+        [string]$SourceExe,
         [string]$PortableDir,
         [string]$ZipPath
     )
@@ -81,7 +98,7 @@ function Copy-PortableApp {
         Remove-Item $PortableDir -Recurse -Force
     }
     New-Item -ItemType Directory -Path $PortableDir -Force | Out-Null
-    Copy-Item (Join-Path $SourceAppDir '*') $PortableDir -Recurse -Force
+    Copy-Item $SourceExe (Join-Path $PortableDir "silence.exe") -Force
 
     if (Test-Path $ZipPath) {
         Remove-Item $ZipPath -Force
@@ -89,29 +106,11 @@ function Copy-PortableApp {
     Compress-Archive -Path (Join-Path $PortableDir '*') -DestinationPath $ZipPath -Force
 }
 
-function Collect-NsisArtifact {
-    param(
-        [string]$StageDir,
-        [string]$FinalPath
-    )
-
-    $installer = Get-ChildItem $StageDir -Filter *.exe -File -Recurse | Select-Object -First 1
-    if (-not $installer) {
-        throw "NSIS installer was not produced in $StageDir"
-    }
-
-    if (Test-Path $FinalPath) {
-        Remove-Item $FinalPath -Force
-    }
-    Move-Item $installer.FullName $FinalPath
-}
-
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $cargoTomlPath = Join-Path $repoRoot "Cargo.toml"
 $package = Get-CargoPackageMetadata -CargoTomlPath $cargoTomlPath
 $versionRoot = Join-Path $repoRoot ("dist\" + $package.Version)
 $stagingRoot = Join-Path $versionRoot "_staging"
-$appRoot = Join-Path $repoRoot "target\dx\silence\release\windows\app"
 $safeName = ($package.Name.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
 
 $targets = @(
@@ -120,7 +119,8 @@ $targets = @(
     @{ Triple = "aarch64-pc-windows-msvc"; Arch = "arm64" }
 )
 
-Assert-CommandExists -Name "dx"
+Assert-CommandExists -Name "cargo"
+$makensis = Find-Makensis
 Assert-CommandExists -Name "rustup"
 Assert-NoRunningRepoBuilds -RepoRoot $repoRoot
 
@@ -155,40 +155,28 @@ try {
         $arch = $target.Arch
         $portableDir = Join-Path $stagingRoot "portable-$arch"
         $zipPath = Join-Path $versionRoot "$safeName-$($package.Version)-windows-$arch-portable.zip"
-        $bundleStageDir = Join-Path $stagingRoot "bundle-$arch"
         $finalInstallerPath = Join-Path $versionRoot "$safeName-$($package.Version)-windows-$arch-setup.exe"
+        $builtExe = Join-Path $repoRoot "target\$triple\release\silence.exe"
 
         try {
-            Write-Step "Building portable app for $arch ($triple)"
-            Invoke-Dx -RepoRoot $repoRoot -Arguments @(
-                "build",
-                "--platform", "windows",
-                "--release",
-                "--target", $triple
-            )
-
-            if (-not (Test-Path $appRoot)) {
-                throw "Expected built app folder was not found: $appRoot"
+            Write-Step "Building $arch ($triple)"
+            Invoke-Checked -FilePath "cargo" -Arguments @("build", "--release", "--locked", "--target", $triple)
+            if (-not (Test-Path $builtExe)) {
+                throw "Expected built executable was not found: $builtExe"
             }
 
-            Copy-PortableApp -SourceAppDir $appRoot -PortableDir $portableDir -ZipPath $zipPath
+            Copy-PortableApp -SourceExe $builtExe -PortableDir $portableDir -ZipPath $zipPath
 
-            Write-Step "Bundling NSIS installer for $arch ($triple)"
-            if (Test-Path $bundleStageDir) {
-                Remove-Item $bundleStageDir -Recurse -Force
-            }
-            New-Item -ItemType Directory -Path $bundleStageDir -Force | Out-Null
-
-            Invoke-Dx -RepoRoot $repoRoot -Arguments @(
-                "bundle",
-                "--platform", "windows",
-                "--release",
-                "--target", $triple,
-                "--package-types", "nsis",
-                "--out-dir", $bundleStageDir
+            Write-Step "Building NSIS installer for $arch"
+            Invoke-Checked -FilePath $makensis -Arguments @(
+                "/V2",
+                "/DVERSION=$($package.Version)",
+                "/DARCH=$arch",
+                "/DSOURCE_EXE=$builtExe",
+                "/DOUT_FILE=$finalInstallerPath",
+                "/DICON=$(Join-Path $repoRoot 'assets\app.ico')",
+                (Join-Path $repoRoot "installer\silence.nsi")
             )
-
-            Collect-NsisArtifact -StageDir $bundleStageDir -FinalPath $finalInstallerPath
         }
         catch {
             $failures.Add("${arch}: $($_.Exception.Message)")
