@@ -445,7 +445,8 @@ fn tile(
                     .shadow(preview_shadows)
                     .child(preview),
             )
-            .child(label),
+            // Labels wider than the 56px tile overflow centered, as in CSS.
+            .child(div().whitespace_nowrap().child(label)),
         pointer,
     )
     .tooltip(move |_, cx| cx.new(|_| Hint(hint.into())).into())
