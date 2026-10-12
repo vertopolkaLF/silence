@@ -23,6 +23,8 @@ pub(crate) struct NumericInput {
 
 #[derive(Clone, Default)]
 pub(crate) struct TextInputOptions {
+    /// Display the value without accepting focus, selection, keyboard or IME input.
+    pub disabled: bool,
     pub placeholder: SharedString,
     /// Maximum Unicode scalar count; selection replacement retains available space.
     pub max_length: Option<usize>,
@@ -159,6 +161,11 @@ pub(crate) fn text_input(
         }
     });
     input.update(cx, |input, _| {
+        if options.disabled && !input.options.disabled {
+            input.is_selecting = false;
+            input.marked_range = None;
+            input.blink_generation += 1;
+        }
         input.options = options;
         input.placeholder = input.options.placeholder.clone();
         input.callback = callback;
@@ -173,6 +180,11 @@ pub(crate) fn text_input(
             }
         }
     });
+    if input.read(cx).options.disabled && input.read(cx).focus_handle.is_focused(window) {
+        // Also handles disabling through a live config update, rather than only
+        // a click in the section. Blur outside the input's entity borrow.
+        window.blur(cx);
+    }
     input
 }
 
@@ -233,8 +245,18 @@ impl TextInput {
 
     /// Focus and select all from a caller's event callback.
     pub fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.focus_handle.focus(window, cx);
-        self.select_all(&SelectAll, window, cx);
+        if !self.options.disabled {
+            self.focus_handle.focus(window, cx);
+            self.select_all(&SelectAll, window, cx);
+        }
+    }
+
+    /// Focus an inline editor with an unselected caret at the end of its value.
+    pub fn focus_at_end(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.options.disabled {
+            self.focus_handle.focus(window, cx);
+            self.move_to(self.content.len(), cx);
+        }
     }
 
     pub fn select_all_text(&mut self, cx: &mut Context<Self>) {
@@ -267,6 +289,9 @@ impl TextInput {
     }
 
     fn commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.options.disabled {
+            return;
+        }
         if let Some(numeric) = self.options.numeric {
             let value = if self.content.is_empty() {
                 numeric.min
@@ -513,10 +538,13 @@ impl EntityInputHandler for TextInput {
 
     fn selected_text_range(
         &mut self,
-        _ignore_disabled_input: bool,
+        ignore_disabled_input: bool,
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
+        if self.options.disabled && !ignore_disabled_input {
+            return None;
+        }
         Some(UTF16Selection {
             range: self.range_to_utf16(&self.selected_range),
             reversed: self.selection_reversed,
@@ -545,6 +573,9 @@ impl EntityInputHandler for TextInput {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.options.disabled {
+            return;
+        }
         let range = range_utf16
             .as_ref()
             .map(|range_utf16| self.range_from_utf16(range_utf16))
@@ -571,6 +602,9 @@ impl EntityInputHandler for TextInput {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.options.disabled {
+            return;
+        }
         let range = range_utf16
             .as_ref()
             .map(|range_utf16| self.range_from_utf16(range_utf16))
@@ -814,12 +848,15 @@ impl Element for TextElement {
         cx: &mut App,
     ) {
         let focus_handle = self.input.read(cx).focus_handle.clone();
-        window.handle_input(
-            &focus_handle,
-            ElementInputHandler::new(bounds, self.input.clone()),
-            cx,
-        );
-        let focused = focus_handle.is_focused(window);
+        let disabled = self.input.read(cx).options.disabled;
+        if !disabled {
+            window.handle_input(
+                &focus_handle,
+                ElementInputHandler::new(bounds, self.input.clone()),
+                cx,
+            );
+        }
+        let focused = !disabled && focus_handle.is_focused(window);
         let selection = prepaint.selection.take();
         window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
             if focused && let Some(selection) = selection {
@@ -839,9 +876,7 @@ impl Element for TextElement {
             )
             .unwrap();
 
-            if focus_handle.is_focused(window)
-                && let Some(cursor) = prepaint.cursor.take()
-            {
+            if focused && let Some(cursor) = prepaint.cursor.take() {
                 window.paint_quad(cursor);
             }
         });
@@ -871,43 +906,46 @@ impl Render for TextInput {
             .min_w_0()
             .overflow_hidden()
             .flex()
-            .key_context("SettingsTextInput")
-            .track_focus(&self.focus_handle)
-            .cursor(CursorStyle::IBeam)
-            .on_action(cx.listener(Self::backspace))
-            .on_action(cx.listener(Self::delete))
-            .on_action(cx.listener(Self::left))
-            .on_action(cx.listener(Self::right))
-            .on_action(cx.listener(Self::select_left))
-            .on_action(cx.listener(Self::select_right))
-            .on_action(cx.listener(Self::select_all))
-            .on_action(cx.listener(Self::home))
-            .on_action(cx.listener(Self::end))
-            .on_action(cx.listener(Self::paste))
-            .on_action(cx.listener(Self::cut))
-            .on_action(cx.listener(Self::copy))
-            .on_key_down(
-                cx.listener(|input, event: &gpui::KeyDownEvent, window, cx| {
-                    let event = match event.keystroke.key.as_str() {
-                        "enter" => {
-                            input.commit(window, cx);
-                            Some(TextInputEvent::Enter(input.content.clone()))
-                        }
-                        "escape" => Some(TextInputEvent::Escape),
-                        "up" => Some(TextInputEvent::Up),
-                        "down" => Some(TextInputEvent::Down),
-                        _ => None,
-                    };
-                    if let Some(event) = event {
-                        (input.callback)(event, window, cx);
-                        window.prevent_default();
-                        cx.stop_propagation();
-                    }
-                }),
-            )
-            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .when(self.options.disabled, |this| this.cursor_not_allowed())
+            .when(!self.options.disabled, |this| {
+                this.key_context("SettingsTextInput")
+                    .track_focus(&self.focus_handle)
+                    .cursor(CursorStyle::IBeam)
+                    .on_action(cx.listener(Self::backspace))
+                    .on_action(cx.listener(Self::delete))
+                    .on_action(cx.listener(Self::left))
+                    .on_action(cx.listener(Self::right))
+                    .on_action(cx.listener(Self::select_left))
+                    .on_action(cx.listener(Self::select_right))
+                    .on_action(cx.listener(Self::select_all))
+                    .on_action(cx.listener(Self::home))
+                    .on_action(cx.listener(Self::end))
+                    .on_action(cx.listener(Self::paste))
+                    .on_action(cx.listener(Self::cut))
+                    .on_action(cx.listener(Self::copy))
+                    .on_key_down(
+                        cx.listener(|input, event: &gpui::KeyDownEvent, window, cx| {
+                            let event = match event.keystroke.key.as_str() {
+                                "enter" => {
+                                    input.commit(window, cx);
+                                    Some(TextInputEvent::Enter(input.content.clone()))
+                                }
+                                "escape" => Some(TextInputEvent::Escape),
+                                "up" => Some(TextInputEvent::Up),
+                                "down" => Some(TextInputEvent::Down),
+                                _ => None,
+                            };
+                            if let Some(event) = event {
+                                (input.callback)(event, window, cx);
+                                window.prevent_default();
+                                cx.stop_propagation();
+                            }
+                        }),
+                    )
+                    .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+                    .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+                    .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            })
             .child(TextElement { input: cx.entity() })
     }
 }

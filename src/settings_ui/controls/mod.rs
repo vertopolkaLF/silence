@@ -120,16 +120,18 @@ pub(crate) fn checkbox(
     let palette = palette(cx);
     let (pointer, hover, press) = hover_tween(id.clone(), window, cx);
     let on = anim::tween(window, cx, (id.clone(), "checked"), checked as u8 as f32, UI);
-    let fg = if disabled {
-        palette.faint
-    } else {
-        lerp(palette.muted, palette.text, hover.max(press).max(on))
-    };
-    let box_bg = if disabled {
-        crate::settings_ui::color::mix_pct(palette.surface_3, 88., TRANSPARENT)
-    } else {
-        lerp(palette.surface_3, palette.accent, on)
-    };
+    // Disabled colors and the inset highlight follow the same 200ms CSS transition.
+    let off = anim::tween(window, cx, (id.clone(), "disabled"), disabled as u8 as f32, UI);
+    let fg = lerp(
+        lerp(palette.muted, palette.text, hover.max(press).max(on)),
+        palette.faint,
+        off,
+    );
+    let box_bg = lerp(
+        lerp(palette.surface_3, palette.accent, on),
+        crate::settings_ui::color::mix_pct(palette.surface_3, 88., TRANSPARENT),
+        off,
+    );
     let mark_scale = 0.2 + 0.8 * on;
     let element = div()
         .id(id)
@@ -151,9 +153,9 @@ pub(crate) fn checkbox(
                 .justify_center()
                 .rounded(px(6.))
                 .bg(box_bg.hsla())
-                .when(!disabled, |this| {
+                .when(off < 1., |this| {
                     this.shadow(vec![BoxShadow {
-                        color: palette.highlight_line.hsla(),
+                        color: palette.highlight_line.opacity(1. - off).hsla(),
                         offset: point(px(0.), px(1.)),
                         blur_radius: px(0.),
                         spread_radius: px(0.),
