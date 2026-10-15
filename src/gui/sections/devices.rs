@@ -9,6 +9,13 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
     let ungroup_tray_devices = snapshot.config.advanced.ungroup_tray_devices;
     let audio_device_name_display = snapshot.config.advanced.audio_device_name_display.clone();
     let rename_allowed = audio_device_name_display != crate::AUDIO_DEVICE_NAME_SYSTEM;
+    let indicator_device = snapshot.config.advanced.indicator_device.clone();
+    let indicator_options = indicator_device_options(
+        &input_devices,
+        &snapshot.config.hotkeys,
+        &indicator_device,
+        &audio_device_name_display,
+    );
 
     rsx! {
         section {
@@ -41,6 +48,22 @@ pub fn render(settings: Signal<super::super::SettingsSnapshot>) -> Element {
             }
 
             section { class: "sound-card device-card device-settings-card",
+                div { class: "device-field",
+                    div { class: "device-card-copy",
+                        h2 { "Tray icon and overlay show" }
+                    }
+                    Select {
+                        value: indicator_device,
+                        options: indicator_options,
+                        onchange: move |value: String| {
+                            super::super::update_settings(settings, |config| {
+                                config.advanced.indicator_device = value;
+                            });
+                        },
+                        class: "device-select"
+                    }
+                }
+
                 div { class: "device-field",
                     div { class: "device-card-copy",
                         h2 { "Displayed audio device name" }
@@ -353,6 +376,52 @@ fn audio_device_name_options() -> Vec<SelectOption> {
         SelectOption::new(crate::AUDIO_DEVICE_NAME_SYSTEM, "System Name").icon("icon-widget"),
         SelectOption::new(crate::AUDIO_DEVICE_NAME_BOTH, "Both").icon("icon-volume"),
     ]
+}
+
+fn indicator_device_options(
+    devices: &[crate::MicDevice],
+    hotkeys: &[crate::HotkeyBinding],
+    selected: &str,
+    name_display: &str,
+) -> Vec<SelectOption> {
+    let device_name = |id: Option<&str>| {
+        devices
+            .iter()
+            .find(|device| match id {
+                Some(id) => device.id == id,
+                None => device.is_default,
+            })
+            .map(|device| device.display_name(name_display))
+    };
+    let auto_id = crate::indicator_device_id(crate::INDICATOR_DEVICE_AUTO, hotkeys);
+    let auto_detail = match device_name(auto_id.as_deref()) {
+        Some(name) if auto_id.is_some() => format!("Follows your mute hotkeys: {name}"),
+        _ => "Follows your mute hotkeys: Windows default".to_string(),
+    };
+    let default_detail = device_name(None).unwrap_or_else(|| "No active microphone".to_string());
+
+    let mut options = vec![
+        SelectOption::new(crate::INDICATOR_DEVICE_AUTO, "Auto")
+            .detail(auto_detail)
+            .icon("icon-mic"),
+        SelectOption::new(crate::INDICATOR_DEVICE_DEFAULT, "Windows default")
+            .detail(default_detail)
+            .icon("icon-mic"),
+    ];
+    let selected_is_device = selected != crate::INDICATOR_DEVICE_AUTO
+        && selected != crate::INDICATOR_DEVICE_DEFAULT
+        && !selected.is_empty();
+    if selected_is_device && !devices.iter().any(|device| device.id == selected) {
+        options.push(
+            SelectOption::new(selected, "Disconnected microphone")
+                .detail("Showing Windows default until it reconnects")
+                .icon("icon-mic"),
+        );
+    }
+    options.extend(devices.iter().map(|device| {
+        SelectOption::new(device.id.clone(), device.display_name(name_display)).icon("icon-mic")
+    }));
+    options
 }
 
 fn device_row(id: String, name: String, pretty_name: String, is_default: bool) -> DeviceRow {

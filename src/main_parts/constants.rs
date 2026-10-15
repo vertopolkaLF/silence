@@ -53,6 +53,8 @@ pub(crate) const OVERLAY_DISPLAY_PRIMARY: &str = "Primary";
 pub(crate) const AUDIO_DEVICE_NAME_PRETTY: &str = "PrettyName";
 pub(crate) const AUDIO_DEVICE_NAME_SYSTEM: &str = "SystemName";
 pub(crate) const AUDIO_DEVICE_NAME_BOTH: &str = "Both";
+pub(crate) const INDICATOR_DEVICE_AUTO: &str = "Auto";
+pub(crate) const INDICATOR_DEVICE_DEFAULT: &str = "Default";
 
 const VK_SHIFT: u32 = 0x10;
 const VK_CONTROL: u32 = 0x11;

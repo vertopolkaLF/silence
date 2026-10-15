@@ -486,8 +486,8 @@ fn ensure_audio_notification_registration() {
     AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
         let mut registration = registration.borrow_mut();
         if let Some(registration) = registration.as_mut() {
-            if let Err(err) = registration.rebind_default_capture_volume() {
-                eprintln!("failed to rebind default capture mute notifications: {err:?}");
+            if let Err(err) = registration.rebind_indicator_capture_volume() {
+                eprintln!("failed to rebind indicator capture mute notifications: {err:?}");
             }
             return;
         }

@@ -253,6 +253,40 @@ pub fn mic_mute_state(device_id: Option<&str>) -> Result<bool> {
     Ok(muted.as_bool())
 }
 
+/// Mute state of the microphone the tray icon and overlay report.
+fn indicator_mute_state() -> Result<bool> {
+    mic_mute_state(current_indicator_device_id().as_deref())
+}
+
+fn current_indicator_device_id() -> Option<String> {
+    let state = STATE.lock().unwrap();
+    indicator_device_id(&state.advanced.indicator_device, &state.hotkeys)
+}
+
+/// Resolves the indicator source setting to a capture device id; `None` means the Windows default.
+/// Auto follows mute hotkeys only while they all target the same specific microphone.
+pub(crate) fn indicator_device_id(setting: &str, hotkeys: &[HotkeyBinding]) -> Option<String> {
+    match setting {
+        INDICATOR_DEVICE_DEFAULT => None,
+        INDICATOR_DEVICE_AUTO | "" => {
+            let mut targets = hotkeys
+                .iter()
+                .filter(|hotkey| hotkey.action.is_mute() && hotkey.is_bound())
+                .map(|hotkey| {
+                    hotkey
+                        .target
+                        .as_deref()
+                        .filter(|id| !id.is_empty() && *id != HOTKEY_TARGET_ALL_MICROPHONES)
+                });
+            let first = targets.next()??;
+            targets
+                .all(|target| target == Some(first))
+                .then(|| first.to_string())
+        }
+        device_id => Some(device_id.to_string()),
+    }
+}
+
 fn target_mute_state(device_id: Option<&str>) -> Result<bool> {
     if is_all_microphones_target(device_id) {
         return current_mute_state();
@@ -1190,5 +1224,64 @@ fn normalize_audio_device_name_display(mode: &str) -> &'static str {
         AUDIO_DEVICE_NAME_SYSTEM => AUDIO_DEVICE_NAME_SYSTEM,
         AUDIO_DEVICE_NAME_BOTH => AUDIO_DEVICE_NAME_BOTH,
         _ => AUDIO_DEVICE_NAME_PRETTY,
+    }
+}
+
+#[cfg(test)]
+mod indicator_device_tests {
+    use super::*;
+
+    fn mute_hotkey(target: Option<&str>) -> HotkeyBinding {
+        HotkeyBinding {
+            target: target.map(str::to_string),
+            ..HotkeyBinding::default()
+        }
+    }
+
+    #[test]
+    fn auto_follows_a_single_specific_mute_target() {
+        let hotkeys = [mute_hotkey(Some("mic-a")), mute_hotkey(Some("mic-a"))];
+        assert_eq!(
+            indicator_device_id(INDICATOR_DEVICE_AUTO, &hotkeys).as_deref(),
+            Some("mic-a")
+        );
+    }
+
+    #[test]
+    fn auto_falls_back_to_default_for_mixed_or_default_targets() {
+        for hotkeys in [
+            vec![mute_hotkey(Some("mic-a")), mute_hotkey(Some("mic-b"))],
+            vec![mute_hotkey(Some("mic-a")), mute_hotkey(None)],
+            vec![mute_hotkey(Some(HOTKEY_TARGET_ALL_MICROPHONES))],
+            vec![],
+        ] {
+            assert_eq!(indicator_device_id(INDICATOR_DEVICE_AUTO, &hotkeys), None);
+        }
+    }
+
+    #[test]
+    fn auto_ignores_unbound_and_non_mute_hotkeys() {
+        let mut unbound = mute_hotkey(None);
+        unbound.shortcut = Shortcut::default();
+        unbound.shortcut.vk = 0;
+        unbound.shortcut.ctrl = false;
+        unbound.shortcut.alt = false;
+        let mut volume = mute_hotkey(Some("speaker"));
+        volume.action = HotkeyAction::SetDefaultOutputDevice;
+        let hotkeys = [unbound, volume, mute_hotkey(Some("mic-a"))];
+        assert_eq!(
+            indicator_device_id(INDICATOR_DEVICE_AUTO, &hotkeys).as_deref(),
+            Some("mic-a")
+        );
+    }
+
+    #[test]
+    fn explicit_choices_override_hotkeys() {
+        let hotkeys = [mute_hotkey(Some("mic-a"))];
+        assert_eq!(indicator_device_id(INDICATOR_DEVICE_DEFAULT, &hotkeys), None);
+        assert_eq!(
+            indicator_device_id("mic-b", &hotkeys).as_deref(),
+            Some("mic-b")
+        );
     }
 }

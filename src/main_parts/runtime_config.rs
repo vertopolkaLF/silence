@@ -38,15 +38,18 @@ fn refresh_mic_in_use_state() {
 }
 
 fn refresh_mute_state() {
-    let muted = match enforce_default_capture_mute_volume() {
-        Ok(muted) => muted,
+    let states = enforce_default_capture_mute_volume()
+        .and_then(|default_muted| Ok((default_muted, indicator_mute_state()?)));
+    let (default_muted, muted) = match states {
+        Ok(states) => states,
         Err(err) => {
             eprintln!("failed to refresh microphone mute state: {err:?}");
             ensure_audio_notification_registration();
             return;
         }
     };
-    if !muted && STATE.lock().unwrap().auto_muted_by_inactivity {
+    // Inactivity auto-mute acts on the Windows default, whichever device the indicators show.
+    if !default_muted && STATE.lock().unwrap().auto_muted_by_inactivity {
         clear_inactivity_auto_mute_flag();
     }
     let changed = STATE.lock().unwrap().muted != muted;
@@ -113,7 +116,7 @@ fn apply_auto_mute(play_sound: bool, from_inactivity: bool) -> Result<()> {
             state.auto_mute_cursor_position = POINT::default();
         }
     }
-    set_global_mute_state(target_muted, true);
+    set_global_mute_state(indicator_mute_state().unwrap_or(target_muted), true);
 
     if play_sound {
         play_auto_mute_sound();
@@ -132,7 +135,7 @@ fn try_auto_unmute_from_mouse_movement() -> bool {
     match set_mute(None, false) {
         Ok(target_muted) if !target_muted => {
             clear_inactivity_auto_mute_flag();
-            set_global_mute_state(false, true);
+            set_global_mute_state(indicator_mute_state().unwrap_or(false), true);
             true
         }
         Ok(_) => false,
@@ -831,6 +834,9 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     let mut state = STATE.lock().unwrap();
     let volume_zero_mute_changed =
         state.advanced.set_mic_volume_to_zero_on_mute != config.advanced.set_mic_volume_to_zero_on_mute;
+    let indicator_device_changed =
+        indicator_device_id(&state.advanced.indicator_device, &state.hotkeys)
+            != indicator_device_id(&config.advanced.indicator_device, &config.hotkeys);
     state.shortcut = config.shortcut.clone();
     state.hotkeys = config.hotkeys.clone();
     state.hotkeys_paused = config.hotkeys_paused;
@@ -852,7 +858,12 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
         state.auto_muted_by_inactivity = false;
         state.auto_mute_cursor_position = POINT::default();
     }
+    let hwnd = state.hwnd;
     drop(state);
+    if indicator_device_changed {
+        // Rebind mute notifications and republish the state on the tray thread.
+        post_audio_window_message(hwnd, WM_AUDIO_ENDPOINT_CHANGED);
+    }
     if gamepad_monitoring_needed(true) {
         ensure_gamepad_monitors(true);
     }

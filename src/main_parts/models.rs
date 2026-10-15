@@ -23,6 +23,12 @@ impl Default for Shortcut {
 }
 
 impl Shortcut {
+    fn is_empty(&self) -> bool {
+        self.vk == 0
+            && self.mouse_buttons.is_empty()
+            && !(self.ctrl || self.alt || self.shift || self.win)
+    }
+
     fn normalized(mut self) -> Self {
         self.mouse_buttons
             .retain(|button| is_supported_mouse_button(*button));
@@ -558,6 +564,18 @@ impl HotkeyAction {
         )
     }
 
+    pub fn is_mute(self) -> bool {
+        matches!(
+            self,
+            Self::ToggleMute
+                | Self::Mute
+                | Self::Unmute
+                | Self::HoldToToggle
+                | Self::HoldToMute
+                | Self::HoldToUnmute
+        )
+    }
+
     pub fn is_hold(self) -> bool {
         matches!(
             self,
@@ -591,6 +609,12 @@ pub struct HotkeyBinding {
 impl Default for HotkeyAction {
     fn default() -> Self {
         Self::ToggleMute
+    }
+}
+
+impl HotkeyBinding {
+    fn is_bound(&self) -> bool {
+        self.gamepad.is_some() || !self.shortcut.is_empty()
     }
 }
 
@@ -694,6 +718,8 @@ pub struct AdvancedSettings {
     pub audio_device_name_display: String,
     #[serde(default = "default_enable_mica")]
     pub enable_mica: bool,
+    #[serde(default = "default_indicator_device")]
+    pub indicator_device: String,
 }
 
 impl Default for AdvancedSettings {
@@ -705,12 +731,17 @@ impl Default for AdvancedSettings {
             ungroup_tray_devices: false,
             audio_device_name_display: default_audio_device_name_display(),
             enable_mica: default_enable_mica(),
+            indicator_device: default_indicator_device(),
         }
     }
 }
 
 fn default_audio_device_name_display() -> String {
     AUDIO_DEVICE_NAME_PRETTY.to_string()
+}
+
+fn default_indicator_device() -> String {
+    INDICATOR_DEVICE_AUTO.to_string()
 }
 
 fn default_enable_mica() -> bool {
@@ -812,7 +843,7 @@ impl AudioNotificationRegistration {
             device_id: None,
         };
 
-        if let Err(err) = registration.rebind_default_capture_volume() {
+        if let Err(err) = registration.rebind_indicator_capture_volume() {
             registration.unregister_endpoint_callback();
             return Err(err);
         }
@@ -820,8 +851,9 @@ impl AudioNotificationRegistration {
         Ok(registration)
     }
 
-    fn rebind_default_capture_volume(&mut self) -> Result<()> {
-        let device = unsafe { capture_device(&self.enumerator, None)? };
+    fn rebind_indicator_capture_volume(&mut self) -> Result<()> {
+        let indicator_id = current_indicator_device_id();
+        let device = unsafe { capture_device(&self.enumerator, indicator_id.as_deref())? };
         let device_id = unsafe { endpoint_device_id(&device)? };
         if self.device_id.as_deref() == Some(device_id.as_str()) {
             return Ok(());

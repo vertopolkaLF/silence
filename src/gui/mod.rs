@@ -118,7 +118,11 @@ impl SettingsSnapshot {
         if self.system_fonts.is_empty() {
             self.system_fonts = crate::system_fonts();
         }
-        self.muted = crate::mic_mute_state(None).unwrap_or(self.muted);
+        let indicator_id = crate::indicator_device_id(
+            &self.config.advanced.indicator_device,
+            &self.config.hotkeys,
+        );
+        self.muted = crate::mic_mute_state(indicator_id.as_deref()).unwrap_or(self.muted);
         Self {
             config: self.config,
             devices: self.devices,

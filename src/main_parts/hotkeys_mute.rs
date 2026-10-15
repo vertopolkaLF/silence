@@ -479,7 +479,7 @@ fn toggle_mute_target(device_id: Option<&str>) {
     match set_mute_to_inverse(device_id) {
         Ok(target_muted) => {
             play_mute_sound(target_muted);
-            let global_muted = current_mute_state().unwrap_or(target_muted);
+            let global_muted = indicator_mute_state().unwrap_or(target_muted);
             set_global_mute_state(global_muted, true);
         }
         Err(err) => eprintln!("failed to toggle microphone mute: {err:?}"),
@@ -490,7 +490,7 @@ fn set_mute_target(device_id: Option<&str>, muted: bool) {
     match set_mute(device_id, muted) {
         Ok(target_muted) => {
             play_mute_sound(target_muted);
-            let global_muted = current_mute_state().unwrap_or(target_muted);
+            let global_muted = indicator_mute_state().unwrap_or(target_muted);
             set_global_mute_state(global_muted, true);
         }
         Err(err) => eprintln!("failed to set microphone mute: {err:?}"),
@@ -536,7 +536,7 @@ fn start_hold_hotkey(id: &str, target: Option<String>, muted: bool) {
                 play_hold_to_mute_sound(target_muted);
             }
             let show_overlay = STATE.lock().unwrap().hold_to_mute.show_overlay;
-            let global_muted = current_mute_state().unwrap_or(target_muted);
+            let global_muted = indicator_mute_state().unwrap_or(target_muted);
             set_global_mute_state(global_muted, changed && show_overlay);
         }
         Err(err) => eprintln!("failed to apply hold hotkey mute state: {err:?}"),
@@ -573,7 +573,7 @@ fn release_hold_hotkey(id: &str) {
                 play_hold_to_mute_sound(target_muted);
             }
             let show_overlay = STATE.lock().unwrap().hold_to_mute.show_overlay;
-            let global_muted = current_mute_state().unwrap_or(target_muted);
+            let global_muted = indicator_mute_state().unwrap_or(target_muted);
             set_global_mute_state(global_muted, changed && show_overlay);
         }
         Err(err) => eprintln!("failed to restore hold hotkey mute state: {err:?}"),

@@ -195,7 +195,7 @@ fn run_background_app() -> Result<()> {
     let instance = unsafe { GetModuleHandleW(None)? };
     register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
-    let muted = current_mute_state().unwrap_or(false);
+    let muted = indicator_mute_state().unwrap_or(false);
     let mic_in_use = current_mic_in_use().unwrap_or(false);
     let overlay_config = STATE.lock().unwrap().overlay.clone();
     {
