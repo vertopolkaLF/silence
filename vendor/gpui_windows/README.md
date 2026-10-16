@@ -19,8 +19,13 @@ Silence enables the `small-overlay` feature for its small, fixed-size overlay:
   for the tiny overlay, not arbitrary large GPUI applications.
 - Clear bound D3D11 state and flush once at renderer teardown.
 
+Independently of that feature, `WM_ENDSESSION` no longer quits GPUI and calls
+`std::process::exit` from the overlay thread. That ran DLL detach for every
+module while the main thread and D3D device were still live and crashed on
+Windows shutdown (issue #68); the OS now ends the process as before the overlay.
+
 Modified upstream files: `src/directx_renderer.rs`, `src/direct_write.rs`,
-`src/directx_atlas.rs`, and `src/directx_devices.rs`. Other source/build files
+`src/directx_atlas.rs`, `src/directx_devices.rs`, and `src/events.rs`. Other source/build files
 are unchanged from the revision above. The default profile keeps the upstream
 atlas size, eager resources and driver-thread policy.
 

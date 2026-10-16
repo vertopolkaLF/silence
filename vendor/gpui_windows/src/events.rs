@@ -173,17 +173,12 @@ impl WindowsWindowInner {
         }
     }
 
-    fn handle_end_session_msg(&self, wparam: WPARAM) -> Option<isize> {
-        if wparam.0 != 0 {
-            unsafe {
-                SendMessageW(
-                    self.platform_window_handle,
-                    WM_GPUI_END_SESSION,
-                    Some(WPARAM(self.validation_number)),
-                    None,
-                );
-            }
-        }
+    // Silence: the overlay is a guest on a background thread. Upstream quits the
+    // app here and calls `std::process::exit`, which runs DLL detach for every
+    // module (including injected capture/overlay hooks) while the main thread and
+    // the D3D device are still live, crashing on Windows shutdown. Let the OS end
+    // the process instead.
+    fn handle_end_session_msg(&self, _wparam: WPARAM) -> Option<isize> {
         Some(0)
     }
 
