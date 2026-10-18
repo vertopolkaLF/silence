@@ -84,6 +84,8 @@ pub struct WindowsWindowState {
     /// Flag to instruct the `VSyncProvider` thread to invalidate the directx devices
     /// as resizing them has failed, causing us to have lost at least the render target.
     pub invalidate_devices: Arc<AtomicBool>,
+    /// Wakes the `VSyncProvider` thread when this window needs a frame.
+    pub(crate) frame_demand: Arc<FrameDemand>,
     /// Shared with [`WindowsPlatformState::draw_coordinator`] and every other window.
     pub(crate) draw_coordinator: Rc<DrawCoordinator>,
     fullscreen: Cell<Option<StyleAndBounds>>,
@@ -122,6 +124,7 @@ impl WindowsWindowState {
         appearance: WindowAppearance,
         disable_direct_composition: bool,
         invalidate_devices: Arc<AtomicBool>,
+        frame_demand: Arc<FrameDemand>,
         draw_coordinator: Rc<DrawCoordinator>,
     ) -> Result<Self> {
         let scale_factor = {
@@ -188,6 +191,7 @@ impl WindowsWindowState {
             initial_placement: Cell::new(initial_placement),
             hwnd,
             invalidate_devices,
+            frame_demand,
             draw_coordinator,
             direct_manipulation,
             a11y: RefCell::new(None),
@@ -279,6 +283,7 @@ impl WindowsWindowInner {
             context.appearance,
             context.disable_direct_composition,
             context.invalidate_devices.clone(),
+            context.frame_demand.clone(),
             context.draw_coordinator.clone(),
         )?;
 
@@ -429,6 +434,7 @@ struct WindowCreateContext {
     disable_direct_composition: bool,
     directx_devices: DirectXDevices,
     invalidate_devices: Arc<AtomicBool>,
+    frame_demand: Arc<FrameDemand>,
     draw_coordinator: Rc<DrawCoordinator>,
     parent_hwnd: Option<HWND>,
 }
@@ -457,6 +463,7 @@ impl WindowsWindow {
             disable_direct_composition,
             directx_devices,
             invalidate_devices,
+            frame_demand,
             draw_coordinator,
         } = creation_info;
         register_window_class(icon);
@@ -542,6 +549,7 @@ impl WindowsWindow {
             disable_direct_composition,
             directx_devices,
             invalidate_devices,
+            frame_demand,
             draw_coordinator,
             parent_hwnd,
         };
@@ -965,6 +973,11 @@ impl PlatformWindow for WindowsWindow {
 
     fn is_fullscreen(&self) -> bool {
         self.state.is_fullscreen()
+    }
+
+    fn frame_waker(&self) -> Option<Rc<dyn Fn()>> {
+        let frame_demand = self.state.frame_demand.clone();
+        Some(Rc::new(move || frame_demand.request()))
     }
 
     fn on_request_frame(&self, callback: Box<dyn FnMut(RequestFrameOptions)>) {

@@ -12,7 +12,7 @@ use crate::{OverlayConfig, native_overlay};
 use anyhow::{Context as _, Result};
 use gpui::{
     App, AssetSource, Bounds, BoxShadow, Context, FontWeight, IntoElement, Render, SharedString,
-    TextRun, Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions,
+    Task, TextRun, Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions,
     WindowingRequest, div, font, linear_color_stop, linear_gradient, point, prelude::*, px, rgb,
     size, svg,
 };
@@ -28,6 +28,9 @@ use std::{
 };
 use theme::{Look, Shadow, System, color_alpha};
 use windows::Win32::Foundation::HWND;
+
+/// Ambient theme details redraw at ~30 fps; transitions still follow vsync.
+const AMBIENT_FRAME_INTERVAL: Duration = Duration::from_millis(33);
 
 pub(super) enum Command {
     Refresh,
@@ -314,6 +317,8 @@ struct OverlayView {
     last_chrome: Option<(bool, bool)>,
     /// A stable clock for ambient details; state updates never restart the pulse.
     detail_epoch: Instant,
+    /// Pending capped-rate redraw for ambient details (radar sweep, scanlines, neon pulse).
+    ambient_frame: Option<Task<()>>,
 }
 
 impl OverlayView {
@@ -340,6 +345,7 @@ impl OverlayView {
             system: System::load(),
             last_chrome: None,
             detail_epoch: Instant::now(),
+            ambient_frame: None,
         }
     }
 
@@ -617,9 +623,18 @@ impl Render for OverlayView {
             || self.visibility.active(now)
             || ((look.acrylic || is_sticker) && self.slide.active(now))
             || content_animating
-            || detail_animating
         {
             window.request_animation_frame();
+        } else if detail_animating && self.ambient_frame.is_none() {
+            // Ambient details loop forever: cap them instead of drawing every vsync,
+            // which costs a CPU core's worth of frames on high-refresh displays.
+            self.ambient_frame = Some(cx.spawn(async move |view, cx| {
+                cx.background_executor().timer(AMBIENT_FRAME_INTERVAL).await;
+                let _ = view.update(cx, |view, cx| {
+                    view.ambient_frame = None;
+                    cx.notify();
+                });
+            }));
         }
         // The surface follows the animated card plus the theme's shadow gutter.
         let gutter = if is_sticker {

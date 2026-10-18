@@ -1,5 +1,5 @@
 use std::{
-    sync::LazyLock,
+    sync::{Condvar, LazyLock, Mutex},
     time::{Duration, Instant},
 };
 
@@ -22,6 +22,39 @@ static QPC_TICKS_PER_SECOND: LazyLock<u64> = LazyLock::new(|| {
 
 const VSYNC_INTERVAL_THRESHOLD: Duration = Duration::from_millis(1);
 const DEFAULT_VSYNC_INTERVAL: Duration = Duration::from_micros(16_666); // ~60Hz
+
+/// Silence: demand-driven frame requests. Upstream invalidates every window on
+/// every vsync, waking the UI thread at the display refresh rate even when
+/// nothing changed. GPUI core wakes the platform (`PlatformWindow::frame_waker`)
+/// whenever a window becomes dirty or schedules a next-frame callback, so the
+/// vsync thread only needs to run while some window has asked for a frame.
+pub(crate) struct FrameDemand {
+    pending: Mutex<bool>,
+    changed: Condvar,
+}
+
+impl FrameDemand {
+    pub(crate) fn new() -> Self {
+        Self {
+            pending: Mutex::new(false),
+            changed: Condvar::new(),
+        }
+    }
+
+    pub(crate) fn request(&self) {
+        *self.pending.lock().unwrap() = true;
+        self.changed.notify_all();
+    }
+
+    /// Waits up to `timeout` for a request and consumes it.
+    pub(crate) fn take(&self, timeout: Duration) -> bool {
+        let mut pending = self.pending.lock().unwrap();
+        if !*pending {
+            pending = self.changed.wait_timeout(pending, timeout).unwrap().0;
+        }
+        std::mem::take(&mut *pending)
+    }
+}
 
 pub(crate) struct VSyncProvider {
     interval: Duration,

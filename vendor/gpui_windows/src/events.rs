@@ -280,6 +280,7 @@ impl WindowsWindowInner {
             self.state
                 .invalidate_devices
                 .store(true, std::sync::atomic::Ordering::Release);
+            self.state.frame_demand.request();
         }
         if let Some(mut callback) = self.state.callbacks.resize.take() {
             callback(new_logical_size, scale_factor);
@@ -1329,11 +1330,12 @@ impl WindowsWindowInner {
             }
             // Validate the region so a nested message pump doesn't keep
             // re-dispatching WM_PAINT for the still-invalid region in a busy
-            // loop until the in-progress draw unwinds. The vsync thread
-            // re-invalidates every window on each vsync (see
+            // loop until the in-progress draw unwinds. Requesting a frame makes
+            // the vsync thread re-invalidate every window on its next vsync (see
             // `begin_vsync_thread`), so the deferred frame still gets drawn,
             // at most one vsync late.
             unsafe { ValidateRect(Some(handle), None).ok().log_err() };
+            self.state.frame_demand.request();
             return Some(0);
         };
         let mut request_frame = self.state.callbacks.request_frame.take()?;

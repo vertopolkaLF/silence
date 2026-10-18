@@ -39,6 +39,8 @@ use windows::{
 use crate::*;
 use gpui::*;
 
+const IDLE_DEVICE_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+
 struct TrackedWindow {
     handle: SafeHwnd,
     frame_signal: Arc<PlatformFrameSignal>,
@@ -69,6 +71,8 @@ pub struct WindowsPlatform {
     /// Flag to instruct the `VSyncProvider` thread to invalidate the directx devices
     /// as resizing them has failed, causing us to have lost at least the render target.
     invalidate_devices: Arc<AtomicBool>,
+    /// Shared with every window and the `VSyncProvider` thread.
+    frame_demand: Arc<FrameDemand>,
     handle: HWND,
     suspend_resume_notification: RefCell<Option<HPOWERNOTIFY>>,
     disable_direct_composition: bool,
@@ -278,6 +282,7 @@ impl WindowsPlatform {
             has_package_identity: has_package_identity(),
             drop_target_helper,
             invalidate_devices: Arc::new(AtomicBool::new(false)),
+            frame_demand: Arc::new(FrameDemand::new()),
             app_identity: RefCell::new(None),
             system_notifications: RefCell::new(SystemNotificationState::new()),
         })
@@ -314,6 +319,7 @@ impl WindowsPlatform {
             disable_direct_composition: self.disable_direct_composition,
             directx_devices: self.inner.state.directx_devices.borrow().clone().unwrap(),
             invalidate_devices: self.invalidate_devices.clone(),
+            frame_demand: self.frame_demand.clone(),
             draw_coordinator: self.inner.state.draw_coordinator.clone(),
         }
     }
@@ -423,6 +429,7 @@ impl WindowsPlatform {
             // Not joined: the thread can be sending this thread a message. It exits after its
             // next vsync, and drops its reference to the devices then.
             stop.store(true, Ordering::Release);
+            self.frame_demand.request();
         }
         if let Some(text_system) = &self.direct_write_text_system {
             text_system.release_gpu();
@@ -445,14 +452,22 @@ impl WindowsPlatform {
         let all_windows = Arc::downgrade(&self.raw_window_handles);
         let text_system = Arc::downgrade(direct_write_text_system);
         let invalidate_devices = self.invalidate_devices.clone();
+        let frame_demand = self.frame_demand.clone();
 
         std::thread::Builder::new()
             .name("VSyncProvider".to_owned())
             .spawn(move || {
                 let vsync_provider = VSyncProvider::new();
                 loop {
-                    let signal_source = vsync_provider.wait_for_vsync();
-                    let signal_at = PlatformFrameSignal::capture(scheduler::Instant::now);
+                    // Silence: sleep until a window asks for a frame. The timeout keeps
+                    // device-loss detection and `stop` responsive while idle.
+                    let demanded = frame_demand.take(IDLE_DEVICE_POLL_INTERVAL);
+                    let (signal_source, signal_at) = if demanded {
+                        let source = vsync_provider.wait_for_vsync();
+                        (source, PlatformFrameSignal::capture(scheduler::Instant::now))
+                    } else {
+                        (FrameRequestSource::LocalSchedule, None)
+                    };
                     if stop.load(Ordering::Acquire) {
                         break;
                     }
@@ -472,6 +487,9 @@ impl WindowsPlatform {
                     let Some(all_windows) = all_windows.upgrade() else {
                         break;
                     };
+                    if !demanded {
+                        continue;
+                    }
                     for hwnd in all_windows.read().iter() {
                         unsafe {
                             if let Some(signal_at) = signal_at {
@@ -1367,6 +1385,7 @@ impl Drop for WindowsPlatform {
     fn drop(&mut self) {
         if let Some(stop) = self.vsync_stop.borrow_mut().take() {
             stop.store(true, Ordering::Release);
+            self.frame_demand.request();
         }
         unsafe {
             if let Some(notification) = self.suspend_resume_notification.borrow_mut().take() {
@@ -1395,6 +1414,7 @@ pub(crate) struct WindowCreationInfo {
     /// Flag to instruct the `VSyncProvider` thread to invalidate the directx devices
     /// as resizing them has failed, causing us to have lost at least the render target.
     pub(crate) invalidate_devices: Arc<AtomicBool>,
+    pub(crate) frame_demand: Arc<FrameDemand>,
     /// Shared with [`WindowsPlatformState::draw_coordinator`] and every other window.
     pub(crate) draw_coordinator: Rc<DrawCoordinator>,
 }

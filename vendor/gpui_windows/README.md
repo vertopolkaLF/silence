@@ -24,8 +24,13 @@ Independently of that feature, `WM_ENDSESSION` no longer quits GPUI and calls
 module while the main thread and D3D device were still live and crashed on
 Windows shutdown (issue #68); the OS now ends the process as before the overlay.
 
+Frame requests are demand-driven: windows implement `PlatformWindow::frame_waker`,
+and the `VSyncProvider` thread sleeps until GPUI asks for a frame instead of
+invalidating every window on every vsync (issue #69).
+
 Modified upstream files: `src/directx_renderer.rs`, `src/direct_write.rs`,
-`src/directx_atlas.rs`, `src/directx_devices.rs`, and `src/events.rs`. Other source/build files
+`src/directx_atlas.rs`, `src/directx_devices.rs`, `src/events.rs`,
+`src/platform.rs`, `src/vsync.rs`, and `src/window.rs`. Other source/build files
 are unchanged from the revision above. The default profile keeps the upstream
 atlas size, eager resources and driver-thread policy.
 

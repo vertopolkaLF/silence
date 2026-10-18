@@ -19,7 +19,10 @@ use windows::Win32::{
             DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND, DWMWCP_ROUND,
             DwmExtendFrameIntoClientArea, DwmSetWindowAttribute,
         },
-        Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO},
+        Gdi::{
+            BeginPaint, EndPaint, EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR,
+            MONITORINFO, PAINTSTRUCT,
+        },
     },
     UI::{
         Controls::MARGINS,
@@ -690,7 +693,16 @@ unsafe extern "system" fn overlay_wnd_proc(
             // first GPU presentation. Start entrance motion only after a paint
             // of the attached, visible HWND has returned to Windows.
             let result = unsafe { forward_window_message(hwnd, msg, wparam, lparam) };
-            if unsafe { IsWindowVisible(hwnd).as_bool() } {
+            if !unsafe { IsWindowVisible(hwnd).as_bool() } {
+                // GPUI validates with ValidateRect, a no-op for hidden windows: an update
+                // region on the hidden surface would re-send WM_PAINT forever and spin
+                // this thread until the overlay is first shown. BeginPaint clears it.
+                let mut paint = PAINTSTRUCT::default();
+                unsafe {
+                    BeginPaint(hwnd, &mut paint);
+                    let _ = EndPaint(hwnd, &paint);
+                }
+            } else {
                 if let Some(overlay) = OVERLAY.lock().unwrap().as_mut() {
                     if overlay.awaiting_first_paint && overlay.presented {
                         overlay.awaiting_first_paint = false;
