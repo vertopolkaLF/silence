@@ -646,9 +646,12 @@ pub async fn download_and_install_update(
     update: updater::UpdateInfo,
     on_progress: impl FnMut(f32),
 ) -> Result<()> {
-    let installer = updater::download_update(&update, on_progress).await?;
+    let package = updater::download_update(&update, on_progress).await?;
     write_last_update_notification(&update)?;
-    updater::install_update(installer)?;
+    if let Err(err) = updater::install_update(&update, &package) {
+        clear_last_update_notification();
+        return Err(err);
+    }
     request_exit_all_processes();
     std::process::exit(0);
 }

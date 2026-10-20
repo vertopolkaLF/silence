@@ -12,6 +12,12 @@ fn write_last_update_notification(update: &updater::UpdateInfo) -> Result<()> {
     Ok(())
 }
 
+fn clear_last_update_notification() {
+    if let Ok(path) = last_update_notification_path() {
+        let _ = fs::remove_file(path);
+    }
+}
+
 fn maybe_show_updated_notification() {
     let Ok(Some(mut marker)) = read_last_update_notification() else {
         return;

@@ -56,7 +56,7 @@ pub fn render(available_update: Option<crate::updater::UpdateInfo>) -> Element {
         UpdateUiState::Downloading(progress) => {
             format!("Downloading update... {}%", progress.round() as u32)
         }
-        UpdateUiState::Installing => "Launching installer...".to_string(),
+        UpdateUiState::Installing => "Installing update...".to_string(),
         UpdateUiState::Failed(message) => format!("Update failed: {message}"),
     };
 
@@ -188,7 +188,7 @@ pub fn render(available_update: Option<crate::updater::UpdateInfo>) -> Element {
                                 span {
                                     class: "about-update-progress-label",
                                     if matches!(*update_state.read(), UpdateUiState::Installing) {
-                                        "Launching installer..."
+                                        "Installing update..."
                                     } else {
                                         "Downloading update..."
                                     }

@@ -1,6 +1,15 @@
+//! In-place updates from GitHub Releases portable zip assets.
+//!
+//! Portable copies and installer-based installs update the same way: the
+//! package is downloaded and unpacked to a temp folder, then a hidden helper
+//! waits for silence! to exit, copies the files over the current install
+//! folder and starts it again.
+
 use std::{
     fs,
-    path::PathBuf,
+    io::copy,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
     sync::{
         Mutex,
         atomic::{AtomicBool, Ordering},
@@ -14,11 +23,18 @@ use futures_util::StreamExt;
 use once_cell::sync::Lazy;
 use semver::Version;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
+use zip::ZipArchive;
 
 const GITHUB_API_ROOT: &str = "https://api.github.com/repos";
 const DEFAULT_UPDATE_REPO: &str = "vertopolkaLF/silence";
 const USER_AGENT: &str = concat!("silence-updater/", env!("CARGO_PKG_VERSION"));
+const RELEASES_URL: &str = "https://github.com/vertopolkaLF/silence/releases/latest";
+const APP_EXE: &str = "silence.exe";
+/// Uninstall entry written by the NSIS installer (`bundle.identifier`).
+const UNINSTALL_KEY: &str =
+    r"HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\fun.silencemute";
 
 static INSTALLING: AtomicBool = AtomicBool::new(false);
 static LAST_PROMPTED_TAG: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
@@ -37,6 +53,8 @@ pub struct UpdateInfo {
     pub asset_name: String,
     pub download_url: String,
     pub asset_size: u64,
+    /// Lowercase hex SHA-256 reported by the GitHub API, if any.
+    pub sha256: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -63,6 +81,8 @@ struct GitHubAsset {
     browser_download_url: String,
     #[serde(default)]
     size: u64,
+    #[serde(default)]
+    digest: Option<String>,
 }
 
 impl UpdateConfig {
@@ -126,15 +146,15 @@ pub async fn download_update(
     update: &UpdateInfo,
     mut on_progress: impl FnMut(f32),
 ) -> Result<PathBuf> {
-    let target_dir = update_temp_dir();
+    let target_dir = update_run_dir();
+    if tokio::fs::try_exists(&target_dir).await.unwrap_or(false) {
+        let _ = tokio::fs::remove_dir_all(&target_dir).await;
+    }
     tokio::fs::create_dir_all(&target_dir)
         .await
         .context("create update temp directory")?;
-    let final_path = target_dir.join(safe_installer_name(update));
-    let part_path = final_path.with_extension("exe.part");
-    if tokio::fs::try_exists(&part_path).await.unwrap_or(false) {
-        let _ = tokio::fs::remove_file(&part_path).await;
-    }
+    let final_path = target_dir.join("package.zip");
+    let part_path = final_path.with_extension("zip.part");
 
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -144,9 +164,9 @@ pub async fn download_update(
         .get(&update.download_url)
         .send()
         .await
-        .context("request update installer")?
+        .context("request update package")?
         .error_for_status()
-        .context("update installer response")?;
+        .context("update package response")?;
     let total = response
         .content_length()
         .unwrap_or(update.asset_size)
@@ -154,32 +174,34 @@ pub async fn download_update(
     let mut stream = response.bytes_stream();
     let mut file = tokio::fs::File::create(&part_path)
         .await
-        .context("create partial update installer")?;
+        .context("create partial update package")?;
+    let mut hasher = Sha256::new();
     let mut downloaded = 0_u64;
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.context("download update chunk")?;
         file.write_all(&chunk).await.context("write update chunk")?;
+        hasher.update(&chunk);
         downloaded += chunk.len() as u64;
         on_progress(((downloaded as f32 / total as f32) * 100.0).clamp(0.0, 100.0));
     }
 
-    file.flush().await.context("flush update installer")?;
+    file.flush().await.context("flush update package")?;
     drop(file);
 
-    let metadata = tokio::fs::metadata(&part_path)
-        .await
-        .context("read downloaded installer metadata")?;
     anyhow::ensure!(
-        metadata.len() > 0 && (update.asset_size == 0 || metadata.len() == update.asset_size),
-        "downloaded installer size mismatch"
+        downloaded > 0 && (update.asset_size == 0 || downloaded == update.asset_size),
+        "downloaded update size mismatch"
     );
-    if tokio::fs::try_exists(&final_path).await.unwrap_or(false) {
-        let _ = tokio::fs::remove_file(&final_path).await;
+    if let Some(expected) = &update.sha256 {
+        anyhow::ensure!(
+            hex(&hasher.finalize()).eq_ignore_ascii_case(expected),
+            "update package checksum mismatch"
+        );
     }
     tokio::fs::rename(&part_path, &final_path)
         .await
-        .context("finalize update installer")?;
+        .context("finalize update package")?;
     on_progress(100.0);
     Ok(final_path)
 }
@@ -199,19 +221,237 @@ pub fn cleanup_downloads_after_startup() {
     });
 }
 
-pub fn install_update(installer: PathBuf) -> Result<()> {
+/// Unpacks the downloaded package and hands it to a hidden helper that
+/// replaces the install folder once silence! has exited. The caller must exit
+/// all silence! processes right after this returns.
+pub fn install_update(update: &UpdateInfo, package: &Path) -> Result<()> {
     if INSTALLING.swap(true, Ordering::Relaxed) {
         anyhow::bail!("update installation is already running");
     }
-    std::process::Command::new(&installer)
-        .arg("/S")
+    let result = stage_update(update, package);
+    if result.is_err() {
+        INSTALLING.store(false, Ordering::Relaxed);
+    }
+    result
+}
+
+fn stage_update(update: &UpdateInfo, package: &Path) -> Result<()> {
+    let install_dir = install_dir()?;
+    if !dir_writable(&install_dir) {
+        let _ = open_release_page(&update.release_url);
+        anyhow::bail!(
+            "{} is not writable, download the update from the release page",
+            install_dir.display()
+        );
+    }
+
+    let run_dir = package
+        .parent()
+        .context("update package has no parent directory")?;
+    let extracted = run_dir.join("extracted");
+    if extracted.exists() {
+        fs::remove_dir_all(&extracted).context("clear previous update extraction")?;
+    }
+    let payload = extract_package(package, &extracted)?;
+    anyhow::ensure!(
+        payload.join(APP_EXE).is_file(),
+        "update package does not contain {APP_EXE}"
+    );
+
+    let script_path = run_dir.join("apply-update.ps1");
+    fs::write(
+        &script_path,
+        helper_script(&install_dir, &payload, &update.version),
+    )
+    .context("write update helper script")?;
+    spawn_hidden_helper(&script_path)
+}
+
+fn helper_script(install_dir: &Path, payload: &Path, version: &str) -> String {
+    format!(
+        r#"$ErrorActionPreference = 'Stop'
+$install = '{install}'
+$source = '{source}'
+$exe = Join-Path $install '{APP_EXE}'
+$version = '{version}'
+
+# Settings and the background app are separate processes of the same exe.
+$deadline = (Get-Date).AddSeconds(20)
+while ($true) {{
+    $running = @(Get-Process -Name 'silence' -ErrorAction SilentlyContinue |
+        Where-Object {{ $_.Path -and ($_.Path -ieq $exe) }})
+    if ($running.Count -eq 0) {{ break }}
+    if ((Get-Date) -gt $deadline) {{
+        $running | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 500
+        break
+    }}
+    Start-Sleep -Milliseconds 250
+}}
+
+try {{
+    $attempt = 0
+    while ($true) {{
+        try {{
+            Get-ChildItem -LiteralPath $source -Force | ForEach-Object {{
+                Copy-Item -LiteralPath $_.FullName -Destination $install -Recurse -Force
+            }}
+            break
+        }} catch {{
+            $attempt++
+            if ($attempt -ge 10) {{ throw }}
+            Start-Sleep -Milliseconds 500
+        }}
+    }}
+
+    # Bundled asset names carry content hashes; drop the ones this release no longer ships.
+    $newAssets = Join-Path $source 'assets'
+    $oldAssets = Join-Path $install 'assets'
+    if ((Test-Path -LiteralPath $newAssets) -and (Test-Path -LiteralPath $oldAssets)) {{
+        $oldRoot = (Get-Item -LiteralPath $oldAssets).FullName.TrimEnd('\')
+        Get-ChildItem -LiteralPath $oldRoot -File -Recurse -Force | ForEach-Object {{
+            $relative = $_.FullName.Substring($oldRoot.Length).TrimStart('\')
+            if (-not (Test-Path -LiteralPath (Join-Path $newAssets $relative))) {{
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+            }}
+        }}
+    }}
+
+    # Keep "Installed apps" in sync when this folder is the installer's install.
+    $key = '{UNINSTALL_KEY}'
+    $entry = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
+    if ($entry -and $entry.InstallLocation -and
+        ($entry.InstallLocation.TrimEnd('\') -ieq $install.TrimEnd('\'))) {{
+        Set-ItemProperty -LiteralPath $key -Name DisplayVersion -Value $version
+    }}
+}} catch {{
+    # The "updated" toast must not show for an update that did not apply.
+    $marker = Join-Path $env:APPDATA 'SilenceV2\last_update.json'
+    Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+    $log = Join-Path $env:TEMP 'silence-update-error.log'
+    "$(Get-Date -Format o) $($_ | Out-String)" | Add-Content -LiteralPath $log -Encoding utf8
+}} finally {{
+    Start-Process -FilePath $exe -WorkingDirectory $install
+}}
+"#,
+        install = ps_quote(&install_dir.display().to_string()),
+        source = ps_quote(&payload.display().to_string()),
+        version = ps_quote(version.trim_start_matches(['v', 'V'])),
+    )
+}
+
+#[cfg(windows)]
+fn spawn_hidden_helper(script_path: &Path) -> Result<()> {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-WindowStyle",
+            "Hidden",
+            "-File",
+        ])
+        .arg(script_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
-        .with_context(|| format!("launch update installer {}", installer.display()))?;
-    Ok(())
+        .map(|_| ())
+        .context("spawn update helper")
+}
+
+#[cfg(not(windows))]
+fn spawn_hidden_helper(_script_path: &Path) -> Result<()> {
+    anyhow::bail!("in-place updates are only supported on Windows")
+}
+
+/// Escapes a value for a single-quoted PowerShell string.
+fn ps_quote(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
+fn open_release_page(url: &str) -> Result<()> {
+    let url = if url.trim().is_empty() { RELEASES_URL } else { url };
+    Command::new("explorer")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .context("open release page")
+}
+
+/// Extracts `archive` into `destination` and returns the folder holding the
+/// app files (the archive may wrap them in a single top-level folder).
+fn extract_package(archive: &Path, destination: &Path) -> Result<PathBuf> {
+    let file = fs::File::open(archive).with_context(|| format!("open {}", archive.display()))?;
+    let mut archive = ZipArchive::new(file).context("open update package")?;
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).context("read update package entry")?;
+        let Some(relative) = entry.enclosed_name() else {
+            continue;
+        };
+        let target = destination.join(relative);
+        if entry.is_dir() {
+            fs::create_dir_all(&target).with_context(|| format!("create {}", target.display()))?;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+        }
+        let mut output =
+            fs::File::create(&target).with_context(|| format!("create {}", target.display()))?;
+        copy(&mut entry, &mut output).with_context(|| format!("extract {}", target.display()))?;
+    }
+
+    let mut entries = fs::read_dir(destination)
+        .with_context(|| format!("read {}", destination.display()))?
+        .filter_map(Result::ok)
+        .collect::<Vec<_>>();
+    if entries.len() == 1 && entries[0].file_type().is_ok_and(|kind| kind.is_dir()) {
+        return Ok(entries.remove(0).path());
+    }
+    Ok(destination.to_path_buf())
+}
+
+fn install_dir() -> Result<PathBuf> {
+    let exe = std::env::current_exe().context("resolve current executable")?;
+    exe.parent()
+        .map(Path::to_path_buf)
+        .context("executable has no parent directory")
+}
+
+fn dir_writable(dir: &Path) -> bool {
+    let probe = dir.join(".silence-update-write-test");
+    match fs::write(&probe, b"") {
+        Ok(()) => {
+            let _ = fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
 }
 
 fn update_temp_dir() -> PathBuf {
     std::env::temp_dir().join("silence-updater")
+}
+
+fn update_run_dir() -> PathBuf {
+    update_temp_dir().join(format!("run-{}", std::process::id()))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// Extracts the lowercase hex SHA-256 from a GitHub asset `digest` field.
+fn parse_sha256_digest(digest: &str) -> Option<String> {
+    let hex = digest.trim().strip_prefix("sha256:")?;
+    (hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .then(|| hex.to_ascii_lowercase())
 }
 
 pub fn should_prompt_update(update: &UpdateInfo) -> bool {
@@ -235,8 +475,8 @@ fn update_from_release(release: GitHubRelease, arch: &str) -> Result<UpdateCheck
     if release.prerelease || latest <= current {
         return Ok(UpdateCheck::UpToDate);
     }
-    let asset = select_installer_asset(&release.assets, arch)
-        .with_context(|| format!("find windows {arch} setup installer asset"))?;
+    let asset = select_portable_asset(&release.assets, arch)
+        .with_context(|| format!("find windows {arch} portable zip asset"))?;
     Ok(UpdateCheck::Available(UpdateInfo {
         version: format!("v{latest}"),
         tag_name: release.tag_name,
@@ -244,6 +484,7 @@ fn update_from_release(release: GitHubRelease, arch: &str) -> Result<UpdateCheck
         asset_name: asset.name,
         download_url: asset.browser_download_url,
         asset_size: asset.size,
+        sha256: asset.digest.as_deref().and_then(parse_sha256_digest),
     }))
 }
 
@@ -268,36 +509,12 @@ fn current_arch() -> &'static str {
     }
 }
 
-fn select_installer_asset(assets: &[GitHubAsset], arch: &str) -> Option<GitHubAsset> {
-    let arch_marker = format!("-windows-{arch}-");
+fn select_portable_asset(assets: &[GitHubAsset], arch: &str) -> Option<GitHubAsset> {
+    let suffix = format!("-windows-{arch}-portable.zip");
     assets
         .iter()
-        .find(|asset| {
-            let name = asset.name.to_ascii_lowercase();
-            name.contains(&arch_marker)
-                && name.ends_with("-setup.exe")
-                && !name.ends_with("-portable.zip")
-        })
+        .find(|asset| asset.name.to_ascii_lowercase().ends_with(&suffix))
         .cloned()
-}
-
-fn safe_installer_name(update: &UpdateInfo) -> String {
-    let name = update
-        .asset_name
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
-                ch
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>();
-    if name.to_ascii_lowercase().ends_with(".exe") {
-        name
-    } else {
-        format!("silence-{}-{}-setup.exe", update.version, current_arch())
-    }
 }
 
 #[cfg(test)]
@@ -309,6 +526,7 @@ mod tests {
             name: name.to_string(),
             browser_download_url: format!("https://example.invalid/{name}"),
             size: 42,
+            digest: None,
         }
     }
 
@@ -324,30 +542,52 @@ mod tests {
     }
 
     #[test]
-    fn selects_setup_for_arch_not_portable() {
+    fn selects_portable_for_arch_not_setup() {
         let assets = vec![
-            asset("silence-2.1.0-windows-x64-portable.zip"),
             asset("silence-2.1.0-windows-x64-setup.exe"),
-            asset("silence-2.1.0-windows-x86-setup.exe"),
+            asset("silence-2.1.0-windows-x86-portable.zip"),
+            asset("silence-2.1.0-windows-x64-portable.zip"),
         ];
-        let selected = select_installer_asset(&assets, "x64").unwrap();
-        assert_eq!(selected.name, "silence-2.1.0-windows-x64-setup.exe");
+        let selected = select_portable_asset(&assets, "x64").unwrap();
+        assert_eq!(selected.name, "silence-2.1.0-windows-x64-portable.zip");
     }
 
     #[test]
-    fn missing_installer_is_none() {
-        let assets = vec![asset("silence-2.1.0-windows-x64-portable.zip")];
-        assert!(select_installer_asset(&assets, "x64").is_none());
+    fn missing_portable_is_none() {
+        let assets = vec![asset("silence-2.1.0-windows-x64-setup.exe")];
+        assert!(select_portable_asset(&assets, "x64").is_none());
+    }
+
+    #[test]
+    fn parses_sha256_digest() {
+        let hex = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        assert_eq!(
+            parse_sha256_digest(&format!("sha256:{}", hex.to_ascii_uppercase())).as_deref(),
+            Some(hex)
+        );
+        assert_eq!(parse_sha256_digest("sha1:abc"), None);
+        assert_eq!(parse_sha256_digest("sha256:zz"), None);
+    }
+
+    #[test]
+    fn helper_script_quotes_paths_and_strips_version_prefix() {
+        let script = helper_script(
+            Path::new(r"C:\Users\O'Neil\silence"),
+            Path::new(r"C:\Temp\payload"),
+            "v2.5.0",
+        );
+        assert!(script.contains(r"$install = 'C:\Users\O''Neil\silence'"));
+        assert!(script.contains("$version = '2.5.0'"));
     }
 
     #[test]
     fn newer_release_is_available() {
         let release = GitHubRelease {
-            tag_name: "v2.1".to_string(),
-            html_url: "https://github.com/example/releases/tag/v2.1".to_string(),
+            tag_name: "v99.0".to_string(),
+            html_url: "https://github.com/example/releases/tag/v99.0".to_string(),
             prerelease: false,
             draft: false,
-            assets: vec![asset("silence-2.1.0-windows-x64-setup.exe")],
+            assets: vec![asset("silence-2.1.0-windows-x64-portable.zip")],
         };
         let check = update_from_release(release, "x64").unwrap();
         assert!(matches!(check, UpdateCheck::Available(_)));
@@ -360,22 +600,22 @@ mod tests {
             html_url: "https://github.com/example/releases/latest".to_string(),
             prerelease: false,
             draft: false,
-            assets: vec![asset("silence-2.0.0-windows-x64-setup.exe")],
+            assets: vec![asset("silence-2.0.0-windows-x64-portable.zip")],
         };
         let check = update_from_release(release, "x64").unwrap();
         assert_eq!(check, UpdateCheck::UpToDate);
     }
 
     #[test]
-    fn newer_release_without_installer_errors() {
+    fn newer_release_without_portable_errors() {
         let release = GitHubRelease {
-            tag_name: "v2.1".to_string(),
-            html_url: "https://github.com/example/releases/tag/v2.1".to_string(),
+            tag_name: "v99.0".to_string(),
+            html_url: "https://github.com/example/releases/tag/v99.0".to_string(),
             prerelease: false,
             draft: false,
-            assets: vec![asset("silence-2.1.0-windows-x64-portable.zip")],
+            assets: vec![asset("silence-2.1.0-windows-x64-setup.exe")],
         };
         let err = update_from_release(release, "x64").unwrap_err();
-        assert!(err.to_string().contains("find windows x64 setup"));
+        assert!(err.to_string().contains("find windows x64 portable"));
     }
 }
