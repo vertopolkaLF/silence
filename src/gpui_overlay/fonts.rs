@@ -10,7 +10,7 @@ pub(crate) const FAMILIES: &[&str] = &[
     "Archivo Black",
 ];
 
-pub(super) fn embedded(family: &str) -> Option<Cow<'static, [u8]>> {
+pub(crate) fn embedded(family: &str) -> Option<Cow<'static, [u8]>> {
     let data: &'static [u8] = match family {
         "Inter" => include_bytes!("../../assets/fonts/overlay/Inter.ttf"),
         "Google Sans" => include_bytes!("../../assets/fonts/overlay/GoogleSans.ttf"),

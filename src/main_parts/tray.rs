@@ -678,6 +678,10 @@ unsafe extern "system" fn main_wnd_proc(
             refresh_mute_state();
             LRESULT(0)
         }
+        WM_CONFIG_CHANGED => {
+            reload_config_if_changed();
+            LRESULT(0)
+        }
         WM_AUDIO_ENDPOINT_CHANGED => {
             ensure_audio_notification_registration();
             refresh_mute_state();

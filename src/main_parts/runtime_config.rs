@@ -355,6 +355,7 @@ fn save_config(config: &Config) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
     fs::write(path, serde_json::to_string_pretty(config)?)?;
+    notify_config_changed();
     Ok(())
 }
 

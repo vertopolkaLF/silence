@@ -204,6 +204,49 @@ pub(crate) fn vk_from_keyboard_code(code: &str) -> Option<u32> {
     }
 }
 
+/// Native settings recording equivalent of `shortcut_from_keyboard_data`.
+/// Non-extended navigation VKs come from the numeric keypad with NumLock off;
+/// DOM `KeyboardEvent.code` still identifies those physical numpad keys.
+pub(crate) fn shortcut_from_raw_vk(
+    vk: u32,
+    extended: bool,
+    modifiers: &ModifierState,
+) -> Option<Shortcut> {
+    let vk = if !extended {
+        match vk {
+            0x2D => 0x60,
+            0x23 => 0x61,
+            0x28 => 0x62,
+            0x22 => 0x63,
+            0x25 => 0x64,
+            0x0C => 0x65,
+            0x27 => 0x66,
+            0x24 => 0x67,
+            0x26 => 0x68,
+            0x21 => 0x69,
+            0x2E => 0x6E,
+            other => other,
+        }
+    } else {
+        vk
+    };
+    // Keep the supported keys identical to `vk_from_keyboard_code`.
+    if !matches!(vk, 0x08 | 0x09 | 0x0D | 0x10..=0x14 | 0x1B | 0x20..=0x28
+        | 0x2C..=0x2E | 0x30..=0x39 | 0x41..=0x5D | 0x60..=0x6B | 0x6D..=0x87
+        | 0x90..=0x91 | 0xA0..=0xB7 | 0xBA..=0xC0 | 0xDB..=0xDE | 0xE2)
+    {
+        return None;
+    }
+    Some(Shortcut {
+        ctrl: modifiers.ctrl || matches!(modifier_kind(vk), Some(ModifierKind::Ctrl)),
+        alt: modifiers.alt || matches!(modifier_kind(vk), Some(ModifierKind::Alt)),
+        shift: modifiers.shift || matches!(modifier_kind(vk), Some(ModifierKind::Shift)),
+        win: modifiers.win || matches!(modifier_kind(vk), Some(ModifierKind::Win)),
+        vk: if is_modifier(vk) { 0 } else { vk },
+        mouse_buttons: Vec::new(),
+    })
+}
+
 fn vk_name(vk: u32) -> String {
     match vk {
         0x08 => "Backspace".to_string(),

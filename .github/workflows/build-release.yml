@@ -21,7 +21,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DIOXUS_CLI_VERSION: '0.7.6'
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -69,35 +68,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@63fed3e2fecf6f7b51dc6f043341b79ef82a9ae7 # v2.9.2
         with:
-          # Reuse Dioxus's downloaded bundling tools as well as Cargo dependencies.
-          cache-directories: |
-            ~/.dioxus
           save-if: ${{ github.event_name != 'pull_request' }}
-
-      - name: Install pinned Dioxus CLI
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $toolDir = Join-Path $env:RUNNER_TEMP 'dioxus-cli'
-          New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
-          $archive = 'dx-x86_64-pc-windows-msvc.zip'
-          gh release download "v$env:DIOXUS_CLI_VERSION" --repo DioxusLabs/dioxus --pattern $archive --pattern 'dx-x86_64-pc-windows-msvc.sha256' --dir $toolDir
-          if ($LASTEXITCODE -ne 0) { throw 'Dioxus CLI download failed' }
-          $expected = ((Get-Content (Join-Path $toolDir 'dx-x86_64-pc-windows-msvc.sha256') -Raw).Trim() -split '\s+')[0]
-          $actual = (Get-FileHash (Join-Path $toolDir $archive) -Algorithm SHA256).Hash
-          if ($expected -notmatch '^[a-fA-F0-9]{64}$' -or $actual -ne $expected) {
-            throw 'Dioxus CLI checksum verification failed'
-          }
-          Expand-Archive (Join-Path $toolDir $archive) -DestinationPath $toolDir
-          $dx = @(Get-ChildItem $toolDir -Filter dx.exe -Recurse -File)
-          if ($dx.Count -ne 1) { throw 'Expected exactly one dx.exe in the CLI archive' }
-          $dx[0].DirectoryName >> $env:GITHUB_PATH
 
       - name: Build portable archives and NSIS installers
         run: |
-          dx --version
-          if ($LASTEXITCODE -ne 0) { throw 'Dioxus CLI is unavailable' }
           ./build.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed' }
           git diff --exit-code -- Cargo.lock

@@ -646,8 +646,18 @@ pub async fn download_and_install_update(
     update: updater::UpdateInfo,
     on_progress: impl FnMut(f32),
 ) -> Result<()> {
+    download_and_install_update_with_status(update, on_progress, || {}).await
+}
+
+/// Announces installation after the download is finalized and validated.
+pub async fn download_and_install_update_with_status(
+    update: updater::UpdateInfo,
+    on_progress: impl FnMut(f32),
+    on_installing: impl FnOnce(),
+) -> Result<()> {
     let package = updater::download_update(&update, on_progress).await?;
     write_last_update_notification(&update)?;
+    on_installing();
     if let Err(err) = updater::install_update(&update, &package) {
         clear_last_update_notification();
         return Err(err);

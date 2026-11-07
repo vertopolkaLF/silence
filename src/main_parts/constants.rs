@@ -11,6 +11,8 @@ const WM_AUDIO_MUTE_STATE_CHANGED: u32 = WM_APP + 10;
 const WM_AUDIO_ENDPOINT_CHANGED: u32 = WM_APP + 11;
 const WM_MUTE_FAILED: u32 = WM_APP + 12;
 const WM_OVERLAY_ACTION: u32 = WM_APP + 13;
+/// `config.json` was saved by another silence! process; reload it now.
+const WM_CONFIG_CHANGED: u32 = WM_APP + 14;
 const ID_TRAY: u32 = 1;
 const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
