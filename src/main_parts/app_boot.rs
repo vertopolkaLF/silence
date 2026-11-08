@@ -365,7 +365,7 @@ fn main() -> Result<()> {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
         }
         MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
-        install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
+        spawn_settings_mouse_hook_thread();
         if gamepad_monitoring_needed(false) {
             ensure_gamepad_monitors(false);
         }
@@ -676,6 +676,34 @@ fn set_hkcu_string(subkey: &str, value_name: &str, value: &str) -> Result<()> {
         "registry write failed with status {status:?}"
     );
     Ok(())
+}
+
+/// The settings process only needs the low-level mouse hook to record mouse
+/// shortcuts. Windows calls a `WH_MOUSE_LL` hook on the thread that installed
+/// it, and every cursor move system-wide waits for it; on the GPUI thread the
+/// cursor stutters whenever a frame or startup work blocks the message loop.
+/// A dedicated thread that only pumps messages keeps the hook instant.
+fn spawn_settings_mouse_hook_thread() {
+    thread::spawn(|| {
+        let instance = match unsafe { GetModuleHandleW(None) } {
+            Ok(instance) => instance,
+            Err(err) => {
+                eprintln!("settings mouse hook: {err:?}");
+                return;
+            }
+        };
+        if let Err(err) = install_mouse_hook(instance.into()) {
+            eprintln!("settings mouse hook: {err:?}");
+            return;
+        }
+        let mut msg = MSG::default();
+        while unsafe { GetMessageW(&mut msg, None, 0, 0) }.as_bool() {
+            unsafe {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+    });
 }
 
 fn set_dpi_awareness() {
