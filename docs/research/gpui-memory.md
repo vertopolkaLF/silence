@@ -43,3 +43,23 @@ Minimal conversion design:
 4. Font-name enumeration needs a write lock to initialize. Its trait returns `Vec<String>`, so log helper errors and retain custom-font names; never unwrap failed initialization.
 
 This smallest implementation still loads the collection when bundled fonts are first selected. A broader version can select from the custom collection first and initialize system fonts only after a custom-font miss or a nonempty explicit fallback list. `make_font_from_font_collection` currently requires the system collection argument even though it actually uses it only when constructing explicit fallbacks. An optional argument or a separated fallback construction step removes that dependency. Keep fallback ordering and refresh-on-miss behavior. DirectWrite may still initialize internal default fallback data while laying out text, so the icon-only result cannot be promised for bundled-text themes. [Custom-first selection](https://github.com/zed-industries/zed/blob/a84689073d296dfd39987bc7dd478e43ef76d83a/crates/gpui_windows/src/direct_write.rs#L320-L332), [fallback dependency](https://github.com/zed-industries/zed/blob/a84689073d296dfd39987bc7dd478e43ef76d83a/crates/gpui_windows/src/direct_write.rs#L465-L520).
+
+## Settings window startup breakdown (2026-11-08)
+
+Release build, settings process (`--settings`), 760x590 at 125% scale, mean of
+three runs. "Private WS" is the private working set; "commit" is private bytes.
+
+| Step | Time | Commit | Private WS |
+| --- | --- | --- | --- |
+| Process start | 0 ms | 3.7 MiB | 2.0 MiB |
+| `WindowsPlatform::new` (OLE, DirectWrite, dispatcher, drop helper) | ~16 ms | 5.8 | 2.6 |
+| `D3D11CreateDevice` (driver) | ~180 ms | 55.5 | 10.6 |
+| Register fonts (before / after the owner fix) | ~10 ms | 62.9 / 56.3 | 17.7 / 10.9 |
+| Settings snapshot (devices, apps, displays) | ~35 ms | +2 | +2 |
+| `open_window` incl. first frame | ~300 ms | peak ~125 | peak ~28 |
+| Idle after 10 s (before / after the owner fix) | | 83 / 76 | 23.4 / 16.4 |
+
+The D3D11 device is the slowest step and the largest commit (about 48 MiB, but
+only about 8 MiB resident). A second process duplicates it, the 2 MiB process
+base and the snapshot; sharing them would require one GPUI host for the overlay
+and the settings window.

@@ -28,6 +28,11 @@ Frame requests are demand-driven: windows implement `PlatformWindow::frame_waker
 and the `VSyncProvider` thread sleeps until GPUI asks for a frame instead of
 invalidating every window on every vsync (issue #69).
 
+`add_fonts` registers borrowed (`'static`) font data with an owner object, so
+DirectWrite references it in place instead of copying it; with a null owner it
+copies every font (about 7 MiB private for the settings window). Owned data is
+still copied.
+
 Modified upstream files: `src/directx_renderer.rs`, `src/direct_write.rs`,
 `src/directx_atlas.rs`, `src/directx_devices.rs`, `src/events.rs`,
 `src/platform.rs`, `src/vsync.rs`, and `src/window.rs`. Other source/build files

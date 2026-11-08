@@ -420,14 +420,17 @@ impl DirectWriteState {
     ) -> Result<()> {
         for font_data in fonts {
             match font_data {
+                // With no owner object DirectWrite copies the font data. Static data
+                // outlives any owner, so pass the factory to reference it in place.
                 Cow::Borrowed(data) => unsafe {
+                    let owner: windows::core::IUnknown = components.factory.cast()?;
                     let font_file = components
                         .in_memory_loader
                         .CreateInMemoryFontFileReference(
                             &components.factory,
                             data.as_ptr().cast(),
                             data.len() as _,
-                            None,
+                            &owner,
                         )?;
                     components.builder.AddFontFile(&font_file)?;
                 },
