@@ -887,6 +887,7 @@ fn menu(
     .absolute()
     .size_full();
     let content_state = state.clone();
+    let content_scroll = scroll.clone();
     let menu = div()
         .id((ElementId::from(id.clone()), "menu"))
         .relative()
@@ -905,6 +906,9 @@ fn menu(
             spread_radius: px(0.),
             inset: false,
         }])
+        // Block hover/scroll for the page underneath the floating menu.
+        .occlude()
+        .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .child(
             div()
@@ -913,11 +917,16 @@ fn menu(
                 .flex()
                 .flex_col()
                 .gap(px(4.))
-                .on_children_prepainted(move |children, window, cx| {
+                // A div with a tracked scroll handle reports no child bounds to
+                // this listener; read them from the handle instead.
+                .on_children_prepainted(move |_, window, cx| {
                     if content_state.read(cx).menu_height.is_none() {
-                        let measured = children
-                            .first()
-                            .zip(children.last())
+                        let first = content_scroll.bounds_for_item(0);
+                        let last = (0..)
+                            .map_while(|ix| content_scroll.bounds_for_item(ix))
+                            .last();
+                        let measured = first
+                            .zip(last)
                             .map(|(first, last)| f32::from(last.bottom() - first.top()) + 12.)
                             .unwrap_or(52.);
                         content_state.update(cx, |s, _| s.menu_height = Some(measured.min(280.)));

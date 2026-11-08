@@ -3,15 +3,15 @@
 //! positions for sub-section tracking and smooth scrolling.
 use super::{SettingsApp, shell::nav::SettingsTab};
 use gpui::{AnyElement, Context, Window};
-pub(crate) mod general;
-pub(crate) mod devices;
-pub(crate) mod sounds;
-pub(crate) mod overlay;
-pub(crate) mod hold_to_mute;
-pub(crate) mod tray_icon;
-pub(crate) mod auto_mute;
 pub(crate) mod about;
+pub(crate) mod auto_mute;
+pub(crate) mod devices;
+pub(crate) mod general;
+pub(crate) mod hold_to_mute;
 pub(crate) mod hotkeys;
+pub(crate) mod overlay;
+pub(crate) mod sounds;
+pub(crate) mod tray_icon;
 
 /// Per-section UI state that must survive re-renders and tab switches.
 #[derive(Default)]

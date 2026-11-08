@@ -127,6 +127,9 @@ impl From<Oklch> for Hsla {
     }
 }
 
+/// Chroma below which a color counts as gray for hue interpolation.
+const NEAR_GRAY_CHROMA: f32 = 0.02;
+
 /// `color-mix(in oklch, a pa%, b pb%)`. Pass `None` for an omitted percentage.
 pub(crate) fn mix(a: Oklch, pa: Option<f32>, b: Oklch, pb: Option<f32>) -> Oklch {
     let (pa, pb) = match (pa, pb) {
@@ -151,9 +154,26 @@ pub(crate) fn mix(a: Oklch, pa: Option<f32>, b: Oklch, pb: Option<f32>) -> Oklch
         }
     };
     // Missing hues and fully transparent colors take the other color's channel.
-    let (al, ac) = if a.alpha <= 0. { (b.l, b.c) } else { (a.l, a.c) };
-    let (bl, bc) = if b.alpha <= 0. { (a.l, a.c) } else { (b.l, b.c) };
-    let hue = match (a.h, b.h) {
+    let (al, ac) = if a.alpha <= 0. {
+        (b.l, b.c)
+    } else {
+        (a.l, a.c)
+    };
+    let (bl, bc) = if b.alpha <= 0. {
+        (a.l, a.c)
+    } else {
+        (b.l, b.c)
+    };
+    // Near-gray colors (the neutral surfaces carry a faint cool hue) would drag
+    // an accent tint the "shorter" way around the hue wheel, turning orange
+    // into pink/violet. Treat their hue as powerless so the tint keeps the
+    // chromatic color's hue; mixes of two near-grays keep their own hues.
+    let (ha, hb) = match (a.c < NEAR_GRAY_CHROMA, b.c < NEAR_GRAY_CHROMA) {
+        (true, false) => (None, b.h),
+        (false, true) => (a.h, None),
+        _ => (a.h, b.h),
+    };
+    let hue = match (ha, hb) {
         (Some(ha), Some(hb)) => {
             let mut delta = hb - ha;
             if delta > 180. {
@@ -215,5 +235,13 @@ mod tests {
     fn mixing_under_100_percent_reduces_alpha() {
         let c = mix(TRANSPARENT, Some(100.), oklch(50., 0.1, 30.), Some(1.));
         assert!(close(c.alpha, 0.0099));
+    }
+
+    #[test]
+    fn accent_tint_into_gray_keeps_accent_hue() {
+        let accent = oklch(71.63, 0.1778, 46.3);
+        let surface = mix_pct(oklch(21.03, 0.0059, 285.89), 95., accent);
+        let c = mix_pct(accent, 30., surface);
+        assert!((c.h.unwrap() - 46.3).abs() < 1.);
     }
 }

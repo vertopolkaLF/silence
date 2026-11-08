@@ -20,8 +20,8 @@ use windows::Win32::{
             DwmExtendFrameIntoClientArea, DwmSetWindowAttribute,
         },
         Gdi::{
-            BeginPaint, EndPaint, EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR,
-            MONITORINFO, PAINTSTRUCT,
+            BeginPaint, EndPaint, EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
+            PAINTSTRUCT,
         },
     },
     UI::{

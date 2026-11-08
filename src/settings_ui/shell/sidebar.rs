@@ -90,7 +90,9 @@ fn nav_item(
             .flex_shrink_0()
             .ml_auto()
             .path(icon("alt-arrow-down-linear"))
-            .with_transformation(Transformation::rotate(gpui::radians(-std::f32::consts::FRAC_PI_2 * (1. - on))))
+            .with_transformation(Transformation::rotate(gpui::radians(
+                -std::f32::consts::FRAC_PI_2 * (1. - on),
+            )))
             .text_color(fg.opacity(0.72 + 0.28 * on).hsla())
     });
 
@@ -116,7 +118,14 @@ fn nav_item(
             cx.notify();
         }))
         .child(icons)
-        .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().child(tab.label()))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .child(tab.label()),
+        )
         .children(arrow)
 }
 
@@ -152,8 +161,20 @@ fn subsections(
         let active = open && app.nav.active_section == section.id;
         let pointer = anim::pointer(window, cx, ("nav-sub-pointer", key * 8 + index));
         let hovered = pointer.read(cx).hovered;
-        let hover = anim::tween(window, cx, ("nav-sub-hover", key * 8 + index), hovered as u8 as f32, UI);
-        let on = anim::tween(window, cx, ("nav-sub-active", key * 8 + index), active as u8 as f32, UI);
+        let hover = anim::tween(
+            window,
+            cx,
+            ("nav-sub-hover", key * 8 + index),
+            hovered as u8 as f32,
+            UI,
+        );
+        let on = anim::tween(
+            window,
+            cx,
+            ("nav-sub-active", key * 8 + index),
+            active as u8 as f32,
+            UI,
+        );
         let fg = lerp(lerp(palette.muted, palette.text, hover), palette.accent, on);
         let id = section.id;
         list = list.child(
@@ -164,7 +185,11 @@ fn subsections(
                 .flex()
                 .items_center()
                 .text_size(px(13.))
-                .font_weight(if active { FontWeight(600.) } else { FontWeight(500.) })
+                .font_weight(if active {
+                    FontWeight(600.)
+                } else {
+                    FontWeight(500.)
+                })
                 .text_color(fg.hsla())
                 .cursor_pointer()
                 .on_hover(move |hovered, _, cx| anim::set_hovered(&pointer, *hovered, cx))

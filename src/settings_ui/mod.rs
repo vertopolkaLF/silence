@@ -16,10 +16,9 @@ pub(crate) mod welcome;
 
 use anyhow::Result;
 use gpui::{
-    App, AppContext as _, Bounds, Context, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, ParentElement,
-    Render, SharedString, Styled, TitlebarOptions, Window, WindowBackgroundAppearance,
-    WindowBounds, WindowOptions, div, px, size,
+    App, AppContext as _, Bounds, Context, FocusHandle, Focusable, InteractiveElement, IntoElement,
+    ParentElement, Render, SharedString, Styled, TitlebarOptions, Window,
+    WindowBackgroundAppearance, WindowBounds, WindowOptions, div, px, size,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use shell::nav::{Nav, SettingsTab};
@@ -120,7 +119,11 @@ impl SettingsApp {
 
     /// Loads the latest config, applies `update`, normalizes and saves it, and
     /// tells the tray process to reload. Mirrors the old `update_settings`.
-    pub fn update_config(&mut self, cx: &mut Context<Self>, update: impl FnOnce(&mut crate::Config)) {
+    pub fn update_config(
+        &mut self,
+        cx: &mut Context<Self>,
+        update: impl FnOnce(&mut crate::Config),
+    ) {
         let mut config = crate::load_config().unwrap_or_else(|_| self.snapshot.config.clone());
         let startup_was_enabled = config.startup.launch_on_startup;
         let mica_was_enabled = crate::effective_settings_mica_enabled(&config);
@@ -183,7 +186,9 @@ impl SettingsApp {
             self.update_config(cx, |config| config.hotkeys_paused = false);
         }
         cx.spawn(async move |_, cx| {
-            cx.background_executor().timer(Duration::from_millis(120)).await;
+            cx.background_executor()
+                .timer(Duration::from_millis(120))
+                .await;
             let _ = cx.update(|cx| cx.quit());
         })
         .detach();

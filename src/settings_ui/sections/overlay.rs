@@ -353,7 +353,12 @@ pub(crate) fn render(
                 .text_size(px(12.))
                 .font_weight(FontWeight(750.))
                 .text_color(p.success.hsla())
-                .child(svg().path(icon("microphone-3-linear")).size(px(20.)))
+                .child(
+                    svg()
+                        .path(icon("microphone-3-linear"))
+                        .size(px(20.))
+                        .text_color(p.success.hsla()),
+                )
                 .child("On")
                 .into_any_element(),
             "Text" => div()
@@ -1599,7 +1604,13 @@ fn editor(
             .child(current.label),
     )
     .justify_between()
-    .child(svg().path(icon("alt-arrow-down-linear")).size(px(16.)));
+    .child(
+        svg()
+            .path(icon("alt-arrow-down-linear"))
+            .size(px(17.))
+            .flex_shrink_0()
+            .text_color(p.faint.hsla()),
+    );
     body = body.child(field("Action", trigger));
     if let Some(action) = binding.action {
         if action_uses_volume_target(action) {
@@ -1764,6 +1775,7 @@ fn editor(
         );
     let backdrop = div()
         .id("overlay-editor-backdrop")
+        .occlude()
         .w(viewport.width)
         .h(viewport.height)
         .flex()

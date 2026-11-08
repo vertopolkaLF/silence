@@ -59,7 +59,9 @@ pub(crate) fn render(
             advanced.enable_mica,
             window,
             cx,
-            |app, checked, _, cx| app.update_config(cx, |config| config.advanced.enable_mica = checked),
+            |app, checked, _, cx| {
+                app.update_config(cx, |config| config.advanced.enable_mica = checked)
+            },
         ));
     }
     status = status
@@ -114,17 +116,31 @@ pub(crate) fn render(
                 .flex()
                 .gap(px(12.))
                 .max_w(px(720.))
-                .child(import_export_button("general-export", "Export", "export-linear", window, cx, |app, _, _, cx| {
-                    if crate::export_settings().is_ok() {
-                        app.reload_config(cx);
-                    }
-                }))
-                .child(import_export_button("general-import", "Import", "import-linear", window, cx, |app, _, _, cx| {
-                    if crate::import_settings().is_ok() {
-                        app.reload_config(cx);
-                        app.refresh_devices(cx);
-                    }
-                })),
+                .child(import_export_button(
+                    "general-export",
+                    "Export",
+                    "export-linear",
+                    window,
+                    cx,
+                    |app, _, _, cx| {
+                        if crate::export_settings().is_ok() {
+                            app.reload_config(cx);
+                        }
+                    },
+                ))
+                .child(import_export_button(
+                    "general-import",
+                    "Import",
+                    "import-linear",
+                    window,
+                    cx,
+                    |app, _, _, cx| {
+                        if crate::import_settings().is_ok() {
+                            app.reload_config(cx);
+                            app.refresh_devices(cx);
+                        }
+                    },
+                )),
         )
         .child(action_card(
             "general-import-v1",
@@ -323,7 +339,9 @@ fn close_confirm(app: &mut SettingsApp, cx: &mut Context<SettingsApp>) {
     }
     state.confirm_closing = Some(Instant::now());
     cx.spawn(async move |this, cx| {
-        cx.background_executor().timer(Duration::from_millis(170)).await;
+        cx.background_executor()
+            .timer(Duration::from_millis(170))
+            .await;
         let _ = this.update(cx, |app, cx| {
             app.sections.general.confirm = None;
             app.sections.general.confirm_closing = None;
@@ -426,6 +444,7 @@ fn confirm_dialog(
     let viewport = window.viewport_size();
     let dialog = div()
         .id("general-confirm-backdrop")
+        .occlude()
         .size_full()
         .w(viewport.width)
         .h(viewport.height)

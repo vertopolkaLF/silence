@@ -28,7 +28,12 @@ pub(crate) fn render_main(
     div()
         .flex()
         .size_full()
-        .child(div().h_full().opacity(opacity).child(sidebar::render(app, window, cx)))
+        .child(
+            div()
+                .h_full()
+                .opacity(opacity)
+                .child(sidebar::render(app, window, cx)),
+        )
         .child(
             div()
                 .flex()

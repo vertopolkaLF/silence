@@ -188,7 +188,11 @@ pub(crate) struct Pointer {
     pub pressed: bool,
 }
 
-pub(crate) fn pointer(window: &mut Window, cx: &mut App, key: impl Into<ElementId>) -> Entity<Pointer> {
+pub(crate) fn pointer(
+    window: &mut Window,
+    cx: &mut App,
+    key: impl Into<ElementId>,
+) -> Entity<Pointer> {
     window.use_keyed_state(key, cx, |_, _| Pointer::default())
 }
 

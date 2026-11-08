@@ -8,8 +8,8 @@ use crate::settings_ui::{
     theme::FONT_HEADING,
 };
 use gpui::{
-    BoxShadow, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Styled,
-    Window, WindowControlArea, div, img, point, prelude::*, px, svg,
+    BoxShadow, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Styled, Window,
+    WindowControlArea, div, img, point, prelude::*, px, svg,
 };
 
 pub(crate) fn render(
@@ -18,8 +18,12 @@ pub(crate) fn render(
     cx: &mut Context<SettingsApp>,
 ) -> impl IntoElement {
     let palette = app.palette;
+    let logo = crate::settings_ui::assets::logo(24., window);
     let brand = app.snapshot.config.welcome_completed.then(|| {
-        let update = app.available_update.is_some().then(|| update_pill(window, cx));
+        let update = app
+            .available_update
+            .is_some()
+            .then(|| update_pill(window, cx));
         div()
             .w(px(216.))
             .h(px(34.))
@@ -35,7 +39,7 @@ pub(crate) fn render(
             .text_size(px(14.))
             .font_weight(FontWeight(620.))
             .text_color(palette.text.hsla())
-            .child(img("app.png").size(px(24.)).flex_shrink_0())
+            .child(img(logo).size(px(24.)).flex_shrink_0())
             .child(div().flex_1().min_w_0().child("silence!"))
             .children(update)
     });
@@ -43,7 +47,11 @@ pub(crate) fn render(
     let close_pointer = anim::pointer(window, cx, "titlebar-close-pointer");
     let hovered = close_pointer.read(cx).hovered;
     let hover = anim::tween(window, cx, "titlebar-close-hover", hovered as u8 as f32, UI);
-    let close_bg = lerp(crate::settings_ui::color::TRANSPARENT, palette.danger, hover);
+    let close_bg = lerp(
+        crate::settings_ui::color::TRANSPARENT,
+        palette.danger,
+        hover,
+    );
     let close_fg = lerp(palette.muted, palette.on_accent, hover);
 
     div()
@@ -54,7 +62,11 @@ pub(crate) fn render(
         .h(px(42.))
         .flex()
         .items_start()
-        .children(brand.map(|brand| brand.id("titlebar-brand").window_control_area(WindowControlArea::Drag)))
+        .children(brand.map(|brand| {
+            brand
+                .id("titlebar-brand")
+                .window_control_area(WindowControlArea::Drag)
+        }))
         .child(
             div()
                 .id("titlebar-drag")
@@ -93,7 +105,13 @@ fn update_pill(window: &mut Window, cx: &mut Context<SettingsApp>) -> impl IntoE
     let palette = crate::settings_ui::style::palette(cx);
     let pointer = anim::pointer(window, cx, "titlebar-update-pointer");
     let hovered = pointer.read(cx).hovered;
-    let hover = anim::tween(window, cx, "titlebar-update-hover", hovered as u8 as f32, UI);
+    let hover = anim::tween(
+        window,
+        cx,
+        "titlebar-update-hover",
+        hovered as u8 as f32,
+        UI,
+    );
     let rest_bg = palette.accent_soft;
     let hover_bg = crate::settings_ui::color::mix_pct(palette.accent, 18., palette.surface_2);
     let shadow_color = lerp(palette.shadow_faint, palette.shadow_soft, hover);

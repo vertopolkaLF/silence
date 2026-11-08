@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/github/downloads/vertopolkalf/silence/total?style=flat-square" alt="Downloads">
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Rust-2024-orange?style=flat-square" alt="Rust edition">
-  <img src="https://img.shields.io/badge/UI-Dioxus%200.7-green?style=flat-square" alt="UI framework">
+  <img src="https://img.shields.io/badge/UI-GPUI-green?style=flat-square" alt="UI framework">
 </p>
 
 ---
@@ -33,7 +33,7 @@
 
 ## What's new in v2
 
-- Rebuilt with Rust, Dioxus desktop, and a new settings UI
+- Rebuilt with Rust and a native GPUI settings UI
 - Tiny footprint: about **20MB for the app plus bundled assets** and **under 10MB RAM** during normal work
 - Device management: Bind hotkey to switch to/between Output/Input devices or use new tray menu
 - More reliable gamepad support, including wheels and PlayStation controllers
@@ -123,35 +123,27 @@ The app follows the user's Windows accent color, so these screenshots intentiona
 
 No MSIX packaging is required.
 
-If settings doesn't open, then WebView2 is probably not installed. Install from [Microsoft website](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)
-
 ## Build from source
 
 Requirements:
 
 - Windows 10 or Windows 11
 - [Rust](https://www.rust-lang.org/tools/install)
-- [`dioxus-cli`](https://dioxuslabs.com/)
 - NSIS if you want to build the installer bundle
-
-Install Dioxus CLI if needed:
-
-```powershell
-cargo install dioxus-cli
-```
 
 Clone and run:
 
 ```powershell
 git clone https://github.com/vertopolkaLF/silence.git
 cd silence
-dx serve
+cargo run              # tray app
+cargo run -- --settings  # settings window only
 ```
 
 Build a release app:
 
 ```powershell
-dx build --platform windows --release --target x86_64-pc-windows-msvc
+cargo build --release --target x86_64-pc-windows-msvc
 ```
 
 Build all release artifacts used by the project:

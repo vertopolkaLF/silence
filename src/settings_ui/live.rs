@@ -79,10 +79,9 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
                     crate::rebind_settings_audio_notifications();
                     app.refresh_devices(cx);
                 }
-                if events
-                    .iter()
-                    .any(|event| matches!(event, LiveEvent::MuteChanged | LiveEvent::EndpointsChanged))
-                {
+                if events.iter().any(|event| {
+                    matches!(event, LiveEvent::MuteChanged | LiveEvent::EndpointsChanged)
+                }) {
                     let muted = crate::mic_mute_state(None).unwrap_or(app.snapshot.muted);
                     if muted != app.snapshot.muted {
                         app.snapshot.muted = muted;

@@ -83,11 +83,7 @@ pub(crate) fn page() -> Div {
 
 /// `.auto-mute-header`: the page title row used by most sections.
 pub(crate) fn page_header() -> Div {
-    div()
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap(px(16.))
+    div().flex().items_center().justify_between().gap(px(16.))
 }
 
 pub(crate) fn element_id(prefix: &str, suffix: impl std::fmt::Display) -> SharedString {

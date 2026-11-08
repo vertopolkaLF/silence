@@ -103,7 +103,10 @@ impl SettingsTab {
     pub fn sections(self) -> &'static [SettingsSection] {
         macro_rules! s {
             ($id:literal, $label:literal) => {
-                SettingsSection { id: $id, label: $label }
+                SettingsSection {
+                    id: $id,
+                    label: $label,
+                }
             };
         }
         match self {
@@ -130,7 +133,10 @@ impl SettingsTab {
     }
 
     pub fn first_section_id(self) -> &'static str {
-        self.sections().first().map(|section| section.id).unwrap_or("")
+        self.sections()
+            .first()
+            .map(|section| section.id)
+            .unwrap_or("")
     }
 
     pub fn order(self) -> usize {

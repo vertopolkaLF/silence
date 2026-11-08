@@ -12,7 +12,9 @@ mod text_input;
 pub(crate) use range::{RangeOptions, range};
 pub(crate) use segmented_toggle::{SegmentedToggleOption, segmented_toggle};
 pub(crate) use select::{SelectOption, SelectOptions, select};
-pub(crate) use text_input::{NumericInput, TextInput, TextInputEvent, TextInputOptions, text_input, text_input_container};
+pub(crate) use text_input::{
+    NumericInput, TextInput, TextInputEvent, TextInputOptions, text_input, text_input_container,
+};
 
 use super::{
     SettingsApp,
@@ -22,17 +24,31 @@ use super::{
     style::palette,
 };
 use gpui::{
-    BoxShadow, Context, ElementId, FontWeight, InteractiveElement, IntoElement, ParentElement,
+    BoxShadow, Context, Div, ElementId, FontWeight, InteractiveElement, IntoElement, ParentElement,
     SharedString, Stateful, Styled, Transformation, Window, div, point, prelude::*, px, size, svg,
-    Div,
 };
 
 /// CSS `outline: 2px solid var(--focus); outline-offset: -1px` without
 /// changing layout or hover borders. One pixel paints on either side.
-pub(crate) fn focus_outline(style: gpui::StyleRefinement, color: gpui::Hsla) -> gpui::StyleRefinement {
+pub(crate) fn focus_outline(
+    style: gpui::StyleRefinement,
+    color: gpui::Hsla,
+) -> gpui::StyleRefinement {
     style.shadow(vec![
-        BoxShadow { color, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: true },
-        BoxShadow { color, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
+        BoxShadow {
+            color,
+            offset: point(px(0.), px(0.)),
+            blur_radius: px(0.),
+            spread_radius: px(1.),
+            inset: true,
+        },
+        BoxShadow {
+            color,
+            offset: point(px(0.), px(0.)),
+            blur_radius: px(0.),
+            spread_radius: px(1.),
+            inset: false,
+        },
     ])
 }
 
@@ -45,19 +61,32 @@ pub(crate) fn hover_tween(
     let id: ElementId = id.into();
     let pointer = anim::pointer(window, cx, (id.clone(), "pointer"));
     let state = *pointer.read(cx);
-    let hover = anim::tween(window, cx, (id.clone(), "hover"), state.hovered as u8 as f32, UI);
+    let hover = anim::tween(
+        window,
+        cx,
+        (id.clone(), "hover"),
+        state.hovered as u8 as f32,
+        UI,
+    );
     let press = anim::tween(window, cx, (id, "press"), state.pressed as u8 as f32, UI);
     (pointer, hover, press)
 }
 
 /// Wires hover/press tracking onto an interactive element.
-pub(crate) fn track_pointer(element: Stateful<Div>, pointer: gpui::Entity<anim::Pointer>) -> Stateful<Div> {
+pub(crate) fn track_pointer(
+    element: Stateful<Div>,
+    pointer: gpui::Entity<anim::Pointer>,
+) -> Stateful<Div> {
     let down = pointer.clone();
     let up = pointer.clone();
     element
         .on_hover(move |hovered, _, cx| anim::set_hovered(&pointer, *hovered, cx))
-        .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| anim::set_pressed(&down, true, cx))
-        .on_mouse_up(gpui::MouseButton::Left, move |_, _, cx| anim::set_pressed(&up, false, cx))
+        .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
+            anim::set_pressed(&down, true, cx)
+        })
+        .on_mouse_up(gpui::MouseButton::Left, move |_, _, cx| {
+            anim::set_pressed(&up, false, cx)
+        })
 }
 
 /// Native replacement for a button's HTML `title`. Use with
@@ -96,7 +125,13 @@ pub(crate) fn toggle(
 ) -> Stateful<Div> {
     let id: ElementId = id.into();
     let palette = palette(cx);
-    let on = anim::tween(window, cx, (id.clone(), "checked"), checked as u8 as f32, UI);
+    let on = anim::tween(
+        window,
+        cx,
+        (id.clone(), "checked"),
+        checked as u8 as f32,
+        UI,
+    );
     div()
         .id(id)
         .relative()
@@ -145,9 +180,21 @@ pub(crate) fn checkbox(
     let id: ElementId = id.into();
     let palette = palette(cx);
     let (pointer, hover, press) = hover_tween(id.clone(), window, cx);
-    let on = anim::tween(window, cx, (id.clone(), "checked"), checked as u8 as f32, UI);
+    let on = anim::tween(
+        window,
+        cx,
+        (id.clone(), "checked"),
+        checked as u8 as f32,
+        UI,
+    );
     // Disabled colors and the inset highlight follow the same 200ms CSS transition.
-    let off = anim::tween(window, cx, (id.clone(), "disabled"), disabled as u8 as f32, UI);
+    let off = anim::tween(
+        window,
+        cx,
+        (id.clone(), "disabled"),
+        disabled as u8 as f32,
+        UI,
+    );
     let fg = lerp(
         lerp(palette.muted, palette.text, hover.max(press).max(on)),
         palette.faint,
@@ -196,12 +243,18 @@ pub(crate) fn checkbox(
                         .text_color(palette.on_accent.opacity(on).hsla()),
                 ),
         )
-        .child(div().min_w_0().line_height(gpui::relative(1.35)).child(label.into()));
+        .child(
+            div()
+                .min_w_0()
+                .line_height(gpui::relative(1.35))
+                .child(label.into()),
+        );
     let element = track_pointer(element, pointer);
     if disabled {
         element
     } else {
-        element.on_click(cx.listener(move |app, _, window, cx| on_change(app, !checked, window, cx)))
+        element
+            .on_click(cx.listener(move |app, _, window, cx| on_change(app, !checked, window, cx)))
     }
 }
 
@@ -280,7 +333,12 @@ pub(crate) fn button(
         })
         .when(!disabled, |this| this.cursor_pointer())
         .when_some(icon_name, |this, name| {
-            this.child(svg().path(icon(name)).size(px(icon_size)).text_color(fg.hsla()))
+            this.child(
+                svg()
+                    .path(icon(name))
+                    .size(px(icon_size))
+                    .text_color(fg.hsla()),
+            )
         })
         .when_some(label, |this, label| this.child(label));
     let element = track_pointer(element, pointer);

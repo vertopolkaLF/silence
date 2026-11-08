@@ -66,8 +66,24 @@ pub(crate) fn render(
         let outgoing = app.nav.outgoing_scroll.clone();
         let incoming = app.nav.scroll.clone();
         content = content
-            .child(panel(app, transition.from, &outgoing, false, out_x * width, window, cx))
-            .child(panel(app, transition.to, &incoming, false, in_x * width, window, cx));
+            .child(panel(
+                app,
+                transition.from,
+                &outgoing,
+                false,
+                out_x * width,
+                window,
+                cx,
+            ))
+            .child(panel(
+                app,
+                transition.to,
+                &incoming,
+                false,
+                in_x * width,
+                window,
+                cx,
+            ));
     } else {
         let scroll = app.nav.scroll.clone();
         let tab = app.nav.displayed_tab;
@@ -178,7 +194,8 @@ fn track_active_section(app: &mut SettingsApp) {
 
 /// Content-relative tops of the section blocks inside the page column.
 fn section_tops(scroll: &ScrollHandle) -> Vec<f32> {
-    SECTION_TOPS.with(|tops| tops.borrow().clone())
+    SECTION_TOPS
+        .with(|tops| tops.borrow().clone())
         .into_iter()
         .map(|top| top - scroll.bounds().origin.y.as_f32() - scroll.offset().y.as_f32())
         .collect()
@@ -191,7 +208,8 @@ thread_local! {
 }
 
 pub(crate) fn record_section_tops(tops: Vec<Pixels>) {
-    SECTION_TOPS.with(|cell| *cell.borrow_mut() = tops.into_iter().map(|top| top.as_f32()).collect());
+    SECTION_TOPS
+        .with(|cell| *cell.borrow_mut() = tops.into_iter().map(|top| top.as_f32()).collect());
 }
 
 /// Sub-section click: smooth-scroll the section to the top of the viewport.

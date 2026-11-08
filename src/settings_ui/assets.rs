@@ -6,7 +6,7 @@ use std::borrow::Cow;
 include!(concat!(env!("OUT_DIR"), "/embedded_assets.rs"));
 
 /// Serves "icons/<name>.svg", "gamepad/<name>.png", "flags/<name>.svg" and
-/// "app.png" from the binary.
+/// "logo/app-<size>.png" from the binary.
 pub(crate) struct SettingsAssets;
 
 impl AssetSource for SettingsAssets {
@@ -17,6 +17,22 @@ impl AssetSource for SettingsAssets {
     fn list(&self, _path: &str) -> Result<Vec<SharedString>> {
         Ok(Vec::new())
     }
+}
+
+/// Pre-scaled copies of `assets/app.png` in `assets/logo` (Lanczos).
+const LOGO_SIZES: &[u32] = &[24, 32, 40, 48, 64, 96, 128, 192, 256];
+
+/// The app logo for a `logical_px` square at the window's scale factor.
+/// GPUI samples images without mipmaps, so downscaling the 1080px original
+/// to ~30 device pixels aliases badly; pick the smallest copy that covers it.
+pub(crate) fn logo(logical_px: f32, window: &gpui::Window) -> SharedString {
+    let needed = (logical_px * window.scale_factor()).ceil() as u32;
+    let size = LOGO_SIZES
+        .iter()
+        .copied()
+        .find(|size| *size >= needed)
+        .unwrap_or(256);
+    SharedString::from(format!("logo/app-{size}.png"))
 }
 
 /// Path of a Solar/Iconify icon in `assets/icons`.
@@ -56,8 +72,10 @@ const SETTINGS_FONTS: &[&[u8]] = settings_fonts![
 /// Registers the UI fonts plus the bundled overlay families, which the
 /// overlay font picker previews.
 pub(crate) fn register_fonts(cx: &mut App) {
-    let mut fonts: Vec<Cow<'static, [u8]>> =
-        SETTINGS_FONTS.iter().map(|data| Cow::Borrowed(*data)).collect();
+    let mut fonts: Vec<Cow<'static, [u8]>> = SETTINGS_FONTS
+        .iter()
+        .map(|data| Cow::Borrowed(*data))
+        .collect();
     for family in crate::gpui_overlay::fonts::FAMILIES {
         if let Some(data) = crate::gpui_overlay::fonts::embedded(family) {
             fonts.push(data);

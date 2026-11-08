@@ -157,24 +157,3 @@ pub fn overlay_icon_svg(id: &str, muted: bool) -> &'static str {
         pair.unmuted_svg
     }
 }
-
-pub fn overlay_icon_css_url(id: &str, muted: bool) -> String {
-    let svg = overlay_icon_svg(id, muted);
-    format!("data:image/svg+xml;utf8,{}", encode_svg(svg))
-}
-
-fn encode_svg(svg: &str) -> String {
-    let mut encoded = String::with_capacity(svg.len() * 2);
-    for byte in svg.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                encoded.push(byte as char)
-            }
-            _ => {
-                encoded.push('%');
-                encoded.push_str(&format!("{byte:02X}"));
-            }
-        }
-    }
-    encoded
-}

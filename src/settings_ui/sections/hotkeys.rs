@@ -1802,6 +1802,7 @@ pub(crate) fn modal_host(
     let viewport = window.viewport_size();
     let mut overlay = div()
         .id("hotkey-panel-backdrop")
+        .occlude()
         .relative()
         .w(viewport.width)
         .h(viewport.height)

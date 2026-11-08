@@ -3,8 +3,8 @@
 //! assets-relative path, e.g. "icons/overlay/fluent-mic.svg".
 use std::{env, fmt::Write as _, fs, path::Path};
 
-const EMBEDDED_DIRS: &[&str] = &["icons", "gamepad", "flags"];
-const EMBEDDED_FILES: &[&str] = &["app.png"];
+const EMBEDDED_DIRS: &[&str] = &["icons", "gamepad", "flags", "logo"];
+const EMBEDDED_FILES: &[&str] = &[];
 
 fn asset_files(directory: &Path, files: &mut Vec<std::path::PathBuf>) {
     for entry in fs::read_dir(directory).unwrap() {
@@ -54,4 +54,14 @@ fn main() {
     );
     let out = Path::new(&env::var("OUT_DIR").unwrap()).join("embedded_assets.rs");
     fs::write(out, source).unwrap();
+
+    // GPUI loads the window/taskbar icon from resource id 1 of the executable.
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        let icon = assets.join("app.ico");
+        println!("cargo:rerun-if-changed={}", icon.display());
+        winresource::WindowsResource::new()
+            .set_icon_with_id(&icon.to_string_lossy(), "1")
+            .compile()
+            .expect("embed app icon resource");
+    }
 }

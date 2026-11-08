@@ -376,7 +376,11 @@ fn ps_quote(value: &str) -> String {
 }
 
 fn open_release_page(url: &str) -> Result<()> {
-    let url = if url.trim().is_empty() { RELEASES_URL } else { url };
+    let url = if url.trim().is_empty() {
+        RELEASES_URL
+    } else {
+        url
+    };
     Command::new("explorer")
         .arg(url)
         .spawn()
@@ -390,7 +394,9 @@ fn extract_package(archive: &Path, destination: &Path) -> Result<PathBuf> {
     let file = fs::File::open(archive).with_context(|| format!("open {}", archive.display()))?;
     let mut archive = ZipArchive::new(file).context("open update package")?;
     for index in 0..archive.len() {
-        let mut entry = archive.by_index(index).context("read update package entry")?;
+        let mut entry = archive
+            .by_index(index)
+            .context("read update package entry")?;
         let Some(relative) = entry.enclosed_name() else {
             continue;
         };

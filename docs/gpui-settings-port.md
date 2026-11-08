@@ -1,9 +1,15 @@
 # Porting the settings window to GPUI
 
 The Dioxus settings UI (`src/gui/**`, `assets/styles/*.css`,
-`assets/scripts/welcome-stars.js`) is being rewritten in GPUI under
-`src/settings_ui/**`. Until the port is complete the GPUI window opens with
-`silence.exe --settings-gpui`; `--settings` still opens the Dioxus window.
+`assets/scripts/welcome-stars.js`) has been rewritten in GPUI under
+`src/settings_ui/**`; `--settings` opens it. Dioxus has been removed; the
+original rsx and CSS live in git history (last present in commit `777b609`):
+`git show 777b609:assets/styles/controls.css`.
+
+Deliberate deviation: `color::mix` treats the hue of near-gray colors
+(chroma < 0.02) as powerless, so accent tints over the neutral surfaces stay in
+the accent's hue instead of sweeping through pink/violet as strict CSS
+`color-mix(in oklch)` would.
 
 ## Goal
 

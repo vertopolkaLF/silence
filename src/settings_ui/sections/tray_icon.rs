@@ -70,7 +70,9 @@ pub(crate) fn render(
         ("ColorDot", "Color dot"),
     ] {
         let preview = match value {
-            "Logo" => img("app.png").size(px(28.)).into_any_element(),
+            "Logo" => img(crate::settings_ui::assets::logo(28., window))
+                .size(px(28.))
+                .into_any_element(),
             // The original style tile always uses Solar mic, even while muted.
             "StatusMic" => svg()
                 .path(icon("microphone-3-linear"))

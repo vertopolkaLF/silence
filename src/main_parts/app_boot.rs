@@ -98,7 +98,7 @@ pub(crate) fn register_settings_audio_notifications(hwnd: isize) {
 pub(crate) fn rebind_settings_audio_notifications() {
     AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
         if let Some(registration) = registration.borrow_mut().as_mut() {
-            if let Err(err) = registration.rebind_default_capture_volume() {
+            if let Err(err) = registration.rebind_indicator_capture_volume() {
                 eprintln!("failed to rebind settings mute notifications: {err:?}");
             }
         }
@@ -354,7 +354,7 @@ fn main() -> Result<()> {
         PENDING_NOTIFICATION_ACTION.lock().unwrap().replace(action);
     }
 
-    if std::env::args().any(|arg| arg == "--settings" || arg == "--settings-gpui") {
+    if std::env::args().any(|arg| arg == "--settings") {
         let settings_mutex = unsafe { CreateMutexW(None, true, w!("SilenceV2SettingsWindow"))? };
         if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
             focus_settings_window();
@@ -364,46 +364,12 @@ fn main() -> Result<()> {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
         }
-        // Temporary during the GPUI migration: compare against the Dioxus window.
-        if std::env::args().any(|arg| arg == "--settings-gpui") {
-            MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
-            install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
-            if gamepad_monitoring_needed(false) {
-                ensure_gamepad_monitors(false);
-            }
-            settings_ui::run()?;
-            let _settings_mutex = settings_mutex;
-            return Ok(());
-        }
-        let settings_window_size = LogicalSize::new(760.0, 590.0);
-        let settings_window_position = centered_window_position(settings_window_size);
-        let cfg = DesktopConfig::new()
-            .with_window(
-                WindowBuilder::new()
-                    .with_title(SETTINGS_WINDOW_TITLE)
-                    .with_decorations(false)
-                    .with_resizable(true)
-                    .with_transparent(true)
-                    .with_no_redirection_bitmap(true)
-                    .with_visible(false)
-                    .with_inner_size(settings_window_size)
-                    .with_min_inner_size(settings_window_size)
-                    .with_position(settings_window_position),
-            )
-            .with_icon(
-                dioxus::desktop::icon_from_memory(include_bytes!("../../assets/app.png"))
-                    .expect("load app icon"),
-            )
-            .with_custom_head(gui::settings_startup_head())
-            .with_background_color((0, 0, 0, 0));
         MOUSE_HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
         install_mouse_hook(unsafe { GetModuleHandleW(None)? }.into())?;
-        dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(|| {
-            if gamepad_monitoring_needed(false) {
-                ensure_gamepad_monitors(false);
-            }
-            gui::settings_app()
-        });
+        if gamepad_monitoring_needed(false) {
+            ensure_gamepad_monitors(false);
+        }
+        settings_ui::run()?;
         let _settings_mutex = settings_mutex;
         return Ok(());
     }
@@ -710,19 +676,6 @@ fn set_hkcu_string(subkey: &str, value_name: &str, value: &str) -> Result<()> {
         "registry write failed with status {status:?}"
     );
     Ok(())
-}
-
-fn centered_window_position(size: LogicalSize<f64>) -> PhysicalPosition<i32> {
-    let dpi_scale = unsafe { GetDpiForSystem() }.max(96) as f64 / 96.0;
-    let screen_width = unsafe { GetSystemMetrics(SM_CXSCREEN) };
-    let screen_height = unsafe { GetSystemMetrics(SM_CYSCREEN) };
-    let window_width = (size.width * dpi_scale).round() as i32;
-    let window_height = (size.height * dpi_scale).round() as i32;
-
-    PhysicalPosition::new(
-        ((screen_width - window_width) / 2).max(0),
-        ((screen_height - window_height) / 2).max(0),
-    )
 }
 
 fn set_dpi_awareness() {

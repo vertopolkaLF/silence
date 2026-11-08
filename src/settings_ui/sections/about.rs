@@ -227,7 +227,11 @@ pub(crate) fn render(
                         10.,
                         24.,
                     )])
-                    .child(img("app.png").size(px(66.)).rounded(px(16.))),
+                    .child(
+                        img(crate::settings_ui::assets::logo(66., window))
+                            .size(px(66.))
+                            .rounded(px(16.)),
+                    ),
             )
             .child(
                 div()
