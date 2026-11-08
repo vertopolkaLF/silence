@@ -83,7 +83,9 @@ function Set-ScenarioConfig([string]$scenario) {
         default { $config.overlay.enabled = $false }
     }
     $config.welcome_completed = $true
-    $config | ConvertTo-Json -Depth 32 | Set-Content -Encoding utf8 $configPath
+    # No BOM: Windows PowerShell's `-Encoding utf8` writes one, which the app
+    # fails to parse, so it starts as a fresh install and opens settings.
+    [IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json -Depth 32), (New-Object Text.UTF8Encoding $false))
 }
 
 function Get-TreeIds([int[]]$roots) {
