@@ -948,6 +948,12 @@ float4 shadow_fragment(ShadowFragmentInput input): SV_TARGET {
         float element_distance = quad_sdf(input.position.xy, shadow.element_bounds,
                                           shadow.element_corner_radii);
         alpha *= saturate(0.5 - element_distance);
+    } else {
+        // Like CSS, a drop shadow is only painted outside the element's border box.
+        // Otherwise it darkens the element's own translucent background (Mica).
+        float element_distance = quad_sdf(input.position.xy, shadow.element_bounds,
+                                          shadow.element_corner_radii);
+        alpha *= saturate(0.5 + element_distance);
     }
 
     return input.color * float4(1., 1., 1., alpha);

@@ -435,6 +435,9 @@ pub(crate) fn render(
                     inset: false,
                 }])
                 .bg(lerp(p.surface_2, p.surface_3, hover).hsla())
+                // The input sits in a `<label>` (global.css: 14px / 600).
+                .text_size(px(14.))
+                .font_weight(FontWeight(600.))
                 .text_color(p.text.hsla());
         labels = labels.child(
             div()
@@ -444,7 +447,8 @@ pub(crate) fn render(
                 .flex()
                 .flex_col()
                 .gap(px(8.))
-                .child(style::label(label))
+                // `.overlay-text-field { color: var(--muted) }`.
+                .child(style::label(label).text_color(p.muted.hsla()))
                 .child(controls::track_pointer(shell, pointer)),
         );
     }
@@ -464,9 +468,10 @@ pub(crate) fn render(
         "overlay-icon-expand".into(),
         if expanded { "Collapse" } else { "Expand" },
         false,
+        // `.overlay-icon-preview .solar-icon` (30px) outranks the 16px glyph rule.
         svg()
             .path(icon("alt-arrow-down-linear"))
-            .size(px(16.))
+            .size(px(30.))
             .text_color(p.muted.hsla())
             .with_transformation(Transformation::rotate(radians(
                 std::f32::consts::PI * extra,
@@ -797,7 +802,8 @@ fn tile(
                     }])
                     .child(preview),
             )
-            .child(label),
+            // Labels wider than the 56px tile overflow centered, as in CSS.
+            .child(div().whitespace_nowrap().child(label)),
         pointer,
     )
     .tooltip(move |_, cx| controls::tooltip(label, cx))
@@ -1458,24 +1464,53 @@ fn behaviour(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settin
         ));
     }
     let rows = collapse("overlay-action-list", true, rows, window, cx);
-    let add = controls::button(
-        "overlay-add-action",
-        ButtonKind::Secondary,
-        Some("plus-linear"),
-        Some("Add action".into()),
-        false,
-        window,
-        cx,
-        |app, _, _, cx| {
-            let slot = first_empty_overlay_action_slot(&app.snapshot.config.overlay);
-            open_editor(app, slot, cx);
-        },
+    // `.secondary` button; in pass-through mode `.overlay-behaviour.pass-through
+    // .overlay-add-action-button` darkens the fill, label and icon and fades it.
+    let (add_pointer, add_hover, _) = controls::hover_tween("overlay-add-action", window, cx);
+    let add_bg = lerp(
+        lerp(p.surface_2, p.surface_hover, add_hover),
+        mix_pct(gray(0., 100.), 22. - 6. * add_hover, p.surface_2),
+        pass,
+    );
+    let add = controls::track_pointer(
+        div()
+            .id("overlay-add-action")
+            .h(px(38.))
+            .px(px(16.))
+            .flex()
+            .flex_shrink_0()
+            .items_center()
+            .justify_center()
+            .gap(px(8.))
+            .rounded(px(8.))
+            .cursor_pointer()
+            .bg(add_bg.hsla())
+            .text_size(px(14.))
+            .font_weight(FontWeight(500.))
+            .text_color(lerp(p.text, mix_pct(p.muted, 72., gray(0., 100.)), pass).hsla())
+            .opacity(1. - 0.42 * pass)
+            .when(pass == 0., |d| {
+                d.shadow(vec![BoxShadow {
+                    color: p.shadow_soft.hsla(),
+                    offset: point(px(0.), px(1.)),
+                    blur_radius: px(1.),
+                    spread_radius: px(0.),
+                    inset: false,
+                }])
+            })
+            .child(
+                svg()
+                    .path(icon("plus-linear"))
+                    .size(px(17.))
+                    .text_color(lerp(p.text, mix_pct(p.muted, 68., gray(0., 100.)), pass).hsla()),
+            )
+            .child("Add action"),
+        add_pointer,
     )
-    .opacity(1. - 0.42 * pass)
-    .when(pass > 0., |d| {
-        d.bg(mix_pct(gray(0., 100.), 22. * pass, p.surface_2).hsla())
-            .shadow(Vec::<BoxShadow>::new())
-    });
+    .on_click(cx.listener(|app, _, _, cx| {
+        let slot = first_empty_overlay_action_slot(&app.snapshot.config.overlay);
+        open_editor(app, slot, cx);
+    }));
     panel(16., true, cx)
         .mt(px(18.))
         .child(heading("Behaviour"))

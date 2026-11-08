@@ -605,25 +605,33 @@ pub(crate) fn render(
                         .child("Ignores modifiers"),
                 )
             });
-        let edit_button = controls::button(
-            (ElementId::from(id.clone()), "edit"),
-            ButtonKind::Icon,
-            Some("pen-linear"),
-            None,
-            false,
-            window,
-            cx,
-            move |app, _, _, cx| {
-                app.hotkey_modal_request = Some(HotkeyModalRequest::Edit {
-                    binding: edit.clone(),
-                });
-                cx.notify();
-            },
+        // `.hotkey-row-actions .icon-button`: transparent until the button itself is hovered.
+        let (ep, eh, _) = controls::hover_tween((ElementId::from(id.clone()), "edit"), window, cx);
+        let edit_button = controls::track_pointer(
+            div()
+                .id((ElementId::from(id.clone()), "edit"))
+                .size(px(36.))
+                .rounded(px(8.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .cursor_pointer()
+                .bg(lerp(TRANSPARENT, p.surface_3, eh).hsla())
+                .child(
+                    svg()
+                        .path(icon("pen-linear"))
+                        .size(px(18.))
+                        .text_color(p.muted.hsla()),
+                ),
+            ep,
         )
-        .size(px(36.))
-        .bg(lerp(p.surface_2, p.surface_3, hover).hsla())
-        .shadow(vec![])
-        .tooltip(|_, cx| controls::tooltip("Edit hotkey", cx));
+        .tooltip(|_, cx| controls::tooltip("Edit hotkey", cx))
+        .on_click(cx.listener(move |app, _, _, cx| {
+            app.hotkey_modal_request = Some(HotkeyModalRequest::Edit {
+                binding: edit.clone(),
+            });
+            cx.notify();
+        }));
         let (dp, dh, _) =
             controls::hover_tween((ElementId::from(id.clone()), "remove"), window, cx);
         let delete = controls::track_pointer(
@@ -635,7 +643,7 @@ pub(crate) fn render(
                 .items_center()
                 .justify_center()
                 .cursor_pointer()
-                .bg(lerp(p.surface_2, p.surface_3, dh).hsla())
+                .bg(lerp(TRANSPARENT, p.surface_3, dh).hsla())
                 .child(
                     svg()
                         .path(icon("trash-bin-trash-linear"))

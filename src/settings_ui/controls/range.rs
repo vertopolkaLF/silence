@@ -315,6 +315,8 @@ pub(crate) fn range(
                 .justify_between()
                 .gap(px(16.))
                 .text_color(p.text.hsla())
+                // The shell is a `<label>`: global.css sets 14px on labels.
+                .text_size(px(14.))
                 .font_weight(FontWeight(650.))
                 .line_height(relative(1.2))
                 .child(

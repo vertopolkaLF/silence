@@ -266,8 +266,9 @@ fn action_card(
         app.sections.general.confirm_closing = None;
         cx.notify();
     }));
-    let _ = last;
-    card_row(title, None, button, true, cx)
+    // `.sound-card` keeps its bottom border (sounds.css loads after general.css);
+    // only `.sound-card:last-child` drops it.
+    card_row(title, None, button, last, cx)
 }
 
 /// `.general-import-export-button`: 64px tile that lifts 1px on hover.

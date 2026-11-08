@@ -233,6 +233,9 @@ impl Render for SettingsApp {
             .text_color(palette.text.hsla())
             .font_family(theme::FONT_TEXT)
             .text_size(px(16.))
+            // CSS `line-height: normal` for Plus Jakarta Sans (hhea metrics);
+            // GPUI's default is the golden ratio, which inflates every row.
+            .line_height(gpui::relative(1.26))
             // `.window.closing { opacity: 0; transform: scale(.985) }`
             .opacity(1. - ease)
             .child(body)

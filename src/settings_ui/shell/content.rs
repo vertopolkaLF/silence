@@ -216,7 +216,7 @@ pub(crate) fn record_section_tops(tops: Vec<Pixels>) {
 pub(crate) fn scroll_to_section(
     app: &mut SettingsApp,
     id: &'static str,
-    window: &mut Window,
+    _window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) {
     let sections = app.nav.displayed_tab.sections();
@@ -233,7 +233,9 @@ pub(crate) fn scroll_to_section(
     // `max_offset` can be negative before the first layout; clamp would panic.
     let target = (top - SCROLL_MARGIN_TOP).clamp(0., max.max(0.));
     app.nav.smooth_scroll = Some((current, target, Instant::now()));
-    window.request_animation_frame();
+    // Not `window.request_animation_frame()`: outside render it has no current
+    // view and panics. The re-render runs `apply_smooth_scroll`, which keeps
+    // requesting frames until the scroll settles.
     cx.notify();
 }
 

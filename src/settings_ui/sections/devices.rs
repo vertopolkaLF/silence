@@ -117,6 +117,22 @@ pub(crate) fn render(
             })
         },
     );
+    let indicator = controls::select(
+        "devices-indicator",
+        app.snapshot.config.advanced.indicator_device.clone(),
+        SelectOptions::new(indicator_device_options(
+            &app.snapshot.devices,
+            &app.snapshot.config.hotkeys,
+            &app.snapshot.config.advanced.indicator_device,
+            &app.snapshot.config.advanced.audio_device_name_display,
+        )),
+        app,
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |c| c.advanced.indicator_device = value.to_string())
+        },
+    );
     let toggle = controls::toggle(
         "devices-ungroup",
         app.snapshot.config.advanced.ungroup_tray_devices,
@@ -137,6 +153,14 @@ pub(crate) fn render(
                     .flex()
                     .flex_col()
                     .gap(px(20.))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(16.))
+                            .child(style::h2("Tray icon and overlay show"))
+                            .child(indicator),
+                    )
                     .child(
                         div()
                             .flex()
@@ -670,4 +694,51 @@ fn action(
             ),
         pointer,
     )
+}
+
+/// Which microphone the tray icon and overlay reflect (`advanced.indicator_device`).
+fn indicator_device_options(
+    devices: &[crate::MicDevice],
+    hotkeys: &[crate::HotkeyBinding],
+    selected: &str,
+    name_display: &str,
+) -> Vec<SelectOption> {
+    let device_name = |id: Option<&str>| {
+        devices
+            .iter()
+            .find(|device| match id {
+                Some(id) => device.id == id,
+                None => device.is_default,
+            })
+            .map(|device| device.display_name(name_display))
+    };
+    let auto_id = crate::indicator_device_id(crate::INDICATOR_DEVICE_AUTO, hotkeys);
+    let auto_detail = match device_name(auto_id.as_deref()) {
+        Some(name) if auto_id.is_some() => format!("Follows your mute hotkeys: {name}"),
+        _ => "Follows your mute hotkeys: Windows default".to_string(),
+    };
+    let default_detail = device_name(None).unwrap_or_else(|| "No active microphone".to_string());
+    let mic = "microphone-3-linear";
+    let mut options = vec![
+        SelectOption::new(crate::INDICATOR_DEVICE_AUTO, "Auto")
+            .detail(auto_detail)
+            .icon(mic),
+        SelectOption::new(crate::INDICATOR_DEVICE_DEFAULT, "Windows default")
+            .detail(default_detail)
+            .icon(mic),
+    ];
+    let selected_is_device = selected != crate::INDICATOR_DEVICE_AUTO
+        && selected != crate::INDICATOR_DEVICE_DEFAULT
+        && !selected.is_empty();
+    if selected_is_device && !devices.iter().any(|device| device.id == selected) {
+        options.push(
+            SelectOption::new(selected.to_string(), "Disconnected microphone")
+                .detail("Showing Windows default until it reconnects")
+                .icon(mic),
+        );
+    }
+    options.extend(devices.iter().map(|device| {
+        SelectOption::new(device.id.clone(), device.display_name(name_display)).icon(mic)
+    }));
+    options
 }
