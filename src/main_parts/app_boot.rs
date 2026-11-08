@@ -577,7 +577,21 @@ fn notification_icon_path() -> Option<PathBuf> {
         };
         path.exists().then_some(path)
     });
-    direct_candidates.or_else(|| find_asset_icon(&exe_dir.join("assets")))
+    direct_candidates
+        .or_else(|| find_asset_icon(&exe_dir.join("assets")))
+        .or_else(|| embedded_image_file("app.ico", include_bytes!("../../assets/app.ico")))
+}
+
+/// Portable builds ship only the exe, but toasts need image files on disk.
+/// Writes the embedded copy to the config folder once and reuses it.
+fn embedded_image_file(name: &str, bytes: &[u8]) -> Option<PathBuf> {
+    let path = app_config_dir().ok()?.join(name);
+    if fs::metadata(&path).is_ok_and(|meta| meta.len() == bytes.len() as u64) {
+        return Some(path);
+    }
+    fs::create_dir_all(path.parent()?).ok()?;
+    fs::write(&path, bytes).ok()?;
+    Some(path)
 }
 
 fn find_asset_icon(asset_dir: &Path) -> Option<PathBuf> {
@@ -611,6 +625,9 @@ fn toast_logo_path() -> Option<PathBuf> {
     });
     direct_candidates
         .or_else(|| find_asset_image(&exe_dir.join("assets"), "app-", ".png"))
+        .or_else(|| {
+            embedded_image_file("app.png", include_bytes!("../../assets/logo/app-256.png"))
+        })
         .or_else(|| notification_icon_path())
 }
 
