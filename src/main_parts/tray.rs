@@ -1219,6 +1219,12 @@ fn launch_settings_window(tab_arg: Option<&str>) {
     let _ = command.spawn();
 }
 
+fn settings_window_exists() -> bool {
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }
+        .is_ok_and(|hwnd| !hwnd.0.is_null())
+}
+
 fn focus_settings_window() -> bool {
     let title = wide(SETTINGS_WINDOW_TITLE);
     let hwnd = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) };

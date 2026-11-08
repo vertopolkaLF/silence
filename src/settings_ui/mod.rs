@@ -277,6 +277,11 @@ pub(crate) fn run() -> Result<()> {
         .with_assets(assets::SettingsAssets)
         .run(|cx: &mut App| {
             assets::register_fonts(cx);
+            // No hotkey editor is open yet, so a set pause flag is left over
+            // from a settings process that died mid-edit.
+            if let Err(err) = crate::clear_stale_hotkey_pause() {
+                eprintln!("failed to clear stale hotkey pause: {err:?}");
+            }
             let snapshot = SettingsSnapshot::load();
             let mica = crate::effective_settings_mica_enabled(&snapshot.config);
             cx.set_global(Palette::load(mica));

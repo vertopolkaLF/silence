@@ -499,6 +499,21 @@ pub fn import_v1_settings() -> Result<()> {
     Ok(())
 }
 
+/// The settings window pauses hotkeys in the config while its hotkey editor is
+/// open. If that process dies mid-edit the flag would stick forever, so clear it
+/// whenever no editor can be open (tray startup without a settings window,
+/// settings startup).
+pub(crate) fn clear_stale_hotkey_pause() -> Result<()> {
+    let mut config = load_config()?;
+    if !config.hotkeys_paused {
+        return Ok(());
+    }
+    config.hotkeys_paused = false;
+    save_config(&config)?;
+    apply_live_config(&config, config_modified_time());
+    Ok(())
+}
+
 pub fn complete_welcome() -> Result<()> {
     let mut config = load_config().unwrap_or_default();
     config.welcome_completed = true;

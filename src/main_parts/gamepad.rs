@@ -192,6 +192,11 @@ fn run_background_app() -> Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
     }
+    if !settings_window_exists()
+        && let Err(err) = clear_stale_hotkey_pause()
+    {
+        eprintln!("failed to clear stale hotkey pause: {err:?}");
+    }
     let instance = unsafe { GetModuleHandleW(None)? };
     register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
