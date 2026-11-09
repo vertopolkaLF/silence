@@ -925,8 +925,6 @@ impl Render for PopupView {
             .top(px(8.0 * (1.0 - t)))
             .opacity(t)
             .rounded(px(RADIUS))
-            .border_1()
-            .border_color(colors.border)
             .shadow(vec![BoxShadow {
                 color: colors.shadow.into(),
                 offset: point(px(0.), px(8.)),
@@ -979,7 +977,18 @@ impl Render for PopupView {
                 )
                 .child(list)
             });
-        let card = card.child(content);
+        // Hairline drawn over the background, not around it: a real border
+        // would leave the wallpaper inset by a pixel with seams at the corners.
+        let card = card.child(content).child(
+            div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .size_full()
+                .rounded(px(RADIUS))
+                .border_1()
+                .border_color(colors.border),
+        );
 
         div()
             .id("popup-root")
