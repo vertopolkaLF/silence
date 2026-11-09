@@ -952,8 +952,21 @@
             --gap: 12px;
             --font: 'Orbitron';
             --fs: 12px;
-            background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 3px);
+            background-image: linear-gradient(color-mix(in srgb, var(--sig) 6%, transparent) 0 1px, transparent 1px);
+            background-size: 100% 4px;
+            background-position: 0 3px;
             box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sig) 35%, transparent), 3px 3px 0 #06100b;
+            animation: terminal-scan 0.8s linear infinite;
+        }
+
+        .th-terminal.is-flip {
+            animation: terminal-scan 0.8s linear infinite, theme-bump 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes terminal-scan {
+            to {
+                background-position: 0 -1px;
+            }
         }
 
         .th-blueprint {
@@ -1093,8 +1106,60 @@
             --gap: 12px;
             --font: 'Orbitron';
             --fs: 12px;
-            background-image: radial-gradient(circle at 23px 50%, transparent 15px, color-mix(in srgb, var(--sig) 28%, transparent) 15px 16px, transparent 16px 25px, rgba(152, 219, 160, 0.14) 25px 26px, transparent 26px);
             box-shadow: inset 0 0 0 1px rgba(122, 156, 134, 0.4), 0 3px 6px rgba(0, 0, 0, 0.24);
+        }
+
+        .th-radar .ov-box,
+        .th-radar .ov-label {
+            position: relative;
+            z-index: 1;
+        }
+
+        .radar-waves {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            border-radius: inherit;
+            pointer-events: none;
+        }
+
+        .radar-waves i {
+            position: absolute;
+            left: 23px;
+            top: 50%;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            box-shadow: inset 0 0 0 1px var(--sig);
+            opacity: 0;
+            transform: translate(-50%, -50%);
+            animation: radar-wave 2.4s linear infinite;
+        }
+
+        .radar-waves i:nth-child(2) {
+            animation-delay: -0.8s;
+        }
+
+        .radar-waves i:nth-child(3) {
+            animation-delay: -1.6s;
+        }
+
+        @keyframes radar-wave {
+            0% {
+                width: 22px;
+                height: 22px;
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 0.22;
+            }
+
+            100% {
+                width: 86px;
+                height: 86px;
+                opacity: 0;
+            }
         }
 
         .sound-row {
@@ -1921,7 +1986,7 @@
                     <div class="ov-cell"><span class="ov th-paper pair-tabler" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Paper</span></div>
                     <div class="ov-cell"><span class="ov th-frosted pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Frosted</span></div>
                     <div class="ov-cell"><span class="ov th-porcelain pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Porcelain</span></div>
-                    <div class="ov-cell"><span class="ov th-radar pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Radar</span></div>
+                    <div class="ov-cell"><span class="ov th-radar pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="radar-waves"><i></i><i></i><i></i></span><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Radar</span></div>
                 </div>
                 <div class="sound-row" role="group" aria-label="Preview sound themes">
                     <span class="sound-row-label">Sounds</span>
