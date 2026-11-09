@@ -298,7 +298,7 @@ pub(crate) fn popup_state(state: &OutputVolumeState) -> volume_popup::VolumePopu
     volume_popup::VolumePopupState {
         percent: output_percent(state),
         muted: state.muted,
-        device_name: state.device_name.clone(),
+        device_name: output_display_name(state),
     }
 }
 
@@ -385,7 +385,7 @@ pub fn on_output_device_changed(state: &OutputVolumeState) {
         .show_on_device_change;
     if show_device && !state.device_id.is_empty() {
         show_volume_osd(volume_osd::VolumeOsdContent::Device {
-            name: state.device_name.clone(),
+            name: output_display_name(state),
             kind: output_device_kind(&state.device_name),
             percent: output_percent(state),
             muted: state.muted,
@@ -393,6 +393,22 @@ pub fn on_output_device_changed(state: &OutputVolumeState) {
     }
     // No sound for device switches; volume ticks are own level/mute changes only.
     cancel_volume_change_sound();
+}
+
+/// Device name as the user chose to see names (Pretty / System / Both).
+fn output_display_name(state: &OutputVolumeState) -> String {
+    let mode = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .advanced
+        .audio_device_name_display
+        .clone();
+    render_devices()
+        .ok()
+        .and_then(|devices| devices.into_iter().find(|device| device.id == state.device_id))
+        .map(|device| device.display_name(&mode))
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| state.device_name.clone())
 }
 
 fn output_percent(state: &OutputVolumeState) -> u8 {

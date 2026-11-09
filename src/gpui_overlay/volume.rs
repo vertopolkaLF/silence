@@ -32,6 +32,8 @@ const LEVEL_MS: u64 = 120;
 /// Bar-to-number gap as a share of the chrome gap. The number is centered in
 /// a slot sized for "100", which already leaves air on both sides.
 const NUMBER_GAP: f32 = 0.6;
+/// Device names get room to show in full; only very long ones are cut.
+const NAME_MAX_WIDTH: f32 = 440.0;
 const CROSSFADE_MS: u64 = 200;
 const SIZE_MS: u64 = 240;
 const FADE_MS: u64 = 180;
@@ -65,7 +67,9 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) {
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(Bounds::new(
                         point(px(80.), px(80.)),
-                        size(px(220.), px(80.)),
+                        // Large enough for the widest card (long device
+                        // names); the native surface is resized to fit.
+                        size(px(600.), px(120.)),
                     ))),
                     titlebar: None,
                     inactive_frame_interval: None,
@@ -593,7 +597,7 @@ impl Render for VolumeView {
             let chrome = self.incoming().chrome.clone();
             let measure_window = &*window;
             let fitted = self.device_name.clone().map(|name| {
-                fit_name(&name, 180.0 * scale, |text| {
+                fit_name(&name, NAME_MAX_WIDTH * scale, |text| {
                     measure_text(text, &chrome, scale, measure_window)
                 })
             });
@@ -618,7 +622,13 @@ impl Render for VolumeView {
             * scale;
         let bar_w = chrome.bar_width * scale;
         let bar_h = chrome.bar_height * scale;
-        let base = pad * 2.0 + icon_slot + gap + bar_w + gap * NUMBER_GAP + percent_slot;
+        // A device switch shows only the glyph and the device name.
+        let device_mode = matches!(self.content, VolumeOsdContent::Device { .. });
+        let base = if device_mode {
+            pad * 2.0 + icon_slot
+        } else {
+            pad * 2.0 + icon_slot + gap + bar_w + gap * NUMBER_GAP + percent_slot
+        };
         let extra = if name_width > 0.0 {
             gap + name_width
         } else {
@@ -891,42 +901,44 @@ impl Render for VolumeView {
             }
             row = row.child(name);
         }
-        row = row.child(
-            div().pl(px(gap)).flex_shrink_0().child(
+        if !device_mode {
+            row = row.child(
+                div().pl(px(gap)).flex_shrink_0().child(
+                    div()
+                        .w(px(bar_w))
+                        .h(px(bar_h.max(1.0)))
+                        .rounded(px(bar_h / 2.0))
+                        .bg(track)
+                        // GPUI clips to the rectangle, not the radius: round the
+                        // fill itself so its start and end are capsules too.
+                        .when(level > 0.0, |rail| {
+                            rail.child(
+                                div()
+                                    .h(px(bar_h.max(1.0)))
+                                    .w(px((bar_w * level).max(bar_h)))
+                                    .rounded(px(bar_h / 2.0))
+                                    .bg(fill),
+                            )
+                        }),
+                ),
+            );
+            row = row.child(
                 div()
-                    .w(px(bar_w))
-                    .h(px(bar_h.max(1.0)))
-                    .rounded(px(bar_h / 2.0))
-                    .bg(track)
-                    // GPUI clips to the rectangle, not the radius: round the
-                    // fill itself so its start and end are capsules too.
-                    .when(level > 0.0, |rail| {
-                        rail.child(
-                            div()
-                                .h(px(bar_h.max(1.0)))
-                                .w(px((bar_w * level).max(bar_h)))
-                                .rounded(px(bar_h / 2.0))
-                                .bg(fill),
-                        )
-                    }),
-            ),
-        );
-        row = row.child(
-            div()
-                .pl(px(gap * NUMBER_GAP))
-                .w(px(percent_slot + gap * NUMBER_GAP))
-                .flex_shrink_0()
-                .flex()
-                .justify_center()
-                .items_center()
-                .line_height(px(chrome.text_size * scale))
-                .whitespace_nowrap()
-                .text_size(px(chrome.text_size * scale))
-                .font_family(chrome.font.clone())
-                .font_weight(FontWeight(chrome.weight as f32))
-                .text_color(rgb(foreground))
-                .child(label),
-        );
+                    .pl(px(gap * NUMBER_GAP))
+                    .w(px(percent_slot + gap * NUMBER_GAP))
+                    .flex_shrink_0()
+                    .flex()
+                    .justify_center()
+                    .items_center()
+                    .line_height(px(chrome.text_size * scale))
+                    .whitespace_nowrap()
+                    .text_size(px(chrome.text_size * scale))
+                    .font_family(chrome.font.clone())
+                    .font_weight(FontWeight(chrome.weight as f32))
+                    .text_color(rgb(foreground))
+                    .child(label),
+            );
+        }
         contents = contents.child(row);
         card = card.child(contents);
         if let Some((color, border)) = chrome.border {
