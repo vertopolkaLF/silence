@@ -341,6 +341,10 @@ impl VolumeView {
 
     fn begin_enter(&mut self, now: Instant) {
         self.want_visible = true;
+        // A hidden window gets no frames, so `render` would never get to call
+        // `present(true)` again. Show the window here; the frame that follows
+        // animates it in.
+        crate::volume_osd::present(true);
         if !self.surface_ready {
             return;
         }
