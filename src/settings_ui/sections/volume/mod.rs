@@ -33,8 +33,6 @@ pub(crate) struct State {
     color_backing: String,
     color_focused: bool,
     color_input: Option<Entity<TextInput>>,
-    /// Rendered skin previews keyed by (skin, accent, light, size, level).
-    pub(crate) skin_images: HashMap<(u8, [u8; 3], bool, u32, u8), std::sync::Arc<Image>>,
 }
 
 pub(crate) fn column() -> Div {
