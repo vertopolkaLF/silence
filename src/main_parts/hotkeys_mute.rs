@@ -10,6 +10,7 @@ fn exit_all_processes() {
 }
 
 unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    note_hook_event();
     if code < 0 {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
@@ -20,6 +21,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     let is_down = event == WM_KEYDOWN || event == 0x0104;
     let is_up = event == WM_KEYUP || event == 0x0105;
 
+    // The settings recorder pauses hotkeys (`hotkeys_paused`) and the welcome
+    // flow has not finished yet. Both must still receive volume keys, so do
+    // not swallow here.
     if {
         let state = STATE.lock().unwrap();
         hotkeys_blocked(&state)
@@ -27,6 +31,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
+    let mut hotkey_claimed = false;
     if is_down {
         let mut actions = Vec::new();
         let mut suppress_key = false;
@@ -56,6 +61,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 })
                 .cloned()
                 .collect();
+            hotkey_claimed = matching_hotkeys.iter().any(|hotkey| hotkey.shortcut.vk == vk);
             let exact_keys: HashSet<u32> = matching_hotkeys
                 .iter()
                 .filter(|hotkey| !hotkey.ignore_modifiers)
@@ -109,6 +115,11 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
             })
             .cloned()
             .collect();
+        // Only a hotkey that actually took this keydown owns the keyup.
+        // A Ctrl+Volume binding must not block intercept of a plain volume key.
+        hotkey_claimed = released.iter().any(|hotkey| {
+            hotkey.shortcut.vk == vk && state.hotkeys_down.contains(&hotkey.id)
+        });
         for hotkey in released {
             if shortcut_is_alt_space(&hotkey.shortcut) {
                 suppress_key = true;
@@ -131,6 +142,10 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         if suppress_key {
             return LRESULT(1);
         }
+    }
+
+    if swallow_volume_media_key(vk, kb.flags.0, is_down, is_up, hotkey_claimed) {
+        return LRESULT(1);
     }
 
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
@@ -158,8 +173,15 @@ fn normalized_keyboard_vk(vk: u32, scan_code: u32, flags: u32) -> u32 {
 }
 
 unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    note_hook_event();
     if code < 0 {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+
+    // The settings process installs this same proc. `TRAY_VOLUME_HOOKS` is set
+    // only in the tray, so that thread never swallows a wheel.
+    if wparam.0 as u32 == WM_MOUSEWHEEL && volume_wheel_should_swallow(wparam.0 as u32, lparam) {
+        return LRESULT(1);
     }
 
     let event = wparam.0 as u32;

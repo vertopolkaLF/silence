@@ -916,6 +916,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
         apply_volume_osd_config(config);
     }
     prime_sound_assets(&config.sound_settings);
+    sync_volume_input_runtime();
     if volume_zero_mute_changed
         && config.modules.microphone
         && let Err(err) = sync_capture_volume_zero_mute_setting(

@@ -296,20 +296,26 @@ pub fn cycle_output_device(forward: bool) -> Result<()> {
 
 /// Single place later stages attach to a level or mute change.
 pub fn on_output_volume_changed(state: &OutputVolumeState, source: VolumeChangeSource) {
-    if let Ok(mut app) = STATE.lock() {
+    // Own writes only: wheel, media keys, and any other silence! call that
+    // passes `OUTPUT_VOLUME_EVENT_CONTEXT`. External changes from other apps
+    // do not play. Device switches go through `on_output_device_changed` and
+    // stay silent. Playback itself is debounced and skipped while muted.
+    let arm = if let Ok(mut app) = STATE.lock() {
         app.output_volume = state.clone();
         app.output_volume_seeded = true;
-    }
-    match source {
-        VolumeChangeSource::Own | VolumeChangeSource::External => {
-            // stage 2 hooks: refresh the volume tray icon
-            show_volume_osd(volume_osd::VolumeOsdContent::Level {
-                percent: output_percent(state),
-                muted: state.muted,
-            });
-            // stage 4 hooks: play the volume change sound
-        }
-    }
+        source == VolumeChangeSource::Own
+            && app.modules.volume
+            && app.volume.sound.enabled
+            && !state.muted
+    } else {
+        false
+    };
+    // stage 2 hooks: refresh the volume tray icon
+    show_volume_osd(volume_osd::VolumeOsdContent::Level {
+        percent: output_percent(state),
+        muted: state.muted,
+    });
+    consider_volume_change_sound(source, state.muted, arm);
 }
 
 /// Single place later stages attach to a default-output switch.
@@ -334,6 +340,8 @@ pub fn on_output_device_changed(state: &OutputVolumeState) {
             muted: state.muted,
         });
     }
+    // No sound for device switches; volume ticks are own level/mute changes only.
+    cancel_volume_change_sound();
 }
 
 fn output_percent(state: &OutputVolumeState) -> u8 {
