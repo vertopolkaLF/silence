@@ -127,5 +127,7 @@ Section "Uninstall"
     RMDir /r "$SMPROGRAMS\silence!"
     Delete "$DESKTOP\silence!.lnk"
     DeleteRegValue SHCTX "Software\Microsoft\Windows\CurrentVersion\Run" "silence!"
+    ; Highest-privileges logon task. Non-admin uninstall may fail to delete it.
+    nsExec::ExecToLog 'schtasks.exe /Delete /F /TN "\silence!\silence-elevated"'
     DeleteRegKey SHCTX "${UNINSTALL_KEY}"
 SectionEnd

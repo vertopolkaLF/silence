@@ -192,6 +192,7 @@ fn run_background_app() -> Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
     }
+    ensure_startup_registration();
     if !settings_window_exists()
         && let Err(err) = clear_stale_hotkey_pause()
     {
@@ -292,6 +293,9 @@ fn create_message_window(instance: HINSTANCE) -> Result<HWND> {
     if hwnd.0.is_null() {
         anyhow::bail!("failed to create hidden window");
     }
+    // Allow medium-integrity senders (toasts, settings, Explorer) once the
+    // tray itself is elevated. Harmless while it is not.
+    allow_cross_process_window_messages(hwnd);
     Ok(hwnd)
 }
 

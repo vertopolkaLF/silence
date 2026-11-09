@@ -151,6 +151,7 @@ include!("main_parts/volume.rs");
 include!("main_parts/volume_input.rs");
 include!("main_parts/runtime_config.rs");
 include!("main_parts/input_utils.rs");
+include!("main_parts/elevation.rs");
 
 #[allow(dead_code)]
 pub mod volume_tray_icons {

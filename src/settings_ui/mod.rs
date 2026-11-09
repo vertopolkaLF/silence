@@ -128,7 +128,6 @@ impl SettingsApp {
         update: impl FnOnce(&mut crate::Config),
     ) {
         let mut config = crate::load_config().unwrap_or_else(|_| self.snapshot.config.clone());
-        let startup_was_enabled = config.startup.launch_on_startup;
         let mica_was_enabled = crate::effective_settings_mica_enabled(&config);
         update(&mut config);
         crate::normalize_hotkeys(&mut config.hotkeys);
@@ -136,9 +135,6 @@ impl SettingsApp {
         crate::normalize_tray_icon_config(&mut config.tray_icon);
         crate::normalize_volume_config(&mut config.volume);
         let _ = crate::save_config(&config);
-        if config.startup.launch_on_startup != startup_was_enabled {
-            let _ = crate::sync_startup_registration(config.startup.launch_on_startup);
-        }
         crate::apply_live_config(&config, crate::config_modified_time());
         let mica = crate::effective_settings_mica_enabled(&config);
         self.snapshot.config = config;

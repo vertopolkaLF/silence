@@ -742,12 +742,18 @@ impl Default for Config {
 pub struct StartupSettings {
     #[serde(default = "default_launch_on_startup")]
     pub launch_on_startup: bool,
+    /// Start elevated so low-level hooks still run while an administrator
+    /// window is focused. When launch-on-startup is also on, autostart is a
+    /// highest-privileges scheduled task instead of the HKCU Run key.
+    #[serde(default)]
+    pub run_as_administrator: bool,
 }
 
 impl Default for StartupSettings {
     fn default() -> Self {
         Self {
             launch_on_startup: default_launch_on_startup(),
+            run_as_administrator: false,
         }
     }
 }

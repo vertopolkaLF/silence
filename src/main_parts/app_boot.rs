@@ -387,15 +387,9 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let main_mutex = unsafe { CreateMutexW(None, true, MAIN_INSTANCE_MUTEX)? };
-    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
-        if let Some(action) = PENDING_NOTIFICATION_ACTION.lock().unwrap().take() {
-            dispatch_notification_action(action);
-        } else {
-            dispatch_notification_action(NotificationAction::OpenSettings);
-        }
+    let Some(main_mutex) = acquire_background_mutex()? else {
         return Ok(());
-    }
+    };
 
     let result = run_background_app();
     let _main_mutex = main_mutex;

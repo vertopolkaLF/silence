@@ -1,5 +1,7 @@
 fn exit_all_processes() {
-    close_settings_window();
+    // Posted so a settings thread blocked in the relaunch ShellExecuteExW
+    // cannot deadlock against this handler.
+    post_close_settings_window();
     let hwnd = STATE.lock().unwrap().hwnd;
     if hwnd.0.is_null() {
         return;
