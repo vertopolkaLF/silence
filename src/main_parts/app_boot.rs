@@ -100,6 +100,20 @@ pub(crate) fn request_volume_osd_preview() {
     }
 }
 
+/// Settings "Move OSD" toggle.
+pub(crate) fn request_volume_osd_positioning(active: bool) {
+    if let Some(hwnd) = hidden_window() {
+        unsafe {
+            let _ = PostMessageW(
+                hwnd,
+                WM_VOLUME_OSD_POSITIONING,
+                WPARAM(usize::from(active)),
+                LPARAM(0),
+            );
+        }
+    }
+}
+
 /// Mute/endpoint callbacks for the settings window, posted to its procedure.
 pub(crate) fn register_settings_audio_notifications(hwnd: isize) {
     ensure_audio_notification_registration_for(HWND(hwnd as *mut c_void));

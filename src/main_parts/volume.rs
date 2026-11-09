@@ -479,6 +479,17 @@ fn volume_osd_style(config: &VolumeConfig) -> volume_osd::VolumeOsdStyle {
         duration_ms: osd.duration_ms,
         while_muted: osd.visibility == VolumeOsdVisibility::OnChangeAndWhileMuted,
         enabled: osd.enabled,
+        scale: osd.scale.clamp(10, 400) as f32 / 100.0,
+        corner_radius: osd.corner_radii.get(&osd.theme).map(|radius| f32::from(*radius)),
+        custom: volume_osd::CustomLook {
+            font: osd.text_font.clone(),
+            weight: osd.text_font_weight,
+            icon_style: osd.icon_style.clone(),
+            light_background: osd.background_style == "Light",
+            background_opacity: f32::from(osd.background_opacity.min(100)) / 100.0,
+            content_opacity: f32::from(osd.content_opacity.clamp(20, 100)) / 100.0,
+            border: osd.show_border,
+        },
     }
 }
 
@@ -498,6 +509,50 @@ fn show_volume_osd(content: volume_osd::VolumeOsdContent) {
         return;
     }
     volume_osd::volume_osd_show(content, &style);
+}
+
+static OSD_POSITIONING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// "Move OSD" belongs to the settings window; end it if that window closed.
+pub(crate) fn check_volume_osd_positioning() {
+    if !OSD_POSITIONING.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    let settings_open = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }
+        .is_ok_and(|hwnd| !hwnd.0.is_null());
+    if !settings_open {
+        set_volume_osd_positioning(false);
+    }
+}
+
+/// Settings "Move OSD": show the OSD with the current level and let it be dragged.
+pub(crate) fn set_volume_osd_positioning(active: bool) {
+    OSD_POSITIONING.store(active, std::sync::atomic::Ordering::Relaxed);
+    if active {
+        let state = output_volume_state();
+        show_volume_osd(volume_osd::VolumeOsdContent::Level {
+            percent: output_percent(&state),
+            muted: state.muted,
+        });
+    }
+    volume_osd::volume_osd_set_positioning(active);
+}
+
+/// A drag ended: save the new display and position like any other setting.
+pub(crate) fn save_moved_volume_osd() {
+    let Some((display, x, y)) = volume_osd::take_moved_position() else {
+        return;
+    };
+    let Ok(mut config) = load_config() else {
+        return;
+    };
+    config.volume.osd.display = display;
+    config.volume.osd.position_x = x;
+    config.volume.osd.position_y = y;
+    if save_config(&config).is_ok() {
+        apply_live_config(&config, config_modified_time());
+    }
 }
 
 /// Settings changed something about the OSD: show it now with the current level.

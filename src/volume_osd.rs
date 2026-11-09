@@ -77,6 +77,8 @@ pub(crate) enum Command {
     SurfaceReady,
     /// Slider popup above the tray icon; a second window on this thread.
     Popup(crate::volume_popup::PopupCommand),
+    /// "Move OSD": stay visible and draggable until turned off.
+    Positioning(bool),
     Shutdown,
 }
 
@@ -98,6 +100,41 @@ pub struct VolumeOsdStyle {
     /// Stay on screen for as long as the shown content is muted.
     pub while_muted: bool,
     pub enabled: bool,
+    /// Size multiplier (1.0 = 100%).
+    pub scale: f32,
+    /// User corner radius for the current theme, if they set one.
+    pub corner_radius: Option<f32>,
+    /// The Custom theme's look.
+    pub custom: CustomLook,
+}
+
+/// Same knobs as the mic overlay's Custom theme.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomLook {
+    pub font: String,
+    pub weight: u16,
+    /// `Colored`, `Monochrome` or `SystemColor`.
+    pub icon_style: String,
+    pub light_background: bool,
+    /// 0.0–1.0
+    pub background_opacity: f32,
+    /// 0.2–1.0, applies to the whole card.
+    pub content_opacity: f32,
+    pub border: bool,
+}
+
+impl Default for CustomLook {
+    fn default() -> Self {
+        Self {
+            font: String::new(),
+            weight: 500,
+            icon_style: "SystemColor".to_string(),
+            light_background: false,
+            background_opacity: 0.96,
+            content_opacity: 1.0,
+            border: true,
+        }
+    }
 }
 
 impl Default for VolumeOsdStyle {
@@ -110,6 +147,9 @@ impl Default for VolumeOsdStyle {
             duration_ms: 1_500,
             while_muted: false,
             enabled: true,
+            scale: 1.0,
+            corner_radius: None,
+            custom: CustomLook::default(),
         }
     }
 }
@@ -189,6 +229,50 @@ pub fn volume_osd_show(content: VolumeOsdContent, style: &VolumeOsdStyle) {
 /// Restyle a visible flyout without restarting its content. Also restarts the hide timer.
 pub fn volume_osd_apply_style(style: &VolumeOsdStyle) {
     send_if_running(Command::Style(style.clone()));
+}
+
+/// "Move OSD": keep the flyout up and let the mouse drag it. The new spot is
+/// posted to the tray as `WM_VOLUME_OSD_MOVED` when a drag ends.
+pub fn volume_osd_set_positioning(active: bool) {
+    if active {
+        send(Command::Positioning(true));
+    } else {
+        send_if_running(Command::Positioning(false));
+    }
+}
+
+/// Where the last drag left the card: (display id, x %, y %).
+pub fn take_moved_position() -> Option<(String, f32, f32)> {
+    MOVED.lock().unwrap().take()
+}
+
+static MOVED: Lazy<Mutex<Option<(String, f32, f32)>>> = Lazy::new(|| Mutex::new(None));
+
+pub(crate) fn set_positioning_native(active: bool) {
+    let hwnd = {
+        let mut guard = OSD.lock().unwrap();
+        let Some(osd) = guard.as_mut() else {
+            return;
+        };
+        osd.positioning = active;
+        osd.hwnd
+    };
+    if hwnd.0.is_null() {
+        return;
+    }
+    unsafe {
+        let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+        let click_through = WS_EX_TRANSPARENT.0 as i32;
+        SetWindowLongW(
+            hwnd,
+            GWL_EXSTYLE,
+            if active {
+                ex_style & !click_through
+            } else {
+                ex_style | click_through
+            },
+        );
+    }
 }
 
 /// No-op when the OSD thread was never started.
@@ -413,6 +497,8 @@ fn prepare(sender: Sender<Command>) -> Result<()> {
         presented: false,
         awaiting_first_paint: true,
         last_surface: None,
+        positioning: false,
+        dragging: false,
     });
     Ok(())
 }
@@ -546,13 +632,17 @@ struct NativeOsd {
     presented: bool,
     awaiting_first_paint: bool,
     last_surface: Option<(i32, i32, i32, i32)>,
+    /// "Move OSD" is on: the window takes the mouse and drags like a caption.
+    positioning: bool,
+    /// A drag is in progress; layout must not move the window under it.
+    dragging: bool,
 }
 
 unsafe impl Send for NativeOsd {}
 
 impl NativeOsd {
     fn apply_layout(&mut self) {
-        if self.hwnd.0.is_null() {
+        if self.hwnd.0.is_null() || self.dragging {
             return;
         }
         let monitor = selected_monitor(&self.display);
@@ -695,6 +785,62 @@ fn monitor_dpi_scale(monitor: HMONITOR) -> f32 {
     dpi_x.max(dpi_y).max(96) as f32 / 96.0
 }
 
+/// Turn the dropped window position into a monitor and percentages, store it
+/// for the tray, and let layout take over again.
+fn finish_drag(hwnd: HWND) {
+    let mut window = RECT::default();
+    if unsafe { GetWindowRect(hwnd, &mut window) }.is_err() {
+        return;
+    }
+    let tray = {
+        let mut guard = OSD.lock().unwrap();
+        let Some(osd) = guard.as_mut() else {
+            return;
+        };
+        osd.dragging = false;
+        let card_left = window.left + osd.inset_x;
+        let card_top = window.top + osd.inset_y;
+        let center = POINT {
+            x: card_left + osd.card_width / 2,
+            y: card_top + osd.card_height / 2,
+        };
+        let monitors = monitor_rects();
+        let Some(monitor) = monitors
+            .iter()
+            .find(|monitor| {
+                let r = monitor.rect;
+                center.x >= r.left && center.x < r.right && center.y >= r.top && center.y < r.bottom
+            })
+            .or_else(|| monitors.first())
+        else {
+            return;
+        };
+        let rect = monitor.rect;
+        let span_x = ((rect.right - rect.left) - osd.card_width).max(1) as f32;
+        let span_y = ((rect.bottom - rect.top) - osd.card_height).max(1) as f32;
+        let x = ((card_left - rect.left) as f32 / span_x * 100.0).clamp(0.0, 100.0);
+        let y = ((card_top - rect.top) as f32 / span_y * 100.0).clamp(0.0, 100.0);
+        // "Monitor under cursor" stays that way; a fixed monitor follows the drop.
+        if !osd.display.eq_ignore_ascii_case(crate::VOLUME_OSD_DISPLAY_CURSOR) {
+            osd.display = if monitor.primary {
+                crate::OVERLAY_DISPLAY_PRIMARY.to_string()
+            } else {
+                monitor.id.clone()
+            };
+        }
+        osd.position_x = x;
+        osd.position_y = y;
+        *MOVED.lock().unwrap() = Some((osd.display.clone(), x, y));
+        let tray = crate::STATE.lock().unwrap_or_else(|p| p.into_inner()).hwnd;
+        (!tray.0.is_null()).then_some(tray)
+    };
+    if let Some(tray) = tray {
+        unsafe {
+            let _ = PostMessageW(tray, crate::WM_VOLUME_OSD_MOVED, WPARAM(0), LPARAM(0));
+        }
+    }
+}
+
 fn restore_topmost(hwnd: HWND) {
     unsafe {
         let _ = SetWindowPos(
@@ -773,8 +919,26 @@ unsafe extern "system" fn volume_wnd_proc(
             LRESULT(0)
         }
         WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
-        // The whole flyout is click-through, including the shadow gutter.
-        WM_NCHITTEST => LRESULT(HTTRANSPARENT as isize),
+        // Click-through, including the shadow gutter, unless "Move OSD" is
+        // on: then the whole card is a caption the system drags for us.
+        WM_NCHITTEST => {
+            let positioning = OSD
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|osd| osd.positioning);
+            LRESULT(if positioning { HTCAPTION as isize } else { HTTRANSPARENT as isize })
+        }
+        WM_ENTERSIZEMOVE => {
+            if let Some(osd) = OSD.lock().unwrap().as_mut() {
+                osd.dragging = true;
+            }
+            unsafe { forward_window_message(hwnd, msg, wparam, lparam) }
+        }
+        WM_EXITSIZEMOVE => {
+            finish_drag(hwnd);
+            unsafe { forward_window_message(hwnd, msg, wparam, lparam) }
+        }
         WM_TIMER if wparam.0 == ID_TOPMOST_TIMER => {
             if unsafe { IsWindowVisible(hwnd).as_bool() } {
                 restore_topmost(hwnd);

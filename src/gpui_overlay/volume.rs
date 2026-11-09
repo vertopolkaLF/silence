@@ -67,9 +67,11 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) {
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(Bounds::new(
                         point(px(80.), px(80.)),
-                        // Large enough for the widest card (long device
-                        // names); the native surface is resized to fit.
-                        size(px(600.), px(120.)),
+                        // GPUI never grows a non-resizable window past its
+                        // initial size: leave room for long device names at
+                        // the 400% size scale. The native surface is resized
+                        // to the card every layout.
+                        size(px(2000.), px(400.)),
                     ))),
                     titlebar: None,
                     inactive_frame_interval: None,
@@ -193,6 +195,8 @@ struct VolumeChrome {
     fluent: bool,
     /// Fake Mica: blurred wallpaper under a translucent `surface`.
     mica: bool,
+    /// Whole-card opacity (Custom theme's "Opacity").
+    opacity: f32,
 }
 
 struct ChromeLayer {
@@ -232,6 +236,8 @@ struct VolumeView {
     visibility: Motion,
     slide: Motion,
     want_visible: bool,
+    /// "Move OSD": stays up, no hide timer.
+    positioning: bool,
     surface_ready: bool,
     fallback_armed: bool,
     background_set: bool,
@@ -244,7 +250,7 @@ struct VolumeView {
 impl VolumeView {
     fn new() -> Self {
         let system = System::load();
-        let chrome = chrome_for("Windows", system, false);
+        let chrome = chrome_for("Windows", system, false, &VolumeOsdStyle::default());
         Self {
             system,
             content: VolumeOsdContent::Level {
@@ -272,6 +278,7 @@ impl VolumeView {
             visibility: Motion::new(0.0, FADE_MS),
             slide: Motion::decelerate(1.0, SLIDE_MS),
             want_visible: false,
+            positioning: false,
             surface_ready: false,
             fallback_armed: false,
             background_set: false,
@@ -288,6 +295,7 @@ impl VolumeView {
             Command::Style(style) => self.apply_style(style, cx),
             Command::Hide => self.hide(cx),
             Command::SurfaceReady => self.on_surface_ready(cx),
+            Command::Positioning(active) => self.set_positioning(active, cx),
             Command::Popup(_) | Command::Shutdown => {}
         }
     }
@@ -337,6 +345,19 @@ impl VolumeView {
             self.begin_exit(now);
         } else if self.want_visible {
             self.begin_enter(now);
+            self.arm_hide(cx, now);
+        }
+        cx.notify();
+    }
+
+    fn set_positioning(&mut self, active: bool, cx: &mut Context<Self>) {
+        self.positioning = active;
+        crate::volume_osd::set_positioning_native(active);
+        let now = Instant::now();
+        if active {
+            self.hide_wait = None;
+            self.begin_enter(now);
+        } else {
             self.arm_hide(cx, now);
         }
         cx.notify();
@@ -408,7 +429,7 @@ impl VolumeView {
     /// The task is replaced, which cancels the previous wait. The callback must
     /// not drop `hide_wait`: that task is the one currently running.
     fn arm_hide(&mut self, cx: &mut Context<Self>, now: Instant) {
-        if self.style.while_muted && self.content.is_muted() {
+        if self.positioning || (self.style.while_muted && self.content.is_muted()) {
             self.hide_wait = None;
             return;
         }
@@ -457,12 +478,12 @@ impl VolumeView {
             let current = layer.key == key;
             layer.opacity.retarget(if current { 1.0 } else { 0.0 }, now);
             if current {
-                layer.chrome = chrome_for(&key.0, system, muted_bit);
+                layer.chrome = chrome_for(&key.0, system, muted_bit, &self.style);
                 matched = true;
             }
         }
         if !matched {
-            let chrome = chrome_for(&key.0, system, muted_bit);
+            let chrome = chrome_for(&key.0, system, muted_bit, &self.style);
             let opacity = if self.layers.is_empty() {
                 Motion::new(1.0, CROSSFADE_MS)
             } else {
@@ -580,7 +601,7 @@ impl Render for VolumeView {
         }
         let window_scale = window.scale_factor().max(0.01);
         let monitor_scale = crate::volume_osd::monitor_scale().max(0.01);
-        let scale = monitor_scale / window_scale;
+        let scale = monitor_scale / window_scale * self.style.scale.clamp(0.1, 4.0);
         if (self.last_scale - scale).abs() > 0.01 {
             self.last_scale = scale;
             self.needs_measure = true;
@@ -788,7 +809,7 @@ impl Render for VolumeView {
             .w(px(width))
             .h(px(height))
             .rounded(px(radius))
-            .opacity(alpha);
+            .opacity(alpha * chrome.opacity);
         card = match &mica {
             Some(wallpaper) => {
                 let mut tint = surface;
@@ -1222,6 +1243,11 @@ pub(crate) fn speaker_icon(percent: u8, muted: bool) -> &'static str {
     }
 }
 
+/// Corner radius a theme draws with when the user has not set one.
+pub(crate) fn preset_radius(theme: &str) -> f32 {
+    chrome_for(theme, System::load(), false, &VolumeOsdStyle::default()).radius
+}
+
 pub(crate) fn normalize_theme(theme: &str) -> &'static str {
     let theme = theme.trim().to_ascii_lowercase();
     match theme.as_str() {
@@ -1245,7 +1271,9 @@ pub(crate) fn normalize_theme(theme: &str) -> &'static str {
 }
 
 fn mute_sensitive(theme: &str) -> bool {
-    !matches!(theme, "Windows" | "Custom")
+    // Custom only changes when muted in its Colored style, but keeping it
+    // sensitive is harmless: the chrome is rebuilt from the same settings.
+    !matches!(theme, "Windows")
 }
 
 pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
@@ -1265,7 +1293,7 @@ pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
     })
 }
 
-fn chrome_for(theme: &str, system: System, muted: bool) -> VolumeChrome {
+fn chrome_for(theme: &str, system: System, muted: bool, style: &VolumeOsdStyle) -> VolumeChrome {
     let theme = normalize_theme(theme);
     let mut chrome = windows_chrome(system);
     if theme != "Windows" {
@@ -1298,8 +1326,13 @@ fn chrome_for(theme: &str, system: System, muted: bool) -> VolumeChrome {
         "Frosted" => frosted(&mut chrome, muted),
         "Porcelain" => porcelain(&mut chrome, muted),
         "Radar" => radar(&mut chrome, muted),
-        "Custom" => custom(&mut chrome, system),
+        "Custom" => custom(&mut chrome, system, &style.custom, muted),
         _ => {}
+    }
+    if let Some(radius) = style.corner_radius
+        && super::theme::supports_corner_radius(theme)
+    {
+        chrome.radius = radius.min(32.0).min(chrome.height / 2.0);
     }
     chrome
 }
@@ -1340,6 +1373,7 @@ fn windows_chrome(system: System) -> VolumeChrome {
         ink: foreground,
         fluent: true,
         mica: true,
+        opacity: 1.0,
     }
 }
 
@@ -1591,24 +1625,57 @@ fn radar(chrome: &mut VolumeChrome, muted: bool) {
     chrome.animates = true;
 }
 
-fn custom(chrome: &mut VolumeChrome, system: System) {
-    // User custom colors are not wired yet. This is the default dark custom card.
+/// The mic overlay's Custom knobs: background, icon color style, font,
+/// border and opacity.
+fn custom(
+    chrome: &mut VolumeChrome,
+    system: System,
+    look: &crate::volume_osd::CustomLook,
+    muted: bool,
+) {
+    let (background, foreground) = if look.light_background {
+        (0xf4f5f7, 0x1b1c21)
+    } else {
+        (0x1b1c21, 0xf1f4f8)
+    };
+    let accent = match look.icon_style.as_str() {
+        "Colored" => {
+            if muted {
+                0xdc3545
+            } else {
+                0x28a745
+            }
+        }
+        "Monochrome" => foreground,
+        _ => system.accent(),
+    };
     chrome.entrance = Entrance::Fade;
     chrome.detail = Detail::None;
     chrome.height = 48.0;
     chrome.radius = 16.0;
-    chrome.surface = color_alpha(0x1b1c21, 0.96);
-    chrome.foreground = 0xf1f4f8;
-    chrome.icon_color = system.accent();
-    chrome.track = color_alpha(0xffffff, 0.14);
-    chrome.fill = color_alpha(system.accent(), 1.0);
-    chrome.border = Some((color_alpha(0xffffff, 0.10), 1.0));
-    chrome.shadow = Shadow::Drop(color_alpha(0x000000, 0.35), 3.0, 10.0);
+    chrome.surface = color_alpha(background, look.background_opacity.clamp(0.0, 1.0));
+    chrome.foreground = foreground;
+    chrome.icon_color = accent;
+    chrome.track = color_alpha(foreground, if look.light_background { 0.18 } else { 0.14 });
+    chrome.fill = color_alpha(accent, 1.0);
+    chrome.border = look
+        .border
+        .then(|| (color_alpha(foreground, if look.light_background { 0.12 } else { 0.10 }), 1.0));
+    chrome.shadow = Shadow::Drop(
+        color_alpha(0x000000, if look.light_background { 0.18 } else { 0.35 }),
+        3.0,
+        10.0,
+    );
     chrome.gutter = 18.0;
-    chrome.font = fonts::DEFAULT.into();
-    chrome.weight = 500;
-    chrome.sheen = 0.06;
-    chrome.ink = system.accent();
+    chrome.font = if look.font.trim().is_empty() {
+        fonts::DEFAULT.into()
+    } else {
+        look.font.clone().into()
+    };
+    chrome.weight = look.weight.clamp(100, 900);
+    chrome.sheen = if look.light_background { 0.0 } else { 0.06 };
+    chrome.ink = accent;
+    chrome.opacity = look.content_opacity.clamp(0.2, 1.0);
 }
 
 fn instrument(

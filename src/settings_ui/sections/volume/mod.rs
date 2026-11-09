@@ -29,6 +29,8 @@ pub(crate) struct State {
     /// Preview playback for the volume tick. The sink is the shared one.
     pub(crate) preview: PreviewState,
     numbers: HashMap<String, NumberDraft>,
+    /// "Move OSD" toggle on the OSD page.
+    pub(crate) positioning: bool,
 }
 
 pub(crate) fn column() -> Div {

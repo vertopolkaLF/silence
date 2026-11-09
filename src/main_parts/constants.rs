@@ -32,6 +32,10 @@ const WM_VOLUME_OSD_PREVIEW: u32 = WM_APP + 20;
 /// From the volume popup: `wparam` 0 = set `lparam` percent, 1 = step by
 /// `lparam` notches, 2 = toggle mute.
 const WM_VOLUME_POPUP: u32 = WM_APP + 21;
+/// The volume OSD was dragged; read `volume_osd::take_moved_position`.
+pub(crate) const WM_VOLUME_OSD_MOVED: u32 = WM_APP + 22;
+/// Settings "Move OSD" toggle: `wparam` 1 = on, 0 = off.
+const WM_VOLUME_OSD_POSITIONING: u32 = WM_APP + 23;
 /// Second notify icon for output volume. The microphone icon keeps [`ID_TRAY`].
 const ID_VOLUME_TRAY: u32 = 2;
 const ID_STATE_TIMER: usize = 10;

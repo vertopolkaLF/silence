@@ -995,6 +995,13 @@ fn normalize_volume_config(volume: &mut VolumeConfig) {
     volume.osd.position_x = volume.osd.position_x.clamp(0.0, 100.0);
     volume.osd.position_y = volume.osd.position_y.clamp(0.0, 100.0);
     volume.osd.duration_ms = volume.osd.duration_ms.min(60_000);
+    volume.osd.scale = volume.osd.scale.clamp(10, 400);
+    volume.osd.text_font_weight = volume.osd.text_font_weight.clamp(100, 900);
+    volume.osd.background_opacity = volume.osd.background_opacity.min(100);
+    volume.osd.content_opacity = volume.osd.content_opacity.clamp(20, 100);
+    for radius in volume.osd.corner_radii.values_mut() {
+        *radius = (*radius).min(32);
+    }
     migrate_custom_sound_settings(&mut volume.sound);
     volume.sound.volume = volume.sound.volume.min(100);
 

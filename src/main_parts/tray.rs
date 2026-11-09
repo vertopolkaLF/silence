@@ -638,6 +638,14 @@ unsafe extern "system" fn main_wnd_proc(
             preview_volume_osd();
             LRESULT(0)
         }
+        WM_VOLUME_OSD_POSITIONING => {
+            set_volume_osd_positioning(wparam.0 != 0);
+            LRESULT(0)
+        }
+        WM_VOLUME_OSD_MOVED => {
+            save_moved_volume_osd();
+            LRESULT(0)
+        }
         WM_VOLUME_POPUP => {
             handle_volume_popup_request(wparam.0, lparam.0);
             LRESULT(0)
@@ -669,6 +677,7 @@ unsafe extern "system" fn main_wnd_proc(
                 }
             } else if wparam.0 == ID_HOOK_HEALTH_TIMER {
                 maintain_low_level_hooks();
+                check_volume_osd_positioning();
             } else if wparam.0 == ID_VOLUME_SOUND_TIMER {
                 let _ = unsafe { KillTimer(hwnd, ID_VOLUME_SOUND_TIMER) };
                 play_debounced_volume_change_sound();

@@ -1852,6 +1852,46 @@ pub struct VolumeOsdConfig {
     pub visibility: VolumeOsdVisibility,
     #[serde(default = "default_volume_osd_show_on_device_change")]
     pub show_on_device_change: bool,
+    /// Size scale in percent, like the mic overlay's.
+    #[serde(default = "default_volume_osd_scale")]
+    pub scale: u32,
+    /// Per-theme corner radius overrides, like `OverlayConfig::corner_radii`.
+    #[serde(default)]
+    pub corner_radii: std::collections::BTreeMap<String, u8>,
+    // Custom theme look, same fields as the mic overlay's custom theme.
+    #[serde(default = "default_overlay_text_font")]
+    pub text_font: String,
+    #[serde(default = "default_overlay_text_font_weight")]
+    pub text_font_weight: u16,
+    #[serde(default = "default_volume_osd_icon_style")]
+    pub icon_style: String,
+    #[serde(default = "default_volume_osd_background_style")]
+    pub background_style: String,
+    #[serde(default = "default_volume_osd_background_opacity")]
+    pub background_opacity: u8,
+    #[serde(default = "default_volume_osd_content_opacity")]
+    pub content_opacity: u8,
+    #[serde(default = "default_volume_osd_show_border")]
+    pub show_border: bool,
+}
+
+fn default_volume_osd_scale() -> u32 {
+    100
+}
+fn default_volume_osd_icon_style() -> String {
+    "SystemColor".to_string()
+}
+fn default_volume_osd_background_style() -> String {
+    "Dark".to_string()
+}
+fn default_volume_osd_background_opacity() -> u8 {
+    96
+}
+fn default_volume_osd_content_opacity() -> u8 {
+    100
+}
+fn default_volume_osd_show_border() -> bool {
+    true
 }
 
 impl Default for VolumeOsdConfig {
@@ -1865,6 +1905,15 @@ impl Default for VolumeOsdConfig {
             duration_ms: default_volume_osd_duration_ms(),
             visibility: VolumeOsdVisibility::default(),
             show_on_device_change: default_volume_osd_show_on_device_change(),
+            scale: default_volume_osd_scale(),
+            corner_radii: Default::default(),
+            text_font: default_overlay_text_font(),
+            text_font_weight: default_overlay_text_font_weight(),
+            icon_style: default_volume_osd_icon_style(),
+            background_style: default_volume_osd_background_style(),
+            background_opacity: default_volume_osd_background_opacity(),
+            content_opacity: default_volume_osd_content_opacity(),
+            show_border: default_volume_osd_show_border(),
         }
     }
 }
