@@ -106,7 +106,7 @@ fn sessions() -> Vec<Session> {
             })
             .filter(|name| !name.is_empty() && !name.starts_with('@'))
             .unwrap_or_default();
-        let path = if system { None } else { crate::process_image_path(pid) };
+        let path = if system { None } else { pid_path(pid) };
         let key = if system {
             SYSTEM_KEY.to_string()
         } else if let Some(path) = &path {
@@ -159,17 +159,85 @@ pub fn app_volumes() -> Vec<AppVolume> {
     apps
 }
 
-pub fn set_app_volume(key: &str, percent: u8) {
-    let level = f32::from(percent.min(100)) / 100.0;
-    for session in sessions().into_iter().filter(|session| session.key == key) {
-        let _ = unsafe { session.volume.SetMasterVolume(level, std::ptr::null()) };
+/// Writes waiting for the worker: per app, the latest volume and mute.
+#[derive(Default)]
+struct Pending {
+    writes: HashMap<String, (Option<u8>, Option<bool>)>,
+}
+
+static PENDING: Lazy<(Mutex<Pending>, std::sync::Condvar)> = Lazy::new(|| {
+    std::thread::Builder::new()
+        .name("app-volume".into())
+        .spawn(write_worker)
+        .ok();
+    (Mutex::new(Pending::default()), std::sync::Condvar::new())
+});
+
+/// Applies queued writes off the caller's thread. A burst of slider moves
+/// collapses into one write of the last value.
+fn write_worker() {
+    loop {
+        let writes = {
+            let (lock, ready) = &*PENDING;
+            let mut pending = lock.lock().unwrap();
+            while pending.writes.is_empty() {
+                pending = ready.wait(pending).unwrap();
+            }
+            std::mem::take(&mut pending.writes)
+        };
+        for session in sessions() {
+            let Some((percent, muted)) = writes.get(&session.key) else {
+                continue;
+            };
+            if let Some(percent) = percent {
+                let level = f32::from((*percent).min(100)) / 100.0;
+                let _ = unsafe { session.volume.SetMasterVolume(level, std::ptr::null()) };
+            }
+            if let Some(muted) = muted {
+                let _ = unsafe { session.volume.SetMute(*muted, std::ptr::null()) };
+            }
+        }
     }
 }
 
-pub fn set_app_mute(key: &str, muted: bool) {
-    for session in sessions().into_iter().filter(|session| session.key == key) {
-        let _ = unsafe { session.volume.SetMute(muted, std::ptr::null()) };
+fn queue_write(key: &str, percent: Option<u8>, muted: Option<bool>) {
+    let (lock, ready) = &*PENDING;
+    let mut pending = lock.lock().unwrap();
+    let entry = pending.writes.entry(key.to_string()).or_default();
+    if percent.is_some() {
+        entry.0 = percent;
     }
+    if muted.is_some() {
+        entry.1 = muted;
+    }
+    ready.notify_one();
+}
+
+/// Sets an app's volume without blocking: the write happens on a worker.
+pub fn set_app_volume(key: &str, percent: u8) {
+    queue_write(key, Some(percent), None);
+}
+
+pub fn set_app_mute(key: &str, muted: bool) {
+    queue_write(key, None, Some(muted));
+}
+
+static PID_PATHS: Lazy<Mutex<HashMap<u32, Option<PathBuf>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// Exe path per process id, cached: opening every process on each poll and
+/// write is the slow part of listing sessions.
+fn pid_path(pid: u32) -> Option<PathBuf> {
+    if let Some(path) = PID_PATHS.lock().unwrap().get(&pid) {
+        return path.clone();
+    }
+    let path = crate::process_image_path(pid);
+    let mut paths = PID_PATHS.lock().unwrap();
+    if paths.len() > 512 {
+        paths.clear();
+    }
+    paths.insert(pid, path.clone());
+    path
 }
 
 static NAMES: Lazy<Mutex<HashMap<PathBuf, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
