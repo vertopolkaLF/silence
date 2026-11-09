@@ -1,6 +1,10 @@
 //! Sidebar tabs and the tab-switch state machine (ported from `gui/tabs.rs`).
 //! A switch slides the outgoing and incoming panels for 300ms; clicks during
 //! a slide queue only the latest destination.
+//!
+//! Microphone and Volume pages live in collapsible groups. Only one group is
+//! expanded, and choosing a page inside a closed group opens it.
+use crate::settings_ui::modules::ModuleId;
 use gpui::ScrollHandle;
 use std::time::{Duration, Instant};
 
@@ -24,6 +28,11 @@ pub(crate) enum SettingsTab {
     TrayIcon,
     AutoMute,
     About,
+    VolumeWheel,
+    VolumeOsd,
+    VolumeSounds,
+    VolumeTray,
+    VolumeMediaKeys,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -44,14 +53,20 @@ pub(crate) struct TabTransition {
 }
 
 impl SettingsTab {
+    /// Visual order. Drives the content slide direction.
     pub const ALL: &'static [Self] = &[
         Self::Hotkeys,
         Self::Devices,
-        Self::Sounds,
         Self::Overlay,
-        Self::HoldToMute,
+        Self::Sounds,
         Self::TrayIcon,
+        Self::HoldToMute,
         Self::AutoMute,
+        Self::VolumeWheel,
+        Self::VolumeOsd,
+        Self::VolumeSounds,
+        Self::VolumeTray,
+        Self::VolumeMediaKeys,
         Self::General,
         Self::About,
     ];
@@ -60,13 +75,33 @@ impl SettingsTab {
         match self {
             Self::General => "General",
             Self::Devices => "Devices",
-            Self::HoldToMute => "Hold to Mute",
+            Self::HoldToMute => "Hold to mute",
             Self::Hotkeys => "Hotkeys",
             Self::Sounds => "Sounds",
             Self::Overlay => "Overlay",
-            Self::TrayIcon => "Tray Icon",
-            Self::AutoMute => "Auto-Mute",
+            Self::TrayIcon => "Tray icon",
+            Self::AutoMute => "Auto mute",
             Self::About => "About",
+            Self::VolumeWheel => "Wheel & clicks",
+            Self::VolumeOsd => "OSD",
+            Self::VolumeSounds => "Sounds",
+            Self::VolumeTray => "Tray icon",
+            Self::VolumeMediaKeys => "Media keys",
+        }
+    }
+
+    /// Group that owns this page, if it is not a global page.
+    pub fn module(self) -> Option<ModuleId> {
+        match self {
+            Self::Overlay | Self::Sounds | Self::TrayIcon | Self::HoldToMute | Self::AutoMute => {
+                Some(ModuleId::Microphone)
+            }
+            Self::VolumeWheel
+            | Self::VolumeOsd
+            | Self::VolumeSounds
+            | Self::VolumeTray
+            | Self::VolumeMediaKeys => Some(ModuleId::Volume),
+            Self::Hotkeys | Self::Devices | Self::General | Self::About => None,
         }
     }
 
@@ -77,11 +112,17 @@ impl SettingsTab {
             Self::Devices => "microphone-3-linear",
             Self::HoldToMute => "oven-mitts-linear",
             Self::Hotkeys => "keyboard-linear",
-            Self::Sounds => "volume-loud-linear",
+            // Bell, not a speaker: the speaker glyph belongs to the Volume group.
+            Self::Sounds => "bell-linear",
             Self::Overlay => "monitor-linear",
             Self::TrayIcon => "widget-linear",
             Self::AutoMute => "clock-circle-linear",
             Self::About => "info-circle-linear",
+            Self::VolumeWheel => "mouse-linear",
+            Self::VolumeOsd => "screencast-2-linear",
+            Self::VolumeSounds => "music-note-2-linear",
+            Self::VolumeTray => "widget-linear",
+            Self::VolumeMediaKeys => "play-circle-linear",
         }
     }
 
@@ -92,11 +133,16 @@ impl SettingsTab {
             Self::Devices => "microphone-3-bold",
             Self::HoldToMute => "oven-mitts-bold",
             Self::Hotkeys => "keyboard-bold",
-            Self::Sounds => "volume-loud-bold",
+            Self::Sounds => "bell-bold",
             Self::Overlay => "monitor-bold",
             Self::TrayIcon => "widget-bold",
             Self::AutoMute => "clock-circle-bold",
             Self::About => "info-circle-bold",
+            Self::VolumeWheel => "mouse-bold",
+            Self::VolumeOsd => "screencast-2-bold",
+            Self::VolumeSounds => "music-note-2-bold",
+            Self::VolumeTray => "widget-bold",
+            Self::VolumeMediaKeys => "play-circle-bold",
         }
     }
 
@@ -127,8 +173,13 @@ impl SettingsTab {
                 s!("tray-icon-overview", "Tray Icon"),
                 s!("tray-icon-mic-in-use", "Mic in use"),
             ],
-            Self::AutoMute => &[s!("auto-mute-overview", "Auto-Mute")],
+            Self::AutoMute => &[s!("auto-mute-overview", "Auto mute")],
             Self::About => &[s!("about-overview", "About")],
+            Self::VolumeWheel => &[s!("volume-wheel", "Wheel & clicks")],
+            Self::VolumeOsd => &[s!("volume-osd", "OSD")],
+            Self::VolumeSounds => &[s!("volume-sounds", "Sounds")],
+            Self::VolumeTray => &[s!("volume-tray-icon", "Tray icon")],
+            Self::VolumeMediaKeys => &[s!("volume-media-keys", "Media keys")],
         }
     }
 
@@ -144,10 +195,32 @@ impl SettingsTab {
     }
 }
 
+/// Pages inside a sidebar group, top to bottom.
+pub(crate) fn module_tabs(module: ModuleId) -> &'static [SettingsTab] {
+    match module {
+        ModuleId::Microphone => &[
+            SettingsTab::Overlay,
+            SettingsTab::Sounds,
+            SettingsTab::TrayIcon,
+            SettingsTab::HoldToMute,
+            SettingsTab::AutoMute,
+        ],
+        ModuleId::Volume => &[
+            SettingsTab::VolumeWheel,
+            SettingsTab::VolumeOsd,
+            SettingsTab::VolumeSounds,
+            SettingsTab::VolumeTray,
+            SettingsTab::VolumeMediaKeys,
+        ],
+    }
+}
+
 pub(crate) struct Nav {
     pub active_tab: SettingsTab,
     pub displayed_tab: SettingsTab,
     pub active_section: &'static str,
+    /// Microphone or Volume rows currently expanded. At most one.
+    pub expanded_module: Option<ModuleId>,
     pub transition: Option<TabTransition>,
     pub transition_id: u64,
     pub pending_tab: Option<SettingsTab>,
@@ -167,6 +240,7 @@ impl Nav {
             active_tab: tab,
             displayed_tab: tab,
             active_section: tab.first_section_id(),
+            expanded_module: tab.module().or(Some(ModuleId::Microphone)),
             transition: None,
             transition_id: 0,
             pending_tab: None,
@@ -179,6 +253,9 @@ impl Nav {
 
     /// Sidebar click / programmatic navigation.
     pub fn select(&mut self, next: SettingsTab) {
+        if let Some(module) = next.module() {
+            self.expanded_module = Some(module);
+        }
         if let Some(current) = self.transition {
             if current.to != next {
                 // The latest user intent replaces any older queued tab.
@@ -190,6 +267,16 @@ impl Nav {
             return;
         }
         self.start(next);
+    }
+
+    /// Opens a group, or closes it when it is already the open one.
+    /// The other group closes so the sidebar never stacks both lists.
+    pub fn toggle_module_group(&mut self, module: ModuleId) {
+        self.expanded_module = if self.expanded_module == Some(module) {
+            None
+        } else {
+            Some(module)
+        };
     }
 
     fn start(&mut self, next: SettingsTab) {

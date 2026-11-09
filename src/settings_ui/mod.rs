@@ -8,6 +8,7 @@ pub(crate) mod assets;
 pub(crate) mod color;
 pub(crate) mod controls;
 pub(crate) mod live;
+pub(crate) mod modules;
 pub(crate) mod sections;
 pub(crate) mod shell;
 pub(crate) mod style;
@@ -70,6 +71,8 @@ pub(crate) struct SettingsApp {
     pub palette: Palette,
     pub focus_handle: FocusHandle,
     pub nav: Nav,
+    /// TODO(lead): bind to config.modules
+    pub module_flags: modules::ModuleFlags,
     pub sections: sections::Sections,
     pub welcome: welcome::State,
     /// Id of the open select menu; only one can be open at a time.
@@ -97,6 +100,7 @@ impl SettingsApp {
             palette,
             focus_handle: cx.focus_handle(),
             nav: Nav::new(startup_tab),
+            module_flags: modules::ModuleFlags::default(),
             sections: sections::Sections::default(),
             welcome: welcome::State::default(),
             open_select: None,
