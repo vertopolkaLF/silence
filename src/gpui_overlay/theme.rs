@@ -72,9 +72,10 @@ pub(super) struct System {
 
 impl System {
     pub fn load() -> Self {
+        let light = crate::windows_uses_light_system_theme();
         Self {
-            accent: crate::WindowsAccent::load().accent,
-            light: crate::windows_uses_light_system_theme(),
+            accent: crate::WindowsAccent::load().fill(light),
+            light,
         }
     }
     pub(super) fn accent(self) -> u32 {

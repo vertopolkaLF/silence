@@ -70,7 +70,7 @@ use windows::{
             },
             LibraryLoader::GetModuleHandleW,
             Registry::{
-                HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_SZ, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+                HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_SZ, RRF_RT_REG_BINARY, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
                 RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
             },
             SystemInformation::GetTickCount,

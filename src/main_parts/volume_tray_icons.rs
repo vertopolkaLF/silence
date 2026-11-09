@@ -109,10 +109,10 @@ pub fn tray_icon_size_px() -> u32 {
     }
 }
 
-/// Windows accent as RGB. Same source as settings: `WindowsAccent::load`.
+/// WinUI accent fill for the taskbar theme (Light2 on dark, Dark1 on light).
 #[cfg(not(feature = "volume_icon_raster_only"))]
 pub fn windows_accent_rgb() -> [u8; 3] {
-    let (r, g, b) = super::WindowsAccent::load().accent;
+    let (r, g, b) = super::WindowsAccent::load().fill(taskbar_uses_light_theme());
     [r, g, b]
 }
 

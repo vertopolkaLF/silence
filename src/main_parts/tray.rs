@@ -152,7 +152,7 @@ fn create_status_mic_icon(config: &TrayIconConfig, muted: bool, mic_in_use: bool
                 (245, 245, 245)
             }
         }
-        "SystemColor" => WindowsAccent::load().accent,
+        "SystemColor" => WindowsAccent::load().fill(windows_uses_light_system_theme()),
         _ => state_accent(muted),
     };
     let mask = fit_alpha_mask(
@@ -213,7 +213,7 @@ fn draw_mic_in_use_badge(
     let accent = if config.status_style == "SystemColor" {
         if light_theme { (0, 0, 0) } else { (255, 255, 255) }
     } else {
-        WindowsAccent::load().accent
+        WindowsAccent::load().fill(light_theme)
     };
     let backing = if light_theme {
         (255, 255, 255)

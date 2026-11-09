@@ -2039,6 +2039,16 @@ impl WindowsAccent {
         }
     }
 
+    /// WinUI `AccentFillColorDefault`: `SystemAccentColorLight2` on dark
+    /// surfaces, `SystemAccentColorDark1` on light ones. Windows precomputes
+    /// these shades in `Explorer\Accent\AccentPalette`; fall back to the base
+    /// accent when the palette is missing.
+    pub fn fill(self, light_surface: bool) -> (u8, u8, u8) {
+        read_accent_palette()
+            .map(|palette| palette[if light_surface { 4 } else { 1 }])
+            .unwrap_or(self.accent)
+    }
+
     pub fn css_vars(self) -> String {
         let (r, g, b) = self.accent;
         format!(":root {{ --windows-accent: rgb({r}, {g}, {b}); }}")
@@ -2078,6 +2088,33 @@ fn read_registry_dword(subkey: PCWSTR, value_name: PCWSTR) -> Option<u32> {
     } else {
         None
     }
+}
+
+/// `AccentPalette`: Light3, Light2, Light1, Accent, Dark1, Dark2, Dark3, then
+/// one unused entry; RGBA bytes each.
+fn read_accent_palette() -> Option<[(u8, u8, u8); 7]> {
+    let mut data = [0u8; 32];
+    let mut data_size = data.len() as u32;
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            w!(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent"),
+            w!("AccentPalette"),
+            RRF_RT_REG_BINARY,
+            None,
+            Some(data.as_mut_ptr() as *mut c_void),
+            Some(&mut data_size),
+        )
+    };
+    if status != ERROR_SUCCESS || data_size < 28 {
+        return None;
+    }
+    let mut palette = [(0u8, 0u8, 0u8); 7];
+    for (index, color) in palette.iter_mut().enumerate() {
+        let i = index * 4;
+        *color = (data[i], data[i + 1], data[i + 2]);
+    }
+    Some(palette)
 }
 
 fn windows_accent_to_rgb(value: u32) -> (u8, u8, u8) {
