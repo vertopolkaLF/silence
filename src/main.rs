@@ -83,7 +83,7 @@ use windows::{
         UI::{
             HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
             Input::{
-                KeyboardAndMouse::{GetAsyncKeyState, GetLastInputInfo, LASTINPUTINFO},
+                KeyboardAndMouse::{GetAsyncKeyState, GetDoubleClickTime, GetLastInputInfo, LASTINPUTINFO},
                 XboxController::{
                     XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_BACK,
                     XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT,
@@ -101,7 +101,7 @@ use windows::{
                 AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIcon, CreateIconFromResourceEx,
                 CreatePopupMenu, CreateWindowExW, DI_NORMAL, DefWindowProcW, DestroyIcon,
                 DestroyMenu, DestroyWindow, DispatchMessageW, DrawIconEx, EnumWindows, FindWindowW,
-                GWL_WNDPROC, GetCursorPos, GetDoubleClickTime, GetMessageW, GetWindowThreadProcessId,
+                GWL_WNDPROC, GetCursorPos, GetMessageW, GetWindowThreadProcessId,
                 HHOOK, HICON,
                 HMENU, IDC_ARROW, IDI_APPLICATION, IsIconic, IsWindowVisible, KBDLLHOOKSTRUCT,
                 KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG,

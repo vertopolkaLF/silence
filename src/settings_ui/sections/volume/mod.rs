@@ -93,7 +93,7 @@ pub(crate) fn numeric_field(
         .filter(|draft| draft.focused)
         .map(|draft| draft.text.clone())
         .unwrap_or_else(|| value.to_string());
-    let write = Rc::new(write);
+    let write: Rc<dyn Fn(&mut crate::Config, u64)> = Rc::new(write);
     let on_change = write.clone();
     let on_commit = write.clone();
     let on_step = write.clone();
@@ -172,7 +172,7 @@ pub(crate) fn numeric_field(
         focused as u8 as f32,
         UI,
     );
-    let (pointer, hover, _) = controls::hover_tween((id, "shell"), window, cx);
+    let (pointer, hover, _) = controls::hover_tween((ElementId::from(id), "shell"), window, cx);
     let focus_handle = input.read(cx).focus_handle(cx);
     div()
         .flex()
@@ -181,7 +181,7 @@ pub(crate) fn numeric_field(
         .flex_shrink_0()
         .child(
             controls::track_pointer(
-                controls::text_input_container((id, "shell"), &input)
+                controls::text_input_container((ElementId::from(id), "shell"), &input)
                     .w(px(84.))
                     .h(px(42.))
                     .px(px(12.))

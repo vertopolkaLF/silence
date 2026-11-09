@@ -1,8 +1,8 @@
-//! Tray-only wiring from the low-level hooks to output volume.
-//!
-//! The settings process installs `mouse_proc` on its own thread. It never sets
-//! [`TRAY_VOLUME_HOOKS`], so it does not swallow wheels, post volume messages,
-//! or reinstall hooks.
+// Tray-only wiring from the low-level hooks to output volume.
+//
+// The settings process installs `mouse_proc` on its own thread. It never sets
+// [`TRAY_VOLUME_HOOKS`], so it does not swallow wheels, post volume messages,
+// or reinstall hooks.
 
 static TRAY_VOLUME_HOOKS: AtomicBool = AtomicBool::new(false);
 static VOLUME_MODULE_ON: AtomicBool = AtomicBool::new(false);

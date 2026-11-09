@@ -31,8 +31,7 @@ use windows::Win32::{
     System::{
         SystemInformation::GetSystemDirectoryW,
         Threading::{
-            GetCurrentProcess, GetExitCodeProcess, OpenProcess, OpenProcessToken,
-            PROCESS_QUERY_LIMITED_INFORMATION, WaitForSingleObject,
+            GetCurrentProcess, GetExitCodeProcess, OpenProcessToken, WaitForSingleObject,
         },
     },
     UI::{
@@ -49,6 +48,16 @@ use windows::Win32::{
 };
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+trait NoWindowCommand {
+    fn creation_flags_no_window(&mut self) -> &mut Self;
+}
+
+impl NoWindowCommand for Command {
+    fn creation_flags_no_window(&mut self) -> &mut Self {
+        std::os::windows::process::CommandExt::creation_flags(self, CREATE_NO_WINDOW)
+    }
+}
 const SCHTASKS_WAIT_MS: u32 = 60_000;
 const REPLACE_WAIT_MS: u32 = 15_000;
 
@@ -309,7 +318,7 @@ fn remove_elevated_task() -> Result<()> {
 fn elevated_task_exists() -> bool {
     Command::new(schtasks_exe())
         .args(["/Query", "/TN", ELEVATED_TASK_NAME])
-        .creation_flags(CREATE_NO_WINDOW)
+        .creation_flags_no_window()
         .output()
         .is_ok_and(|output| output.status.success())
 }
@@ -325,7 +334,7 @@ fn run_schtasks(args: &[String]) -> Result<()> {
 fn run_schtasks_direct(args: &[String]) -> Result<()> {
     let output = Command::new(schtasks_exe())
         .args(args)
-        .creation_flags(CREATE_NO_WINDOW)
+        .creation_flags_no_window()
         .output()
         .context("run schtasks")?;
     if output.status.success() {

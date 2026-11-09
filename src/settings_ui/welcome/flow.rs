@@ -338,7 +338,10 @@ pub(super) fn modules_step(
                 .child(microphone)
                 .child(volume),
         ))
-        .child(block(app, 0, modules_next(app, window, cx)))
+        .child({
+            let next = modules_next(app, window, cx);
+            block(app, 0, next)
+        })
 }
 
 fn module_tile(
@@ -1104,11 +1107,10 @@ pub(super) fn wheel_step(
             40,
             div().flex().flex_wrap().gap(px(12.)).children(cards),
         ))
-        .child(block(
-            app,
-            0,
-            nav_row("welcome-wheel-back", "welcome-wheel-next", app, window, cx),
-        ))
+        .child({
+            let row = nav_row("welcome-wheel-back", "welcome-wheel-next", app, window, cx);
+            block(app, 0, row)
+        })
 }
 
 pub(super) fn skin_step(
@@ -1163,11 +1165,10 @@ pub(super) fn skin_step(
             40,
             div().flex().flex_wrap().gap(px(12.)).children(cards),
         ))
-        .child(block(
-            app,
-            0,
-            nav_row("welcome-skin-back", "welcome-skin-next", app, window, cx),
-        ))
+        .child({
+            let row = nav_row("welcome-skin-back", "welcome-skin-next", app, window, cx);
+            block(app, 0, row)
+        })
 }
 
 pub(super) fn media_step(
@@ -1241,11 +1242,10 @@ pub(super) fn media_step(
                 )
                 .child(toggle),
         ))
-        .child(block(
-            app,
-            0,
-            nav_row("welcome-media-back", "welcome-media-next", app, window, cx),
-        ))
+        .child({
+            let row = nav_row("welcome-media-back", "welcome-media-next", app, window, cx);
+            block(app, 0, row)
+        })
 }
 
 enum CardArt {

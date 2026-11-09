@@ -10,6 +10,7 @@ use gpui::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, div}
 pub(crate) mod about;
 pub(crate) mod auto_mute;
 pub(crate) mod devices;
+pub(crate) mod form;
 pub(crate) mod general;
 pub(crate) mod hold_to_mute;
 pub(crate) mod hotkeys;

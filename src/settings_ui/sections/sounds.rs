@@ -284,7 +284,7 @@ pub(crate) fn sound_picker(
             0,
             SelectOption::new(
                 DEFAULT_SOUND_OPTION,
-                format!("Default ({})", crate::sound_selection_label(base, sounds)),
+                format!("Default ({})", crate::sound_selection_label(&base, &label_settings)),
             ),
         );
     } else {

@@ -334,7 +334,7 @@ fn admin_link(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     on_click: impl Fn(&mut SettingsApp, (), &mut Window, &mut Context<SettingsApp>) + 'static,
-) -> impl IntoElement {
+) -> AnyElement {
     let palette = palette(cx);
     let (pointer, hover, _) = controls::hover_tween(id, window, cx);
     controls::track_pointer(
@@ -348,6 +348,7 @@ fn admin_link(
         pointer,
     )
     .on_click(cx.listener(move |app, _, window, cx| on_click(app, (), window, cx)))
+    .into_any_element()
 }
 
 fn commit_launch(app: &mut SettingsApp, launch: bool, cx: &mut Context<SettingsApp>) {
@@ -540,7 +541,7 @@ fn import_export_button(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     on_click: impl Fn(&mut SettingsApp, (), &mut Window, &mut Context<SettingsApp>) + 'static,
-) -> impl IntoElement {
+) -> AnyElement {
     let palette = palette(cx);
     let (pointer, hover, press) = controls::hover_tween(id, window, cx);
     let lift = hover * (1. - press);
@@ -592,6 +593,7 @@ fn import_export_button(
         pointer,
     )
     .on_click(cx.listener(move |app, _, window, cx| on_click(app, (), window, cx)))
+    .into_any_element()
 }
 
 fn close_confirm(app: &mut SettingsApp, cx: &mut Context<SettingsApp>) {

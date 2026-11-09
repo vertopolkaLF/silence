@@ -62,7 +62,7 @@ pub struct Volume2Detection {
     pub config_path: Option<PathBuf>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RegistryHive {
     CurrentUser,
     LocalMachine,

@@ -135,7 +135,7 @@ pub struct VolumeIconCache {
 }
 
 #[cfg(not(feature = "volume_icon_raster_only"))]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct VolumeIconKey {
     skin: VolumeTraySkin,
     accent: [u8; 3],

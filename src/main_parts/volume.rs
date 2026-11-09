@@ -1,7 +1,7 @@
-//! Output-volume foundation shared by the tray icon, OSD, wheel and media keys.
-//!
-//! COM callbacks only post to the hidden window. State changes land on the UI
-//! thread through [`on_output_volume_changed`] and [`on_output_device_changed`].
+// Output-volume foundation shared by the tray icon, OSD, wheel and media keys.
+//
+// COM callbacks only post to the hidden window. State changes land on the UI
+// thread through [`on_output_volume_changed`] and [`on_output_device_changed`].
 
 /// Event-context GUID passed to every volume or mute write this process makes.
 /// Notifications that carry it are [`VolumeChangeSource::Own`].
@@ -243,7 +243,7 @@ pub fn toggle_output_mute() -> Result<()> {
         let muted = unsafe { volume.GetMute().context("read output mute")?.as_bool() };
         unsafe {
             volume
-                .SetMute((!muted).into(), &OUTPUT_VOLUME_EVENT_CONTEXT)
+                .SetMute(BOOL::from(!muted), &OUTPUT_VOLUME_EVENT_CONTEXT)
                 .context("toggle output mute")?;
         }
         Ok(())
@@ -603,7 +603,7 @@ fn step_output_volume_on(volume: &IAudioEndpointVolume, steps: i32) -> Result<()
             .context("step output volume")?;
         if steps > 0 && muted {
             volume
-                .SetMute(false.into(), &OUTPUT_VOLUME_EVENT_CONTEXT)
+                .SetMute(BOOL::from(false), &OUTPUT_VOLUME_EVENT_CONTEXT)
                 .context("unmute output while increasing volume")?;
         }
     }
