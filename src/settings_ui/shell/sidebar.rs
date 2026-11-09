@@ -201,9 +201,8 @@ fn module_header(
         )
 }
 
-/// Compact module switch on the group header. Quiet when on (soft accent
-/// track, accent knob) so two enabled modules don't shout; clicking it does
-/// not expand or collapse the group.
+/// Compact module switch on the group header: the standard toggle, smaller.
+/// Clicking it does not expand or collapse the group.
 fn module_switch(
     app: &mut SettingsApp,
     module: ModuleId,
@@ -236,12 +235,9 @@ fn module_switch(
         (hovered && !locked) as u8 as f32,
         UI,
     );
-    let track = lerp(
-        palette.surface_3,
-        palette.accent.opacity(0.32 + 0.12 * hover),
-        on,
-    );
-    let knob = lerp(palette.muted, palette.accent, on);
+    // The standard settings toggle (`controls::toggle`) scaled down.
+    let track = lerp(palette.surface_3, palette.accent, on);
+    let _ = hover;
     div()
         .id(("nav-module-switch", module.index()))
         .flex_shrink_0()
@@ -279,19 +275,33 @@ fn module_switch(
         .child(
             div()
                 .relative()
-                .w(px(26.))
-                .h(px(15.))
+                .w(px(30.))
+                .h(px(17.))
                 .rounded_full()
                 .opacity(1. - 0.45 * lock_t)
                 .bg(track.hsla())
+                .shadow(vec![gpui::BoxShadow {
+                    color: palette.shadow_medium.hsla(),
+                    offset: gpui::point(px(0.), px(1.)),
+                    blur_radius: px(2.),
+                    spread_radius: px(0.),
+                    inset: true,
+                }])
                 .child(
                     div()
                         .absolute()
-                        .top(px(2.5))
-                        .left(px(2.5 + 11. * on))
-                        .size(px(10.))
+                        .top(px(3.))
+                        .left(px(3. + 13. * on))
+                        .size(px(11.))
                         .rounded_full()
-                        .bg(knob.hsla()),
+                        .bg(palette.text.hsla())
+                        .shadow(vec![gpui::BoxShadow {
+                            color: palette.shadow_medium.hsla(),
+                            offset: gpui::point(px(0.), px(1.)),
+                            blur_radius: px(2.),
+                            spread_radius: px(0.),
+                            inset: false,
+                        }]),
                 ),
         )
 }
