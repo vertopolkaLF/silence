@@ -609,6 +609,12 @@ unsafe extern "system" fn main_wnd_proc(
     if msg == *TASKBAR_CREATED_MESSAGE {
         TRAY_ICON_ADDED.store(false, Ordering::Relaxed);
         let _ = add_tray_icon(hwnd);
+        // The volume icon is added separately and should call
+        // `refresh_wheel_targets` again after its own NIM_ADD. This pass still
+        // picks up taskbar rects when that icon is missing.
+        if wheel_targets_refresh_wanted() {
+            refresh_wheel_targets();
+        }
         return LRESULT(0);
     }
 
@@ -643,6 +649,15 @@ unsafe extern "system" fn main_wnd_proc(
                 toggle_mute();
             } else if wparam.0 == ID_TRAY_ADD_RETRY_TIMER {
                 let _ = add_tray_icon(hwnd);
+            } else if wparam.0 == ID_WHEEL_REFRESH_TIMER {
+                if wheel_targets_refresh_wanted() {
+                    refresh_wheel_targets();
+                }
+            } else if wparam.0 == ID_HOOK_HEALTH_TIMER {
+                maintain_low_level_hooks();
+            } else if wparam.0 == ID_VOLUME_SOUND_TIMER {
+                let _ = unsafe { KillTimer(hwnd, ID_VOLUME_SOUND_TIMER) };
+                play_debounced_volume_change_sound();
             }
             LRESULT(0)
         }
@@ -703,6 +718,14 @@ unsafe extern "system" fn main_wnd_proc(
             handle_output_device_changed();
             LRESULT(0)
         }
+        WM_VOLUME_WHEEL => {
+            handle_volume_wheel_message();
+            LRESULT(0)
+        }
+        WM_VOLUME_MEDIA_KEY => {
+            handle_volume_media_key(wparam.0);
+            LRESULT(0)
+        }
         WM_OVERLAY_POSITIONING => {
             if !microphone_module_enabled() {
                 native_overlay::hide();
@@ -725,7 +748,16 @@ unsafe extern "system" fn main_wnd_proc(
         }
         WM_DISPLAYCHANGE => {
             native_overlay::reposition();
+            if wheel_targets_refresh_wanted() {
+                refresh_wheel_targets();
+            }
             LRESULT(0)
+        }
+        WM_DPICHANGED => {
+            if wheel_targets_refresh_wanted() {
+                refresh_wheel_targets();
+            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
         WM_SETTINGCHANGE | WM_THEMECHANGED => {
             refresh_tray_icon();

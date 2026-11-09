@@ -721,6 +721,10 @@ fn set_hkcu_string(subkey: &str, value_name: &str, value: &str) -> Result<()> {
 /// it, and every cursor move system-wide waits for it; on the GPUI thread the
 /// cursor stutters whenever a frame or startup work blocks the message loop.
 /// A dedicated thread that only pumps messages keeps the hook instant.
+///
+/// Do not start the tray hook-health timer here and do not set
+/// `TRAY_VOLUME_HOOKS`. Reinstalling from this thread would replace the
+/// recorder's mouse hook and would install a keyboard hook in this process.
 fn spawn_settings_mouse_hook_thread() {
     thread::spawn(|| {
         let instance = match unsafe { GetModuleHandleW(None) } {

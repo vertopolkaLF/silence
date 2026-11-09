@@ -224,6 +224,8 @@ fn run_background_app() -> Result<()> {
     apply_overlay_visibility();
     prime_sound_assets(&sound_settings);
 
+    // Flags go up before the hooks so the first wheel or volume key is covered.
+    mark_tray_input_hooks_ready();
     install_keyboard_hook(instance.into())?;
     install_mouse_hook(instance.into())?;
     if gamepad_monitoring_needed(true) {
@@ -238,7 +240,10 @@ fn run_background_app() -> Result<()> {
     apply_pending_notification_action();
     unsafe {
         let _ = SetTimer(hwnd, ID_STATE_TIMER, 250, None);
+        let _ = SetTimer(hwnd, ID_HOOK_HEALTH_TIMER, wheel_refresh_ms(), None);
     }
+    // Startup work above must not look like a hook that already died.
+    note_hook_event();
 
     unsafe {
         let mut msg = MSG::default();

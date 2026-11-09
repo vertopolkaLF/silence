@@ -11,8 +11,8 @@ use std::{
     process::Command,
     ptr::{null, null_mut},
     sync::{
-        Mutex,
-        atomic::{AtomicBool, AtomicIsize, Ordering},
+        Mutex, RwLock,
+        atomic::{AtomicBool, AtomicIsize, AtomicU64, AtomicU8, Ordering},
     },
     thread,
     time::{Duration, Instant, SystemTime},
@@ -111,7 +111,8 @@ use windows::{
                 TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
                 WINDOW_EX_STYLE, WM_APP, WM_CLOSE, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
                 WM_DPICHANGED, WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
-                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN,
+                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEWHEEL,
+                WM_RBUTTONDOWN,
                 WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
                 WM_THEMECHANGED, WM_TIMER, WM_WINDOWPOSCHANGED, WM_XBUTTONDOWN, WM_XBUTTONUP,
                 WNDCLASSW, WNDPROC, WS_OVERLAPPED,
@@ -127,7 +128,7 @@ pub(crate) mod overlay_icons;
 mod settings_ui;
 pub mod updater;
 #[path = "main_parts/wheel_volume.rs"]
-#[allow(dead_code)] // lead wires the hook and the timer; nothing calls this yet
+#[allow(dead_code)] // module-private hit-test helpers; the tray hook uses the public surface
 pub mod wheel_volume;
 #[allow(dead_code)]
 #[path = "main_parts/volume2_import.rs"]
@@ -144,5 +145,6 @@ include!("main_parts/updates_overlay.rs");
 include!("main_parts/mute_feedback.rs");
 include!("main_parts/audio.rs");
 include!("main_parts/volume.rs");
+include!("main_parts/volume_input.rs");
 include!("main_parts/runtime_config.rs");
 include!("main_parts/input_utils.rs");

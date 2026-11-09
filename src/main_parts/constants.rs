@@ -19,13 +19,25 @@ const WM_CONFIG_CHANGED: u32 = WM_APP + 14;
 const WM_OUTPUT_VOLUME_CHANGED: u32 = WM_APP + 15;
 /// Default console render device changed, or the render endpoint must be rebound.
 const WM_OUTPUT_DEVICE_CHANGED: u32 = WM_APP + 16;
+/// Wheel hit the configured zone. Delta and point are queued in `PENDING_WHEELS`.
+const WM_VOLUME_WHEEL: u32 = WM_APP + 17;
+/// Intercepted volume key-down. `wparam` is `VK_VOLUME_UP`, `VK_VOLUME_DOWN`, or `VK_VOLUME_MUTE`.
+const WM_VOLUME_MEDIA_KEY: u32 = WM_APP + 18;
 const ID_TRAY: u32 = 1;
+/// Second notify icon for output volume. The microphone icon keeps [`ID_TRAY`].
+const ID_VOLUME_TRAY: u32 = 2;
 const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
 const ID_OVERLAY_DRAG_TIMER: usize = 12;
 const ID_TRAY_CLICK_TIMER: usize = 13;
 const ID_TRAY_ADD_RETRY_TIMER: usize = 14;
 const ID_MUTE_FAILURE_TIMER: usize = 15;
+/// Rebuilds wheel hit rects. Runs only while the volume module is on and the zone is not Off.
+const ID_WHEEL_REFRESH_TIMER: usize = 16;
+/// Reinstalls a dropped low-level hook. Runs for the whole tray session.
+const ID_HOOK_HEALTH_TIMER: usize = 17;
+/// Fires once about 150 ms after the last own volume change in a burst.
+const ID_VOLUME_SOUND_TIMER: usize = 18;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
@@ -43,6 +55,8 @@ const ARG_POST_INSTALL: &str = "--post-install";
 const MAIN_INSTANCE_MUTEX: PCWSTR = w!("SilenceV2BackgroundApp");
 const DWMWA_MICA_EFFECT: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(1029);
 const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;
+/// One tick after a burst of own volume changes (a wheel spin is a single tick).
+const VOLUME_SOUND_DEBOUNCE_MS: u32 = 150;
 const TRAY_ADD_RETRY_MS: u32 = 2_000;
 const MIC_IN_USE_REFRESH_MS: u64 = 1_500;
 const GILRS_ACTIVE_POLL_MS: u64 = 16;
@@ -81,3 +95,8 @@ const VK_XBUTTON2: u32 = 0x06;
 const XBUTTON1: u32 = 0x0001;
 const XBUTTON2: u32 = 0x0002;
 const LLKHF_EXTENDED: u32 = 0x01;
+const LLKHF_LOWER_IL_INJECTED: u32 = 0x02;
+const LLKHF_INJECTED: u32 = 0x10;
+const VK_VOLUME_MUTE: u32 = 0xAD;
+const VK_VOLUME_DOWN: u32 = 0xAE;
+const VK_VOLUME_UP: u32 = 0xAF;
