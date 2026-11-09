@@ -181,6 +181,9 @@ struct VolumeChrome {
     bar_width: f32,
     bar_height: f32,
     ink: u32,
+    /// Draw the speaker/device glyph from Segoe Fluent Icons (the system
+    /// volume flyout's own glyphs) instead of the Solar SVGs.
+    fluent: bool,
 }
 
 struct ChromeLayer {
@@ -465,7 +468,11 @@ impl VolumeView {
     }
 
     fn sync_glyph(&mut self, now: Instant) {
-        let id = content_glyph(&self.content);
+        let id = if self.incoming().chrome.fluent {
+            fluent_glyph(&self.content)
+        } else {
+            content_glyph(&self.content)
+        };
         let color = self.incoming().chrome.icon_color;
         let mut matched = false;
         for glyph in &mut self.glyphs {
@@ -592,7 +599,7 @@ impl Render for VolumeView {
         }
 
         let chrome = self.incoming().chrome.clone();
-        let percent_slot = measure_text("100%", &chrome, scale, window).max(28.0 * scale);
+        let percent_slot = measure_text("100", &chrome, scale, window).max(20.0 * scale);
         let name_width = self
             .captions
             .iter()
@@ -744,7 +751,7 @@ impl Render for VolumeView {
         let name_slot = (width - base).max(0.0);
         let level = self.level.value(now).clamp(0.0, 1.0);
         let percent = self.content.percent();
-        let label = format!("{percent}%");
+        let label = percent.to_string();
 
         let mut card = div()
             .absolute()
@@ -826,12 +833,26 @@ impl Render for VolumeView {
                     .items_center()
                     .justify_center()
                     .opacity(*opacity)
-                    .child(
-                        svg()
+                    .child(match path.strip_prefix("fluent:") {
+                        Some(code) => {
+                            let glyph = u32::from_str_radix(code, 16)
+                                .ok()
+                                .and_then(char::from_u32)
+                                .unwrap_or(' ');
+                            div()
+                                .font_family(fluent_font())
+                                .text_size(px(chrome.icon_size * scale))
+                                .line_height(px(chrome.icon_size * scale))
+                                .text_color(rgb(*color))
+                                .child(glyph.to_string())
+                                .into_any_element()
+                        }
+                        None => svg()
                             .path(path.clone())
                             .size(px(chrome.icon_size * scale))
-                            .text_color(rgb(*color)),
-                    ),
+                            .text_color(rgb(*color))
+                            .into_any_element(),
+                    }),
             );
         }
         let mut row = div()
@@ -886,11 +907,12 @@ impl Render for VolumeView {
         row = row.child(
             div()
                 .pl(px(gap))
-                .w(px(percent_slot))
+                .w(px(percent_slot + gap))
                 .flex_shrink_0()
                 .flex()
-                .justify_end()
+                .justify_center()
                 .items_center()
+                .line_height(px(chrome.text_size * scale))
                 .whitespace_nowrap()
                 .text_size(px(chrome.text_size * scale))
                 .font_family(chrome.font.clone())
@@ -1090,6 +1112,42 @@ fn content_glyph(content: &VolumeOsdContent) -> &'static str {
     }
 }
 
+/// Segoe Fluent Icons code points, as `fluent:<hex>` glyph ids.
+fn fluent_glyph(content: &VolumeOsdContent) -> &'static str {
+    if content.is_muted() {
+        return "fluent:E74F";
+    }
+    match content {
+        VolumeOsdContent::Level { percent, .. } => match (*percent).min(100) {
+            0 => "fluent:E992",
+            1..=33 => "fluent:E993",
+            34..=66 => "fluent:E994",
+            _ => "fluent:E995",
+        },
+        VolumeOsdContent::Device { kind, .. } => match kind {
+            DeviceKind::Headphones => "fluent:E7F6",
+            DeviceKind::Display => "fluent:E7F4",
+            DeviceKind::Speakers | DeviceKind::Other => "fluent:E7F5",
+        },
+    }
+}
+
+/// Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets (same code points) on 10.
+pub(super) fn fluent_font() -> &'static str {
+    static FAMILY: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+    FAMILY.get_or_init(|| {
+        let fonts = std::env::var_os("WINDIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("C:\\Windows"))
+            .join("Fonts");
+        if fonts.join("SegoeIcons.ttf").exists() {
+            "Segoe Fluent Icons"
+        } else {
+            "Segoe MDL2 Assets"
+        }
+    })
+}
+
 /// Solar has no three-wave speaker. 34–100 share `volume-loud-bold`.
 pub(crate) fn speaker_icon(percent: u8, muted: bool) -> &'static str {
     if muted {
@@ -1147,6 +1205,21 @@ pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
 fn chrome_for(theme: &str, system: System, muted: bool) -> VolumeChrome {
     let theme = normalize_theme(theme);
     let mut chrome = windows_chrome(system);
+    if theme != "Windows" {
+        // Other themes start from the previous neutral base, not the
+        // flyout-specific metrics; they keep the Fluent glyphs.
+        chrome.height = 49.0;
+        chrome.pad_x = 16.0;
+        chrome.gap = 12.0;
+        chrome.bar_width = 84.0;
+        chrome.border = None;
+        chrome.font = fonts::DEFAULT.into();
+        chrome.surface = color_alpha(0x2c2c2c, 1.0);
+        chrome.foreground = 0xffffff;
+        chrome.icon_color = 0xffffff;
+        chrome.ink = 0xffffff;
+        chrome.track = color_alpha(0xffffff, 0.18);
+    }
     match theme {
         "MaterialYou" => material_you(&mut chrome, system, muted),
         "Cute" => cute(&mut chrome, muted),
@@ -1167,33 +1240,41 @@ fn chrome_for(theme: &str, system: System, muted: bool) -> VolumeChrome {
     chrome
 }
 
+/// Measured against the Windows 11 volume flyout: 192x44, Fluent glyph,
+/// 102x4 rail, bare number in Segoe UI Variable, subtle 1px stroke.
 fn windows_chrome(system: System) -> VolumeChrome {
+    let (surface, foreground, track, stroke) = if system.light {
+        (0xf9f9f9, 0x1b1b1b, color_alpha(0x000000, 0.45), color_alpha(0x000000, 0.07))
+    } else {
+        (0x2c2c2c, 0xffffff, color_alpha(0xffffff, 0.54), color_alpha(0xffffff, 0.08))
+    };
     VolumeChrome {
         entrance: Entrance::Slide,
         detail: Detail::None,
         animates: false,
         halo_pulse: false,
-        height: 49.0,
+        height: 44.0,
         radius: 8.0,
-        pad_x: 16.0,
-        gap: 12.0,
+        pad_x: 13.0,
+        gap: 14.0,
         icon_size: 16.0,
         icon_box: None,
-        icon_color: 0xffffff,
-        surface: color_alpha(0x2c2c2c, 1.0),
-        foreground: 0xffffff,
-        track: color_alpha(0xffffff, 0.18),
+        icon_color: foreground,
+        surface: color_alpha(surface, 1.0),
+        foreground,
+        track,
         fill: color_alpha(system.accent(), 1.0),
-        border: None,
-        shadow: Shadow::Drop(color_alpha(0x000000, 0.42), 4.0, 12.0),
+        border: Some((stroke, 1.0)),
+        shadow: Shadow::Drop(color_alpha(0x000000, if system.light { 0.16 } else { 0.36 }), 4.0, 12.0),
         gutter: 22.0,
-        font: fonts::DEFAULT.into(),
+        font: "Segoe UI Variable Text".into(),
         weight: 400,
         text_size: 14.0,
         sheen: 0.0,
-        bar_width: 84.0,
+        bar_width: 102.0,
         bar_height: 4.0,
-        ink: 0xffffff,
+        ink: foreground,
+        fluent: true,
     }
 }
 

@@ -11,7 +11,7 @@ use gpui::{
     KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, ParentElement, Render, Rgba,
     ScrollDelta, ScrollWheelEvent, StatefulInteractiveElement, Styled, Task, Window,
     WindowBackgroundAppearance, WindowBounds, WindowHandle, WindowKind, WindowOptions, div, point,
-    prelude::*, px, rgb, rgba, size, svg,
+    prelude::*, px, rgb, rgba, size,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{
@@ -333,17 +333,20 @@ impl PopupView {
         cx.stop_propagation();
     }
 
-    fn glyph(&self) -> &'static str {
+    /// Segoe Fluent Icons volume glyph, like the system flyout.
+    fn glyph(&self) -> char {
         let percent = self.percent();
-        if self.state.muted {
-            "speaker-mute"
-        } else if percent == 0 {
-            "speaker-none"
-        } else if percent <= 33 {
-            "speaker-low"
+        let code = if self.state.muted {
+            0xE74F
         } else {
-            "speaker-loud"
-        }
+            match percent {
+                0 => 0xE992,
+                1..=33 => 0xE993,
+                34..=66 => 0xE994,
+                _ => 0xE995,
+            }
+        };
+        char::from_u32(code).unwrap_or(' ')
     }
 }
 
@@ -392,10 +395,12 @@ impl Render for PopupView {
             }))
             .on_click(cx.listener(|_, _, _, _| crate::request_popup_mute()))
             .child(
-                svg()
-                    .path(self.glyph())
-                    .size(px(20.))
-                    .text_color(colors.text),
+                div()
+                    .font_family(super::volume::fluent_font())
+                    .text_size(px(16.))
+                    .line_height(px(16.))
+                    .text_color(colors.text)
+                    .child(self.glyph().to_string()),
             );
 
         let slider = div()
@@ -476,7 +481,7 @@ impl Render for PopupView {
                 spread_radius: px(0.),
                 inset: false,
             }])
-            .font_family("Segoe UI")
+            .font_family("Segoe UI Variable Text")
             .on_scroll_wheel(cx.listener(|view, event: &ScrollWheelEvent, _, cx| {
                 view.on_wheel(event, cx)
             }))
