@@ -126,6 +126,9 @@ mod native_overlay;
 pub(crate) mod overlay_icons;
 mod settings_ui;
 pub mod updater;
+#[allow(dead_code)]
+#[path = "main_parts/volume2_import.rs"]
+mod volume2_import;
 
 include!("main_parts/constants.rs");
 include!("main_parts/models.rs");
