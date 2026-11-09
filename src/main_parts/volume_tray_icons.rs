@@ -226,7 +226,6 @@ fn rgba_to_bgra(rgba: &[u8]) -> Vec<u8> {
 /// Colors for one icon. Windows 11 tray glyphs are solid white on a dark
 /// taskbar and solid black on a light one; the level uses the accent.
 struct Ink {
-    fg: &'static str,
     /// Unfilled part of a meter.
     track: &'static str,
     /// Filled part of a meter: accent, or red while muted.
@@ -258,7 +257,6 @@ impl Ink {
             format!("rgb({r},{g},{b})")
         };
         Self {
-            fg,
             track,
             level,
             muted,
@@ -307,7 +305,7 @@ fn digits_svg(ink: &Ink, level: u8) -> String {
     };
     // Segoe UI digits are ~0.7em tall: center them on the grid.
     let baseline = 8.0 + size * 0.35;
-    let color = if ink.muted { ink.level.as_str() } else { ink.fg };
+    let color = ink.level.as_str();
     format!(
         r#"<text x="8" y="{baseline:.2}" text-anchor="middle" font-family="{DIGIT_FONT}" font-weight="600" font-size="{size}" letter-spacing="{spacing}" fill="{color}">{text}</text>"#
     )
@@ -351,7 +349,7 @@ fn speaker_svg(ink: &Ink, level: u8) -> String {
     format!(
         r#"<text x="0.5" y="15.5" font-family="{}" font-size="15" fill="{}">&#x{glyph:X};</text>"#,
         icon_font_family(),
-        ink.fg,
+        ink.level,
     )
 }
 
