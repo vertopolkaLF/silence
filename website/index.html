@@ -449,22 +449,25 @@
                 }
             }
 
-            p {
-                font-size: clamp(1.1rem, 2vw, 1.5rem);
-                color: var(--text-dim);
-                max-width: 800px;
-                margin-bottom: 48px;
+            .hero-lead {
+                font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+                line-height: 1.3;
+                font-weight: 600;
+                color: #e7e5e4;
+                margin-bottom: 14px;
 
                 b {
                     color: var(--pop-orange);
                     font-weight: 800;
                 }
+            }
 
-                i {
-                    color: var(--pop-purple);
-                    font-style: normal;
-                    font-weight: 800;
-                }
+            .hero-sub {
+                font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+                line-height: 1.6;
+                color: var(--text-dim);
+                max-width: 600px;
+                margin-bottom: 48px;
             }
         }
 
@@ -497,10 +500,16 @@
             box-sizing: border-box;
         }
 
-        .section-kicker {
-            font-size: clamp(1.6rem, 3vw, 2.4rem);
-            line-height: 1.1;
-            margin: 0 4px 20px;
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         .guide-banner {
@@ -1635,11 +1644,8 @@
                 <span class="hero-anim hero-delay-2" style="display: inline-block;">Mute your mic</span> <br>
                 <span class="hero-anim hero-delay-3" style="display: inline-block;">in <span class="highlight">every app.</span></span>
             </h1>
-            <p class="hero-anim hero-delay-5">
-                Never ask <b>"Am I muted?"</b> again. A Windows <b>mic mute</b> app that silences the microphone itself, so Discord, Teams, games, and the browser all go quiet together.
-                <br />
-                Multi-action hotkeys, gamepad support, hold actions, auto-mute, device switching, visual overlay and a <i>looooot of features</i>
-            </p>
+            <p class="hero-lead hero-anim hero-delay-4">Never ask <b>"Am I muted?"</b> again.</p>
+            <p class="hero-sub hero-anim hero-delay-5">A Windows mic mute app that silences the microphone itself, so every app goes quiet at once.</p>
 
             <div class="hero-actions hero-anim hero-delay-6">
                 <a href="https://github.com/vertopolkaLF/silence/releases" class="btn btn-primary" data-download-link>
@@ -1656,7 +1662,7 @@
 
     <section class="bento-section bento-anim" aria-labelledby="features-title">
         <div class="bento-grid-wrapper">
-            <h2 class="section-kicker" id="features-title">Mic mute features</h2>
+            <h2 class="visually-hidden" id="features-title">silence! features</h2>
             <div class="bento-grid">
 
                 <div class="bento-card span-2x2 bg-gradient-dark">
