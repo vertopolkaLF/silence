@@ -207,9 +207,6 @@
             --scroll-track: rgba(255, 255, 255, 0.06);
             --scroll-thumb: linear-gradient(180deg, var(--pop-orange), var(--pop-pink));
             --scroll-thumb-hover: linear-gradient(180deg, var(--pop-yellow), var(--pop-orange));
-            --faq-panel-gap: 20px;
-            --faq-panel-width: max(50vw, 650px);
-            --faq-panel-backdrop: rgba(12, 10, 9, 0.45);
         }
 
         * {
@@ -227,10 +224,6 @@
             overflow-x: hidden;
             background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
             background-size: 24px 24px;
-        }
-
-        body.faq-panel-open {
-            overflow: hidden;
         }
 
         html {
@@ -1064,7 +1057,7 @@
 
         .weight-stat {
             min-height: 200px;
-            padding: 26px 24px;
+            padding: 26px 22px;
             border-radius: 24px;
             background: rgba(0, 0, 0, 0.25);
             display: flex;
@@ -1075,7 +1068,7 @@
 
         .weight-num {
             font-family: 'Bricolage Grotesque', sans-serif;
-            font-size: clamp(3rem, 5vw, 4.6rem);
+            font-size: clamp(2.4rem, 3.4vw, 3.6rem);
             font-weight: 800;
             line-height: 0.95;
             letter-spacing: -0.04em;
@@ -1143,51 +1136,223 @@
             border: 0;
         }
 
-        .guide-banner {
+        /* Guide */
+        .guide-section {
             width: var(--content-width);
             margin: 120px auto 0;
+        }
+
+        .guide-card {
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .guide-card:hover,
+        .guide-card:focus-visible {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        .guide-stage {
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 10px;
+            padding: 40px;
+        }
+
+        .guide-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 24px;
-            padding: 28px 32px;
-            border-radius: var(--radius-box);
-            background: linear-gradient(135deg, #3a281f 0%, #1c1917 55%, #202d3d 100%);
-            text-decoration: none;
-            color: inherit;
-            transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+            gap: 16px;
+            padding: 18px 22px;
+            border-radius: 18px;
+            background: rgba(0, 0, 0, 0.3);
         }
 
-        .guide-banner:hover,
-        .guide-banner:focus-visible {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
-        }
-
-        .guide-banner h2 {
-            font-size: clamp(1.4rem, 3vw, 2rem);
-            line-height: 1.1;
-            margin-bottom: 8px;
-        }
-
-        .guide-banner p {
-            color: var(--text-dim);
+        .guide-row b {
+            color: var(--text);
             font-size: 1.05rem;
-            max-width: 46rem;
+            font-weight: 700;
         }
 
-        .guide-banner-cta {
-            flex-shrink: 0;
+        .guide-row.is-best {
+            background: rgba(74, 222, 128, 0.12);
+        }
+
+        .guide-mark {
+            flex: none;
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .guide-mark.is-no {
+            background: rgba(255, 255, 255, 0.06);
+            color: #a8a29e;
+        }
+
+        .guide-mark.is-mid {
+            background: rgba(253, 224, 71, 0.14);
+            color: var(--pop-yellow);
+        }
+
+        .guide-mark.is-yes {
+            background: rgba(74, 222, 128, 0.18);
+            color: var(--pop-green);
+        }
+
+        .guide-cta {
+            align-self: flex-start;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 12px 20px;
+            padding: 14px 24px;
             border-radius: var(--radius-btn);
             background: var(--text);
             color: var(--bg);
             font-weight: 700;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .guide-card:hover .guide-cta {
+            transform: translateX(3px);
+            box-shadow: 0 10px 25px rgba(250, 250, 249, 0.18);
+        }
+
+        /* Screenshots */
+        .shots {
+            margin-top: 120px;
+        }
+
+        .shots-head {
+            width: var(--content-width);
+            margin: 0 auto 24px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .shots-head .features-heading {
+            margin: 0 4px;
+        }
+
+        .shots-nav {
+            display: flex;
+            gap: 8px;
+        }
+
+        .shots-btn {
+            width: 52px;
+            height: 52px;
+            border: 0;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+            font-size: 1.4rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .shots-btn:hover,
+        .shots-btn:focus-visible {
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .shots-btn:active {
+            transform: scale(0.94);
+        }
+
+        .shots-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        .shots-track {
+            --shots-inset: max(24px, calc((100% - 1232px) / 2));
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scroll-padding-inline: var(--shots-inset);
+            padding: 4px var(--shots-inset) 24px;
+            scrollbar-width: none;
+        }
+
+        .shots-track::-webkit-scrollbar {
+            display: none;
+        }
+
+        .shot {
+            flex: none;
+            width: min(760px, 82vw);
+            scroll-snap-align: start;
+            border-radius: 24px;
+            overflow: hidden;
+            background: var(--surface);
+            color: inherit;
+            text-decoration: none;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .shot:hover,
+        .shot:focus-visible {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        .shot img {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 1280 / 800;
+            object-fit: cover;
+        }
+
+        .shot-caption {
+            display: block;
+            padding: 16px 20px 18px;
+            color: rgba(250, 250, 249, 0.82);
+            font-size: 0.98rem;
+            font-weight: 600;
+        }
+
+        /* FAQ */
+        .faq-block {
+            width: var(--content-width);
+            margin: 120px auto;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+            gap: 48px;
+            align-items: start;
+        }
+
+        .faq-block-head {
+            position: sticky;
+            top: 32px;
+        }
+
+        .faq-block-head .features-heading {
+            margin: 0 0 14px;
+        }
+
+        .faq-block-head p {
+            color: var(--text-dim);
+            font-size: 1.05rem;
+            max-width: 22rem;
+        }
+
+        .faq-block-head a {
+            color: var(--pop-orange);
         }
 
         .bg-faq-purple {
@@ -1297,6 +1462,15 @@
             .trick.is-wide {
                 grid-column: auto;
             }
+
+            .faq-block {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+
+            .faq-block-head {
+                position: static;
+            }
         }
 
         @media (max-width: 500px) {
@@ -1313,252 +1487,6 @@
                 flex: 1 0 100%;
                 justify-content: center;
             }
-        }
-
-        /* FAQ Section */
-        .faq-section {
-            width: var(--content-width);
-            margin: 16px auto 120px;
-            position: relative;
-            box-sizing: border-box;
-        }
-
-        .faq-container {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: nowrap;
-            gap: 16px;
-        }
-
-        @media (max-width: 860px) {
-            .faq-container {
-                flex-direction: column;
-            }
-
-            .faq-action-card {
-                flex: none !important;
-                width: 100%;
-            }
-        }
-
-        .faq-action-card {
-            flex: 1;
-            position: relative;
-            border-radius: var(--radius-box);
-            padding: 32px;
-            min-height: 300px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            gap: 28px;
-            width: 100%;
-            color: inherit;
-            text-align: left;
-            cursor: pointer;
-            appearance: none;
-            background-clip: padding-box;
-            transition: flex 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, background-color 0.25s ease, --faq-gradient-color 0.25s ease;
-            overflow: hidden;
-        }
-
-        .faq-action-card:hover {
-            flex: 1.2;
-            border-color: rgba(255, 255, 255, 0.14);
-        }
-
-        .faq-action-card.bg-faq-green:hover {
-            background-color: #2c4436;
-        }
-
-        .faq-action-card.bg-gradient-dark:hover {
-            --faq-gradient-color: #4a1c99;
-        }
-
-        .faq-action-card:focus-visible {
-            outline: 2px solid var(--pop-orange);
-            outline-offset: 4px;
-        }
-
-        .faq-action-card.bg-gradient-dark {
-            color: var(--text);
-        }
-
-        .faq-action-top {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 16px;
-            width: 100%;
-        }
-
-        .faq-action-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: currentColor;
-        }
-
-        .faq-action-icon {
-            width: 72px;
-            height: 72px;
-            border-radius: 22px;
-            font-size: 2.5rem;
-            background: #0005;
-            flex-shrink: 0;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-
-        .faq-action-arrow {
-            font-size: 4.05rem;
-            background: transparent;
-            border: none;
-            padding: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: currentColor;
-            transition: transform 0.22s ease, color 0.22s ease;
-            flex-shrink: 0;
-            line-height: 1;
-        }
-
-        .faq-action-card:hover .faq-action-arrow,
-        .faq-action-card:focus-visible .faq-action-arrow {
-            transform: translate(4px, -4px);
-        }
-
-        .faq-action-copy {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            max-width: 32rem;
-        }
-
-        .faq-title,
-        .faq-action-copy h3 {
-            font-size: clamp(2.2rem, 3.2vw, 3rem);
-            line-height: 1.05;
-            color: inherit;
-        }
-
-        .faq-action-copy p {
-            font-size: 1.2rem;
-            line-height: 1.6;
-            color: inherit;
-            opacity: 0.9;
-        }
-
-        .faq-gallery {
-            display: none;
-        }
-
-        .faq-panel-shell {
-            position: fixed;
-            inset: 0;
-            z-index: 50;
-            pointer-events: none;
-        }
-
-        .faq-panel-shell.is-open {
-            pointer-events: auto;
-        }
-
-        .faq-panel-backdrop {
-            position: absolute;
-            inset: 0;
-            border: 0;
-            background: var(--faq-panel-backdrop);
-            opacity: 0;
-            transition: opacity 0.28s ease;
-            cursor: pointer;
-        }
-
-        .faq-panel {
-            position: absolute;
-            top: var(--faq-panel-gap);
-            right: var(--faq-panel-gap);
-            bottom: var(--faq-panel-gap);
-            width: min(var(--faq-panel-width), calc(100vw - (var(--faq-panel-gap) * 2)));
-            border-radius: 36px;
-            background: #1c1917;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            opacity: 0;
-            transform: translateX(42px);
-            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
-            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
-        }
-
-        .faq-panel-shell.is-open .faq-panel-backdrop {
-            opacity: 1;
-        }
-
-        .faq-panel-shell.is-open .faq-panel {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        .faq-panel-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 20px;
-            padding: 32px 32px 24px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .faq-panel-title-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .faq-panel-title {
-            font-family: 'Bricolage Grotesque', sans-serif;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            font-size: clamp(1.8rem, 3vw, 2.4rem);
-            line-height: 1.05;
-            color: var(--text) !important;
-            margin: 0;
-            max-width: unset !important;
-        }
-
-        .faq-panel-title-group p {
-            color: var(--text-dim);
-            max-width: 30rem;
-        }
-
-        .faq-panel-close {
-            width: 48px;
-            height: 48px;
-            border-radius: 18px;
-            flex-shrink: 0;
-            font-size: 1.3rem;
-            cursor: pointer;
-            appearance: none;
-            transition: background-color 0.2s ease, border-color 0.2s ease;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: currentColor;
-        }
-
-        .faq-panel-close:hover,
-        .faq-panel-close:focus-visible {
-            background: rgba(255, 255, 255, 0.12);
-            border-color: rgba(255, 255, 255, 0.14);
-        }
-
-        .faq-panel-body {
-            padding: 24px 32px 32px;
-            overflow-y: auto;
         }
 
         .fancybox__container {
@@ -1598,49 +1526,6 @@
             opacity: 0 !important;
         }
 
-        @media (max-width: 700px) {
-            :root {
-                --faq-panel-gap: 14px;
-            }
-
-            .faq-action-card {
-                min-height: 240px;
-                padding: 24px;
-            }
-
-            .faq-action-icon {
-                width: 60px;
-                height: 60px;
-                border-radius: 18px;
-                font-size: 1.8rem;
-            }
-
-            .faq-action-arrow {
-                width: 46px;
-                height: 46px;
-                border-radius: 16px;
-            }
-
-            .faq-action-copy p {
-                font-size: 1.05rem;
-            }
-
-            .faq-panel {
-                width: calc(100vw - (var(--faq-panel-gap) * 2));
-                border-radius: 28px;
-            }
-
-            .faq-panel-header,
-            .faq-panel-body {
-                padding-left: 20px;
-                padding-right: 20px;
-            }
-
-            .faq-panel-header {
-                padding-top: 22px;
-                padding-bottom: 18px;
-            }
-        }
     </style>
 </head>
 
@@ -1653,8 +1538,8 @@
             <div class="nav-actions">
                 <a href="mic-mute/" class="nav-link">How to mute</a>
                 <a href="compare/" class="nav-link">Compare</a>
-                <a href="#screenshots" class="nav-link" onclick="document.getElementById('screenshots-card')?.click(); return false;">Screenshots</a>
-                <a href="#faq" class="nav-link" onclick="document.getElementById('faq-open-button')?.click(); return false;">FAQ</a>
+                <a href="#screenshots" class="nav-link">Screenshots</a>
+                <a href="#faq" class="nav-link">FAQ</a>
                 <a href="https://github.com/vertopolkaLF/silence" target="_blank" class="nav-link" style="display: flex; align-items: center; gap: 6px;">
                     <iconify-icon icon="mdi:github" style="font-size: 1.25rem;"></iconify-icon>
                     <span id="github-stars">GitHub</span>
@@ -1862,81 +1747,52 @@
         </ul>
     </section>
 
-    <a class="guide-banner bento-anim" href="mic-mute/">
-        <div>
-            <h2>How to mute your mic on Windows</h2>
-            <p>Win + Alt + K, Sound settings, app shortcuts, and a global hotkey. The honest walkthrough.</p>
+    <section class="guide-section bento-anim">
+        <a class="showcase tone-blue guide-card" href="mic-mute/">
+            <div class="showcase-stage guide-stage" aria-hidden="true">
+                <div class="guide-row"><b>Win + Alt + K</b><span class="guide-mark is-mid">Some apps</span></div>
+                <div class="guide-row"><b>Sound settings</b><span class="guide-mark is-mid">Slow</span></div>
+                <div class="guide-row"><b>Discord, Teams, Zoom keys</b><span class="guide-mark is-no">One app</span></div>
+                <div class="guide-row is-best"><b>Global mic mute hotkey</b><span class="guide-mark is-yes">Every app</span></div>
+            </div>
+            <div class="showcase-copy">
+                <p class="showcase-kicker">The guide</p>
+                <h3>How to mute your mic on Windows.</h3>
+                <p>Every method, and which ones actually work.</p>
+                <span class="guide-cta">Read the guide <iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></span>
+            </div>
+        </a>
+    </section>
+
+    <section class="shots" id="screenshots" aria-labelledby="shots-title">
+        <div class="shots-head">
+            <h2 class="features-heading" id="shots-title">Screenshots.</h2>
+            <div class="shots-nav">
+                <button type="button" class="shots-btn" data-shots-dir="-1" aria-label="Previous screenshot" disabled><iconify-icon icon="fluent:arrow-left-20-filled"></iconify-icon></button>
+                <button type="button" class="shots-btn" data-shots-dir="1" aria-label="Next screenshot"><iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></button>
+            </div>
         </div>
-        <span class="guide-banner-cta">
-            Read the guide
-            <iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon>
-        </span>
-    </a>
-
-    <section class="faq-section">
-        <div class="faq-container">
-            <button type="button" class="faq-action-card bg-faq-green" id="screenshots-card" aria-label="Open screenshots gallery">
-                <div class="faq-action-top">
-                    <div class="faq-action-icon" aria-hidden="true">
-                        <iconify-icon icon="solar:gallery-wide-bold-duotone"></iconify-icon>
-                    </div>
-                    <div class="faq-action-arrow" aria-hidden="true">
-                        <iconify-icon icon="fluent:arrow-up-right-20-filled"></iconify-icon>
-                    </div>
-                </div>
-                <div class="faq-action-copy">
-                    <h2 class="faq-title">Screenshots</h2>
-                    <p>Can I have a look at the app?</p>
-                </div>
-            </button>
-
-            <button type="button" class="faq-action-card bg-gradient-dark" id="faq-open-button" aria-haspopup="dialog" aria-controls="faq-panel" aria-expanded="false">
-                <div class="faq-action-top">
-                    <div class="faq-action-icon" aria-hidden="true">
-                        <iconify-icon icon="solar:question-circle-bold-duotone"></iconify-icon>
-                    </div>
-                    <div class="faq-action-arrow" aria-hidden="true">
-                        <iconify-icon icon="fluent:arrow-up-right-20-filled"></iconify-icon>
-                    </div>
-                </div>
-                <div class="faq-action-copy">
-                    <h2 class="faq-title">Frequently Asked Questions</h2>
-                    <p>Because every website has to have one</p>
-                </div>
-            </button>
-        </div>
-
-        <div class="faq-gallery" aria-hidden="true">
-            <a href="screenshots/1.png" data-fancybox="screenshots" data-thumb="screenshots/1.png" data-caption="Hotkeys page with blue accent"><img src="screenshots/1.png" alt="silence! hotkeys page for Windows mic mute" width="1280" height="800"></a>
-            <a href="screenshots/2.png" data-fancybox="screenshots" data-thumb="screenshots/2.png" data-caption="Devices page with green accent"><img src="screenshots/2.png" alt="silence! microphone device selection for mic mute" width="1280" height="800"></a>
-            <a href="screenshots/3.png" data-fancybox="screenshots" data-thumb="screenshots/3.png" data-caption="Sounds page with blue accent"><img src="screenshots/3.png" alt="silence! mute and unmute sound settings" width="1280" height="800"></a>
-            <a href="screenshots/4.png" data-fancybox="screenshots" data-thumb="screenshots/4.png" data-caption="Overlay page with red accent"><img src="screenshots/4.png" alt="silence! on-screen mic mute overlay settings" width="1280" height="800"></a>
-            <a href="screenshots/5.png" data-fancybox="screenshots" data-thumb="screenshots/5.png" data-caption="Hold to Mute page with purple accent"><img src="screenshots/5.png" alt="silence! hold to mute settings" width="1280" height="800"></a>
-            <a href="screenshots/6.png" data-fancybox="screenshots" data-thumb="screenshots/6.png" data-caption="Tray Icon page with red accent"><img src="screenshots/6.png" alt="silence! tray icon styles showing mic mute status" width="1280" height="800"></a>
-            <a href="screenshots/7.png" data-fancybox="screenshots" data-thumb="screenshots/7.png" data-caption="Auto-Mute page with blue accent"><img src="screenshots/7.png" alt="silence! auto-mute timer settings" width="1280" height="800"></a>
-            <a href="screenshots/8.png" data-fancybox="screenshots" data-thumb="screenshots/8.png" data-caption="General and Import/Export page with green accent"><img src="screenshots/8.png" alt="silence! general settings and import export" width="1280" height="800"></a>
-            <a href="screenshots/9.png" data-fancybox="screenshots" data-thumb="screenshots/9.png" data-caption="About and Updates page with blue accent"><img src="screenshots/9.png" alt="silence! about and in-app updates" width="1280" height="800"></a>
-            <a href="screenshots/10.png" data-fancybox="screenshots" data-thumb="screenshots/10.png" data-caption="Tray menu"><img src="screenshots/10.png" alt="silence! tray menu with mic mute controls" width="1280" height="800"></a>
+        <div class="shots-track" id="shots-track">
+            <a class="shot" href="screenshots/1.png" data-fancybox="screenshots" data-caption="Hotkeys"><img src="screenshots/1.png" alt="silence! hotkeys page for Windows mic mute" width="1280" height="800" loading="lazy"><span class="shot-caption">Hotkeys</span></a>
+            <a class="shot" href="screenshots/2.png" data-fancybox="screenshots" data-caption="Devices"><img src="screenshots/2.png" alt="silence! microphone device selection for mic mute" width="1280" height="800" loading="lazy"><span class="shot-caption">Devices</span></a>
+            <a class="shot" href="screenshots/3.png" data-fancybox="screenshots" data-caption="Sounds"><img src="screenshots/3.png" alt="silence! mute and unmute sound settings" width="1280" height="800" loading="lazy"><span class="shot-caption">Sounds</span></a>
+            <a class="shot" href="screenshots/4.png" data-fancybox="screenshots" data-caption="Overlay"><img src="screenshots/4.png" alt="silence! on-screen mic mute overlay settings" width="1280" height="800" loading="lazy"><span class="shot-caption">Overlay</span></a>
+            <a class="shot" href="screenshots/5.png" data-fancybox="screenshots" data-caption="Hold to mute"><img src="screenshots/5.png" alt="silence! hold to mute settings" width="1280" height="800" loading="lazy"><span class="shot-caption">Hold to mute</span></a>
+            <a class="shot" href="screenshots/6.png" data-fancybox="screenshots" data-caption="Tray icon"><img src="screenshots/6.png" alt="silence! tray icon styles showing mic mute status" width="1280" height="800" loading="lazy"><span class="shot-caption">Tray icon</span></a>
+            <a class="shot" href="screenshots/7.png" data-fancybox="screenshots" data-caption="Auto-mute"><img src="screenshots/7.png" alt="silence! auto-mute timer settings" width="1280" height="800" loading="lazy"><span class="shot-caption">Auto-mute</span></a>
+            <a class="shot" href="screenshots/8.png" data-fancybox="screenshots" data-caption="General, import and export"><img src="screenshots/8.png" alt="silence! general settings and import export" width="1280" height="800" loading="lazy"><span class="shot-caption">General, import and export</span></a>
+            <a class="shot" href="screenshots/9.png" data-fancybox="screenshots" data-caption="About and updates"><img src="screenshots/9.png" alt="silence! about and in-app updates" width="1280" height="800" loading="lazy"><span class="shot-caption">About and updates</span></a>
+            <a class="shot" href="screenshots/10.png" data-fancybox="screenshots" data-caption="Tray menu"><img src="screenshots/10.png" alt="silence! tray menu with mic mute controls" width="1280" height="800" loading="lazy"><span class="shot-caption">Tray menu</span></a>
         </div>
     </section>
 
-    <div class="faq-panel-shell" id="faq-panel-shell" aria-hidden="true">
-        <button type="button" class="faq-panel-backdrop" id="faq-panel-backdrop" aria-label="Close frequently asked questions"></button>
-        <aside class="faq-panel" id="faq-panel" role="dialog" aria-modal="true" aria-labelledby="faq-panel-title" tabindex="-1">
-            <div class="faq-panel-header">
-                <div class="faq-panel-title-group">
-                    <p class="faq-panel-title" id="faq-panel-title">Frequently Asked Questions</p>
-                </div>
-                <button type="button" class="faq-panel-close" id="faq-panel-close" aria-label="Close FAQ panel">
-                    <iconify-icon icon="fluent:dismiss-20-filled"></iconify-icon>
-                </button>
-            </div>
-
-            <div class="faq-panel-body">
-                <div class="faq-list" id="faq-list" role="list"></div>
-            </div>
-        </aside>
-    </div>
+    <section class="faq-block" id="faq" aria-labelledby="faq-title">
+        <div class="faq-block-head">
+            <h2 class="features-heading" id="faq-title">FAQ.</h2>
+            <p>Something missing? Ask on <a href="https://github.com/vertopolkaLF/silence/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+        </div>
+        <div class="faq-list" id="faq-list" role="list"></div>
+    </section>
 
     <section class="bottom-cta">
         <div class="cta-box">
@@ -2032,15 +1888,6 @@
 
     <script>
         (function () {
-            const screenshotsCard = document.getElementById('screenshots-card');
-            const screenshotLinks = Array.from(document.querySelectorAll('[data-fancybox="screenshots"]'));
-            const faqOpenButton = document.getElementById('faq-open-button');
-            const panelShell = document.getElementById('faq-panel-shell');
-            const panel = document.getElementById('faq-panel');
-            const panelBackdrop = document.getElementById('faq-panel-backdrop');
-            const panelClose = document.getElementById('faq-panel-close');
-            const isFaqHash = () => window.location.hash.toLowerCase() === '#faq';
-            let lastPanelTrigger = null;
             const setupScreenshotsFade = (fancyboxRef) => {
                 const viewport = fancyboxRef.getCarousel?.()?.getViewport?.();
 
@@ -2096,50 +1943,24 @@
                 });
             }
 
-            screenshotsCard?.addEventListener('click', () => {
-                if (window.Fancybox) {
-                    Fancybox.fromSelector('[data-fancybox="screenshots"]');
-                    return;
-                }
-
-                screenshotLinks[0]?.click();
-            });
-
-            const openPanel = () => {
-                lastPanelTrigger = document.activeElement;
-                panelShell?.classList.add('is-open');
-                panelShell?.setAttribute('aria-hidden', 'false');
-                faqOpenButton?.setAttribute('aria-expanded', 'true');
-                document.body.classList.add('faq-panel-open');
-                panel?.focus();
+            const track = document.getElementById('shots-track');
+            const shotButtons = Array.from(document.querySelectorAll('[data-shots-dir]'));
+            const syncShotButtons = () => {
+                const maxScroll = track.scrollWidth - track.clientWidth - 2;
+                shotButtons.forEach((button) => {
+                    button.disabled = button.dataset.shotsDir === '-1' ? track.scrollLeft <= 2 : track.scrollLeft >= maxScroll;
+                });
             };
 
-            const closePanel = () => {
-                panelShell?.classList.remove('is-open');
-                panelShell?.setAttribute('aria-hidden', 'true');
-                faqOpenButton?.setAttribute('aria-expanded', 'false');
-                document.body.classList.remove('faq-panel-open');
-                lastPanelTrigger?.focus?.();
-            };
-
-            faqOpenButton?.addEventListener('click', openPanel);
-            panelClose?.addEventListener('click', closePanel);
-            panelBackdrop?.addEventListener('click', closePanel);
-
-            window.addEventListener('hashchange', () => {
-                if (isFaqHash()) {
-                    openPanel();
-                }
-            });
-
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && panelShell?.classList.contains('is-open')) {
-                    closePanel();
-                }
-            });
-
-            if (isFaqHash()) {
-                openPanel();
+            if (track) {
+                shotButtons.forEach((button) => button.addEventListener('click', () => {
+                    const shot = track.querySelector('.shot');
+                    const step = shot ? shot.getBoundingClientRect().width + 16 : track.clientWidth * 0.8;
+                    track.scrollBy({ left: step * Number(button.dataset.shotsDir), behavior: 'smooth' });
+                }));
+                track.addEventListener('scroll', syncShotButtons, { passive: true });
+                window.addEventListener('resize', syncShotButtons);
+                syncShotButtons();
             }
         })();
     </script>
