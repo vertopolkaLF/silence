@@ -64,12 +64,65 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.volume.tray_icon.color = color);
         },
     );
+    let ring_start = controls::select(
+        "volume-tray-ring-start",
+        match tray.ring_start {
+            crate::RingStart::Top => "Top",
+            crate::RingStart::Bottom => "Bottom",
+        },
+        SelectOptions::new(vec![
+            SelectOption::new("Top", "Top"),
+            SelectOption::new("Bottom", "Bottom"),
+        ]),
+        app,
+        window,
+        cx,
+        |app, value, _, cx| {
+            let start = if value.as_ref() == "Bottom" {
+                crate::RingStart::Bottom
+            } else {
+                crate::RingStart::Top
+            };
+            app.update_config(cx, |config| config.volume.tray_icon.ring_start = start);
+        },
+    );
+    let ring_direction = controls::select(
+        "volume-tray-ring-direction",
+        if tray.ring_clockwise {
+            "Clockwise"
+        } else {
+            "Counterclockwise"
+        },
+        SelectOptions::new(vec![
+            SelectOption::new("Clockwise", "Clockwise"),
+            SelectOption::new("Counterclockwise", "Counterclockwise"),
+        ]),
+        app,
+        window,
+        cx,
+        |app, value, _, cx| {
+            let clockwise = value.as_ref() == "Clockwise";
+            app.update_config(cx, |config| config.volume.tray_icon.ring_clockwise = clockwise);
+        },
+    );
+    let ring_options = div()
+        .flex()
+        .gap(px(14.))
+        .child(field("Ring starts at", ring_start).flex_1())
+        .child(field("Ring direction", ring_direction).flex_1());
     vec![column()
         .gap(px(0.))
         .child(heading("Tray icon", "", Some(show), cx))
         .child(
             form::panel(18., true, cx)
                 .child(field("Style", skins))
+                .child(form::collapse(
+                    "volume-tray-ring-options",
+                    tray.skin == crate::VolumeTraySkin::Rings,
+                    ring_options,
+                    window,
+                    cx,
+                ))
                 .child(field("Icon color", color_mode))
                 .child(
                     style::p(

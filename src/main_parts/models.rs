@@ -1667,6 +1667,10 @@ fn default_volume_tray_enabled() -> bool {
     true
 }
 
+fn default_ring_clockwise() -> bool {
+    true
+}
+
 fn default_volume_tray_color() -> String {
     "#5CA8FF".to_string()
 }
@@ -1812,6 +1816,19 @@ pub struct VolumeTrayIconConfig {
     pub color: TrayColorMode,
     #[serde(default = "default_volume_tray_color")]
     pub custom_color: String,
+    /// Rings skin: where the arc starts.
+    #[serde(default)]
+    pub ring_start: RingStart,
+    /// Rings skin: the arc grows clockwise.
+    #[serde(default = "default_ring_clockwise")]
+    pub ring_clockwise: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum RingStart {
+    #[default]
+    Top,
+    Bottom,
 }
 
 impl Default for VolumeTrayIconConfig {
@@ -1821,6 +1838,8 @@ impl Default for VolumeTrayIconConfig {
             skin: VolumeTraySkin::default(),
             color: TrayColorMode::default(),
             custom_color: default_volume_tray_color(),
+            ring_start: RingStart::default(),
+            ring_clockwise: true,
         }
     }
 }

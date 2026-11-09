@@ -271,6 +271,8 @@ pub(crate) fn volume_icon_style(config: &VolumeTrayIconConfig) -> volume_tray_ic
         volume_tray_icons::taskbar_uses_light_theme(),
     );
     style.monochrome = config.color == TrayColorMode::Monochrome;
+    style.ring_from_bottom = config.ring_start == RingStart::Bottom;
+    style.ring_clockwise = config.ring_clockwise;
     style
 }
 

@@ -30,6 +30,10 @@ pub struct VolumeIconStyle {
     pub light_taskbar: bool,
     /// Taskbar ink only: no accent, no red.
     pub monochrome: bool,
+    /// Rings: the arc starts at 6 o'clock instead of 12.
+    pub ring_from_bottom: bool,
+    /// Rings: the arc grows clockwise.
+    pub ring_clockwise: bool,
 }
 
 impl VolumeIconStyle {
@@ -39,6 +43,8 @@ impl VolumeIconStyle {
             accent,
             light_taskbar,
             monochrome: false,
+            ring_from_bottom: false,
+            ring_clockwise: true,
         }
     }
 }
@@ -58,7 +64,7 @@ pub fn render_volume_icon_rgba(
     let level = level_percent.min(100);
     let ink = Ink::new(style, muted);
     let body = match style.skin {
-        VolumeTraySkin::Rings => rings_svg(&ink, level),
+        VolumeTraySkin::Rings => rings_svg(&ink, level, style),
         VolumeTraySkin::Digits => digits_svg(&ink, level),
         VolumeTraySkin::Bar => bars_svg(&ink, level),
         VolumeTraySkin::Speaker => speaker_svg(&ink, level),
@@ -260,12 +266,14 @@ impl Ink {
     }
 }
 
-/// Thin ring with a round-capped arc that fills clockwise from 12 o'clock.
-fn rings_svg(ink: &Ink, level: u8) -> String {
+/// Ring with a round-capped arc from 12 or 6 o'clock, in either direction.
+fn rings_svg(ink: &Ink, level: u8, style: &VolumeIconStyle) -> String {
     let (cx, cy, r, width) = (8.0_f32, 8.0_f32, 5.6_f32, 2.2_f32);
+    // Solid black under the arc on a dark taskbar; a light taskbar keeps the
+    // faint track so the ring stays visible.
+    let track = if style.light_taskbar { ink.track } else { "#000000" };
     let mut out = format!(
-        r#"<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{}" stroke-width="{width}"/>"#,
-        ink.track
+        r#"<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{track}" stroke-width="{width}"/>"#
     );
     if level >= 100 {
         out.push_str(&format!(
@@ -275,11 +283,14 @@ fn rings_svg(ink: &Ink, level: u8) -> String {
     } else if level > 0 {
         let turns = f32::from(level) / 100.0;
         let angle = turns * std::f32::consts::TAU;
-        let (sx, sy) = (cx, cy - r);
-        let (ex, ey) = (cx + r * angle.sin(), cy - r * angle.cos());
+        let dir = if style.ring_clockwise { 1.0 } else { -1.0 };
+        let up = if style.ring_from_bottom { -1.0 } else { 1.0 };
+        let (sx, sy) = (cx, cy - up * r);
+        let (ex, ey) = (cx + up * dir * r * angle.sin(), cy - up * r * angle.cos());
         let large = if turns > 0.5 { 1 } else { 0 };
+        let sweep = if style.ring_clockwise { 1 } else { 0 };
         out.push_str(&format!(
-            r#"<path d="M{sx} {sy} A{r} {r} 0 {large} 1 {ex:.3} {ey:.3}" fill="none" stroke="{}" stroke-width="{width}" stroke-linecap="round"/>"#,
+            r#"<path d="M{sx} {sy} A{r} {r} 0 {large} {sweep} {ex:.3} {ey:.3}" fill="none" stroke="{}" stroke-width="{width}" stroke-linecap="round"/>"#,
             ink.level
         ));
     }
