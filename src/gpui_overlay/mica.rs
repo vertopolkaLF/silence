@@ -161,6 +161,11 @@ pub(crate) fn crop(monitor: RECT, card: RECT) -> Option<Arc<Image>> {
     let bottom =
         to_low(card.bottom, monitor.top).clamp(top as i64 + 1, blurred.image.height() as i64) as u32;
     let region = imageops::crop_imm(&blurred.image, left, top, right - left, bottom - top).to_image();
+    // Scale up to the card's own pixels here: a few-texel image stretched on
+    // the GPU fades out over its outer half-texel and shows a dark rim.
+    let card_w = (card.right - card.left).clamp(1, 1600) as u32;
+    let card_h = (card.bottom - card.top).clamp(1, 1600) as u32;
+    let region = imageops::resize(&region, card_w, card_h, imageops::FilterType::Triangle);
     let mut png = Vec::new();
     image::DynamicImage::ImageRgba8(region)
         .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
