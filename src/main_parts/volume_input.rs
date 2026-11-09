@@ -383,12 +383,12 @@ fn play_debounced_volume_change_sound() {
     };
     // Scheduled only for silence!'s own writes (wheel, media keys, other
     // `OUTPUT_VOLUME_EVENT_CONTEXT` calls). External apps do not arm the timer.
-    // The tick uses the unmute clip. `mute_theme` is unused: playback is
-    // skipped entirely while the output is muted. Device changes never get here.
+    // The tick is `mute_theme` (the settings page picks and previews that
+    // sample). Skipped while the output is muted. Device changes never get here.
     if !module_on || muted || !settings.enabled {
         return;
     }
-    if let Err(err) = play_configured_sound(&settings, false, settings.volume) {
+    if let Err(err) = play_configured_sound(&settings, true, settings.volume) {
         eprintln!("failed to play volume change sound: {err:?}");
     }
 }
