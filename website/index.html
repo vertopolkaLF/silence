@@ -174,7 +174,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Orbitron:wght@600;800&family=Nunito:wght@700;800;900&family=Archivo+Black&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.css">
     <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
     <link rel="stylesheet" href="footer-cta.css">
@@ -515,6 +515,23 @@
             order: 2;
         }
 
+        .showcase.is-stacked {
+            grid-template-columns: 1fr;
+        }
+
+        .showcase.is-stacked .showcase-stage {
+            order: 2;
+            min-height: 0;
+        }
+
+        .showcase.is-stacked .showcase-copy {
+            padding: 28px 24px 8px;
+        }
+
+        .showcase.is-stacked .showcase-copy > p:not(.showcase-kicker) {
+            margin-bottom: 0;
+        }
+
         .tone-purple {
             --tone: var(--pop-purple);
             --tone-bg: var(--faq-purple-dim);
@@ -698,111 +715,386 @@
             padding: 16px;
         }
 
-        .ov-gallery {
-            flex: 1;
-            min-height: 340px;
-            display: flex;
-            flex-wrap: wrap;
-            align-content: center;
-            align-items: center;
-            justify-content: center;
-            gap: 28px 32px;
-            padding: 32px;
+        .ov-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+            gap: 4px;
+            padding: 12px;
             border-radius: 16px;
             background: linear-gradient(160deg, #2a1d24, #150f12);
         }
 
-        .ov {
-            height: 52px;
-            padding: 0 18px;
-            display: inline-flex;
+        .ov-cell {
+            min-height: 132px;
+            display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            border-radius: 16px;
-            border: 1px solid rgba(250, 250, 249, 0.1);
-            background: rgba(22, 17, 18, 0.8);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
-            color: var(--text);
-            font-size: 0.85rem;
+            gap: 14px;
+            padding: 18px 0 14px;
+        }
+
+        .ov-name {
+            color: rgba(250, 250, 249, 0.5);
+            font-size: 0.78rem;
             font-weight: 700;
+        }
+
+        .ov {
+            --sig: var(--sig-m);
+            --box: var(--box-m, transparent);
+            position: relative;
+            height: var(--h, 48px);
+            padding: 0 var(--pad, 14px) 0 var(--pad-icon, 8px);
+            display: inline-flex;
+            align-items: center;
+            gap: var(--gap, 10px);
+            border-radius: var(--r, 10px);
+            background-color: var(--bg-m);
+            color: var(--fg-m);
+            font-family: var(--font, 'Plus Jakarta Sans'), sans-serif;
+            font-size: var(--fs, 14px);
+            font-weight: var(--w, 600);
             white-space: nowrap;
             transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .ov iconify-icon {
-            font-size: 1.6rem;
-            color: #ff6b63;
-            transition: color 0.3s ease;
-        }
-
-        .ov.is-live iconify-icon {
-            color: var(--pop-green);
+        .ov.is-live {
+            --sig: var(--sig-l);
+            --box: var(--box-l, var(--box-m, transparent));
+            background-color: var(--bg-l, var(--bg-m));
+            color: var(--fg-l, var(--fg-m));
         }
 
         .ov.is-flip {
             animation: theme-bump 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .ov-icontext {
-            min-width: 226px;
-            justify-content: flex-start;
+        .ov-box {
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--box);
+            transition: background-color 0.3s ease;
         }
 
-        .ov-icon {
-            width: 56px;
-            height: 56px;
-            padding: 0;
-            border-radius: 999px;
+        .ov-ico {
+            width: var(--is, 22px);
+            height: var(--is, 22px);
+            background-color: var(--ico, var(--sig));
+            -webkit-mask: var(--mi) center / contain no-repeat;
+            mask: var(--mi) center / contain no-repeat;
+            transition: background-color 0.3s ease;
         }
 
-        .ov-light {
-            min-width: 112px;
-            border-color: transparent;
-            border-radius: 999px;
-            background: rgba(255, 247, 244, 0.96);
-            color: #1c1614;
+        .pair-fluent { --mi: url(overlay-icons/fluent-mic-off.svg); }
+        .pair-fluent.is-live { --mi: url(overlay-icons/fluent-mic.svg); }
+        .pair-material { --mi: url(overlay-icons/material-mic-off-outline.svg); }
+        .pair-material.is-live { --mi: url(overlay-icons/material-mic-outline.svg); }
+        .pair-mingcute { --mi: url(overlay-icons/mingcute-mic-off-fill.svg); }
+        .pair-mingcute.is-live { --mi: url(overlay-icons/mingcute-mic-fill.svg); }
+        .pair-lucide { --mi: url(overlay-icons/lucide-mic-off.svg); }
+        .pair-lucide.is-live { --mi: url(overlay-icons/lucide-mic.svg); }
+        .pair-mdi { --mi: url(overlay-icons/mdi-microphone-off.svg); }
+        .pair-mdi.is-live { --mi: url(overlay-icons/mdi-microphone.svg); }
+        .pair-phosphor { --mi: url(overlay-icons/ph-microphone-slash.svg); }
+        .pair-phosphor.is-live { --mi: url(overlay-icons/ph-microphone.svg); }
+        .pair-tabler { --mi: url(overlay-icons/tabler-microphone-off.svg); }
+        .pair-tabler.is-live { --mi: url(overlay-icons/tabler-microphone.svg); }
+        .pair-solar { --mi: url(overlay-icons/solar-microphone-3-broken.svg); }
+        .pair-solar.is-live { --mi: url(overlay-icons/solar-microphone-3-linear.svg); }
+
+        .th-custom {
+            --bg-m: rgba(27, 28, 33, 0.94);
+            --fg-m: #f1f4f8;
+            --sig-m: #ef4444;
+            --sig-l: #10b981;
+            --r: 12px;
+            --w: 700;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 8px 20px rgba(0, 0, 0, 0.35);
         }
 
-        .ov-mono {
-            width: 64px;
-            height: 64px;
-            padding: 0;
-            border-color: transparent;
+        .th-custom .ov-box {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--sig) 14%, transparent);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sig) 22%, transparent);
+        }
+
+        .th-windows {
+            --bg-m: rgba(32, 32, 32, 0.94);
+            --fg-m: #ffffff;
+            --sig-m: #ffffff;
+            --sig-l: #4cc2ff;
+            --r: 8px;
+            --pad-icon: 15px;
+            --pad: 18px;
+            --gap: 14px;
+            --is: 18px;
+            --w: 400;
+            --font: 'Segoe UI Variable Text', 'Segoe UI';
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .th-material {
+            --bg-m: #25201d;
+            --fg-m: #e8e3e0;
+            --sig-m: #f9dedc;
+            --sig-l: #fae2d1;
+            --box-m: #8c1d18;
+            --box-l: #6f4729;
+            --h: 56px;
+            --r: 28px;
+            --pad: 24px;
+            --gap: 12px;
+            --fs: 15px;
+            --w: 500;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .th-material .ov-box {
+            width: 40px;
+            height: 40px;
             border-radius: 20px;
-            background: rgba(255, 247, 244, 0.96);
         }
 
-        .ov-mono iconify-icon,
-        .ov-mono.is-live iconify-icon {
-            font-size: 2rem;
-            color: #1c1614;
+        .th-cute {
+            --bg-m: #fff2f8;
+            --fg-m: #9c3b6c;
+            --sig-m: #ff4f93;
+            --sig-l: #1fb383;
+            --box-m: #ffd3e5;
+            --box-l: #c8f4e3;
+            --h: 50px;
+            --r: 25px;
+            --pad-icon: 7px;
+            --pad: 20px;
+            --is: 20px;
+            --font: 'Nunito';
+            --w: 700;
+            box-shadow: inset 0 0 0 2px #ffb3d3, 0 4px 0 #ffb3d3;
         }
 
-        .ov-text {
-            min-width: 104px;
-            color: #ff6b63;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
+        .th-cute .ov-box {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
         }
 
-        .ov-text.is-live {
-            color: var(--pop-green);
+        .th-sticker {
+            --bg-m: transparent;
+            --fg-m: var(--sig);
+            --sig-m: #f49ac2;
+            --sig-l: #73cbb1;
+            --h: 76px;
+            --pad: 0px;
+            --pad-icon: 0px;
+            --gap: 0px;
+            --is: 62px;
+            --font: 'Nunito';
+            --w: 900;
+            --fs: 20px;
+            filter: drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff) drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff) drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
         }
 
-        .ov-dot {
-            width: 18px;
-            height: 18px;
-            padding: 0;
-            border: 0;
-            border-radius: 999px;
-            background: #ff6b63;
-            box-shadow: 0 0 0 6px rgba(255, 107, 99, 0.18);
+        .th-sticker .ov-label {
+            margin: 40px 0 0 -16px;
+            transform: rotate(-10deg);
         }
 
-        .ov-dot.is-live {
-            background: var(--pop-green);
-            box-shadow: 0 0 0 6px rgba(74, 222, 128, 0.18);
+        .th-neon {
+            --bg-m: rgba(11, 6, 20, 0.94);
+            --fg-m: var(--sig);
+            --sig-m: #ff2e88;
+            --sig-l: #19f0ff;
+            --h: 46px;
+            --r: 12px;
+            --pad-icon: 14px;
+            --pad: 18px;
+            --font: 'Orbitron';
+            --fs: 13px;
+            box-shadow: inset 0 0 0 1.5px var(--sig), 0 0 18px color-mix(in srgb, var(--sig) 70%, transparent);
+            text-shadow: 0 0 8px color-mix(in srgb, var(--sig) 60%, transparent);
+        }
+
+        .th-brutal {
+            --bg-m: #ff5a5f;
+            --bg-l: #c6ff3d;
+            --fg-m: #000000;
+            --sig-m: #ff5a5f;
+            --sig-l: #c6ff3d;
+            --box-m: #000000;
+            --h: 50px;
+            --r: 0px;
+            --pad: 16px;
+            --gap: 12px;
+            --font: 'Archivo Black';
+            --w: 400;
+            box-shadow: inset 0 0 0 3px #000000, 5px 5px 0 #000000;
+        }
+
+        .th-brutal .ov-box {
+            width: 34px;
+            height: 34px;
+        }
+
+        .th-terminal {
+            --bg-m: #0d1914;
+            --fg-m: var(--sig);
+            --sig-m: #ffbd69;
+            --sig-l: #7cf7b4;
+            --h: 42px;
+            --r: 3px;
+            --pad-icon: 12px;
+            --pad: 24px;
+            --gap: 12px;
+            --font: 'Orbitron';
+            --fs: 12px;
+            background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 3px);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sig) 35%, transparent), 3px 3px 0 #06100b;
+        }
+
+        .th-blueprint {
+            --bg-m: #153c72;
+            --fg-m: #ebf5ff;
+            --sig-m: #ffcf9c;
+            --sig-l: #a7e5ff;
+            --h: 50px;
+            --r: 0px;
+            --pad-icon: 16px;
+            --pad: 20px;
+            --gap: 12px;
+            --font: 'Orbitron';
+            --fs: 12px;
+            background-image:
+                linear-gradient(rgba(167, 214, 255, 0.13) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(167, 214, 255, 0.13) 1px, transparent 1px);
+            background-size: 12px 12px;
+            box-shadow: inset 0 0 0 1px rgba(167, 214, 255, 0.65), 4px 4px 0 rgba(8, 34, 68, 0.9);
+        }
+
+        .th-cassette {
+            --bg-m: #e9dcc1;
+            --fg-m: #39352e;
+            --sig-m: #a6463d;
+            --sig-l: #2c726e;
+            --h: 58px;
+            --r: 9px;
+            --pad-icon: 16px;
+            --pad: 24px;
+            --gap: 12px;
+            background-image:
+                linear-gradient(var(--sig), var(--sig)),
+                linear-gradient(rgba(117, 102, 78, 0.45), rgba(117, 102, 78, 0.45)),
+                radial-gradient(circle, rgba(117, 102, 78, 0.75) 1.5px, transparent 2px),
+                radial-gradient(circle, rgba(117, 102, 78, 0.75) 1.5px, transparent 2px);
+            background-size: calc(100% - 28px) 3px, calc(100% - 28px) 1px, 8px 8px, 8px 8px;
+            background-position: 14px 7px, 14px calc(100% - 8px), 3px 3px, calc(100% - 3px) calc(100% - 3px);
+            background-repeat: no-repeat;
+            box-shadow: inset 0 0 0 1px rgba(117, 102, 78, 0.8), 0 3px 6px rgba(0, 0, 0, 0.24);
+        }
+
+        .th-arcade {
+            --bg-m: #30204d;
+            --fg-m: #ffefab;
+            --sig-m: #ff7fa9;
+            --sig-l: #8fe8ff;
+            --h: 46px;
+            --r: 0px;
+            --pad-icon: 14px;
+            --pad: 20px;
+            --gap: 12px;
+            --font: 'Orbitron';
+            --fs: 12px;
+            --w: 800;
+            background-image: repeating-linear-gradient(90deg, rgba(185, 151, 237, 0.7) 0 6px, transparent 6px 10px);
+            background-size: calc(100% - 12px) 2px;
+            background-position: 6px calc(100% - 6px);
+            background-repeat: no-repeat;
+            box-shadow: inset 0 0 0 2px #b997ed, 5px 5px 0 #170e2c;
+        }
+
+        .th-paper {
+            --bg-m: #fffdf5;
+            --fg-m: #343b48;
+            --sig-m: #a23748;
+            --sig-l: #28634f;
+            --h: 54px;
+            --r: 2px;
+            --pad-icon: 20px;
+            --pad: 20px;
+            --gap: 12px;
+            --font: 'Nunito';
+            --w: 700;
+            background-image:
+                linear-gradient(90deg, transparent 10px, rgba(220, 90, 90, 0.45) 10px 11px, transparent 11px),
+                repeating-linear-gradient(0deg, transparent 0 13px, rgba(120, 150, 200, 0.18) 13px 14px);
+            box-shadow: 2px 3px 0 #d6d0be;
+        }
+
+        .th-frosted {
+            --bg-m: rgba(220, 236, 247, 0.94);
+            --fg-m: #253e58;
+            --sig-m: #9a476d;
+            --sig-l: #245c8a;
+            --box-m: rgba(255, 255, 255, 0.6);
+            --h: 56px;
+            --r: 18px;
+            --pad-icon: 12px;
+            --pad: 20px;
+            --gap: 12px;
+            --is: 20px;
+            --w: 500;
+            background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 55%);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 4px 10px rgba(75, 119, 157, 0.28), 0 0 28px rgba(220, 236, 247, 0.3);
+        }
+
+        .th-frosted .ov-box {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+        }
+
+        .th-porcelain {
+            --bg-m: #f5f6f9;
+            --fg-m: #283d69;
+            --sig-m: #9d3b43;
+            --sig-l: #315cad;
+            --box-m: #e5eaf5;
+            --h: 60px;
+            --r: 30px;
+            --pad-icon: 10px;
+            --pad: 26px;
+            --gap: 14px;
+            --font: 'Nunito';
+            --w: 800;
+            box-shadow: inset 0 0 0 1px rgba(140, 161, 201, 0.7), inset 0 0 0 4px #f5f6f9, inset 0 0 0 5px rgba(140, 161, 201, 0.25), 0 4px 8px rgba(37, 60, 101, 0.2);
+        }
+
+        .th-porcelain .ov-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            box-shadow: inset 0 0 0 1px rgba(140, 161, 201, 0.6);
+        }
+
+        .th-radar {
+            --bg-m: #182d29;
+            --fg-m: #dae9d9;
+            --sig-m: #efb775;
+            --sig-l: #98dba0;
+            --h: 54px;
+            --r: 8px;
+            --pad-icon: 12px;
+            --pad: 24px;
+            --gap: 12px;
+            --font: 'Orbitron';
+            --fs: 12px;
+            background-image: radial-gradient(circle at 23px 50%, transparent 15px, color-mix(in srgb, var(--sig) 28%, transparent) 15px 16px, transparent 16px 25px, rgba(152, 219, 160, 0.14) 25px 26px, transparent 26px);
+            box-shadow: inset 0 0 0 1px rgba(122, 156, 134, 0.4), 0 3px 6px rgba(0, 0, 0, 0.24);
         }
 
         .sound-row {
@@ -1612,15 +1904,24 @@
             </div>
         </article>
 
-        <article class="showcase tone-pink is-flipped">
+        <article class="showcase tone-pink is-stacked">
             <div class="showcase-stage overlay-stage">
-                <div class="ov-gallery" aria-hidden="true">
-                    <span class="ov ov-icontext" data-ov-text="Microphone is muted|Microphone is live"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon><span>Microphone is muted</span></span>
-                    <span class="ov ov-icon"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span>
-                    <span class="ov ov-dot"></span>
-                    <span class="ov ov-light" data-ov-text="Muted|Live"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon><span>Muted</span></span>
-                    <span class="ov ov-mono"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span>
-                    <span class="ov ov-text" data-ov-text="Muted|Live"><span>Muted</span></span>
+                <div class="ov-grid" aria-hidden="true">
+                    <div class="ov-cell"><span class="ov th-custom pair-fluent" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Custom</span></div>
+                    <div class="ov-cell"><span class="ov th-windows pair-fluent" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Windows</span></div>
+                    <div class="ov-cell"><span class="ov th-material pair-material" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Material You</span></div>
+                    <div class="ov-cell"><span class="ov th-cute pair-mingcute" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Cute</span></div>
+                    <div class="ov-cell"><span class="ov th-sticker pair-lucide" data-ov-text="silence!|on air!"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">silence!</span></span><span class="ov-name">Cute Sticker</span></div>
+                    <div class="ov-cell"><span class="ov th-neon pair-lucide" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Neon</span></div>
+                    <div class="ov-cell"><span class="ov th-brutal pair-mdi" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Brutalism</span></div>
+                    <div class="ov-cell"><span class="ov th-terminal pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Terminal</span></div>
+                    <div class="ov-cell"><span class="ov th-blueprint pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Blueprint</span></div>
+                    <div class="ov-cell"><span class="ov th-cassette pair-phosphor" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Cassette</span></div>
+                    <div class="ov-cell"><span class="ov th-arcade pair-mdi" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Arcade</span></div>
+                    <div class="ov-cell"><span class="ov th-paper pair-tabler" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Paper</span></div>
+                    <div class="ov-cell"><span class="ov th-frosted pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Frosted</span></div>
+                    <div class="ov-cell"><span class="ov th-porcelain pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Porcelain</span></div>
+                    <div class="ov-cell"><span class="ov th-radar pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Radar</span></div>
                 </div>
                 <div class="sound-row" role="group" aria-label="Preview sound themes">
                     <span class="sound-row-label">Sounds</span>
@@ -1637,7 +1938,7 @@
             <div class="showcase-copy">
                 <p class="showcase-kicker">Overlay and sounds</p>
                 <h3>See it. Hear it.</h3>
-                <p>An on-screen badge in your style, plus a sound every time you mute.</p>
+                <p>15 overlay themes, from Windows-native to neon. Plus a sound every time you mute.</p>
             </div>
         </article>
 
@@ -1998,16 +2299,15 @@
             const overlays = Array.from(document.querySelectorAll('.ov'));
             const setOverlayLive = (overlay, live) => {
                 overlay.classList.toggle('is-live', live);
-                overlay.querySelector('iconify-icon')?.setAttribute('icon', live ? 'fluent:mic-24-filled' : 'fluent:mic-off-24-filled');
                 const labels = overlay.dataset.ovText?.split('|');
-                const text = overlay.querySelector('span');
-                if (labels && text) text.textContent = live ? labels[1] : labels[0];
+                const label = overlay.querySelector('.ov-label');
+                if (labels && label) label.textContent = live ? labels[1] : labels[0];
                 bump(overlay, 'is-flip');
             };
             let overlaysLive = false;
             const flipOverlays = () => {
                 overlaysLive = !overlaysLive;
-                overlays.forEach((overlay, index) => setTimeout(() => setOverlayLive(overlay, overlaysLive), index * 90));
+                overlays.forEach((overlay, index) => setTimeout(() => setOverlayLive(overlay, overlaysLive), index * 60));
             };
             if (overlays.length) setInterval(flipOverlays, 2600);
 
