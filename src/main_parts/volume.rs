@@ -303,7 +303,10 @@ pub fn on_output_volume_changed(state: &OutputVolumeState, source: VolumeChangeS
     match source {
         VolumeChangeSource::Own | VolumeChangeSource::External => {
             // stage 2 hooks: refresh the volume tray icon
-            // stage 3 hooks: show the volume OSD
+            show_volume_osd(volume_osd::VolumeOsdContent::Level {
+                percent: output_percent(state),
+                muted: state.muted,
+            });
             // stage 4 hooks: play the volume change sound
         }
     }
@@ -317,8 +320,88 @@ pub fn on_output_device_changed(state: &OutputVolumeState) {
         app.output_volume_seeded = true;
     }
     // stage 2 hooks: refresh the volume tray icon
-    // stage 3 hooks: show the volume OSD when `osd.show_on_device_change` is set
-    // stage 4 hooks: play the device-change sound
+    let show_device = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .volume
+        .osd
+        .show_on_device_change;
+    if show_device && !state.device_id.is_empty() {
+        show_volume_osd(volume_osd::VolumeOsdContent::Device {
+            name: state.device_name.clone(),
+            kind: output_device_kind(&state.device_name),
+            percent: output_percent(state),
+            muted: state.muted,
+        });
+    }
+}
+
+fn output_percent(state: &OutputVolumeState) -> u8 {
+    (state.level.clamp(0.0, 1.0) * 100.0).round() as u8
+}
+
+/// Friendly names are all we have cheaply; good enough to pick a glyph.
+fn output_device_kind(name: &str) -> volume_osd::DeviceKind {
+    let name = name.to_lowercase();
+    let has = |words: &[&str]| words.iter().any(|word| name.contains(word));
+    if has(&["headphone", "headset", "earphone", "buds", "airpods", "наушник", "гарнитур"]) {
+        volume_osd::DeviceKind::Headphones
+    } else if has(&["hdmi", "displayport", "display", "monitor", "nvidia high definition", "монитор"]) {
+        volume_osd::DeviceKind::Display
+    } else if has(&["speaker", "динамик", "колонк", "realtek"]) {
+        volume_osd::DeviceKind::Speakers
+    } else {
+        volume_osd::DeviceKind::Other
+    }
+}
+
+fn volume_osd_style(config: &VolumeConfig) -> volume_osd::VolumeOsdStyle {
+    let osd = &config.osd;
+    volume_osd::VolumeOsdStyle {
+        theme: osd.theme.clone(),
+        display: osd.display.clone(),
+        position_x: osd.position_x,
+        position_y: osd.position_y,
+        duration_ms: osd.duration_ms,
+        while_muted: osd.visibility == VolumeOsdVisibility::OnChangeAndWhileMuted,
+        enabled: osd.enabled,
+    }
+}
+
+fn show_volume_osd(content: volume_osd::VolumeOsdContent) {
+    let (enabled, style) = {
+        let app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        (
+            app.modules.volume && app.volume.osd.enabled,
+            volume_osd_style(&app.volume),
+        )
+    };
+    if !enabled {
+        return;
+    }
+    if let Err(err) = volume_osd::volume_osd_init() {
+        eprintln!("failed to start volume OSD: {err:?}");
+        return;
+    }
+    volume_osd::volume_osd_show(content, &style);
+}
+
+/// Called after a config reload so a visible OSD restyles, hides or (in
+/// "while muted" mode) appears without waiting for the next volume change.
+pub(crate) fn apply_volume_osd_config(config: &Config) {
+    let style = volume_osd_style(&config.volume);
+    if !config.modules.volume || !style.enabled {
+        volume_osd::volume_osd_hide();
+        return;
+    }
+    volume_osd::volume_osd_apply_style(&style);
+    let state = output_volume_state();
+    if style.while_muted && state.muted && !state.device_id.is_empty() {
+        show_volume_osd(volume_osd::VolumeOsdContent::Level {
+            percent: output_percent(&state),
+            muted: true,
+        });
+    }
 }
 
 pub(crate) fn handle_output_volume_message(wparam: WPARAM, lparam: LPARAM) {
