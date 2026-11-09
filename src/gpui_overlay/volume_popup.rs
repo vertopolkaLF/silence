@@ -33,22 +33,24 @@ use windows::Win32::{
 
 // Row geometry (logical pixels). Every row shares the same columns so the
 // sliders line up: [pad][button][gap][slider][gap][number][pad].
-const PAD_LEFT: f32 = 10.0;
-const PAD_RIGHT: f32 = 16.0;
-const BUTTON: f32 = 40.0;
+const PAD_LEFT: f32 = 8.0;
+const PAD_RIGHT: f32 = 14.0;
+const BUTTON: f32 = 36.0;
 const GAP: f32 = 8.0;
-const NUMBER_W: f32 = 34.0;
+const NUMBER_W: f32 = 28.0;
 const TRACK_W: f32 = CARD_W - PAD_LEFT - BUTTON - GAP - GAP - NUMBER_W - PAD_RIGHT;
 /// Window-relative x of every slider's left edge.
 const TRACK_X: f32 = GUTTER + PAD_LEFT + BUTTON + GAP;
-const SLIDER_H: f32 = 28.0;
+const SLIDER_H: f32 = 24.0;
 const THUMB: f32 = 20.0;
-const CAPTION_H: f32 = 20.0;
-const DEVICE_ROW_H: f32 = 60.0;
-const APP_ROW_H: f32 = 54.0;
-const DIVIDER_H: f32 = 9.0;
-const PAD_TOP: f32 = 6.0;
-const PAD_BOTTOM: f32 = 6.0;
+/// Caption line above each slider: the device name is larger.
+const DEVICE_CAPTION_H: f32 = 20.0;
+const APP_CAPTION_H: f32 = 16.0;
+const DEVICE_ROW_H: f32 = 4.0 + DEVICE_CAPTION_H + SLIDER_H + 4.0;
+const APP_ROW_H: f32 = 4.0 + APP_CAPTION_H + SLIDER_H + 4.0;
+const DIVIDER_H: f32 = 13.0;
+const PAD_TOP: f32 = 8.0;
+const PAD_BOTTOM: f32 = 8.0;
 /// More apps than this scroll inside the card.
 const MAX_VISIBLE_APPS: usize = 7;
 const APP_ICON: f32 = 24.0;
@@ -730,20 +732,26 @@ impl PopupView {
             .flex()
             .items_center()
             .justify_end()
-            .text_size(px(if strong { 15. } else { 14. }))
+            .text_size(px(if strong { 14. } else { 13. }))
             .font_weight(FontWeight(if strong { 600. } else { 400. }))
             .text_color(if muted { colors.secondary } else { colors.text })
             .child(percent.to_string())
     }
 
     /// Caption above the slider, then the slider and its number.
-    fn controls(caption: gpui::Div, slider: impl IntoElement, number: impl IntoElement) -> gpui::Div {
+    fn controls(
+        caption: gpui::Div,
+        caption_h: f32,
+        slider: impl IntoElement,
+        number: impl IntoElement,
+    ) -> gpui::Div {
         div()
             .flex()
             .flex_col()
             .child(
                 caption
-                    .h(px(CAPTION_H))
+                    .h(px(caption_h))
+                    .line_height(px(caption_h))
                     .w(px(TRACK_W + GAP + NUMBER_W))
                     .pl(px(THUMB / 2.0 - 1.0))
                     .overflow_hidden()
@@ -771,12 +779,7 @@ impl PopupView {
             .button("popup-mute".into(), Target::Device, colors, cx)
             .on_click(cx.listener(|_, _, _, _| crate::request_popup_mute()))
             .child(
-                div()
-                    .font_family(super::volume::fluent_font())
-                    .text_size(px(18.))
-                    .line_height(px(18.))
-                    .text_color(colors.text)
-                    .child(self.device_glyph().to_string()),
+                glyph_box(self.device_glyph(), 16.0, APP_ICON, colors.text),
             );
         let slider = self.slider(
             "popup-slider".into(),
@@ -797,13 +800,14 @@ impl PopupView {
             .on_scroll_wheel(cx.listener(|view, event: &ScrollWheelEvent, _, cx| {
                 view.on_device_wheel(event, cx)
             }))
-            .child(button_slot(button))
+            .child(button_slot(button, DEVICE_CAPTION_H))
             .child(Self::controls(
                 div()
                     .text_size(px(14.))
                     .font_weight(FontWeight(600.))
                     .text_color(colors.text)
                     .child(name),
+                DEVICE_CAPTION_H,
                 slider,
                 Self::number(percent, self.state.muted, true, colors),
             ))
@@ -819,17 +823,13 @@ impl PopupView {
                 .size(px(APP_ICON))
                 .object_fit(ObjectFit::Contain)
                 .into_any_element(),
-            None => div()
-                .font_family(super::volume::fluent_font())
-                .text_size(px(20.))
-                .line_height(px(20.))
-                .text_color(colors.text)
-                .child(
-                    char::from_u32(if row.app.system { 0xE7F5 } else { 0xECAA })
-                        .unwrap_or(' ')
-                        .to_string(),
-                )
-                .into_any_element(),
+            None => glyph_box(
+                char::from_u32(if row.app.system { 0xE7F5 } else { 0xECAA }).unwrap_or(' '),
+                18.0,
+                APP_ICON,
+                colors.text,
+            )
+            .into_any_element(),
         };
         let badge_bg = if self.system.light {
             rgb(0xF3F3F3)
@@ -884,12 +884,13 @@ impl PopupView {
             .on_scroll_wheel(cx.listener(move |view, event: &ScrollWheelEvent, _, cx| {
                 view.on_app_wheel(&key, event, cx)
             }))
-            .child(button_slot(button))
+            .child(button_slot(button, APP_CAPTION_H))
             .child(Self::controls(
                 div()
                     .text_size(px(12.))
                     .text_color(colors.secondary)
                     .child(row.app.name.clone()),
+                APP_CAPTION_H,
                 slider,
                 Self::number(percent, muted, false, colors),
             ))
@@ -897,12 +898,26 @@ impl PopupView {
 }
 
 /// Centers a row's button on its caption and slider.
-fn button_slot(button: impl IntoElement) -> gpui::Div {
+fn button_slot(button: impl IntoElement, caption_h: f32) -> gpui::Div {
     div()
-        .h(px(CAPTION_H + SLIDER_H))
+        .h(px(caption_h + SLIDER_H))
         .flex()
         .items_center()
         .child(button)
+}
+
+/// A Fluent glyph centered in a `box_size` square.
+fn glyph_box(glyph: char, glyph_size: f32, box_size: f32, color: Rgba) -> gpui::Div {
+    div()
+        .size(px(box_size))
+        .flex()
+        .items_center()
+        .justify_center()
+        .font_family(super::volume::fluent_font())
+        .text_size(px(glyph_size))
+        .line_height(px(glyph_size))
+        .text_color(color)
+        .child(glyph.to_string())
 }
 
 impl Render for PopupView {
