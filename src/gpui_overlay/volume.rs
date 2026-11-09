@@ -29,6 +29,9 @@ use std::{
 use windows::Win32::Foundation::HWND;
 
 const LEVEL_MS: u64 = 120;
+/// Bar-to-number gap as a share of the chrome gap. The number is centered in
+/// a slot sized for "100", which already leaves air on both sides.
+const NUMBER_GAP: f32 = 0.6;
 const CROSSFADE_MS: u64 = 200;
 const SIZE_MS: u64 = 240;
 const FADE_MS: u64 = 180;
@@ -615,7 +618,7 @@ impl Render for VolumeView {
             * scale;
         let bar_w = chrome.bar_width * scale;
         let bar_h = chrome.bar_height * scale;
-        let base = pad * 2.0 + icon_slot + gap + bar_w + gap + percent_slot;
+        let base = pad * 2.0 + icon_slot + gap + bar_w + gap * NUMBER_GAP + percent_slot;
         let extra = if name_width > 0.0 {
             gap + name_width
         } else {
@@ -895,19 +898,23 @@ impl Render for VolumeView {
                     .h(px(bar_h.max(1.0)))
                     .rounded(px(bar_h / 2.0))
                     .bg(track)
-                    .overflow_hidden()
-                    .child(
-                        div()
-                            .h(px(bar_h.max(1.0)))
-                            .w(px(bar_w * level))
-                            .bg(fill),
-                    ),
+                    // GPUI clips to the rectangle, not the radius: round the
+                    // fill itself so its start and end are capsules too.
+                    .when(level > 0.0, |rail| {
+                        rail.child(
+                            div()
+                                .h(px(bar_h.max(1.0)))
+                                .w(px((bar_w * level).max(bar_h)))
+                                .rounded(px(bar_h / 2.0))
+                                .bg(fill),
+                        )
+                    }),
             ),
         );
         row = row.child(
             div()
-                .pl(px(gap))
-                .w(px(percent_slot + gap))
+                .pl(px(gap * NUMBER_GAP))
+                .w(px(percent_slot + gap * NUMBER_GAP))
                 .flex_shrink_0()
                 .flex()
                 .justify_center()
@@ -1255,7 +1262,7 @@ fn windows_chrome(system: System) -> VolumeChrome {
         halo_pulse: false,
         height: 44.0,
         radius: 8.0,
-        pad_x: 13.0,
+        pad_x: 12.0,
         gap: 14.0,
         icon_size: 16.0,
         icon_box: None,
