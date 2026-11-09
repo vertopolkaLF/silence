@@ -1162,57 +1162,177 @@
             }
         }
 
-        .sound-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
+        .sound-board {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
             gap: 8px;
         }
 
-        .sound-row-label {
-            margin: 0 6px 0 6px;
-            color: rgba(250, 250, 249, 0.6);
-            font-size: 0.78rem;
-            font-weight: 800;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-        }
-
-        .sound-theme {
+        .sound-pad {
             appearance: none;
             border: 0;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 13px;
-            border-radius: 999px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 14px 12px 12px;
+            border-radius: 14px;
             background: rgba(0, 0, 0, 0.3);
-            color: rgba(250, 250, 249, 0.8);
+            box-shadow: inset 0 0 0 1px rgba(250, 250, 249, 0.04);
+            color: rgba(250, 250, 249, 0.75);
             font: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .sound-pad:hover,
+        .sound-pad:focus-visible {
+            background: color-mix(in srgb, var(--tone) 12%, rgba(0, 0, 0, 0.3));
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 30%, transparent);
+            color: var(--text);
+            outline: none;
+        }
+
+        .sound-pad:active {
+            transform: scale(0.97);
+        }
+
+        .pad-wave {
+            position: relative;
+            height: 44px;
+        }
+
+        .pad-bars {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            gap: 2px;
+        }
+
+        .pad-bars i {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .pad-bars i::before,
+        .pad-bars i::after {
+            content: "";
+            min-height: 2px;
+            border-radius: 2px;
+            background: rgba(250, 250, 249, 0.16);
+            transition: background-color 0.25s ease;
+        }
+
+        .pad-bars i::before {
+            height: calc(var(--m) * (50% - 1px));
+            margin-top: auto;
+        }
+
+        .pad-bars i::after {
+            height: calc(var(--u) * (50% - 1px));
+            margin-bottom: auto;
+        }
+
+        .sound-pad:hover .pad-bars.is-base i::before,
+        .sound-pad:hover .pad-bars.is-base i::after,
+        .sound-pad:focus-visible .pad-bars.is-base i::before,
+        .sound-pad:focus-visible .pad-bars.is-base i::after {
+            background: color-mix(in srgb, var(--tone) 38%, rgba(250, 250, 249, 0.12));
+        }
+
+        .pad-bars.is-fill {
+            opacity: 0;
+            filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tone) 70%, transparent));
+        }
+
+        .pad-bars.is-fill i::before,
+        .pad-bars.is-fill i::after {
+            background: var(--tone);
+        }
+
+        .sound-pad.play-mute .pad-bars.is-fill {
+            animation: sweep-mute var(--dur, 0.5s) linear forwards;
+        }
+
+        .sound-pad.play-unmute .pad-bars.is-fill {
+            animation: sweep-unmute var(--dur, 0.5s) linear forwards;
+        }
+
+        @keyframes sweep-mute {
+            0% {
+                opacity: 1;
+                clip-path: inset(0 100% 50% 0);
+            }
+
+            70% {
+                opacity: 1;
+                clip-path: inset(0 0 50% 0);
+            }
+
+            100% {
+                opacity: 0;
+                clip-path: inset(0 0 50% 0);
+            }
+        }
+
+        @keyframes sweep-unmute {
+            0% {
+                opacity: 1;
+                clip-path: inset(50% 100% 0 0);
+            }
+
+            70% {
+                opacity: 1;
+                clip-path: inset(50% 0 0 0);
+            }
+
+            100% {
+                opacity: 0;
+                clip-path: inset(50% 0 0 0);
+            }
+        }
+
+        .pad-name {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 6px;
             font-size: 0.85rem;
             font-weight: 700;
-            cursor: pointer;
-            transition: background-color 0.2s ease, color 0.2s ease;
         }
 
-        .sound-theme iconify-icon {
-            font-size: 0.8rem;
+        .pad-kind {
+            color: rgba(250, 250, 249, 0.35);
+            font-size: 0.66rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            transition: color 0.2s ease;
+        }
+
+        .sound-pad.play-mute .pad-kind,
+        .sound-pad.play-unmute .pad-kind {
             color: var(--tone);
-        }
-
-        .sound-theme:hover,
-        .sound-theme:focus-visible {
-            background: color-mix(in srgb, var(--tone) 22%, transparent);
-            color: var(--text);
-        }
-
-        .sound-theme.is-playing {
-            animation: theme-bump 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes theme-bump {
             40% {
                 transform: scale(1.06);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .sound-board {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sound-board {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
 
@@ -1988,16 +2108,15 @@
                     <div class="ov-cell"><span class="ov th-porcelain pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Porcelain</span></div>
                     <div class="ov-cell"><span class="ov th-radar pair-solar" data-ov-text="Microphone muted|Microphone on"><span class="radar-waves"><i></i><i></i><i></i></span><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone muted</span></span><span class="ov-name">Radar</span></div>
                 </div>
-                <div class="sound-row" role="group" aria-label="Preview sound themes">
-                    <span class="sound-row-label">Sounds</span>
-                    <button type="button" class="sound-theme" data-sound-theme="8bit"><iconify-icon icon="solar:play-bold"></iconify-icon>8-Bit</button>
-                    <button type="button" class="sound-theme" data-sound-theme="blob"><iconify-icon icon="solar:play-bold"></iconify-icon>Blob</button>
-                    <button type="button" class="sound-theme" data-sound-theme="digital"><iconify-icon icon="solar:play-bold"></iconify-icon>Digital</button>
-                    <button type="button" class="sound-theme" data-sound-theme="discord"><iconify-icon icon="solar:play-bold"></iconify-icon>Discord</button>
-                    <button type="button" class="sound-theme" data-sound-theme="pop"><iconify-icon icon="solar:play-bold"></iconify-icon>Pop</button>
-                    <button type="button" class="sound-theme" data-sound-theme="punchy"><iconify-icon icon="solar:play-bold"></iconify-icon>Punchy</button>
-                    <button type="button" class="sound-theme" data-sound-theme="scifi"><iconify-icon icon="solar:play-bold"></iconify-icon>Sci-Fi</button>
-                    <button type="button" class="sound-theme" data-sound-theme="vibrant"><iconify-icon icon="solar:play-bold"></iconify-icon>Vibrant</button>
+                <div class="sound-board" role="group" aria-label="Preview sound themes">
+                    <button type="button" class="sound-pad" data-sound-theme="8bit"><span class="pad-wave" aria-hidden="true"></span><span class="pad-name">8-Bit<span class="pad-kind">Play</span></span></button>
+                    <button type="button" class="sound-pad" data-sound-theme="blob"><span class="pad-wave" aria-hidden="true"></span><span class="pad-name">Blob<span class="pad-kind">Play</span></span></button>
+                    <button type="button" class="sound-pad" data-sound-theme="digital"><span class="pad-wave" aria-hidden="true"></span><span class="pad-name">Digital<span class="pad-kind">Play</span></span></button>
+                    <button type="button" class="sound-pad" data-sound-theme="discord"><span class="pad-wave" aria-hidden="true"></span><span class="pad-name">Discord<span class="pad-kind">Play</span></span></button>
+                    <button type="button" class="sound-pad" data-sound-theme="pop"><span class="pad-wave" aria-hidden="true"></span><span class="pad-name">Pop<span class="pad-kind">Play</span></span></button>
+                    <button type="button" class="sound-pad" data-sound-theme="punchy"><span class="pad-wave" aria-hidden="true"></span><span class="pad-name">Punchy<span class="pad-kind">Play</span></span></button>
+                    <button type="button" class="sound-pad" data-sound-theme="scifi"><span class="pad-wave" aria-hidden="true"></span><span class="pad-name">Sci-Fi<span class="pad-kind">Play</span></span></button>
+                    <button type="button" class="sound-pad" data-sound-theme="vibrant"><span class="pad-wave" aria-hidden="true"></span><span class="pad-name">Vibrant<span class="pad-kind">Play</span></span></button>
                 </div>
             </div>
             <div class="showcase-copy">
@@ -2374,19 +2493,46 @@
                 overlaysLive = !overlaysLive;
                 overlays.forEach((overlay, index) => setTimeout(() => setOverlayLive(overlay, overlaysLive), index * 60));
             };
-            if (overlays.length) setInterval(flipOverlays, 2600);
+            // The overlays flip on a timer until a sound is clicked; then the visitor drives mute
+            let overlayTimer = overlays.length ? setInterval(flipOverlays, 2600) : null;
 
-            // Sounds
+            // Sounds: top half of each wave is the mute sound, bottom half is unmute
+            const soundPeaks = {
+                '8bit': ['99888888777332223222221100000000', '55965444545533211011220100000000'],
+                blob: ['01112222222466667896772221111110', '33333111222777697766664221111110'],
+                digital: ['82222211003943333211000983322110', '75544420000066545552000009988773'],
+                discord: ['56655544389987664332211111110000', '47666678996654775653332111100000'],
+                pop: ['89746795221000899967776675321110', '79499667787788754289954669952211'],
+                punchy: ['83211111111943221112211111100000', '94332221112211852211111111110000'],
+                scifi: ['11122996332222222211111100000000', '47844597645645544354321122221100'],
+                vibrant: ['00000111111129521110006210000000', '94210000000000098421110000000000'],
+            };
             const soundCache = {};
-            document.querySelectorAll('[data-sound-theme]').forEach((button) => button.addEventListener('click', () => {
-                const kind = overlaysLive ? 'mute' : 'unmute';
-                const src = `sounds/${button.dataset.soundTheme}_${kind}.mp3`;
-                const audio = soundCache[src] || (soundCache[src] = new Audio(src));
-                audio.currentTime = 0;
-                audio.play().catch(() => { });
-                bump(button, 'is-playing');
-                flipOverlays();
-            }));
+            document.querySelectorAll('[data-sound-theme]').forEach((pad) => {
+                const theme = pad.dataset.soundTheme;
+                const [mute, unmute] = soundPeaks[theme];
+                const bars = Array.from(mute, (_, i) => `<i style="--m:${(mute[i] / 9).toFixed(2)};--u:${(unmute[i] / 9).toFixed(2)}"></i>`).join('');
+                pad.querySelector('.pad-wave').innerHTML = `<span class="pad-bars is-base">${bars}</span><span class="pad-bars is-fill">${bars}</span>`;
+                const kindLabel = pad.querySelector('.pad-kind');
+                pad.addEventListener('click', () => {
+                    const kind = overlaysLive ? 'mute' : 'unmute';
+                    const src = `sounds/${theme}_${kind}.mp3`;
+                    const audio = soundCache[src] || (soundCache[src] = new Audio(src));
+                    audio.currentTime = 0;
+                    audio.play().catch(() => { });
+                    const seconds = audio.duration > 0 ? audio.duration : 0.5;
+                    pad.style.setProperty('--dur', `${Math.max(seconds, 0.45).toFixed(2)}s`);
+                    pad.classList.remove('play-mute', 'play-unmute');
+                    void pad.offsetWidth;
+                    pad.classList.add(`play-${kind}`);
+                    kindLabel.textContent = kind;
+                    clearTimeout(pad.kindTimer);
+                    pad.kindTimer = setTimeout(() => { kindLabel.textContent = 'Play'; }, 1400);
+                    clearInterval(overlayTimer);
+                    overlayTimer = null;
+                    flipOverlays();
+                });
+            });
 
             // Gamepad
             const padState = document.getElementById('pad-state');
