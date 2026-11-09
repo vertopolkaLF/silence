@@ -257,14 +257,21 @@ fn volume_tray_tip(device_name: &str, percent: u8, muted: bool) -> String {
 
 pub(crate) fn volume_icon_style(config: &VolumeTrayIconConfig) -> volume_tray_icons::VolumeIconStyle {
     let accent = match config.color {
-        TrayColorMode::Accent => volume_tray_icons::windows_accent_rgb(),
-        TrayColorMode::Custom => parse_volume_tray_color(&config.custom_color),
+        TrayColorMode::SystemColor | TrayColorMode::Monochrome => {
+            volume_tray_icons::windows_accent_rgb()
+        }
+        TrayColorMode::Colored => {
+            let (r, g, b) = state_accent(false);
+            [r, g, b]
+        }
     };
-    volume_tray_icons::VolumeIconStyle::new(
+    let mut style = volume_tray_icons::VolumeIconStyle::new(
         map_volume_tray_skin(config.skin),
         accent,
         volume_tray_icons::taskbar_uses_light_theme(),
-    )
+    );
+    style.monochrome = config.color == TrayColorMode::Monochrome;
+    style
 }
 
 pub(crate) fn map_volume_tray_skin(skin: VolumeTraySkin) -> volume_tray_icons::VolumeTraySkin {
@@ -276,19 +283,6 @@ pub(crate) fn map_volume_tray_skin(skin: VolumeTraySkin) -> volume_tray_icons::V
     }
 }
 
-pub(crate) fn parse_volume_tray_color(value: &str) -> [u8; 3] {
-    let hex = value.trim().trim_start_matches('#');
-    if hex.len() == 6
-        && let (Ok(r), Ok(g), Ok(b)) = (
-            u8::from_str_radix(&hex[0..2], 16),
-            u8::from_str_radix(&hex[2..4], 16),
-            u8::from_str_radix(&hex[4..6], 16),
-        )
-    {
-        return [r, g, b];
-    }
-    [0x5C, 0xA8, 0xFF]
-}
 
 fn handle_volume_tray_message(hwnd: HWND, event: u32) {
     match event {

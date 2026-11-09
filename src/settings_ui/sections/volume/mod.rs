@@ -29,10 +29,6 @@ pub(crate) struct State {
     /// Preview playback for the volume tick. The sink is the shared one.
     pub(crate) preview: PreviewState,
     numbers: HashMap<String, NumberDraft>,
-    color_text: String,
-    color_backing: String,
-    color_focused: bool,
-    color_input: Option<Entity<TextInput>>,
 }
 
 pub(crate) fn column() -> Div {

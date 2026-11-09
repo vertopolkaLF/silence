@@ -28,6 +28,8 @@ pub struct VolumeIconStyle {
     pub skin: VolumeTraySkin,
     pub accent: [u8; 3],
     pub light_taskbar: bool,
+    /// Taskbar ink only: no accent, no red.
+    pub monochrome: bool,
 }
 
 impl VolumeIconStyle {
@@ -36,6 +38,7 @@ impl VolumeIconStyle {
             skin,
             accent,
             light_taskbar,
+            monochrome: false,
         }
     }
 }
@@ -232,7 +235,17 @@ impl Ink {
         } else {
             ("#FFFFFF", "rgba(255,255,255,0.30)", "#FF6B6B")
         };
-        let level = if muted {
+        let level = if style.monochrome {
+            if muted {
+                if style.light_taskbar {
+                    "rgba(0,0,0,0.45)".to_string()
+                } else {
+                    "rgba(255,255,255,0.45)".to_string()
+                }
+            } else {
+                fg.to_string()
+            }
+        } else if muted {
             red.to_string()
         } else {
             let [r, g, b] = style.accent;

@@ -1789,10 +1789,17 @@ pub enum VolumeTraySkin {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+/// Same choices as the microphone icon's color.
 pub enum TrayColorMode {
+    /// Green level, red when muted (like the mic status colors).
+    #[serde(alias = "Custom")]
+    Colored,
+    /// Taskbar ink only.
+    Monochrome,
+    /// Windows accent (WinUI accent fill).
     #[default]
-    Accent,
-    Custom,
+    #[serde(alias = "Accent")]
+    SystemColor,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
