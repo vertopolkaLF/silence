@@ -177,6 +177,18 @@ fn show_update_notification(update: &updater::UpdateInfo) {
 }
 
 fn apply_overlay_visibility() {
+    if !microphone_module_enabled() {
+        let hwnd = STATE.lock().unwrap().hwnd;
+        let _ = native_overlay::set_positioning(false);
+        native_overlay::hide();
+        if !hwnd.0.is_null() {
+            unsafe {
+                let _ = KillTimer(hwnd, ID_OVERLAY_HIDE_TIMER);
+                let _ = KillTimer(hwnd, ID_OVERLAY_DRAG_TIMER);
+            }
+        }
+        return;
+    }
     let (hwnd, muted, mic_in_use, overlay, failure) = {
         let state = STATE.lock().unwrap();
         (
@@ -228,6 +240,10 @@ fn apply_overlay_visibility() {
 }
 
 fn show_overlay_temporarily(duration_ms: u32) {
+    if !microphone_module_enabled() {
+        native_overlay::hide();
+        return;
+    }
     if STATE.lock().unwrap().mute_failure.is_some_and(|notice| notice.expires_at > Instant::now()) {
         apply_overlay_visibility();
         return;

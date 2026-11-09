@@ -4,9 +4,13 @@
 mod clip;
 mod details;
 pub(crate) mod fonts;
+pub(crate) mod backdrop;
+pub(crate) mod mica;
 mod motion;
 mod sticker;
 pub(crate) mod theme;
+pub(crate) mod volume;
+mod volume_popup;
 
 use crate::{OverlayConfig, native_overlay};
 use anyhow::{Context as _, Result};

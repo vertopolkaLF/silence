@@ -1,5 +1,7 @@
 fn exit_all_processes() {
-    close_settings_window();
+    // Posted so a settings thread blocked in the relaunch ShellExecuteExW
+    // cannot deadlock against this handler.
+    post_close_settings_window();
     let hwnd = STATE.lock().unwrap().hwnd;
     if hwnd.0.is_null() {
         return;
@@ -10,6 +12,7 @@ fn exit_all_processes() {
 }
 
 unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    note_hook_event();
     if code < 0 {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
@@ -20,6 +23,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     let is_down = event == WM_KEYDOWN || event == 0x0104;
     let is_up = event == WM_KEYUP || event == 0x0105;
 
+    // The settings recorder pauses hotkeys (`hotkeys_paused`) and the welcome
+    // flow has not finished yet. Both must still receive volume keys, so do
+    // not swallow here.
     if {
         let state = STATE.lock().unwrap();
         hotkeys_blocked(&state)
@@ -27,6 +33,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
+    let mut hotkey_claimed = false;
     if is_down {
         let mut actions = Vec::new();
         let mut suppress_key = false;
@@ -56,6 +63,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 })
                 .cloned()
                 .collect();
+            hotkey_claimed = matching_hotkeys.iter().any(|hotkey| hotkey.shortcut.vk == vk);
             let exact_keys: HashSet<u32> = matching_hotkeys
                 .iter()
                 .filter(|hotkey| !hotkey.ignore_modifiers)
@@ -109,6 +117,11 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
             })
             .cloned()
             .collect();
+        // Only a hotkey that actually took this keydown owns the keyup.
+        // A Ctrl+Volume binding must not block intercept of a plain volume key.
+        hotkey_claimed = released.iter().any(|hotkey| {
+            hotkey.shortcut.vk == vk && state.hotkeys_down.contains(&hotkey.id)
+        });
         for hotkey in released {
             if shortcut_is_alt_space(&hotkey.shortcut) {
                 suppress_key = true;
@@ -131,6 +144,10 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         if suppress_key {
             return LRESULT(1);
         }
+    }
+
+    if swallow_volume_media_key(vk, kb.flags.0, is_down, is_up, hotkey_claimed) {
+        return LRESULT(1);
     }
 
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
@@ -158,8 +175,15 @@ fn normalized_keyboard_vk(vk: u32, scan_code: u32, flags: u32) -> u32 {
 }
 
 unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    note_hook_event();
     if code < 0 {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+
+    // The settings process installs this same proc. `TRAY_VOLUME_HOOKS` is set
+    // only in the tray, so that thread never swallows a wheel.
+    if wparam.0 as u32 == WM_MOUSEWHEEL && volume_wheel_should_swallow(wparam.0 as u32, lparam) {
+        return LRESULT(1);
     }
 
     let event = wparam.0 as u32;
@@ -334,6 +358,9 @@ enum HotkeyRequest {
         target: Option<String>,
         direction: i32,
     },
+    ToggleOutputMute,
+    NextOutputDevice,
+    PreviousOutputDevice,
     OpenSettings,
 }
 
@@ -389,7 +416,42 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
             target: hotkey.target.clone(),
             direction: -1,
         },
+        HotkeyAction::ToggleOutputMute => HotkeyRequest::ToggleOutputMute,
+        HotkeyAction::NextOutputDevice => HotkeyRequest::NextOutputDevice,
+        HotkeyAction::PreviousOutputDevice => HotkeyRequest::PreviousOutputDevice,
         HotkeyAction::OpenSettings => HotkeyRequest::OpenSettings,
+    }
+}
+
+fn hotkey_request_allowed(action: &HotkeyRequest) -> bool {
+    match action {
+        // Key-up must restore a hold that started before the module was turned off.
+        HotkeyRequest::ReleaseHold { .. } => true,
+        HotkeyRequest::ToggleMute { .. } => module_enabled(HotkeyAction::ToggleMute.module()),
+        HotkeyRequest::SetMute { .. } => module_enabled(HotkeyAction::Mute.module()),
+        HotkeyRequest::StartHold { .. } | HotkeyRequest::StartHoldToggle { .. } => {
+            module_enabled(HotkeyAction::HoldToMute.module())
+        }
+        HotkeyRequest::SetDefaultInput { .. } => {
+            module_enabled(HotkeyAction::SetDefaultInputDevice.module())
+        }
+        HotkeyRequest::ToggleDefaultInput { .. } => {
+            module_enabled(HotkeyAction::ToggleDefaultInputDevice.module())
+        }
+        HotkeyRequest::SetDefaultOutput { .. } => {
+            module_enabled(HotkeyAction::SetDefaultOutputDevice.module())
+        }
+        HotkeyRequest::ToggleDefaultOutput { .. } => {
+            module_enabled(HotkeyAction::ToggleDefaultOutputDevice.module())
+        }
+        HotkeyRequest::SetVolume { .. } => module_enabled(HotkeyAction::SetVolume.module()),
+        HotkeyRequest::ChangeVolume { .. } => module_enabled(HotkeyAction::IncreaseVolume.module()),
+        HotkeyRequest::ToggleOutputMute => module_enabled(HotkeyAction::ToggleOutputMute.module()),
+        HotkeyRequest::NextOutputDevice => module_enabled(HotkeyAction::NextOutputDevice.module()),
+        HotkeyRequest::PreviousOutputDevice => {
+            module_enabled(HotkeyAction::PreviousOutputDevice.module())
+        }
+        HotkeyRequest::OpenSettings => module_enabled(HotkeyAction::OpenSettings.module()),
     }
 }
 
@@ -425,6 +487,9 @@ pub(crate) fn run_overlay_action(binding: OverlayActionBinding) {
 }
 
 fn run_hotkey_action(action: HotkeyRequest) {
+    if !hotkey_request_allowed(&action) {
+        return;
+    }
     match action {
         HotkeyRequest::ToggleMute { target } => toggle_mute_target(target.as_deref()),
         HotkeyRequest::SetMute { target, muted } => set_mute_target(target.as_deref(), muted),
@@ -467,15 +532,49 @@ fn run_hotkey_action(action: HotkeyRequest) {
                 eprintln!("failed to change output volume from hotkey: {err:?}");
             }
         }
+        HotkeyRequest::ToggleOutputMute => {
+            if let Err(err) = toggle_output_mute() {
+                eprintln!("failed to toggle output mute from hotkey: {err:?}");
+            }
+        }
+        HotkeyRequest::NextOutputDevice => {
+            if let Err(err) = cycle_output_device(true) {
+                eprintln!("failed to switch to the next output device from hotkey: {err:?}");
+            }
+        }
+        HotkeyRequest::PreviousOutputDevice => {
+            if let Err(err) = cycle_output_device(false) {
+                eprintln!("failed to switch to the previous output device from hotkey: {err:?}");
+            }
+        }
         HotkeyRequest::OpenSettings => open_settings_window(),
     }
 }
 
+fn release_all_hold_hotkeys() {
+    let ids: Vec<String> = STATE
+        .lock()
+        .unwrap()
+        .active_hold_hotkeys
+        .keys()
+        .cloned()
+        .collect();
+    for id in ids {
+        release_hold_hotkey(&id);
+    }
+}
+
 fn toggle_mute() {
+    if !microphone_module_enabled() {
+        return;
+    }
     toggle_mute_target(None);
 }
 
 fn toggle_mute_target(device_id: Option<&str>) {
+    if !microphone_module_enabled() {
+        return;
+    }
     match set_mute_to_inverse(device_id) {
         Ok(target_muted) => {
             play_mute_sound(target_muted);
@@ -487,6 +586,9 @@ fn toggle_mute_target(device_id: Option<&str>) {
 }
 
 fn set_mute_target(device_id: Option<&str>, muted: bool) {
+    if !microphone_module_enabled() {
+        return;
+    }
     match set_mute(device_id, muted) {
         Ok(target_muted) => {
             play_mute_sound(target_muted);
@@ -498,6 +600,9 @@ fn set_mute_target(device_id: Option<&str>, muted: bool) {
 }
 
 fn apply_startup_auto_mute() {
+    if !microphone_module_enabled() {
+        return;
+    }
     let settings = STATE.lock().unwrap().auto_mute.clone();
     if !settings.mute_on_startup {
         return;

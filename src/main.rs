@@ -11,8 +11,8 @@ use std::{
     process::Command,
     ptr::{null, null_mut},
     sync::{
-        Mutex,
-        atomic::{AtomicBool, AtomicIsize, Ordering},
+        Mutex, RwLock,
+        atomic::{AtomicBool, AtomicIsize, AtomicU64, AtomicU8, Ordering},
     },
     thread,
     time::{Duration, Instant, SystemTime},
@@ -36,8 +36,8 @@ use windows::{
             FunctionDiscovery::{PKEY_Device_DeviceDesc, PKEY_Device_FriendlyName},
         },
         Foundation::{
-            BOOL, CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS,
-            GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
+            BOOL, CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_NOT_FOUND,
+            ERROR_SUCCESS, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
         },
         Graphics::{
             Dwm::{
@@ -52,8 +52,8 @@ use windows::{
             },
         },
         Media::Audio::{
-            AUDIO_VOLUME_NOTIFICATION_DATA, AudioSessionStateActive, DEVICE_STATE,
-            DEVICE_STATE_ACTIVE, EDataFlow, ERole,
+            AUDIO_VOLUME_NOTIFICATION_DATA, AUDCLNT_E_DEVICE_INVALIDATED, AudioSessionStateActive,
+            DEVICE_STATE, DEVICE_STATE_ACTIVE, EDataFlow, ERole,
             Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback},
             IAudioSessionControl, IAudioSessionControl2, IAudioSessionManager2, IMMDevice,
             IMMDeviceEnumerator, IMMNotificationClient, MMDeviceEnumerator, eCapture,
@@ -70,20 +70,20 @@ use windows::{
             },
             LibraryLoader::GetModuleHandleW,
             Registry::{
-                HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_SZ, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+                HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_SZ, RRF_RT_REG_BINARY, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
                 RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
             },
             SystemInformation::GetTickCount,
             Threading::{
-                CreateMutexW, OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
-                QueryFullProcessImageNameW,
+                CreateMutexW, GetCurrentThreadId, OpenProcess, PROCESS_NAME_FORMAT,
+                PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
             },
             Variant::VT_LPWSTR,
         },
         UI::{
             HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
             Input::{
-                KeyboardAndMouse::{GetAsyncKeyState, GetLastInputInfo, LASTINPUTINFO},
+                KeyboardAndMouse::{GetAsyncKeyState, GetDoubleClickTime, GetLastInputInfo, LASTINPUTINFO},
                 XboxController::{
                     XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B, XINPUT_GAMEPAD_BACK,
                     XINPUT_GAMEPAD_DPAD_DOWN, XINPUT_GAMEPAD_DPAD_LEFT, XINPUT_GAMEPAD_DPAD_RIGHT,
@@ -101,7 +101,8 @@ use windows::{
                 AppendMenuW, CallNextHookEx, CallWindowProcW, CreateIcon, CreateIconFromResourceEx,
                 CreatePopupMenu, CreateWindowExW, DI_NORMAL, DefWindowProcW, DestroyIcon,
                 DestroyMenu, DestroyWindow, DispatchMessageW, DrawIconEx, EnumWindows, FindWindowW,
-                GWL_WNDPROC, GetCursorPos, GetMessageW, GetWindowThreadProcessId, HHOOK, HICON,
+                GWL_WNDPROC, GetCursorPos, GetMessageW, GetWindowThreadProcessId,
+                HHOOK, HICON,
                 HMENU, IDC_ARROW, IDI_APPLICATION, IsIconic, IsWindowVisible, KBDLLHOOKSTRUCT,
                 KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG,
                 MSLLHOOKSTRUCT, PostMessageW, PostQuitMessage, RegisterClassW,
@@ -110,8 +111,9 @@ use windows::{
                 SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
                 TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
                 WINDOW_EX_STYLE, WM_APP, WM_CLOSE, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
-                WM_DPICHANGED, WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK,
-                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_RBUTTONDOWN,
+                WM_DPICHANGED, WM_DWMCOLORIZATIONCOLORCHANGED, WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN,
+                WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
+                WM_MBUTTONUP, WM_MOUSEWHEEL, WM_RBUTTONDOWN,
                 WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
                 WM_THEMECHANGED, WM_TIMER, WM_WINDOWPOSCHANGED, WM_XBUTTONDOWN, WM_XBUTTONUP,
                 WNDCLASSW, WNDPROC, WS_OVERLAPPED,
@@ -124,8 +126,17 @@ use windows::{
 mod gpui_overlay;
 mod native_overlay;
 pub(crate) mod overlay_icons;
+mod volume_osd;
+mod volume_popup;
+mod volume_sessions;
 mod settings_ui;
 pub mod updater;
+#[path = "main_parts/wheel_volume.rs"]
+#[allow(dead_code)] // module-private hit-test helpers; the tray hook uses the public surface
+pub mod wheel_volume;
+#[allow(dead_code)]
+#[path = "main_parts/volume2_import.rs"]
+mod volume2_import;
 
 include!("main_parts/constants.rs");
 include!("main_parts/models.rs");
@@ -133,9 +144,18 @@ include!("main_parts/globals.rs");
 include!("main_parts/app_boot.rs");
 include!("main_parts/gamepad.rs");
 include!("main_parts/tray.rs");
+include!("main_parts/volume_tray.rs");
 include!("main_parts/hotkeys_mute.rs");
 include!("main_parts/updates_overlay.rs");
 include!("main_parts/mute_feedback.rs");
 include!("main_parts/audio.rs");
+include!("main_parts/volume.rs");
+include!("main_parts/volume_input.rs");
 include!("main_parts/runtime_config.rs");
 include!("main_parts/input_utils.rs");
+include!("main_parts/elevation.rs");
+
+#[allow(dead_code)]
+pub mod volume_tray_icons {
+    include!("main_parts/volume_tray_icons.rs");
+}

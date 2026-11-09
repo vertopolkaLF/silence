@@ -1,111 +1,161 @@
-//! Sidebar navigation (`assets/styles/tabs.css`).
-use super::nav::SettingsTab;
+//! Sidebar: global pages, one open Microphone or Volume group, then General
+//! and About pinned to the bottom.
+//!
+//! Height budget for the 590px window (60px under the brand, 12px bottom):
+//! four global rows and two group headers at 42px, one open group of five
+//! 32px rows, and the gaps below. Only one group is open, so both sets of
+//! children never stack.
+use super::nav::{self, SettingsTab};
 use crate::settings_ui::{
     SettingsApp,
     anim::{self, Easing, Transition, UI},
     assets::icon,
-    color::{TRANSPARENT, lerp},
+    color::{Oklch, TRANSPARENT, lerp},
+    controls, modules,
+    modules::ModuleId,
 };
 use gpui::{
-    Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Styled, Transformation,
-    Window, div, prelude::*, px, size, svg,
+    Context, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement, Styled,
+    Transformation, Window, div, prelude::*, px, radians, size, svg,
 };
 
-const SUBITEM_HEIGHT: f32 = 32.;
+const PRIMARY_H: f32 = 42.;
+const CHILD_H: f32 = 32.;
+const CHILD_GAP: f32 = 2.;
+const GROUP: Transition = Transition::new(260, Easing::EaseInOut);
 
 pub(crate) fn render(
     app: &mut SettingsApp,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> impl IntoElement {
-    let mut column = div()
-        .id("sidebar-scroll")
+    div()
+        .id("sidebar")
         .w(px(240.))
         .h_full()
         .flex_shrink_0()
         .flex()
         .flex_col()
-        .gap(px(4.))
         .pt(px(60.))
         .px(px(12.))
         .pb(px(12.))
-        .overflow_y_scroll();
-    for &tab in SettingsTab::ALL {
-        column = column.child(nav_item(app, tab, window, cx));
-        if tab.sections().len() > 1 {
-            column = column.child(subsections(app, tab, window, cx));
-        }
-    }
-    column
+        .overflow_hidden()
+        .child(nav_item(app, SettingsTab::Hotkeys, false, 1., window, cx))
+        .child(
+            nav_item(app, SettingsTab::Devices, false, 1., window, cx).mt(px(4.)),
+        )
+        .child(module_group(app, ModuleId::Microphone, window, cx).mt(px(10.)))
+        .child(module_group(app, ModuleId::Volume, window, cx).mt(px(6.)))
+        .child(div().flex_1().min_h(px(8.)))
+        .child(nav_item(app, SettingsTab::General, false, 1., window, cx))
+        .child(nav_item(app, SettingsTab::About, false, 1., window, cx).mt(px(4.)))
 }
 
-fn nav_item(
+fn module_group(
     app: &mut SettingsApp,
-    tab: SettingsTab,
+    module: ModuleId,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) -> gpui::Div {
+    let open = app.nav.expanded_module == Some(module);
+    let t = anim::tween(
+        window,
+        cx,
+        ("nav-group-open", module.index()),
+        open as u8 as f32,
+        GROUP,
+    );
+    let enabled = modules::flags(app).get(module);
+    let enabled_t = anim::tween(
+        window,
+        cx,
+        ("nav-group-enabled", module.index()),
+        enabled as u8 as f32,
+        UI,
+    );
+    let tabs = nav::module_tabs(module);
+    let body_h = CHILD_H * tabs.len() as f32 + CHILD_GAP * tabs.len().saturating_sub(1) as f32 + 4.;
+
+    let mut items = div()
+        .pt(px(4.))
+        .flex()
+        .flex_col()
+        .gap(px(CHILD_GAP))
+        .w_full()
+        .opacity(t)
+        .relative()
+        .top(px(-6. * (1. - t)));
+    for &tab in tabs {
+        items = items.child(nav_item(app, tab, true, enabled_t, window, cx));
+    }
+
+    div()
+        .flex_shrink_0()
+        .flex()
+        .flex_col()
+        .child(module_header(app, module, open, t, window, cx))
+        .child(
+            div()
+                .h(px(body_h * t))
+                .overflow_hidden()
+                .flex_shrink_0()
+                .child(items),
+        )
+}
+
+fn module_header(
+    app: &mut SettingsApp,
+    module: ModuleId,
+    _open: bool,
+    open_t: f32,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> impl IntoElement {
     let palette = app.palette;
-    let key = tab.order();
-    let pointer = anim::pointer(window, cx, ("nav-pointer", key));
+    let pointer = anim::pointer(window, cx, ("nav-group-pointer", module.index()));
     let hovered = pointer.read(cx).hovered;
-    let active = app.nav.active_tab == tab;
-    let hover = anim::tween(window, cx, ("nav-hover", key), hovered as u8 as f32, UI);
-    let on = anim::tween(window, cx, ("nav-active", key), active as u8 as f32, UI);
-
-    // Active wins over hover, as in the stylesheet's cascade.
-    let rest_bg = lerp(TRANSPARENT, palette.surface_color(2), hover);
-    let bg = lerp(rest_bg, palette.surface_color(3), on);
-    let rest_fg = lerp(palette.muted, palette.text, hover);
-    let fg = lerp(rest_fg, palette.accent_text, on);
-
-    let line_scale = 1. - 0.5 * on;
-    let filled_scale = 0.5 + 0.6 * on;
-    let icons = div()
-        .relative()
-        .size(px(21.))
-        .flex_shrink_0()
-        .child(
-            svg()
-                .absolute()
-                .inset_0()
-                .size(px(21.))
-                .path(icon(tab.icon()))
-                .with_transformation(Transformation::scale(size(line_scale, line_scale)))
-                .text_color(fg.opacity(1. - on).hsla()),
-        )
-        .child(
-            svg()
-                .absolute()
-                .inset_0()
-                .size(px(21.))
-                .path(icon(tab.active_icon()))
-                .with_transformation(Transformation::scale(size(filled_scale, filled_scale)))
-                .text_color(fg.opacity(on).hsla()),
-        );
-
-    let arrow = (tab.sections().len() > 1).then(|| {
-        svg()
-            .size(px(15.))
-            .flex_shrink_0()
-            .ml_auto()
-            .path(icon("alt-arrow-down-linear"))
-            .with_transformation(Transformation::rotate(gpui::radians(
-                -std::f32::consts::FRAC_PI_2 * (1. - on),
-            )))
-            .text_color(fg.opacity(0.72 + 0.28 * on).hsla())
-    });
+    let hover = anim::tween(
+        window,
+        cx,
+        ("nav-group-hover", module.index()),
+        hovered as u8 as f32,
+        UI,
+    );
+    let contains = nav::module_tabs(module)
+        .iter()
+        .any(|tab| *tab == app.nav.active_tab);
+    // The group that holds the current page keeps an accent label, so the
+    // selection is still visible after its rows fold away.
+    let current = anim::tween(
+        window,
+        cx,
+        ("nav-group-current", module.index()),
+        contains as u8 as f32,
+        UI,
+    );
+    let enabled = modules::flags(app).get(module);
+    let enabled_t = anim::tween(
+        window,
+        cx,
+        ("nav-group-label-enabled", module.index()),
+        enabled as u8 as f32,
+        UI,
+    );
+    let bg = lerp(TRANSPARENT, palette.surface_color(2), hover);
+    let rest_fg = lerp(palette.muted, palette.text, hover.max(open_t * 0.6));
+    let fg = lerp(rest_fg, palette.accent_text, current);
+    let chevron = palette.muted.opacity(0.55 + 0.45 * hover.max(open_t));
 
     div()
-        .id(("nav-item", key))
-        .relative()
+        .id(("nav-group", module.index()))
+        .h(px(PRIMARY_H))
+        .flex_shrink_0()
         .flex()
         .items_center()
-        .flex_shrink_0()
-        .gap(px(12.))
+        .gap(px(10.))
         .w_full()
-        .h(px(42.))
-        .px(px(14.))
+        .pl(px(12.))
+        .pr(px(10.))
         .rounded(px(8.))
         .bg(bg.hsla())
         .text_color(fg.hsla())
@@ -114,10 +164,200 @@ fn nav_item(
         .cursor_pointer()
         .on_hover(move |hovered, _, cx| anim::set_hovered(&pointer, *hovered, cx))
         .on_click(cx.listener(move |app, _, _, cx| {
+            app.nav.toggle_module_group(module);
+            cx.notify();
+        }))
+        .child(
+            div()
+                .flex_shrink_0()
+                .opacity(0.45 + 0.55 * enabled_t)
+                .child(icon_pair(
+                    module.icon_linear(),
+                    module.icon(),
+                    current,
+                    fg,
+                    21.,
+                )),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .opacity(0.45 + 0.55 * enabled_t)
+                .child(module.name()),
+        )
+        .child(module_switch(app, module, window, cx))
+        .child(
+            svg()
+                .size(px(14.))
+                .flex_shrink_0()
+                .path(icon("alt-arrow-down-linear"))
+                .with_transformation(Transformation::rotate(radians(
+                    -std::f32::consts::FRAC_PI_2 * (1. - open_t),
+                )))
+                .text_color(chevron.hsla()),
+        )
+}
+
+/// Compact module switch on the group header: the standard toggle, smaller.
+/// Clicking it does not expand or collapse the group.
+fn module_switch(
+    app: &mut SettingsApp,
+    module: ModuleId,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) -> impl IntoElement {
+    let palette = app.palette;
+    let enabled = modules::flags(app).get(module);
+    let locked = enabled && !modules::flags(app).can_disable(module);
+    let on = anim::tween(
+        window,
+        cx,
+        ("nav-module-switch", module.index()),
+        enabled as u8 as f32,
+        UI,
+    );
+    let lock_t = anim::tween(
+        window,
+        cx,
+        ("nav-module-lock", module.index()),
+        locked as u8 as f32,
+        UI,
+    );
+    let pointer = anim::pointer(window, cx, ("nav-module-switch-pointer", module.index()));
+    let hovered = pointer.read(cx).hovered;
+    let hover = anim::tween(
+        window,
+        cx,
+        ("nav-module-switch-hover", module.index()),
+        (hovered && !locked) as u8 as f32,
+        UI,
+    );
+    // The standard settings toggle (`controls::toggle`) scaled down.
+    let track = lerp(palette.surface_3, palette.accent, on);
+    let _ = hover;
+    div()
+        .id(("nav-module-switch", module.index()))
+        .flex_shrink_0()
+        .w(px(34.))
+        .h(px(28.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .when(!locked, |this| this.cursor_pointer())
+        .when(locked, |this| {
+            this.tooltip(|_, cx| {
+                controls::tooltip("At least one module has to stay on.", cx)
+            })
+        })
+        .when(!locked, move |this| {
+            this.tooltip(move |_, cx| {
+                controls::tooltip(
+                    if enabled {
+                        "Turn this module off"
+                    } else {
+                        "Turn this module on"
+                    },
+                    cx,
+                )
+            })
+        })
+        .on_hover(move |hovered, _, cx| anim::set_hovered(&pointer, *hovered, cx))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(cx.listener(move |app, _, _, cx| {
+            cx.stop_propagation();
+            if modules::set_enabled(app, module, !enabled, cx) {
+                cx.notify();
+            }
+        }))
+        .child(
+            div()
+                .relative()
+                .w(px(30.))
+                .h(px(17.))
+                .rounded_full()
+                .opacity(1. - 0.45 * lock_t)
+                .bg(track.hsla())
+                .shadow(vec![gpui::BoxShadow {
+                    color: palette.shadow_medium.hsla(),
+                    offset: gpui::point(px(0.), px(1.)),
+                    blur_radius: px(2.),
+                    spread_radius: px(0.),
+                    inset: true,
+                }])
+                .child(
+                    div()
+                        .absolute()
+                        .top(px(3.))
+                        .left(px(3. + 13. * on))
+                        .size(px(11.))
+                        .rounded_full()
+                        .bg(palette.text.hsla())
+                        .shadow(vec![gpui::BoxShadow {
+                            color: palette.shadow_medium.hsla(),
+                            offset: gpui::point(px(0.), px(1.)),
+                            blur_radius: px(2.),
+                            spread_radius: px(0.),
+                            inset: false,
+                        }]),
+                ),
+        )
+}
+
+fn nav_item(
+    app: &mut SettingsApp,
+    tab: SettingsTab,
+    nested: bool,
+    dim: f32,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) -> gpui::Stateful<gpui::Div> {
+    let palette = app.palette;
+    let key = tab.order();
+    let pointer = anim::pointer(window, cx, ("nav-pointer", key));
+    let hovered = pointer.read(cx).hovered;
+    let active = app.nav.active_tab == tab;
+    let hover = anim::tween(window, cx, ("nav-hover", key), hovered as u8 as f32, UI);
+    let on = anim::tween(window, cx, ("nav-active", key), active as u8 as f32, UI);
+
+    let rest_bg = lerp(TRANSPARENT, palette.surface_color(2), hover);
+    let bg = lerp(rest_bg, palette.surface_color(3), on);
+    let rest_fg = lerp(palette.muted, palette.text, hover);
+    let fg = lerp(rest_fg, palette.accent_text, on);
+    let height = if nested { CHILD_H } else { PRIMARY_H };
+    let icon_size = if nested { 18. } else { 21. };
+    let pad_l = if nested { 28. } else { 12. };
+
+    div()
+        .id(("nav-item", key))
+        .relative()
+        .flex()
+        .items_center()
+        .flex_shrink_0()
+        .gap(px(10.))
+        .w_full()
+        .h(px(height))
+        .pl(px(pad_l))
+        .pr(px(12.))
+        .rounded(px(8.))
+        .bg(bg.hsla())
+        .text_color(fg.hsla())
+        .text_size(px(if nested { 13. } else { 14. }))
+        .font_weight(if !nested || active {
+            FontWeight(600.)
+        } else {
+            FontWeight(500.)
+        })
+        .opacity(if nested { 0.5 + 0.5 * dim } else { 1. })
+        .cursor_pointer()
+        .on_hover(move |hovered, _, cx| anim::set_hovered(&pointer, *hovered, cx))
+        .on_click(cx.listener(move |app, _, _, cx| {
             app.nav.select(tab);
             cx.notify();
         }))
-        .child(icons)
+        .child(icon_pair(tab.icon(), tab.active_icon(), on, fg, icon_size))
         .child(
             div()
                 .flex_1()
@@ -126,99 +366,37 @@ fn nav_item(
                 .whitespace_nowrap()
                 .child(tab.label()),
         )
-        .children(arrow)
 }
 
-/// `.nav-subsections-shell`: an accordion that opens under the active tab.
-fn subsections(
-    app: &mut SettingsApp,
-    tab: SettingsTab,
-    window: &mut Window,
-    cx: &mut Context<SettingsApp>,
+fn icon_pair(
+    linear: &'static str,
+    bold: &'static str,
+    on: f32,
+    fg: Oklch,
+    icon_size: f32,
 ) -> impl IntoElement {
-    let palette = app.palette;
-    let key = tab.order();
-    let open = app.nav.active_tab == tab;
-    let t = anim::tween(
-        window,
-        cx,
-        ("nav-sub-open", key),
-        open as u8 as f32,
-        Transition::new(200, Easing::Ease),
-    );
-    let sections = tab.sections();
-    let content_height = sections.len() as f32 * SUBITEM_HEIGHT + (sections.len() - 1) as f32;
-
-    let mut list = div()
-        .relative()
-        .flex()
-        .flex_col()
-        .gap(px(1.))
-        .pl(px(22.))
-        .border_l_1()
-        .border_color(palette.border.hsla());
-    for (index, section) in sections.iter().enumerate() {
-        let active = open && app.nav.active_section == section.id;
-        let pointer = anim::pointer(window, cx, ("nav-sub-pointer", key * 8 + index));
-        let hovered = pointer.read(cx).hovered;
-        let hover = anim::tween(
-            window,
-            cx,
-            ("nav-sub-hover", key * 8 + index),
-            hovered as u8 as f32,
-            UI,
-        );
-        let on = anim::tween(
-            window,
-            cx,
-            ("nav-sub-active", key * 8 + index),
-            active as u8 as f32,
-            UI,
-        );
-        let fg = lerp(lerp(palette.muted, palette.text, hover), palette.accent, on);
-        let id = section.id;
-        list = list.child(
-            div()
-                .id(("nav-sub", key * 8 + index))
-                .relative()
-                .h(px(SUBITEM_HEIGHT))
-                .flex()
-                .items_center()
-                .text_size(px(13.))
-                .font_weight(if active {
-                    FontWeight(600.)
-                } else {
-                    FontWeight(500.)
-                })
-                .text_color(fg.hsla())
-                .cursor_pointer()
-                .on_hover(move |hovered, _, cx| anim::set_hovered(&pointer, *hovered, cx))
-                .on_click(cx.listener(move |app, _, window, cx| {
-                    super::content::scroll_to_section(app, id, window, cx);
-                }))
-                .children(active.then(|| {
-                    div()
-                        .absolute()
-                        .left(px(-23.))
-                        .top(px(8.))
-                        .bottom(px(8.))
-                        .w(px(2.))
-                        .rounded_full()
-                        .bg(palette.accent.hsla())
-                }))
-                .child(section.label),
-        );
-    }
-
-    // grid-template-rows 0fr -> 1fr, margin -4px 0 0 -> 4px 0 8px,
-    // opacity 0 -> 1, translateY(-3px) -> 0.
+    let line_scale = 1. - 0.5 * on;
+    let filled_scale = 0.5 + 0.6 * on;
     div()
+        .relative()
+        .size(px(icon_size))
         .flex_shrink_0()
-        .ml(px(24.))
-        .mt(px(-4. + 8. * t))
-        .mb(px(8. * t))
-        .h(px(content_height * t))
-        .overflow_hidden()
-        .opacity(t)
-        .child(div().relative().top(px(-3. * (1. - t))).child(list))
+        .child(
+            svg()
+                .absolute()
+                .inset_0()
+                .size(px(icon_size))
+                .path(icon(linear))
+                .with_transformation(Transformation::scale(size(line_scale, line_scale)))
+                .text_color(fg.opacity(1. - on).hsla()),
+        )
+        .child(
+            svg()
+                .absolute()
+                .inset_0()
+                .size(px(icon_size))
+                .path(icon(bold))
+                .with_transformation(Transformation::scale(size(filled_scale, filled_scale)))
+                .text_color(fg.opacity(on).hsla()),
+        )
 }

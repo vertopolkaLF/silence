@@ -90,6 +90,30 @@ pub(crate) fn notify_config_changed() {
     }
 }
 
+/// Ask the tray to show the volume OSD with the current level, so OSD
+/// settings changes are visible right away. Posted after the config change.
+pub(crate) fn request_volume_osd_preview() {
+    if let Some(hwnd) = hidden_window() {
+        unsafe {
+            let _ = PostMessageW(hwnd, WM_VOLUME_OSD_PREVIEW, WPARAM(0), LPARAM(0));
+        }
+    }
+}
+
+/// Settings "Move OSD" toggle.
+pub(crate) fn request_volume_osd_positioning(active: bool) {
+    if let Some(hwnd) = hidden_window() {
+        unsafe {
+            let _ = PostMessageW(
+                hwnd,
+                WM_VOLUME_OSD_POSITIONING,
+                WPARAM(usize::from(active)),
+                LPARAM(0),
+            );
+        }
+    }
+}
+
 /// Mute/endpoint callbacks for the settings window, posted to its procedure.
 pub(crate) fn register_settings_audio_notifications(hwnd: isize) {
     ensure_audio_notification_registration_for(HWND(hwnd as *mut c_void));
@@ -103,6 +127,8 @@ pub(crate) fn rebind_settings_audio_notifications() {
             }
         }
     });
+    // Keep the settings-process callback attached. Do not publish tray/OSD events here.
+    let _ = rebind_output_volume_for_message();
 }
 
 pub(crate) fn set_settings_mica_enabled(enabled: bool) {
@@ -185,6 +211,11 @@ unsafe extern "system" fn settings_window_proc(
             settings_ui::live::push(settings_ui::live::LiveEvent::EndpointsChanged);
             return LRESULT(0);
         }
+        WM_OUTPUT_DEVICE_CHANGED => {
+            let _ = rebind_output_volume_for_message();
+            return LRESULT(0);
+        }
+        WM_OUTPUT_VOLUME_CHANGED => return LRESULT(0),
         WM_CONFIG_CHANGED => {
             settings_ui::live::push(settings_ui::live::LiveEvent::ConfigChanged);
             return LRESULT(0);
@@ -347,6 +378,12 @@ const SOUND_THEMES: &[SoundTheme] = &[
 fn main() -> Result<()> {
     set_dpi_awareness();
 
+    // Hidden dev entry. Must run before the single-instance mutex so a running
+    // tray app is left alone.
+    if std::env::args().any(|arg| arg == "--volume-osd-demo") {
+        return volume_osd::run_demo();
+    }
+
     if let Some(action) = notification_action_from_args(std::env::args().skip(1)) {
         if dispatch_notification_action(action) {
             return Ok(());
@@ -374,15 +411,9 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let main_mutex = unsafe { CreateMutexW(None, true, MAIN_INSTANCE_MUTEX)? };
-    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
-        if let Some(action) = PENDING_NOTIFICATION_ACTION.lock().unwrap().take() {
-            dispatch_notification_action(action);
-        } else {
-            dispatch_notification_action(NotificationAction::OpenSettings);
-        }
+    let Some(main_mutex) = acquire_background_mutex()? else {
         return Ok(());
-    }
+    };
 
     let result = run_background_app();
     let _main_mutex = main_mutex;
@@ -515,28 +546,42 @@ fn post_audio_window_message(hwnd: HWND, message: u32) {
 
 fn ensure_audio_notification_registration() {
     let hwnd = STATE.lock().unwrap().hwnd;
-    ensure_audio_notification_registration_for(hwnd);
+    let outcome = ensure_audio_notification_registration_for(hwnd);
+    if !hwnd.0.is_null() {
+        publish_render_bind(outcome, false);
+    }
 }
 
-fn ensure_audio_notification_registration_for(hwnd: HWND) {
+fn ensure_audio_notification_registration_for(hwnd: HWND) -> RenderVolumeBind {
     if hwnd.0.is_null() {
-        return;
+        return RenderVolumeBind::Unavailable;
     }
 
-    AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
+    let ready = AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
         let mut registration = registration.borrow_mut();
         if let Some(registration) = registration.as_mut() {
             if let Err(err) = registration.rebind_indicator_capture_volume() {
                 eprintln!("failed to rebind indicator capture mute notifications: {err:?}");
             }
-            return;
+            return true;
         }
 
         match AudioNotificationRegistration::new(hwnd) {
-            Ok(value) => *registration = Some(value),
-            Err(err) => eprintln!("failed to initialize audio notifications: {err:?}"),
+            Ok(value) => {
+                *registration = Some(value);
+                true
+            }
+            Err(err) => {
+                eprintln!("failed to initialize audio notifications: {err:?}");
+                false
+            }
         }
     });
+    if ready {
+        rebind_output_volume_callback(false)
+    } else {
+        RenderVolumeBind::Unavailable
+    }
 }
 
 fn shutdown_audio_notification_registration() {
@@ -700,6 +745,10 @@ fn set_hkcu_string(subkey: &str, value_name: &str, value: &str) -> Result<()> {
 /// it, and every cursor move system-wide waits for it; on the GPUI thread the
 /// cursor stutters whenever a frame or startup work blocks the message loop.
 /// A dedicated thread that only pumps messages keeps the hook instant.
+///
+/// Do not start the tray hook-health timer here and do not set
+/// `TRAY_VOLUME_HOOKS`. Reinstalling from this thread would replace the
+/// recorder's mouse hook and would install a keyboard hook in this process.
 fn spawn_settings_mouse_hook_thread() {
     thread::spawn(|| {
         let instance = match unsafe { GetModuleHandleW(None) } {

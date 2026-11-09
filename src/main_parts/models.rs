@@ -435,6 +435,15 @@ impl GamepadShortcut {
     }
 }
 
+/// Which product module a hotkey belongs to. Module switches gate these.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HotkeyModule {
+    Microphone,
+    Volume,
+    /// Always available. Not tied to the microphone or volume module.
+    System,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum HotkeyAction {
     ToggleMute,
@@ -450,6 +459,9 @@ pub enum HotkeyAction {
     SetVolume,
     IncreaseVolume,
     DecreaseVolume,
+    ToggleOutputMute,
+    NextOutputDevice,
+    PreviousOutputDevice,
     OpenSettings,
 }
 
@@ -468,6 +480,9 @@ impl HotkeyAction {
         Self::SetVolume,
         Self::IncreaseVolume,
         Self::DecreaseVolume,
+        Self::ToggleOutputMute,
+        Self::NextOutputDevice,
+        Self::PreviousOutputDevice,
         Self::OpenSettings,
     ];
 
@@ -486,6 +501,9 @@ impl HotkeyAction {
             Self::SetVolume => "Set volume",
             Self::IncreaseVolume => "Increase volume",
             Self::DecreaseVolume => "Decrease volume",
+            Self::ToggleOutputMute => "Toggle output mute",
+            Self::NextOutputDevice => "Next output device",
+            Self::PreviousOutputDevice => "Previous output device",
             Self::OpenSettings => "Open settings",
         }
     }
@@ -505,6 +523,9 @@ impl HotkeyAction {
             Self::SetVolume => "SetVolume",
             Self::IncreaseVolume => "IncreaseVolume",
             Self::DecreaseVolume => "DecreaseVolume",
+            Self::ToggleOutputMute => "ToggleOutputMute",
+            Self::NextOutputDevice => "NextOutputDevice",
+            Self::PreviousOutputDevice => "PreviousOutputDevice",
             Self::OpenSettings => "OpenSettings",
         }
     }
@@ -523,6 +544,9 @@ impl HotkeyAction {
             "SetVolume" => Self::SetVolume,
             "IncreaseVolume" => Self::IncreaseVolume,
             "DecreaseVolume" => Self::DecreaseVolume,
+            "ToggleOutputMute" => Self::ToggleOutputMute,
+            "NextOutputDevice" => Self::NextOutputDevice,
+            "PreviousOutputDevice" => Self::PreviousOutputDevice,
             "OpenSettings" => Self::OpenSettings,
             _ => Self::ToggleMute,
         }
@@ -581,6 +605,28 @@ impl HotkeyAction {
             self,
             Self::HoldToToggle | Self::HoldToMute | Self::HoldToUnmute
         )
+    }
+
+    pub fn module(self) -> HotkeyModule {
+        match self {
+            Self::ToggleMute
+            | Self::Mute
+            | Self::Unmute
+            | Self::HoldToToggle
+            | Self::HoldToMute
+            | Self::HoldToUnmute
+            | Self::SetDefaultInputDevice
+            | Self::ToggleDefaultInputDevice => HotkeyModule::Microphone,
+            Self::SetDefaultOutputDevice
+            | Self::ToggleDefaultOutputDevice
+            | Self::SetVolume
+            | Self::IncreaseVolume
+            | Self::DecreaseVolume
+            | Self::ToggleOutputMute
+            | Self::NextOutputDevice
+            | Self::PreviousOutputDevice => HotkeyModule::Volume,
+            Self::OpenSettings => HotkeyModule::System,
+        }
     }
 }
 
@@ -666,6 +712,10 @@ struct Config {
     tray_icon: TrayIconConfig,
     #[serde(default)]
     advanced: AdvancedSettings,
+    #[serde(default)]
+    modules: ModulesConfig,
+    #[serde(default)]
+    volume: VolumeConfig,
 }
 
 impl Default for Config {
@@ -682,6 +732,8 @@ impl Default for Config {
             overlay: OverlayConfig::default(),
             tray_icon: TrayIconConfig::default(),
             advanced: AdvancedSettings::default(),
+            modules: ModulesConfig::default(),
+            volume: VolumeConfig::default(),
         }
     }
 }
@@ -690,12 +742,18 @@ impl Default for Config {
 pub struct StartupSettings {
     #[serde(default = "default_launch_on_startup")]
     pub launch_on_startup: bool,
+    /// Start elevated so low-level hooks still run while an administrator
+    /// window is focused. When launch-on-startup is also on, autostart is a
+    /// highest-privileges scheduled task instead of the HKCU Run key.
+    #[serde(default)]
+    pub run_as_administrator: bool,
 }
 
 impl Default for StartupSettings {
     fn default() -> Self {
         Self {
             launch_on_startup: default_launch_on_startup(),
+            run_as_administrator: false,
         }
     }
 }
@@ -796,6 +854,11 @@ struct AppState {
     overlay: OverlayConfig,
     tray_icon: TrayIconConfig,
     advanced: AdvancedSettings,
+    modules: ModulesConfig,
+    volume: VolumeConfig,
+    output_volume: OutputVolumeState,
+    /// False until the first render-endpoint read. Device-change events start after that.
+    output_volume_seeded: bool,
     welcome_completed: bool,
     modifiers: ModifierState,
     muted: bool,
@@ -815,11 +878,17 @@ struct AppState {
 }
 
 struct AudioNotificationRegistration {
+    hwnd: HWND,
     enumerator: IMMDeviceEnumerator,
     endpoint_callback: IMMNotificationClient,
     volume_callback: IAudioEndpointVolumeCallback,
     volume: Option<IAudioEndpointVolume>,
     device_id: Option<String>,
+    render_volume_callback: Option<IAudioEndpointVolumeCallback>,
+    render_volume: Option<IAudioEndpointVolume>,
+    render_device_id: Option<String>,
+    render_device_name: Option<String>,
+    render_generation: u64,
 }
 
 impl AudioNotificationRegistration {
@@ -836,11 +905,17 @@ impl AudioNotificationRegistration {
         }
 
         let mut registration = Self {
+            hwnd,
             enumerator,
             endpoint_callback,
             volume_callback,
             volume: None,
             device_id: None,
+            render_volume_callback: None,
+            render_volume: None,
+            render_device_id: None,
+            render_device_name: None,
+            render_generation: 0,
         };
 
         if let Err(err) = registration.rebind_indicator_capture_volume() {
@@ -885,6 +960,7 @@ impl AudioNotificationRegistration {
     }
 
     fn shutdown(mut self) {
+        self.unregister_render_volume_callback();
         self.unregister_volume_callback();
         self.unregister_endpoint_callback();
     }
@@ -960,11 +1036,15 @@ impl windows::Win32::Media::Audio::IMMNotificationClient_Impl for AudioDeviceNot
     fn OnDefaultDeviceChanged(
         &self,
         flow: EDataFlow,
-        _role: ERole,
+        role: ERole,
         _pwstrdefaultdeviceid: &PCWSTR,
     ) -> windows::core::Result<()> {
         if flow == eCapture {
             self.post_rebind();
+        } else if flow == eRender && role == eConsole {
+            // One shot per switch: SetDefaultEndpoint updates all three roles,
+            // and only the console role matches the endpoint we watch.
+            post_audio_window_message(self.hwnd, WM_OUTPUT_DEVICE_CHANGED);
         }
         Ok(())
     }
@@ -1552,6 +1632,395 @@ fn default_sound_theme() -> String {
     "8bit".to_string()
 }
 
+fn default_volume_sound_settings() -> SoundSettings {
+    SoundSettings {
+        enabled: false,
+        ..SoundSettings::default()
+    }
+}
+
+fn default_module_microphone() -> bool {
+    true
+}
+
+fn default_module_volume() -> bool {
+    false
+}
+
+fn default_volume_wheel_step() -> u8 {
+    2
+}
+
+fn default_volume_click_left() -> VolumeClickAction {
+    VolumeClickAction::Popup
+}
+
+fn default_volume_click_double() -> VolumeClickAction {
+    VolumeClickAction::OpenMixer
+}
+
+fn default_volume_click_middle() -> VolumeClickAction {
+    VolumeClickAction::ToggleMute
+}
+
+fn default_volume_tray_enabled() -> bool {
+    true
+}
+
+fn default_ring_clockwise() -> bool {
+    true
+}
+
+fn default_volume_tray_color() -> String {
+    "#5CA8FF".to_string()
+}
+
+fn default_volume_osd_enabled() -> bool {
+    true
+}
+
+fn default_volume_osd_theme() -> String {
+    "Windows".to_string()
+}
+
+fn default_volume_osd_display() -> String {
+    VOLUME_OSD_DISPLAY_CURSOR.to_string()
+}
+
+fn default_volume_osd_position_x() -> f32 {
+    50.0
+}
+
+fn default_volume_osd_position_y() -> f32 {
+    92.0
+}
+
+fn default_volume_osd_duration_ms() -> u32 {
+    1_500
+}
+
+fn default_volume_osd_show_on_device_change() -> bool {
+    true
+}
+
+fn default_volume_media_keys_intercept() -> bool {
+    true
+}
+
+/// Existing installs omit this object: microphone stays on, volume stays off.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ModulesConfig {
+    #[serde(default = "default_module_microphone")]
+    pub microphone: bool,
+    #[serde(default = "default_module_volume")]
+    pub volume: bool,
+}
+
+impl Default for ModulesConfig {
+    fn default() -> Self {
+        Self {
+            microphone: default_module_microphone(),
+            volume: default_module_volume(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum WheelZone {
+    Off,
+    #[default]
+    TrayIcon,
+    NotificationArea,
+    Taskbar,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VolumeWheelConfig {
+    #[serde(default)]
+    pub zone: WheelZone,
+    #[serde(default = "default_volume_wheel_step")]
+    pub step_percent: u8,
+}
+
+impl Default for VolumeWheelConfig {
+    fn default() -> Self {
+        Self {
+            zone: WheelZone::default(),
+            step_percent: default_volume_wheel_step(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum VolumeClickAction {
+    #[default]
+    None,
+    Popup,
+    ToggleMute,
+    OpenMixer,
+    OpenSoundSettings,
+    NextOutputDevice,
+    OpenSettings,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VolumeClicksConfig {
+    #[serde(default = "default_volume_click_left")]
+    pub left: VolumeClickAction,
+    #[serde(default = "default_volume_click_double")]
+    pub double: VolumeClickAction,
+    #[serde(default = "default_volume_click_middle")]
+    pub middle: VolumeClickAction,
+}
+
+impl Default for VolumeClicksConfig {
+    fn default() -> Self {
+        Self {
+            left: default_volume_click_left(),
+            double: default_volume_click_double(),
+            middle: default_volume_click_middle(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum VolumeTraySkin {
+    #[default]
+    Rings,
+    Digits,
+    Bar,
+    Speaker,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+/// Same choices as the microphone icon's color.
+pub enum TrayColorMode {
+    /// Green level, red when muted (like the mic status colors).
+    #[serde(alias = "Custom")]
+    Colored,
+    /// Taskbar ink only.
+    Monochrome,
+    /// Windows accent (WinUI accent fill).
+    #[default]
+    #[serde(alias = "Accent")]
+    SystemColor,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VolumeTrayIconConfig {
+    #[serde(default = "default_volume_tray_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub skin: VolumeTraySkin,
+    #[serde(default)]
+    pub color: TrayColorMode,
+    #[serde(default = "default_volume_tray_color")]
+    pub custom_color: String,
+    /// Rings skin: where the arc starts.
+    #[serde(default)]
+    pub ring_start: RingStart,
+    /// Rings skin: the arc grows clockwise.
+    #[serde(default = "default_ring_clockwise")]
+    pub ring_clockwise: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum RingStart {
+    #[default]
+    Top,
+    Bottom,
+}
+
+impl Default for VolumeTrayIconConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_volume_tray_enabled(),
+            skin: VolumeTraySkin::default(),
+            color: TrayColorMode::default(),
+            custom_color: default_volume_tray_color(),
+            ring_start: RingStart::default(),
+            ring_clockwise: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum VolumeOsdVisibility {
+    #[default]
+    OnChange,
+    OnChangeAndWhileMuted,
+}
+
+/// Popup shown when the output volume changes. `display` uses the same ids as
+/// [`OverlayConfig::display`], plus [`VOLUME_OSD_DISPLAY_CURSOR`].
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct VolumeOsdConfig {
+    #[serde(default = "default_volume_osd_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_volume_osd_theme")]
+    pub theme: String,
+    #[serde(default = "default_volume_osd_display")]
+    pub display: String,
+    #[serde(default = "default_volume_osd_position_x")]
+    pub position_x: f32,
+    #[serde(default = "default_volume_osd_position_y")]
+    pub position_y: f32,
+    #[serde(default = "default_volume_osd_duration_ms")]
+    pub duration_ms: u32,
+    #[serde(default)]
+    pub visibility: VolumeOsdVisibility,
+    #[serde(default = "default_volume_osd_show_on_device_change")]
+    pub show_on_device_change: bool,
+    /// Size scale in percent, like the mic overlay's.
+    #[serde(default = "default_volume_osd_scale")]
+    pub scale: u32,
+    /// Per-theme corner radius overrides, like `OverlayConfig::corner_radii`.
+    #[serde(default)]
+    pub corner_radii: std::collections::BTreeMap<String, u8>,
+    // Custom theme look, same fields as the mic overlay's custom theme.
+    #[serde(default = "default_overlay_text_font")]
+    pub text_font: String,
+    #[serde(default = "default_overlay_text_font_weight")]
+    pub text_font_weight: u16,
+    #[serde(default = "default_volume_osd_icon_style")]
+    pub icon_style: String,
+    #[serde(default = "default_volume_osd_background_style")]
+    pub background_style: String,
+    #[serde(default = "default_volume_osd_background_opacity")]
+    pub background_opacity: u8,
+    #[serde(default = "default_volume_osd_content_opacity")]
+    pub content_opacity: u8,
+    #[serde(default = "default_volume_osd_show_border")]
+    pub show_border: bool,
+}
+
+fn default_volume_osd_scale() -> u32 {
+    100
+}
+fn default_volume_osd_icon_style() -> String {
+    "SystemColor".to_string()
+}
+fn default_volume_osd_background_style() -> String {
+    "Dark".to_string()
+}
+fn default_volume_osd_background_opacity() -> u8 {
+    96
+}
+fn default_volume_osd_content_opacity() -> u8 {
+    100
+}
+fn default_volume_osd_show_border() -> bool {
+    true
+}
+
+impl Default for VolumeOsdConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_volume_osd_enabled(),
+            theme: default_volume_osd_theme(),
+            display: default_volume_osd_display(),
+            position_x: default_volume_osd_position_x(),
+            position_y: default_volume_osd_position_y(),
+            duration_ms: default_volume_osd_duration_ms(),
+            visibility: VolumeOsdVisibility::default(),
+            show_on_device_change: default_volume_osd_show_on_device_change(),
+            scale: default_volume_osd_scale(),
+            corner_radii: Default::default(),
+            text_font: default_overlay_text_font(),
+            text_font_weight: default_overlay_text_font_weight(),
+            icon_style: default_volume_osd_icon_style(),
+            background_style: default_volume_osd_background_style(),
+            background_opacity: default_volume_osd_background_opacity(),
+            content_opacity: default_volume_osd_content_opacity(),
+            show_border: default_volume_osd_show_border(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VolumeMediaKeysConfig {
+    #[serde(default = "default_volume_media_keys_intercept")]
+    pub intercept: bool,
+}
+
+impl Default for VolumeMediaKeysConfig {
+    fn default() -> Self {
+        Self {
+            intercept: default_volume_media_keys_intercept(),
+        }
+    }
+}
+
+/// Output-volume settings. `sound` matches [`SoundSettings`] so the sounds UI
+/// can bind the same controls; `enabled` defaults to false when the object is absent.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct VolumeConfig {
+    #[serde(default)]
+    pub wheel: VolumeWheelConfig,
+    #[serde(default)]
+    pub clicks: VolumeClicksConfig,
+    #[serde(default)]
+    pub tray_icon: VolumeTrayIconConfig,
+    #[serde(default)]
+    pub osd: VolumeOsdConfig,
+    #[serde(default)]
+    pub media_keys: VolumeMediaKeysConfig,
+    #[serde(default = "default_volume_sound_settings")]
+    pub sound: SoundSettings,
+    #[serde(default)]
+    pub popup: VolumePopupConfig,
+    /// Endpoint ids. Empty means cycle every active render device.
+    #[serde(default)]
+    pub favorite_output_devices: Vec<String>,
+}
+
+impl Default for VolumeConfig {
+    fn default() -> Self {
+        Self {
+            wheel: VolumeWheelConfig::default(),
+            clicks: VolumeClicksConfig::default(),
+            tray_icon: VolumeTrayIconConfig::default(),
+            osd: VolumeOsdConfig::default(),
+            media_keys: VolumeMediaKeysConfig::default(),
+            sound: default_volume_sound_settings(),
+            popup: VolumePopupConfig::default(),
+            favorite_output_devices: Vec::new(),
+        }
+    }
+}
+
+/// Row style of the volume slider popup.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum VolumePopupLayout {
+    /// Icon, slider and number on one line; app names in tooltips.
+    #[default]
+    Compact,
+    /// App name and number above a full-width slider.
+    Labeled,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VolumePopupConfig {
+    #[serde(default)]
+    pub layout: VolumePopupLayout,
+    /// Device name as a small header above the device slider.
+    #[serde(default = "default_volume_popup_device_header")]
+    pub device_header: bool,
+}
+
+fn default_volume_popup_device_header() -> bool {
+    true
+}
+
+impl Default for VolumePopupConfig {
+    fn default() -> Self {
+        Self {
+            layout: VolumePopupLayout::default(),
+            device_header: default_volume_popup_device_header(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct HoldToMuteSettings {
     #[serde(default = "default_hold_to_mute_play_sounds")]
@@ -1680,6 +2149,16 @@ impl WindowsAccent {
         }
     }
 
+    /// WinUI `AccentFillColorDefault`: `SystemAccentColorLight2` on dark
+    /// surfaces, `SystemAccentColorDark1` on light ones. Windows precomputes
+    /// these shades in `Explorer\Accent\AccentPalette`; fall back to the base
+    /// accent when the palette is missing.
+    pub fn fill(self, light_surface: bool) -> (u8, u8, u8) {
+        read_accent_palette()
+            .map(|palette| palette[if light_surface { 4 } else { 1 }])
+            .unwrap_or(self.accent)
+    }
+
     pub fn css_vars(self) -> String {
         let (r, g, b) = self.accent;
         format!(":root {{ --windows-accent: rgb({r}, {g}, {b}); }}")
@@ -1721,6 +2200,33 @@ fn read_registry_dword(subkey: PCWSTR, value_name: PCWSTR) -> Option<u32> {
     }
 }
 
+/// `AccentPalette`: Light3, Light2, Light1, Accent, Dark1, Dark2, Dark3, then
+/// one unused entry; RGBA bytes each.
+fn read_accent_palette() -> Option<[(u8, u8, u8); 7]> {
+    let mut data = [0u8; 32];
+    let mut data_size = data.len() as u32;
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            w!(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent"),
+            w!("AccentPalette"),
+            RRF_RT_REG_BINARY,
+            None,
+            Some(data.as_mut_ptr() as *mut c_void),
+            Some(&mut data_size),
+        )
+    };
+    if status != ERROR_SUCCESS || data_size < 28 {
+        return None;
+    }
+    let mut palette = [(0u8, 0u8, 0u8); 7];
+    for (index, color) in palette.iter_mut().enumerate() {
+        let i = index * 4;
+        *color = (data[i], data[i + 1], data[i + 2]);
+    }
+    Some(palette)
+}
+
 fn windows_accent_to_rgb(value: u32) -> (u8, u8, u8) {
     (
         (value & 0xff) as u8,
@@ -1758,6 +2264,10 @@ impl Default for AppState {
             overlay: config.overlay,
             tray_icon: config.tray_icon,
             advanced: config.advanced,
+            modules: config.modules,
+            volume: config.volume,
+            output_volume: OutputVolumeState::default(),
+            output_volume_seeded: false,
             welcome_completed: config.welcome_completed,
             modifiers: ModifierState::default(),
             muted: false,

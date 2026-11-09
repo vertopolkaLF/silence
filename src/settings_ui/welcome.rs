@@ -1,4 +1,6 @@
-//! Three welcome screens from `gui/welcome.rs`, welcome.css and welcome-stars.js.
+//! Welcome flow from `gui/welcome.rs`, welcome.css and welcome-stars.js.
+//! The first step picks Microphone and/or Volume; later steps follow that choice.
+mod flow;
 use super::{
     SettingsApp,
     anim::{self, Easing, Transition},
@@ -33,6 +35,16 @@ pub(crate) struct State {
     stars: StarField,
     keycaps: HashMap<String, Keycap>,
     button_focus: HashMap<&'static str, gpui::FocusHandle>,
+    /// Both tiles start off. A valid choice is written to `config.modules`.
+    pick_microphone: bool,
+    pick_volume: bool,
+    volume2_detection: Option<crate::volume2_import::Volume2Detection>,
+    volume2_probe_started: bool,
+    /// Latched when leaving the module step so later indexes stay put.
+    volume2_included: bool,
+    volume2_summary: Vec<String>,
+    volume2_notice: String,
+    volume2_notice_error: bool,
 }
 
 impl Default for State {
@@ -52,6 +64,14 @@ impl Default for State {
             stars: StarField::new(),
             keycaps: HashMap::new(),
             button_focus: HashMap::new(),
+            pick_microphone: false,
+            pick_volume: false,
+            volume2_detection: None,
+            volume2_probe_started: false,
+            volume2_included: false,
+            volume2_summary: Vec::new(),
+            volume2_notice: String::new(),
+            volume2_notice_error: false,
         }
     }
 }
@@ -80,7 +100,7 @@ fn set_step(
     app.welcome.held_keys.clear();
     app.welcome.keycaps.clear();
     app.focus_handle.focus(window, cx);
-    if step == 1 {
+    if flow::is_hotkey_step(app) {
         for vk in [
             0xA0,
             0xA1,
@@ -104,7 +124,7 @@ fn set_step(
                     .timer(Duration::from_millis(16))
                     .await;
                 let alive = this.update(cx, |app, cx| {
-                    if app.welcome.step != 1 || app.snapshot.config.welcome_completed {
+                    if !flow::is_hotkey_step(app) || app.snapshot.config.welcome_completed {
                         crate::set_settings_hotkey_recording(false);
                         return false;
                     }
@@ -663,31 +683,49 @@ pub(crate) fn render(
     .left_0()
     .top_0()
     .size_full();
-    let step = app.welcome.step;
-    let kicker = if step == 0 {
-        "\u{a0}"
-    } else if step == 1 {
-        "Step 2 of 3"
-    } else if app.welcome.returning_user {
-        "Oh, it's you!"
-    } else {
-        "All set"
-    };
+    let kind = flow::current(app);
+    let count_fade = flow::progress_fade(app, window, cx);
     let mut screen = div()
         .flex()
         .flex_col()
         .gap(px(22.))
-        .when(step == 1, |this| this.items_center().text_center())
+        .when(kind == flow::StepKind::MicHotkey, |this| {
+            this.items_center().text_center()
+        })
         .child(block(
             app,
             80,
             div()
-                .text_size(px(13.))
-                .font_weight(FontWeight(800.))
-                .text_color(palette.accent.hsla())
-                .child(kicker),
+                .flex()
+                .flex_col()
+                .gap(px(8.))
+                .child(
+                    div()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight(800.))
+                        .text_color(palette.accent.hsla())
+                        .opacity(count_fade)
+                        .child(flow::progress_label(app)),
+                )
+                .child(flow::progress_dots(app, window, cx)),
         ));
-    if step == 0 {
+    match kind {
+        flow::StepKind::Modules => {
+            screen = screen.child(flow::modules_step(app, window, cx));
+        }
+        flow::StepKind::Volume2 => {
+            screen = screen.child(flow::volume2_step(app, window, cx));
+        }
+        flow::StepKind::Wheel => {
+            screen = screen.child(flow::wheel_step(app, window, cx));
+        }
+        flow::StepKind::Skin => {
+            screen = screen.child(flow::skin_step(app, window, cx));
+        }
+        flow::StepKind::MediaKeys => {
+            screen = screen.child(flow::media_step(app, window, cx));
+        }
+        flow::StepKind::MicIntro => {
         screen = screen
             .child(block(
                 app,
@@ -746,7 +784,7 @@ pub(crate) fn render(
                     app.welcome.progress = 1.;
                     app.reload_config(cx);
                     app.refresh_devices(cx);
-                    set_step(app, 2, window, cx);
+                    flow::goto(app, flow::StepKind::MicDone, window, cx);
                 }
                 Err(error) => {
                     let not_found = error.chain().any(|cause| {
@@ -764,6 +802,16 @@ pub(crate) fn render(
                 }
             },
         );
+        let back = action(
+            "welcome-intro-back",
+            "Back",
+            false,
+            false,
+            app,
+            window,
+            cx,
+            |app, _, window, cx| flow::retreat(app, window, cx),
+        );
         let next = action(
             "welcome-set-hotkey",
             "Set hotkey",
@@ -772,7 +820,7 @@ pub(crate) fn render(
             app,
             window,
             cx,
-            |app, _, window, cx| set_step(app, 1, window, cx),
+            |app, _, window, cx| flow::advance(app, window, cx),
         );
         screen = screen.child(block(
             app,
@@ -782,10 +830,12 @@ pub(crate) fn render(
                 .flex_wrap()
                 .items_center()
                 .gap(px(10.))
+                .child(back)
                 .child(import)
                 .child(next),
         ));
-    } else if step == 1 {
+        }
+        flow::StepKind::MicHotkey => {
         screen = screen.child(block(
             app,
             80,
@@ -804,7 +854,7 @@ pub(crate) fn render(
             |app, _, window, cx| {
                 app.welcome.completed = false;
                 app.welcome.progress = 0.;
-                set_step(app, 0, window, cx);
+                flow::retreat(app, window, cx);
             },
         );
         let next = action(
@@ -817,7 +867,7 @@ pub(crate) fn render(
             cx,
             |app, _, window, cx| {
                 capture(app, app.welcome.captured.clone().unwrap_or_default(), cx);
-                set_step(app, 2, window, cx);
+                flow::advance(app, window, cx);
             },
         );
         screen = screen.child(block(
@@ -830,8 +880,10 @@ pub(crate) fn render(
                 .child(back)
                 .child(next),
         ));
-    } else {
+        }
+        flow::StepKind::MicDone => {
         let returning = app.welcome.returning_user;
+        let last = flow::is_last(app);
         screen = screen.child(block(app, 80, heading(if returning { "Welcome Back!" } else { "Ready to mute" },
             Some(if returning { "Have a look at new features" } else {
                 "Explore a bunch of options to customize your experience. Multiple hotkeys, custom sounds, managing your audio devices, gamepad support and more..."
@@ -839,9 +891,25 @@ pub(crate) fn render(
         if returning {
             screen = screen.child(features(app));
         }
+        let back = action(
+            "welcome-done-back",
+            "Back",
+            false,
+            false,
+            app,
+            window,
+            cx,
+            |app, _, window, cx| {
+                app.welcome.completed = false;
+                app.welcome.progress = 0.;
+                flow::retreat(app, window, cx);
+            },
+        );
         let next = action(
             "welcome-finish",
-            if returning {
+            if !last {
+                "Next"
+            } else if returning {
                 "Continue muting"
             } else {
                 "Start muting"
@@ -851,13 +919,20 @@ pub(crate) fn render(
             app,
             window,
             cx,
-            |app, _, _, cx| finish(app, cx),
+            |app, _, window, cx| flow::advance(app, window, cx),
         );
         screen = screen.child(block(
             app,
             0,
-            div().flex().items_center().mt(px(8.)).child(next),
+            div()
+                .flex()
+                .items_center()
+                .gap(px(10.))
+                .mt(px(8.))
+                .child(back)
+                .child(next),
         ));
+        }
     }
     let background = div()
         .absolute()
@@ -929,16 +1004,15 @@ pub(crate) fn render(
         .justify_center()
         .on_key_down(cx.listener(|app, event: &gpui::KeyDownEvent, window, cx| {
             if event.keystroke.key != "tab"
-                || app.welcome.step == 1
+                || flow::is_hotkey_step(app)
                 || app.welcome.closing.is_some()
             {
                 return;
             }
-            let ids: &[&str] = if app.welcome.step == 0 {
-                &["welcome-import", "welcome-set-hotkey"]
-            } else {
-                &["welcome-finish"]
-            };
+            let ids = flow::focus_ids(flow::current(app));
+            if ids.is_empty() {
+                return;
+            }
             let current = ids.iter().position(|id| {
                 app.welcome
                     .button_focus

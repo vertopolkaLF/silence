@@ -3,6 +3,10 @@ name = "silence"
 version = "2.5.0"
 edition = "2024"
 
+[features]
+# Set only by the standalone volume-icon preview bin. Keeps Win32 out of that build.
+volume_icon_raster_only = []
+
 [dependencies]
 anyhow = "1.0"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "a84689073d296dfd39987bc7dd478e43ef76d83a", default-features = false, features = ["windows-manifest"] }
@@ -12,6 +16,8 @@ raw-window-handle = { version = "0.6", features = ["std"] }
 gilrs = "0.11.1"
 once_cell = "1.21"
 resvg = "0.47"
+# Already built for GPUI; decodes the wallpaper for the OSD's fake Mica.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "bmp", "webp"] }
 rodio = "0.22.2"
 rfd = "0.15"
 serde = { version = "1.0", features = ["derive"] }
@@ -34,8 +40,10 @@ windows = { version = "0.58", features = [
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
     "Win32_Security",
+    "Win32_Storage_FileSystem",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    "Win32_System_Ole",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_LibraryLoader",
     "Win32_System_Memory",
@@ -51,6 +59,19 @@ windows = { version = "0.58", features = [
     "Win32_UI_Shell",
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_WindowsAndMessaging",
+    # Real Mica under the volume popup (Windows.UI.Composition).
+    "Foundation",
+    "Foundation_Numerics",
+    "Graphics_Effects",
+    "System",
+    "UI",
+    "UI_Composition",
+    "UI_Composition_Desktop",
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_System_WinRT",
+    "Win32_System_WinRT_Composition",
+    "Win32_System_WinRT_Graphics_Direct2D",
 ] }
 windows-core = "0.58"
 
@@ -59,5 +80,8 @@ winresource = "0.1"
 
 # GPUI (layout, text shaping, rendering) is painfully slow at opt-level 0.
 # Optimize dependencies in dev builds; our own crate stays fast to compile.
+[profile.dev]
+opt-level = 1
+
 [profile.dev.package."*"]
 opt-level = 2

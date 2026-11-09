@@ -192,6 +192,7 @@ fn run_background_app() -> Result<()> {
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
     }
+    ensure_startup_registration();
     if !settings_window_exists()
         && let Err(err) = clear_stale_hotkey_pause()
     {
@@ -201,7 +202,11 @@ fn run_background_app() -> Result<()> {
     register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
     let muted = indicator_mute_state().unwrap_or(false);
-    let mic_in_use = current_mic_in_use().unwrap_or(false);
+    let mic_in_use = if microphone_module_enabled() {
+        current_mic_in_use().unwrap_or(false)
+    } else {
+        false
+    };
     let overlay_config = STATE.lock().unwrap().overlay.clone();
     {
         let mut state = STATE.lock().unwrap();
@@ -220,13 +225,21 @@ fn run_background_app() -> Result<()> {
     apply_overlay_visibility();
     prime_sound_assets(&sound_settings);
 
+    // Flags go up before the hooks so the first wheel or volume key is covered.
+    mark_tray_input_hooks_ready();
     install_keyboard_hook(instance.into())?;
     install_mouse_hook(instance.into())?;
     if gamepad_monitoring_needed(true) {
         ensure_gamepad_monitors(true);
     }
     ensure_audio_notification_registration();
+    // Seed the default microphone so the first real switch shows the OSD.
+    on_capture_endpoints_changed();
+    if volume_module_enabled() {
+        prewarm_volume_ui();
+    }
     add_tray_icon(hwnd)?;
+    add_volume_tray_icon(hwnd);
     if !STATE.lock().unwrap().welcome_completed {
         open_settings_window();
     }
@@ -234,7 +247,10 @@ fn run_background_app() -> Result<()> {
     apply_pending_notification_action();
     unsafe {
         let _ = SetTimer(hwnd, ID_STATE_TIMER, 250, None);
+        let _ = SetTimer(hwnd, ID_HOOK_HEALTH_TIMER, wheel_refresh_ms(), None);
     }
+    // Startup work above must not look like a hook that already died.
+    note_hook_event();
 
     unsafe {
         let mut msg = MSG::default();
@@ -282,6 +298,9 @@ fn create_message_window(instance: HINSTANCE) -> Result<HWND> {
     if hwnd.0.is_null() {
         anyhow::bail!("failed to create hidden window");
     }
+    // Allow medium-integrity senders (toasts, settings, Explorer) once the
+    // tray itself is elevated. Harmless while it is not.
+    allow_cross_process_window_messages(hwnd);
     Ok(hwnd)
 }
 

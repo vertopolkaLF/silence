@@ -1,0 +1,727 @@
+// Second notification icon: output volume. The mic icon stays on `WM_TRAY` / `ID_TRAY`.
+// This one uses `WM_VOLUME_TRAY` / `ID_VOLUME_TRAY` and the same pre-Vista callback
+// shape (mouse message in `lparam`). `NOTIFYICON_VERSION_4` is not set.
+
+static VOLUME_TRAY_ADDED: AtomicBool = AtomicBool::new(false);
+static SUPPRESS_NEXT_VOLUME_TRAY_LBUTTON_UP: AtomicBool = AtomicBool::new(false);
+static VOLUME_TRAY_ICONS: Lazy<Mutex<VolumeTrayIcons>> =
+    Lazy::new(|| Mutex::new(VolumeTrayIcons::new()));
+
+struct VolumeTrayIcons {
+    cache: volume_tray_icons::VolumeIconCache,
+    shown_key: Option<VolumeTrayIconKey>,
+    shown_tip: String,
+}
+
+// `HICON` is a raw handle. The cache is only touched on the tray UI thread and
+// from `Drop` at process exit.
+unsafe impl Send for VolumeTrayIcons {}
+
+impl VolumeTrayIcons {
+    fn new() -> Self {
+        Self {
+            cache: volume_tray_icons::VolumeIconCache::new(),
+            shown_key: None,
+            shown_tip: String::new(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct VolumeTrayIconKey {
+    percent: u8,
+    muted: bool,
+    style: volume_tray_icons::VolumeIconStyle,
+    size_px: u32,
+}
+
+struct VolumeTraySnapshot {
+    key: VolumeTrayIconKey,
+    tip: String,
+}
+
+fn volume_tray_wanted() -> bool {
+    let state = STATE.lock().unwrap();
+    state.modules.volume && state.volume.tray_icon.enabled
+}
+
+/// Output devices move to the volume icon's menu while that icon is actually shown.
+/// Module on + tray icon off keeps them on the microphone menu.
+fn volume_menu_owns_output() -> bool {
+    volume_tray_wanted()
+}
+
+fn add_volume_tray_icon(hwnd: HWND) {
+    if !volume_tray_wanted() {
+        unsafe {
+            let _ = KillTimer(hwnd, ID_VOLUME_TRAY_ADD_RETRY_TIMER);
+        }
+        return;
+    }
+    if VOLUME_TRAY_ADDED.load(Ordering::Relaxed) {
+        return;
+    }
+
+    let snapshot = volume_tray_snapshot();
+    let Some(icon) = take_volume_icon(&snapshot.key) else {
+        unsafe {
+            let _ = SetTimer(hwnd, ID_VOLUME_TRAY_ADD_RETRY_TIMER, TRAY_ADD_RETRY_MS, None);
+        }
+        return;
+    };
+
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: ID_VOLUME_TRAY,
+        uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,
+        uCallbackMessage: WM_VOLUME_TRAY,
+        hIcon: icon,
+        ..Default::default()
+    };
+    write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), &snapshot.tip);
+    unsafe {
+        if Shell_NotifyIconW(NIM_ADD, &nid).as_bool() {
+            VOLUME_TRAY_ADDED.store(true, Ordering::Relaxed);
+            let _ = KillTimer(hwnd, ID_VOLUME_TRAY_ADD_RETRY_TIMER);
+            {
+                let mut icons = VOLUME_TRAY_ICONS.lock().unwrap();
+                icons.shown_key = Some(snapshot.key);
+                icons.shown_tip = snapshot.tip;
+            }
+            if wheel_targets_refresh_wanted() {
+                refresh_wheel_targets();
+            }
+        } else {
+            let _ = SetTimer(hwnd, ID_VOLUME_TRAY_ADD_RETRY_TIMER, TRAY_ADD_RETRY_MS, None);
+        }
+    }
+}
+
+fn remove_volume_tray_icon() {
+    let hwnd = STATE.lock().unwrap().hwnd;
+    if !hwnd.0.is_null() {
+        let nid = NOTIFYICONDATAW {
+            cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: hwnd,
+            uID: ID_VOLUME_TRAY,
+            ..Default::default()
+        };
+        unsafe {
+            let _ = KillTimer(hwnd, ID_VOLUME_TRAY_ADD_RETRY_TIMER);
+            let _ = KillTimer(hwnd, ID_VOLUME_TRAY_CLICK_TIMER);
+            let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
+        }
+    }
+    VOLUME_TRAY_ADDED.store(false, Ordering::Relaxed);
+    SUPPRESS_NEXT_VOLUME_TRAY_LBUTTON_UP.store(false, Ordering::Relaxed);
+    let mut icons = VOLUME_TRAY_ICONS.lock().unwrap();
+    icons.shown_key = None;
+    icons.shown_tip.clear();
+    icons.cache.invalidate();
+}
+
+fn sync_volume_tray_icon() {
+    let hwnd = STATE.lock().unwrap().hwnd;
+    if hwnd.0.is_null() {
+        return;
+    }
+    if volume_tray_wanted() {
+        add_volume_tray_icon(hwnd);
+        refresh_volume_tray();
+    } else {
+        remove_volume_tray_icon();
+    }
+}
+
+fn refresh_volume_tray() {
+    if !VOLUME_TRAY_ADDED.load(Ordering::Relaxed) {
+        return;
+    }
+    let snapshot = volume_tray_snapshot();
+    refresh_volume_tray_icon(&snapshot);
+    refresh_volume_tray_tip(&snapshot);
+}
+
+fn refresh_volume_tray_icon(snapshot: &VolumeTraySnapshot) {
+    if !VOLUME_TRAY_ADDED.load(Ordering::Relaxed) {
+        return;
+    }
+    let hwnd = STATE.lock().unwrap().hwnd;
+    if hwnd.0.is_null() {
+        return;
+    }
+    if VOLUME_TRAY_ICONS.lock().unwrap().shown_key.as_ref() == Some(&snapshot.key) {
+        return;
+    }
+    let Some(icon) = take_volume_icon(&snapshot.key) else {
+        return;
+    };
+    let nid = NOTIFYICONDATAW {
+        cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: ID_VOLUME_TRAY,
+        uFlags: NIF_ICON,
+        hIcon: icon,
+        ..Default::default()
+    };
+    unsafe {
+        if Shell_NotifyIconW(NIM_MODIFY, &nid).as_bool() {
+            VOLUME_TRAY_ICONS.lock().unwrap().shown_key = Some(snapshot.key);
+        }
+    }
+}
+
+fn refresh_volume_tray_tip(snapshot: &VolumeTraySnapshot) {
+    if !VOLUME_TRAY_ADDED.load(Ordering::Relaxed) {
+        return;
+    }
+    let hwnd = STATE.lock().unwrap().hwnd;
+    if hwnd.0.is_null() {
+        return;
+    }
+    if VOLUME_TRAY_ICONS.lock().unwrap().shown_tip == snapshot.tip {
+        return;
+    }
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: ID_VOLUME_TRAY,
+        uFlags: NIF_TIP,
+        ..Default::default()
+    };
+    write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), &snapshot.tip);
+    unsafe {
+        if Shell_NotifyIconW(NIM_MODIFY, &nid).as_bool() {
+            VOLUME_TRAY_ICONS.lock().unwrap().shown_tip = snapshot.tip.clone();
+        }
+    }
+}
+
+fn volume_tray_snapshot() -> VolumeTraySnapshot {
+    let (config, output) = {
+        let state = STATE.lock().unwrap();
+        (state.volume.tray_icon.clone(), state.output_volume.clone())
+    };
+    let percent = output_level_percent(output.level);
+    let key = VolumeTrayIconKey {
+        percent,
+        muted: output.muted,
+        style: volume_icon_style(&config),
+        size_px: volume_tray_icons::tray_icon_size_px(),
+    };
+    VolumeTraySnapshot {
+        key,
+        tip: volume_tray_tip(&output_display_name(&output), percent, output.muted),
+    }
+}
+
+fn take_volume_icon(key: &VolumeTrayIconKey) -> Option<HICON> {
+    let mut icons = VOLUME_TRAY_ICONS.lock().unwrap();
+    let style_or_size_changed = icons.shown_key.as_ref().is_some_and(|previous| {
+        previous.style != key.style || previous.size_px != key.size_px
+    });
+    if style_or_size_changed {
+        icons.cache.invalidate();
+    }
+    match icons
+        .cache
+        .hicon(&key.style, key.percent, key.muted, key.size_px)
+    {
+        Ok(icon) => Some(icon),
+        Err(err) => {
+            eprintln!("failed to render volume tray icon: {err:?}");
+            None
+        }
+    }
+}
+
+fn output_level_percent(level: f32) -> u8 {
+    (level.clamp(0.0, 1.0) * 100.0)
+        .round()
+        .clamp(0.0, 100.0) as u8
+}
+
+fn volume_tray_tip(device_name: &str, percent: u8, muted: bool) -> String {
+    let name = if device_name.trim().is_empty() {
+        "Output"
+    } else {
+        device_name.trim()
+    };
+    if muted {
+        format!("{name}: muted")
+    } else {
+        format!("{name}: {percent}%")
+    }
+}
+
+pub(crate) fn volume_icon_style(config: &VolumeTrayIconConfig) -> volume_tray_icons::VolumeIconStyle {
+    let accent = match config.color {
+        TrayColorMode::SystemColor | TrayColorMode::Monochrome => {
+            volume_tray_icons::windows_accent_rgb()
+        }
+        TrayColorMode::Colored => {
+            let (r, g, b) = state_accent(false);
+            [r, g, b]
+        }
+    };
+    let mut style = volume_tray_icons::VolumeIconStyle::new(
+        map_volume_tray_skin(config.skin),
+        accent,
+        volume_tray_icons::taskbar_uses_light_theme(),
+    );
+    style.monochrome = config.color == TrayColorMode::Monochrome;
+    style.ring_from_bottom = config.ring_start == RingStart::Bottom;
+    style.ring_clockwise = config.ring_clockwise;
+    style
+}
+
+pub(crate) fn map_volume_tray_skin(skin: VolumeTraySkin) -> volume_tray_icons::VolumeTraySkin {
+    match skin {
+        VolumeTraySkin::Rings => volume_tray_icons::VolumeTraySkin::Rings,
+        VolumeTraySkin::Digits => volume_tray_icons::VolumeTraySkin::Digits,
+        VolumeTraySkin::Bar => volume_tray_icons::VolumeTraySkin::Bar,
+        VolumeTraySkin::Speaker => volume_tray_icons::VolumeTraySkin::Speaker,
+    }
+}
+
+
+fn handle_volume_tray_message(hwnd: HWND, event: u32) {
+    match event {
+        WM_LBUTTONUP => handle_volume_tray_left_click(hwnd),
+        WM_LBUTTONDBLCLK => handle_volume_tray_double_click(hwnd),
+        WM_MBUTTONUP => {
+            let action = STATE.lock().unwrap().volume.clicks.middle;
+            run_volume_click_action(action);
+        }
+        WM_RBUTTONUP => show_volume_tray_menu(hwnd),
+        _ => {}
+    }
+}
+
+fn handle_volume_tray_left_click(hwnd: HWND) {
+    if SUPPRESS_NEXT_VOLUME_TRAY_LBUTTON_UP.swap(false, Ordering::SeqCst) {
+        return;
+    }
+    let clicks = STATE.lock().unwrap().volume.clicks.clone();
+    // The popup opens at once, like the system volume icon; a double click
+    // that follows closes it again. Only actions that change something wait
+    // to rule out a double click.
+    if clicks.double == VolumeClickAction::None || clicks.left == VolumeClickAction::Popup {
+        run_volume_click_action(clicks.left);
+        return;
+    }
+    let delay = unsafe { GetDoubleClickTime() }.max(1);
+    unsafe {
+        let _ = KillTimer(hwnd, ID_VOLUME_TRAY_CLICK_TIMER);
+        let _ = SetTimer(hwnd, ID_VOLUME_TRAY_CLICK_TIMER, delay, None);
+    }
+}
+
+fn handle_volume_tray_double_click(hwnd: HWND) {
+    let double = STATE.lock().unwrap().volume.clicks.double;
+    unsafe {
+        let _ = KillTimer(hwnd, ID_VOLUME_TRAY_CLICK_TIMER);
+    }
+    if double == VolumeClickAction::None {
+        return;
+    }
+    SUPPRESS_NEXT_VOLUME_TRAY_LBUTTON_UP.store(true, Ordering::SeqCst);
+    if STATE.lock().unwrap().volume.clicks.left == VolumeClickAction::Popup {
+        volume_popup::volume_popup_close();
+    }
+    run_volume_click_action(double);
+}
+
+fn run_volume_click_action(action: VolumeClickAction) {
+    match action {
+        VolumeClickAction::None => {}
+        VolumeClickAction::Popup => show_volume_popup(),
+        VolumeClickAction::ToggleMute => {
+            if let Err(err) = toggle_output_mute() {
+                eprintln!("failed to toggle output mute: {err:?}");
+            }
+        }
+        VolumeClickAction::OpenMixer => open_volume_mixer(),
+        VolumeClickAction::OpenSoundSettings => open_sound_settings(),
+        VolumeClickAction::NextOutputDevice => {
+            if let Err(err) = cycle_output_device(true) {
+                eprintln!("failed to cycle output device: {err:?}");
+            }
+        }
+        VolumeClickAction::OpenSettings => open_volume_settings_window(),
+    }
+}
+
+fn show_volume_popup() {
+    if volume_popup::volume_popup_open() {
+        volume_popup::volume_popup_close();
+        return;
+    }
+    // This click already closed the popup by taking focus from it.
+    if volume_popup::volume_popup_just_closed() {
+        return;
+    }
+    volume_popup::volume_popup_show(volume_tray_anchor(), popup_state(&output_volume_state()));
+}
+
+/// Screen rectangle of the volume tray icon, or a spot under the cursor.
+fn volume_tray_anchor() -> RECT {
+    let hwnd = STATE.lock().unwrap().hwnd;
+    use windows::Win32::UI::Shell::{NOTIFYICONIDENTIFIER, Shell_NotifyIconGetRect};
+    let identifier = NOTIFYICONIDENTIFIER {
+        cbSize: size_of::<NOTIFYICONIDENTIFIER>() as u32,
+        hWnd: hwnd,
+        uID: ID_VOLUME_TRAY,
+        ..Default::default()
+    };
+    unsafe { Shell_NotifyIconGetRect(&identifier) }
+        .ok()
+        .filter(|rect| rect.right > rect.left && rect.bottom > rect.top)
+        .unwrap_or_else(volume_popup::cursor_anchor)
+}
+
+/// Opens the classic mixer above the tray icon, as wide as its tiles.
+fn open_volume_mixer() {
+    let anchor = volume_tray_anchor();
+    if let Some(mixer) = volume_mixer::find() {
+        volume_mixer::fit(mixer, anchor);
+        unsafe {
+            let _ = ShowWindow(mixer, SW_RESTORE);
+            let _ = SetForegroundWindow(mixer);
+        }
+        return;
+    }
+    if let Err(err) = Command::new("sndvol.exe").spawn() {
+        eprintln!("failed to open volume mixer: {err:?}");
+        return;
+    }
+    std::thread::spawn(move || volume_mixer::fit_when_ready(anchor));
+}
+
+mod volume_mixer {
+    use std::time::{Duration, Instant};
+    use windows::Win32::{
+        Foundation::{BOOL, HWND, LPARAM, RECT},
+        Graphics::{
+            Dwm::{DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute},
+            Gdi::{
+                GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromRect,
+                RDW_ALLCHILDREN, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW,
+                RedrawWindow,
+            },
+        },
+        UI::{
+            HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
+            WindowsAndMessaging::{
+                EnumWindows, FindWindowExW, GetClassNameW, GetClientRect, GetWindowRect,
+                SWP_NOACTIVATE, SWP_NOZORDER, SetWindowPos,
+            },
+        },
+    };
+    use windows::core::w;
+
+    /// Gap between the mixer and the taskbar, in logical pixels.
+    const GAP: f32 = 12.0;
+
+    /// The mixer's top-level dialog: the only `#32770` holding a `TileListView`.
+    pub(super) fn find() -> Option<HWND> {
+        unsafe extern "system" fn visit(hwnd: HWND, found: LPARAM) -> BOOL {
+            let mut class = [0u16; 16];
+            let len = unsafe { GetClassNameW(hwnd, &mut class) } as usize;
+            if String::from_utf16_lossy(&class[..len]) == "#32770" && tiles(hwnd).is_some() {
+                unsafe { *(found.0 as *mut isize) = hwnd.0 as isize };
+                return BOOL(0);
+            }
+            BOOL(1)
+        }
+        let mut found = 0isize;
+        let _ = unsafe { EnumWindows(Some(visit), LPARAM(&mut found as *mut isize as isize)) };
+        (found != 0).then_some(HWND(found as *mut _))
+    }
+
+    /// The scrolling tile list and the strip inside it that holds every tile.
+    fn tiles(mixer: HWND) -> Option<(HWND, HWND)> {
+        unsafe {
+            let list = FindWindowExW(mixer, None, w!("TileListView"), None).ok()?;
+            let sled = FindWindowExW(list, None, w!("TileSled Window"), None).ok()?;
+            Some((list, sled))
+        }
+    }
+
+    /// Width change that makes the tile list show every tile without scrolling.
+    fn missing_width(mixer: HWND) -> Option<i32> {
+        let (list, sled) = tiles(mixer)?;
+        let mut client = RECT::default();
+        let mut strip = RECT::default();
+        unsafe {
+            GetClientRect(list, &mut client).ok()?;
+            GetWindowRect(sled, &mut strip).ok()?;
+        }
+        let strip_w = strip.right - strip.left;
+        (strip_w > 0).then(|| strip_w - (client.right - client.left))
+    }
+
+    /// Sizes the mixer to its tiles and sets it on the taskbar edge by `anchor`.
+    pub(super) fn fit(mixer: HWND, anchor: RECT) {
+        let mut window = RECT::default();
+        if unsafe { GetWindowRect(mixer, &mut window) }.is_err() {
+            return;
+        }
+        // Visible frame, without the invisible resize borders.
+        let mut frame = window;
+        let _ = unsafe {
+            DwmGetWindowAttribute(
+                mixer,
+                DWMWA_EXTENDED_FRAME_BOUNDS,
+                (&mut frame as *mut RECT).cast(),
+                size_of::<RECT>() as u32,
+            )
+        };
+        let (left, top) = (frame.left - window.left, frame.top - window.top);
+        let (right, bottom) = (window.right - frame.right, window.bottom - frame.bottom);
+
+        let monitor = unsafe { MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST) };
+        let mut info = MONITORINFO {
+            cbSize: size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        let _ = unsafe { GetMonitorInfoW(monitor, &mut info) };
+        let work = info.rcWork;
+        let (mut dpi, mut dpi_y) = (96u32, 96u32);
+        let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut dpi_y) };
+        let gap = (GAP * dpi.max(96) as f32 / 96.0).round() as i32;
+
+        let max_w = (work.right - work.left) - gap * 2;
+        let visible_w =
+            ((frame.right - frame.left) + missing_width(mixer).unwrap_or(0)).min(max_w);
+        let visible_h = (frame.bottom - frame.top).min((work.bottom - work.top) - gap * 2);
+        let center = (anchor.left + anchor.right) / 2;
+        let x = (center - visible_w / 2).clamp(work.left + gap, work.right - gap - visible_w);
+        let y = if anchor.bottom <= work.top + 1 {
+            work.top + gap
+        } else if anchor.top >= work.bottom - 1 {
+            work.bottom - gap - visible_h
+        } else {
+            ((anchor.top + anchor.bottom) / 2 - visible_h / 2)
+                .clamp(work.top + gap, work.bottom - gap - visible_h)
+        };
+        let _ = unsafe {
+            SetWindowPos(
+                mixer,
+                None,
+                x - left,
+                y - top,
+                visible_w + left + right,
+                visible_h + top + bottom,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+        };
+        // The mixer leaves unpainted (black) areas after an outside resize.
+        let _ = unsafe {
+            RedrawWindow(
+                mixer,
+                None,
+                None,
+                RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW,
+            )
+        };
+    }
+
+    /// Waits for a freshly started mixer, then keeps it fitted while its
+    /// tiles are still being added.
+    pub(super) fn fit_when_ready(anchor: RECT) {
+        let started = Instant::now();
+        let mut fitted_at: Option<Instant> = None;
+        while started.elapsed() < Duration::from_secs(5) {
+            if let Some(mixer) = find() {
+                if fitted_at.is_none() || missing_width(mixer).is_some_and(|missing| missing != 0) {
+                    fit(mixer, anchor);
+                    fitted_at.get_or_insert_with(Instant::now);
+                }
+                if fitted_at.is_some_and(|at| at.elapsed() > Duration::from_millis(1500)) {
+                    return;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(8));
+        }
+    }
+}
+
+/// Classic Sound control panel on the Playback tab.
+fn open_audio_devices() {
+    if let Err(err) = Command::new("control.exe").arg("mmsys.cpl,,0").spawn() {
+        eprintln!("failed to open audio devices: {err:?}");
+    }
+}
+
+fn open_sound_settings() {
+    if let Err(err) = open_external("ms-settings:sound") {
+        eprintln!("failed to open sound settings: {err:?}");
+    }
+}
+
+fn open_volume_settings_window() {
+    if focus_settings_window() {
+        return;
+    }
+    launch_settings_window(Some("--volume"));
+}
+
+fn show_volume_tray_menu(hwnd: HWND) {
+    let (name_display, muted) = {
+        let state = STATE.lock().unwrap();
+        (
+            state.advanced.audio_device_name_display.clone(),
+            state.output_volume.muted,
+        )
+    };
+    let output_devices = render_devices().unwrap_or_default();
+    let title = format!("silence! - v{}", env!("CARGO_PKG_VERSION"));
+    let title_w = wide(&title);
+    let mixer_w = wide("Volume mixer");
+    let devices_w = wide("Audio devices");
+    let sound_w = wide("Sound settings");
+    let settings_w = wide("Settings");
+    let exit_w = wide("Exit");
+    let icon_color = if windows_uses_light_system_theme() {
+        (20, 20, 20)
+    } else {
+        (245, 245, 245)
+    };
+
+    unsafe {
+        let menu = CreatePopupMenu().unwrap_or_default();
+        let mut bitmaps = Vec::new();
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0x0000_0001),
+            ID_MENU_VOLUME_TITLE,
+            PCWSTR(title_w.as_ptr()),
+        );
+        append_device_menu_item(menu, ID_MENU_VOLUME_MUTE, "Mute output", muted);
+        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+        {
+            let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
+            commands.clear();
+            append_output_device_menu(menu, &output_devices, &name_display, &mut commands);
+        }
+        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_VOLUME_MIXER,
+            PCWSTR(mixer_w.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_VOLUME_DEVICES,
+            PCWSTR(devices_w.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_VOLUME_SOUND,
+            PCWSTR(sound_w.as_ptr()),
+        );
+        let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_VOLUME_SETTINGS,
+            PCWSTR(settings_w.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_VOLUME_EXIT,
+            PCWSTR(exit_w.as_ptr()),
+        );
+
+        if let Some(bitmap) = create_menu_app_bitmap() {
+            let _ = SetMenuItemBitmaps(
+                menu,
+                ID_MENU_VOLUME_TITLE as u32,
+                MENU_ITEM_FLAGS(0),
+                bitmap,
+                bitmap,
+            );
+            bitmaps.push(bitmap);
+        }
+        for (command_id, svg) in [
+            (
+                ID_MENU_VOLUME_MUTE,
+                include_str!("../../assets/icons/volume-loud-bold.svg"),
+            ),
+            (
+                ID_MENU_VOLUME_MIXER,
+                include_str!("../../assets/icons/volume-loud-linear.svg"),
+            ),
+            (
+                ID_MENU_VOLUME_DEVICES,
+                include_str!("../../assets/icons/headphones-round-sound-linear.svg"),
+            ),
+            (
+                ID_MENU_VOLUME_SOUND,
+                include_str!("../../assets/icons/tuning-2-linear.svg"),
+            ),
+            (
+                ID_MENU_VOLUME_SETTINGS,
+                include_str!("../../assets/icons/settings-bold.svg"),
+            ),
+            (
+                ID_MENU_VOLUME_EXIT,
+                include_str!("../../assets/icons/exit-bold.svg"),
+            ),
+        ] {
+            if let Some(bitmap) = create_menu_svg_bitmap(svg, icon_color) {
+                let _ = SetMenuItemBitmaps(
+                    menu,
+                    command_id as u32,
+                    MENU_ITEM_FLAGS(0),
+                    bitmap,
+                    bitmap,
+                );
+                bitmaps.push(bitmap);
+            }
+        }
+
+        let mut pt = POINT::default();
+        let _ = GetCursorPos(&mut pt);
+        let _ = SetForegroundWindow(hwnd);
+        let command_id = TrackPopupMenu(
+            menu,
+            TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_RETURNCMD,
+            pt.x,
+            pt.y,
+            0,
+            hwnd,
+            None,
+        );
+        if command_id.0 != 0 {
+            handle_volume_tray_menu_command(command_id.0 as usize);
+        }
+        let _ = DestroyMenu(menu);
+        TRAY_DEVICE_COMMANDS.lock().unwrap().clear();
+        for bitmap in bitmaps {
+            let _ = DeleteObject(bitmap);
+        }
+    }
+}
+
+fn handle_volume_tray_menu_command(command_id: usize) {
+    match command_id {
+        ID_MENU_VOLUME_MUTE => {
+            if let Err(err) = toggle_output_mute() {
+                eprintln!("failed to toggle output mute: {err:?}");
+            }
+        }
+        ID_MENU_VOLUME_MIXER => open_volume_mixer(),
+        ID_MENU_VOLUME_DEVICES => open_audio_devices(),
+        ID_MENU_VOLUME_SOUND => open_sound_settings(),
+        ID_MENU_VOLUME_SETTINGS => open_volume_settings_window(),
+        ID_MENU_VOLUME_EXIT => exit_all_processes(),
+        command_id => handle_tray_device_command(command_id),
+    }
+}

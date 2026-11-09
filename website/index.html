@@ -4,9 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>silence! - the best Windows app to mute your mic</title>
-    <meta name="description" content="silence! is a free, open-source Windows microphone mute app with multi-action hotkeys, gamepad support, hold-to-mute, auto-mute, custom overlay, sounds, tray icon styles, device switching, import/export, and auto-updates.">
-    <meta name="keywords" content="mic mute, mute mic app, app to mute mic, microphone mute app, microphone mute utility, mute microphone Windows, Windows mic mute, Windows microphone mute, global hotkey mic mute, gamepad mic mute, hold to mute Windows, hold to talk Windows, mute microphone shortcut, default audio device hotkey, tray mic mute app, open source mic mute, silence v2, silence app, silence!">
+    <title>silence! — Windows mic mute app</title>
+    <meta name="description" content="Free Windows mic mute app. Mute your microphone in every app with a global hotkey, overlay, sounds, gamepad, and hold-to-mute.">
     <meta name="robots" content="index, follow">
     <meta name="author" content="vertopolkaLF">
     <meta name="application-name" content="silence!">
@@ -16,15 +15,15 @@
     <meta property="og:type" content="website">
     <meta property="og:locale" content="en_US">
     <meta property="og:site_name" content="silence!">
-    <meta property="og:title" content="silence! - the best Windows app to mute your mic">
-    <meta property="og:description" content="Free, open-source microphone mute utility for Windows with multi-action hotkeys, gamepad support, auto-mute, custom overlay, sounds, tray controls, and auto-updates.">
+    <meta property="og:title" content="silence! — Windows mic mute app">
+    <meta property="og:description" content="Free Windows mic mute app. Mute your microphone in every app with a global hotkey, overlay, sounds, gamepad, and hold-to-mute.">
     <meta property="og:url" content="https://silencemute.fun/">
     <meta property="og:image" content="https://silencemute.fun/ogimage.png">
     <meta property="og:image:alt" content="silence! social preview image">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="silence! - the best Windows app to mute your mic">
-    <meta name="twitter:description" content="Free, open-source microphone mute utility for Windows with multi-action hotkeys, gamepad support, auto-mute, custom overlay, sounds, tray controls, and auto-updates.">
+    <meta name="twitter:title" content="silence! — Windows mic mute app">
+    <meta name="twitter:description" content="Free Windows mic mute app. Mute your microphone in every app with a global hotkey, overlay, sounds, gamepad, and hold-to-mute.">
     <meta name="twitter:image" content="https://silencemute.fun/ogimage.png">
     <meta name="twitter:image:alt" content="silence! social preview image">
 
@@ -39,7 +38,7 @@
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
             "name": "silence!",
-            "description": "Free, open-source microphone mute utility for Windows with multi-action hotkeys, gamepad support, hold-to-mute, auto-mute, visual overlay, custom sounds, tray controls, device switching, import/export, and auto-updates.",
+            "description": "Windows mic mute app: mute your microphone in every app with a global hotkey, overlay, sounds, gamepad, hold-to-mute, and tray controls.",
             "applicationCategory": "UtilitiesApplication",
             "operatingSystem": "Windows 10, Windows 11",
             "url": "https://silencemute.fun/",
@@ -63,6 +62,14 @@
             "@context": "https://schema.org",
             "@type": "FAQPage",
             "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": "How do I mute my mic on Windows?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "Windows 11's Win + Alt + K only mutes supported call apps. To mute your microphone in every app, mute the recording device in Settings > System > Sound, use a hardware mute key, or a global hotkey mic mute app like silence!. Full walkthrough: https://silencemute.fun/mic-mute/"
+                    }
+                },
                 {
                     "@type": "Question",
                     "name": "Why use silence! if my mic already has a physical mute button?",
@@ -170,6 +177,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.css">
     <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <link rel="stylesheet" href="footer-cta.css">
+    <link rel="stylesheet" href="faq.css">
 
     <style>
         :root {
@@ -486,6 +495,59 @@
             margin: auto;
             position: relative;
             box-sizing: border-box;
+        }
+
+        .section-kicker {
+            font-size: clamp(1.6rem, 3vw, 2.4rem);
+            line-height: 1.1;
+            margin: 0 4px 20px;
+        }
+
+        .guide-banner {
+            width: calc(100vw - 40px);
+            margin: 16px auto 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 24px;
+            padding: 28px 32px;
+            border-radius: var(--radius-box);
+            background: linear-gradient(135deg, #3a281f 0%, #1c1917 55%, #202d3d 100%);
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+        }
+
+        .guide-banner:hover,
+        .guide-banner:focus-visible {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+        }
+
+        .guide-banner h2 {
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            line-height: 1.1;
+            margin-bottom: 8px;
+        }
+
+        .guide-banner p {
+            color: var(--text-dim);
+            font-size: 1.05rem;
+            max-width: 46rem;
+        }
+
+        .guide-banner-cta {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: var(--radius-btn);
+            background: var(--text);
+            color: var(--bg);
+            font-weight: 700;
+            font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
         .bento-grid-wrapper {
@@ -1096,63 +1158,6 @@
             }
         }
 
-        /* CTA */
-        .bottom-cta {
-            width: calc(100vw - 40px);
-            height: calc(100dvh - 36px);
-            padding: 0;
-            margin: 16px auto 20px auto;
-            box-sizing: border-box;
-            display: flex;
-        }
-
-        .cta-box {
-            background: var(--surface);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: var(--radius-box);
-            padding: 40px;
-            position: relative;
-            overflow: hidden;
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-
-            .cta-main h2 {
-                font-size: clamp(3rem, 8vw, 5rem);
-                margin-bottom: 24px;
-                color: var(--text);
-                line-height: 1.1;
-            }
-
-            .cta-main p {
-                font-size: clamp(1.2rem, 3vw, 2rem);
-                color: var(--text-dim);
-                margin-bottom: 48px;
-                font-weight: 500;
-            }
-
-            .footer-info {
-                position: absolute;
-                bottom: 10px;
-                left: 50%;
-                transform: translateX(-50%);
-                font-size: 0.9rem;
-                color: var(--text-dim);
-                margin: 0;
-                width: 100%;
-                text-align: center;
-                padding: 0 24px;
-
-                a {
-                    color: var(--text);
-                    font-weight: 600;
-                    text-decoration: underline;
-                }
-            }
-        }
-
         /* 3-column cards should collapse once the grid naturally drops below 3 columns. */
         @media (max-width: 975px) {
 
@@ -1254,10 +1259,6 @@
                 font-size: 2.2rem;
             }
 
-            .cta-box h2 {
-                font-size: 2.5rem;
-            }
-
             .bento-grid-wrapper {
                 padding: 0 1rem;
             }
@@ -1273,169 +1274,6 @@
                 height: 144px;
             }
 
-        }
-
-        /* CTA Combined Animated Background & Border */
-        .cta-box {
-            background: transparent !important;
-            border: none !important;
-        }
-
-        .cta-box::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            border-radius: inherit;
-            padding: 2px;
-            background: linear-gradient(45deg, var(--pop-blue), var(--pop-purple), var(--pop-pink), var(--pop-orange), var(--pop-yellow), var(--pop-green));
-            background-size: 400% 400%;
-            animation: gradient-border 8s linear infinite;
-            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-            mask-composite: exclude;
-            -webkit-mask-composite: xor;
-            opacity: 0.7;
-            pointer-events: none;
-        }
-
-        @keyframes gradient-border {
-            0% {
-                background-position: 0% 50%;
-            }
-
-            50% {
-                background-position: 100% 50%;
-            }
-
-            100% {
-                background-position: 0% 50%;
-            }
-        }
-
-        .cta-background {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            overflow: hidden;
-            border-radius: inherit;
-            background: radial-gradient(circle at top center, #1f1225 0%, #000000 100%);
-        }
-
-
-
-        .cta-content-wrapper {
-            position: relative;
-            z-index: 2;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-        }
-
-        .cta-main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .cta-main .btn {
-            margin-bottom: 24px;
-        }
-
-        .cta-animate {
-            opacity: 0;
-            transform: translateY(30px);
-            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .cta-animate.is-visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .cta-delay-1 {
-            transition-delay: 0.1s;
-        }
-
-        .cta-delay-2 {
-            transition-delay: 0.2s;
-        }
-
-        .cta-delay-3 {
-            transition-delay: 0.3s;
-        }
-
-        .cta-delay-4 {
-            transition-delay: 0.4s;
-        }
-
-        .replay-section {
-            display: none;
-            position: absolute;
-            bottom: 0px;
-            right: 0px;
-            width: 400px;
-            background: rgba(28, 25, 23, 0.65);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: var(--radius-box);
-            padding: 32px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            opacity: 0;
-            transform: translateY(30px);
-            transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-            flex-direction: column;
-            align-items: flex-start;
-            z-index: 100;
-            box-sizing: border-box;
-        }
-
-        .replay-section.is-visible {
-            display: flex;
-        }
-
-        .replay-section.is-faded-in {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .replay-section h3 {
-            font-size: 1.5rem;
-            margin-bottom: 8px;
-            line-height: 1.2;
-            color: var(--text);
-        }
-
-        .visually-hidden {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border: 0;
-        }
-
-        .replay-text {
-            font-size: 1.05rem;
-            color: var(--text-dim);
-            margin-bottom: 24px;
-            font-weight: 500;
-            line-height: 1.5;
-        }
-
-        .replay-btn {
-            padding: 14px 24px;
-            font-size: 1rem;
-            width: 100%;
-            justify-content: center;
         }
 
         /* FAQ Section */
@@ -1515,8 +1353,7 @@
             width: 100%;
         }
 
-        .faq-action-icon,
-        .faq-item-indicator {
+        .faq-action-icon {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -1685,109 +1522,6 @@
             overflow-y: auto;
         }
 
-        .faq-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .faq-item {
-            border-radius: 24px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            overflow: hidden;
-            transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .faq-item:hover {
-            background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(255, 255, 255, 0.15);
-        }
-
-        .faq-item.is-open {
-            background: rgba(74, 222, 128, 0.06);
-            border-color: rgba(74, 222, 128, 0.25);
-        }
-
-        .faq-item.is-open:hover {
-            background: rgba(74, 222, 128, 0.08);
-            border-color: rgba(74, 222, 128, 0.35);
-        }
-
-        .faq-item-toggle {
-            width: 100%;
-            border: 0;
-            padding: 24px 28px;
-            background: transparent;
-            color: inherit;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            text-align: left;
-            cursor: pointer;
-            appearance: none;
-            font: inherit;
-        }
-
-        .faq-item-toggle h3 {
-            font-size: clamp(1.2rem, 1.8vw, 1.4rem);
-            line-height: 1.3;
-            font-weight: 700;
-        }
-
-        .faq-item-indicator {
-            width: 40px;
-            height: 40px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            font-size: 1.5rem;
-            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease, color 0.3s ease;
-            flex-shrink: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-        }
-
-        .faq-item.is-open .faq-item-indicator {
-            transform: rotate(45deg);
-            background: rgba(74, 222, 128, 0.15);
-            color: var(--pop-green);
-        }
-
-        .faq-item-answer {
-            display: grid;
-            grid-template-rows: 0fr;
-            opacity: 0;
-            transition: grid-template-rows 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
-        }
-
-        .faq-item.is-open .faq-item-answer {
-            grid-template-rows: 1fr;
-            opacity: 1;
-        }
-
-        .faq-item-answer-inner {
-            overflow: hidden;
-        }
-
-        .faq-item-answer-content {
-            padding: 0 28px 24px;
-            color: rgba(250, 250, 249, 0.84);
-            font-size: 1.05rem;
-            line-height: 1.7;
-        }
-
-        .faq-item-answer-content a {
-            color: inherit;
-        }
-
-        .faq-item-answer-content p+p {
-            margin-top: 16px;
-        }
-
         .fancybox__container {
             --f-animation-duration: 0.3s;
             --f-transition-duration: 0.3s;
@@ -1858,9 +1592,7 @@
             }
 
             .faq-panel-header,
-            .faq-panel-body,
-            .faq-item-toggle,
-            .faq-item-answer-content {
+            .faq-panel-body {
                 padding-left: 20px;
                 padding-right: 20px;
             }
@@ -1869,15 +1601,6 @@
                 padding-top: 22px;
                 padding-bottom: 18px;
             }
-
-            .faq-item-toggle {
-                padding-top: 22px;
-                padding-bottom: 22px;
-            }
-
-            .faq-item-answer-content {
-                padding-bottom: 22px;
-            }
         }
     </style>
 </head>
@@ -1885,10 +1608,12 @@
 <body>
     <div class="hero-wrapper container">
         <nav>
-            <a href="#" class="brand">
+            <a href="/" class="brand">
                 silence<span>!</span>
             </a>
             <div class="nav-actions">
+                <a href="mic-mute/" class="nav-link">How to mute</a>
+                <a href="compare/" class="nav-link">Compare</a>
                 <a href="#screenshots" class="nav-link" onclick="document.getElementById('screenshots-card')?.click(); return false;">Screenshots</a>
                 <a href="#faq" class="nav-link" onclick="document.getElementById('faq-open-button')?.click(); return false;">FAQ</a>
                 <a href="https://github.com/vertopolkaLF/silence" target="_blank" class="nav-link" style="display: flex; align-items: center; gap: 6px;">
@@ -1907,12 +1632,11 @@
                 Open Source & Free Forever
             </div>
             <h1>
-                <span class="hero-anim hero-delay-2" style="display: inline-block;">Never ask</span> <br>
-                <span class="hero-anim hero-delay-3" style="display: inline-block;"><span class="highlight">"Am I muted?"</span></span><br>
-                <span class="hero-anim hero-delay-4" style="display: inline-block;">again.</span>
+                <span class="hero-anim hero-delay-2" style="display: inline-block;">Mute your mic</span> <br>
+                <span class="hero-anim hero-delay-3" style="display: inline-block;">in <span class="highlight">every app.</span></span>
             </h1>
             <p class="hero-anim hero-delay-5">
-                A ridiculously good Windows app to <b>mute your mic</b> on OS level.
+                Never ask <b>"Am I muted?"</b> again. A Windows <b>mic mute</b> app that silences the microphone itself, so Discord, Teams, games, and the browser all go quiet together.
                 <br />
                 Multi-action hotkeys, gamepad support, hold actions, auto-mute, device switching, visual overlay and a <i>looooot of features</i>
             </p>
@@ -1932,7 +1656,7 @@
 
     <section class="bento-section bento-anim" aria-labelledby="features-title">
         <div class="bento-grid-wrapper">
-            <h2 class="visually-hidden" id="features-title">silence! features</h2>
+            <h2 class="section-kicker" id="features-title">Mic mute features</h2>
             <div class="bento-grid">
 
                 <div class="bento-card span-2x2 bg-gradient-dark">
@@ -2006,7 +1730,7 @@
                         <iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon>
                     </div>
                     <div class="card-copy">
-                        <h3>Global<br>Hotkeys.</h3>
+                        <h3>Global mic mute<br>hotkeys.</h3>
                         <p>Bind keyboard, mouse, or gamepad shortcuts for mute, unmute, hold actions, device switching, and opening Settings.</p>
                     </div>
                 </div>
@@ -2205,6 +1929,17 @@
         </div>
     </section>
 
+    <a class="guide-banner bento-anim" href="mic-mute/">
+        <div>
+            <h2>How to mute your mic on Windows</h2>
+            <p>Win + Alt + K, Sound settings, app shortcuts, and a global hotkey. The honest walkthrough.</p>
+        </div>
+        <span class="guide-banner-cta">
+            Read the guide
+            <iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon>
+        </span>
+    </a>
+
     <section class="faq-section">
         <div class="faq-container">
             <button type="button" class="faq-action-card bg-faq-green" id="screenshots-card" aria-label="Open screenshots gallery">
@@ -2239,16 +1974,16 @@
         </div>
 
         <div class="faq-gallery" aria-hidden="true">
-            <a href="screenshots/1.png" data-fancybox="screenshots" data-thumb="screenshots/1.png" data-caption="Hotkeys page with blue accent"></a>
-            <a href="screenshots/2.png" data-fancybox="screenshots" data-thumb="screenshots/2.png" data-caption="Devices page with green accent"></a>
-            <a href="screenshots/3.png" data-fancybox="screenshots" data-thumb="screenshots/3.png" data-caption="Sounds page with blue accent"></a>
-            <a href="screenshots/4.png" data-fancybox="screenshots" data-thumb="screenshots/4.png" data-caption="Overlay page with red accent"></a>
-            <a href="screenshots/5.png" data-fancybox="screenshots" data-thumb="screenshots/5.png" data-caption="Hold to Mute page with purple accent"></a>
-            <a href="screenshots/6.png" data-fancybox="screenshots" data-thumb="screenshots/6.png" data-caption="Tray Icon page with red accent"></a>
-            <a href="screenshots/7.png" data-fancybox="screenshots" data-thumb="screenshots/7.png" data-caption="Auto-Mute page with blue accent"></a>
-            <a href="screenshots/8.png" data-fancybox="screenshots" data-thumb="screenshots/8.png" data-caption="General and Import/Export page with green accent"></a>
-            <a href="screenshots/9.png" data-fancybox="screenshots" data-thumb="screenshots/9.png" data-caption="About and Updates page with blue accent"></a>
-            <a href="screenshots/10.png" data-fancybox="screenshots" data-thumb="screenshots/10.png" data-caption="Tray menu"></a>
+            <a href="screenshots/1.png" data-fancybox="screenshots" data-thumb="screenshots/1.png" data-caption="Hotkeys page with blue accent"><img src="screenshots/1.png" alt="silence! hotkeys page for Windows mic mute" width="1280" height="800"></a>
+            <a href="screenshots/2.png" data-fancybox="screenshots" data-thumb="screenshots/2.png" data-caption="Devices page with green accent"><img src="screenshots/2.png" alt="silence! microphone device selection for mic mute" width="1280" height="800"></a>
+            <a href="screenshots/3.png" data-fancybox="screenshots" data-thumb="screenshots/3.png" data-caption="Sounds page with blue accent"><img src="screenshots/3.png" alt="silence! mute and unmute sound settings" width="1280" height="800"></a>
+            <a href="screenshots/4.png" data-fancybox="screenshots" data-thumb="screenshots/4.png" data-caption="Overlay page with red accent"><img src="screenshots/4.png" alt="silence! on-screen mic mute overlay settings" width="1280" height="800"></a>
+            <a href="screenshots/5.png" data-fancybox="screenshots" data-thumb="screenshots/5.png" data-caption="Hold to Mute page with purple accent"><img src="screenshots/5.png" alt="silence! hold to mute settings" width="1280" height="800"></a>
+            <a href="screenshots/6.png" data-fancybox="screenshots" data-thumb="screenshots/6.png" data-caption="Tray Icon page with red accent"><img src="screenshots/6.png" alt="silence! tray icon styles showing mic mute status" width="1280" height="800"></a>
+            <a href="screenshots/7.png" data-fancybox="screenshots" data-thumb="screenshots/7.png" data-caption="Auto-Mute page with blue accent"><img src="screenshots/7.png" alt="silence! auto-mute timer settings" width="1280" height="800"></a>
+            <a href="screenshots/8.png" data-fancybox="screenshots" data-thumb="screenshots/8.png" data-caption="General and Import/Export page with green accent"><img src="screenshots/8.png" alt="silence! general settings and import export" width="1280" height="800"></a>
+            <a href="screenshots/9.png" data-fancybox="screenshots" data-thumb="screenshots/9.png" data-caption="About and Updates page with blue accent"><img src="screenshots/9.png" alt="silence! about and in-app updates" width="1280" height="800"></a>
+            <a href="screenshots/10.png" data-fancybox="screenshots" data-thumb="screenshots/10.png" data-caption="Tray menu"><img src="screenshots/10.png" alt="silence! tray menu with mic mute controls" width="1280" height="800"></a>
         </div>
     </section>
 
@@ -2265,178 +2000,7 @@
             </div>
 
             <div class="faq-panel-body">
-                <div class="faq-list" role="list">
-
-                    <article class="faq-item is-open">
-                        <button type="button" class="faq-item-toggle" aria-expanded="true">
-                            <h3>Why use silence! if my mic already has a physical mute button?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of &quot;emergency&quot; with less hand movement.</p>
-                                    <p>The overlay and sounds also help you notice when you're still muted, so you avoid those &quot;how long was I muted?&quot; moments.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Can I request a feature?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>Please do! A lot of features in the updates came from the community, including gamepad hotkeys, richer overlay controls, tray icon styles, auto-mute, custom sounds, and Hold-to-Mute.</p>
-                                    <p>You can suggest a feature or report a bug on <a href="https://github.com/vertopolkaLF/silence/issues" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>How is this different from Windows 11's Win + Alt + K mute shortcut?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>silence! mutes the selected microphone device directly, so it keeps working even when Windows says there are no supported apps using the mic.</p>
-                                    <p>It is also a more reliable way to mute the mic, and it works on Windows 10 too.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>How is it better than muting in Discord, Teams, or another app?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>You don't need to configure the same shortcut in every app, because silence! works at the microphone device level. One set of hotkeys can cover calls, games, browsers, recording tools, and whatever else is currently trying to hear you breathe.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Can silence! mute only one app instead of muting me everywhere?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>No. silence! is designed as a system-level mic mute, so if you mute with silence!, your microphone is muted for every app using that device.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Does it warn me if I start talking while muted?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>No, and probably never will. The goal with silence! is to make mic control reliable first, and everything else comes after that.</p>
-                                    <p>If the app had to keep access to the microphone while other apps did not, that could make mute behavior less trustworthy. When the mic is muted, silence! also does not have microphone access.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Can I 100% trust that my mic is muted?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>You should never trust anything 100%, but I'm pretty confident in it. silence! uses low-level hotkey detection and mutes the mic in a <i>Windows way&trade;</i>.</p>
-                                    <p>When you mute your mic with silence!, you can confirm it in Windows microphone properties, and some microphones with physical indicators will reflect that state too. Keep in mind that some apps can still force an unmute.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Why this app is so good?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>Short answer: because I use it myself.</p>
-                                    <p>Long answer: I care about control, reliability, and polish, so the app is built around the workflows I actually need every day: fast mute control, clear feedback, and settings that apply immediately.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>Why this app was made in the first place?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>I'm a bit addicted to control and efficiency while using my PC, and I wanted a shortcut to mute my mic. Reaching for a Stream Deck during gaming was awkward.</p>
-                                    <p>I tried a lot of alternatives. Some relied on AHK and got blocked in games, and some were just bad. I got tired of that and decided to build my own app for something as simple as muting the mic.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="faq-item">
-                        <button type="button" class="faq-item-toggle" aria-expanded="false">
-                            <h3>What changed in silence! v2?</h3>
-                            <span class="faq-item-indicator" aria-hidden="true">
-                                <iconify-icon icon="fluent:add-20-filled"></iconify-icon>
-                            </span>
-                        </button>
-                        <div class="faq-item-answer">
-                            <div class="faq-item-answer-inner">
-                                <div class="faq-item-answer-content">
-                                    <p>v2 is a rebuild focused on more control and cleaner settings: multiple hotkey actions, gamepad support, default input and output device switching, hold actions, auto-mute, custom overlay and tray icon styles, import/export, v1 settings import, and an in-app updater.</p>
-                                    <p>Settings apply immediately, because Save buttons for this kind of utility are ceremonial nonsense.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-
-                </div>
+                <div class="faq-list" id="faq-list" role="list"></div>
             </div>
         </aside>
     </div>
@@ -2531,6 +2095,7 @@
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.js"></script>
+    <script src="faq.js"></script>
 
     <script>
         (function () {
@@ -2541,7 +2106,6 @@
             const panel = document.getElementById('faq-panel');
             const panelBackdrop = document.getElementById('faq-panel-backdrop');
             const panelClose = document.getElementById('faq-panel-close');
-            const faqItems = Array.from(document.querySelectorAll('.faq-item'));
             const isFaqHash = () => window.location.hash.toLowerCase() === '#faq';
             let lastPanelTrigger = null;
             const setupScreenshotsFade = (fancyboxRef) => {
@@ -2608,48 +2172,6 @@
                 screenshotLinks[0]?.click();
             });
 
-            const setOpenItem = (nextItem) => {
-                faqItems.forEach((item) => {
-                    const isOpen = item === nextItem;
-                    item.classList.toggle('is-open', isOpen);
-
-                    const toggle = item.querySelector('.faq-item-toggle');
-                    if (toggle) {
-                        toggle.setAttribute('aria-expanded', String(isOpen));
-                    }
-                });
-            };
-
-            faqItems.forEach((item, index) => {
-                const toggle = item.querySelector('.faq-item-toggle');
-                toggle?.addEventListener('click', () => {
-                    const isOpening = !item.classList.contains('is-open');
-                    setOpenItem(item);
-
-                    if (isOpening) {
-                        setTimeout(() => {
-                            const panelBody = document.querySelector('.faq-panel-body');
-                            const itemRect = item.getBoundingClientRect();
-                            const bodyRect = panelBody.getBoundingClientRect();
-
-                            // Check if item is out of view (especially the bottom of the expanded answer)
-                            if (itemRect.bottom > bodyRect.bottom || itemRect.top < bodyRect.top) {
-                                // Calculate the precise scroll position
-                                const scrollOffset = item.offsetTop - panelBody.offsetTop;
-                                panelBody.scrollTo({
-                                    top: scrollOffset,
-                                    behavior: 'smooth'
-                                });
-                            }
-                        }, 280); // Wait for CSS transition
-                    }
-                });
-
-                if (index === 0) {
-                    setOpenItem(item);
-                }
-            });
-
             const openPanel = () => {
                 lastPanelTrigger = document.activeElement;
                 panelShell?.classList.add('is-open');
@@ -2689,199 +2211,7 @@
         })();
     </script>
 
-    <script>
-        (function () {
-            const canvas = document.getElementById('stars-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-
-            let width, height;
-            const colors = [
-                '#c084fc', // pop-purple
-                '#4ade80', // pop-green
-                '#fb923c', // pop-orange
-                '#f472b6', // pop-pink
-                '#60a5fa', // pop-blue
-                '#fde047', // pop-yellow
-                '#ffffff'  // white
-            ];
-
-            let stars = [];
-            const STAR_COUNT = 100;
-
-            let currentFtl = 1;
-            let targetFtl = 1;
-            let ftlTimeout;
-
-            function resize() {
-                width = canvas.offsetWidth;
-                height = canvas.offsetHeight;
-                canvas.width = width * window.devicePixelRatio;
-                canvas.height = height * window.devicePixelRatio;
-                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-            }
-
-            window.addEventListener('resize', resize);
-            resize();
-
-            class Star {
-                constructor(randomY = true) {
-                    this.reset(randomY);
-                }
-
-                reset(randomY = false) {
-                    this.x = Math.random() * width;
-                    this.y = randomY ? Math.random() * height : height + 10 + (Math.random() * currentFtl * 5);
-                    this.baseSize = Math.random() * 3 + 1.5; // 1.5px to 4.5px
-                    this.color = colors[Math.floor(Math.random() * colors.length)];
-
-                    const duration = Math.random() * 15 + 5; // 5 to 20 seconds
-                    const distance = window.innerHeight * 1.2;
-                    this.speed = distance / (duration * 60);
-
-                    this.progress = randomY ? Math.random() : 0;
-                    this.progressSpeed = 1 / (duration * 60);
-                }
-
-                update() {
-                    this.y -= this.speed * currentFtl;
-                    this.progress += this.progressSpeed * (1 + (currentFtl - 1) * 0.1);
-
-                    if (this.progress >= 1 || this.y < -200) {
-                        this.reset();
-                    }
-                }
-
-                draw() {
-                    let opacity = 0;
-                    if (this.progress < 0.2) {
-                        opacity = this.progress / 0.2 * 0.8;
-                    } else if (this.progress < 0.8) {
-                        opacity = 0.8;
-                    } else {
-                        opacity = (1 - this.progress) / 0.2 * 0.8;
-                    }
-
-                    // Keep them bright during FTL
-                    if (currentFtl > 2) {
-                        opacity = Math.min(1, opacity * 1.5);
-                    }
-
-                    // Smoothly scale up during FTL
-                    const ftlScale = 1 + Math.min(1.5, (currentFtl - 1) / 15);
-                    const scale = (0.5 + this.progress) * ftlScale;
-                    const size = this.baseSize * scale;
-
-                    ctx.save();
-                    ctx.globalAlpha = opacity;
-
-                    // Smoothly fade out blur to maintain performance with long trails
-                    ctx.shadowBlur = Math.max(0, size * 2 * (1 - (currentFtl - 1) / 2));
-                    ctx.shadowColor = this.color;
-
-                    // Smooth transition from circle to stretched line
-                    ctx.beginPath();
-                    ctx.moveTo(this.x, this.y);
-
-                    // Stretch is near 0 at normal speed, grows seamlessly with FTL
-                    const stretch = Math.max(0.1, (currentFtl - 1) * this.speed * 2);
-                    ctx.lineTo(this.x, this.y + stretch);
-
-                    ctx.lineWidth = size;
-                    ctx.lineCap = 'round';
-                    ctx.strokeStyle = this.color;
-                    ctx.stroke();
-
-                    ctx.restore();
-                }
-            }
-
-            for (let i = 0; i < STAR_COUNT; i++) {
-                stars.push(new Star(true));
-            }
-
-            let animationFrameId;
-            function animate() {
-                // Smooth easing for FTL speed up and slow down
-                currentFtl += (targetFtl - currentFtl) * 0.05;
-
-                ctx.clearRect(0, 0, width, height);
-                for (let star of stars) {
-                    star.update();
-                    star.draw();
-                }
-                animationFrameId = requestAnimationFrame(animate);
-            }
-
-            // Start animation only when in viewport to save resources
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        if (!animationFrameId) animate();
-                    } else {
-                        if (animationFrameId) {
-                            cancelAnimationFrame(animationFrameId);
-                            animationFrameId = null;
-                        }
-                    }
-                });
-            });
-
-            observer.observe(canvas);
-
-            // Scroll animation for CTA text
-            const ctaObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        document.querySelectorAll('.cta-animate').forEach(el => {
-                            el.classList.add('is-visible');
-                        });
-                        // Optional: unobserve after animating once
-                        ctaObserver.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.5 });
-
-            const ctaBox = document.querySelector('.cta-box');
-            if (ctaBox) {
-                ctaObserver.observe(ctaBox);
-            }
-
-            // FTL Trigger on download
-            const replaySection = document.getElementById('replay-section');
-            const replayBtn = document.getElementById('replay-btn');
-
-            function triggerFTL() {
-                targetFtl = 40;
-                if (ftlTimeout) clearTimeout(ftlTimeout);
-                ftlTimeout = setTimeout(() => {
-                    targetFtl = 1;
-
-                    // Show replay section after animation slows down
-                    setTimeout(() => {
-                        if (replaySection && !replaySection.classList.contains('is-visible')) {
-                            replaySection.classList.add('is-visible');
-                            setTimeout(() => {
-                                replaySection.classList.add('is-faded-in');
-                            }, 50);
-                        }
-                    }, 1000);
-                }, 3000);
-            }
-
-            document.querySelectorAll('.btn-primary').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    triggerFTL();
-                });
-            });
-
-            if (replayBtn) {
-                replayBtn.addEventListener('click', () => {
-                    triggerFTL();
-                });
-            }
-        })();
-    </script>
+    <script src="footer-cta.js"></script>
 </body>
 
 </html>

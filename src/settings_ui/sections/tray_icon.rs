@@ -18,7 +18,6 @@ pub(crate) struct State {
 }
 
 const TILE_HEIGHT: f32 = 56. + 5. + 16.5;
-const EXTRA_HEIGHT: f32 = 2. + TILE_HEIGHT * 2. + 10.;
 
 /// Native `title` hints from the original buttons, hosted by GPUI.
 struct Hint(SharedString);
@@ -48,13 +47,6 @@ pub(crate) fn render(
     let tone = if muted { p.danger } else { p.success };
     let status_open = config.variant == "StatusMic";
     let expanded = app.sections.tray_icon.icons_expanded;
-    let status = anim::tween(
-        window,
-        cx,
-        "tray-status-reveal",
-        status_open as u8 as f32,
-        anim::UI,
-    );
     let extra = anim::tween(
         window,
         cx,
@@ -63,7 +55,7 @@ pub(crate) fn render(
         anim::UI,
     );
 
-    let mut variants = div().flex().gap(px(12.));
+    let mut variants = div().w_full().flex().gap(px(10.));
     for (value, label) in [
         ("Logo", "Logo"),
         ("StatusMic", "Mic status"),
@@ -86,14 +78,14 @@ pub(crate) fn render(
                 .bg(p.success.hsla())
                 .into_any_element(),
         };
-        variants = variants.child(tile(
+        variants = variants.child(super::form::choice_card(
             format!("tray-variant-{value}").into(),
             label,
             config.variant == value,
             preview,
             window,
             cx,
-            move |app, _, cx| {
+            move |app, cx| {
                 if value != "StatusMic" && app.open_select.as_deref() == Some("tray-status-color") {
                     app.open_select = None;
                 }
@@ -127,7 +119,7 @@ pub(crate) fn render(
     ));
 
     let mut extras = div().flex().flex_col().gap(px(10.)).pt(px(2.));
-    if status > 0. && extra > 0. {
+    {
         for pairs in crate::overlay_icons::extra_overlay_icon_pairs().chunks(6) {
             extras = extras.child(
                 div().flex().justify_between().w_full().children(
@@ -148,17 +140,16 @@ pub(crate) fn render(
             .child(primary)
             // CSS gives the closed extra wrapper a -2px margin, leaving 8px
             // of the field's 10px gap. Clip during the 200ms grid reveal.
-            .child(
-                div()
-                    .mt(px(-2.))
-                    .h(px(EXTRA_HEIGHT * extra))
-                    .flex_shrink_0()
-                    .overflow_hidden()
-                    .opacity(extra)
-                    .child(extras),
-            ),
+            // Measured reveal: the grid's real height, not a hard-coded one.
+            .child(div().mt(px(-2.)).child(super::form::collapse(
+                "tray-extra-icons",
+                expanded,
+                extras,
+                window,
+                cx,
+            ))),
     );
-    if status > 0. {
+    {
         let mut options = SelectOptions::new(vec![
             SelectOption::new("Colored", "Colored").icon("pallete-2-linear"),
             SelectOption::new("Monochrome", "Monochrome").icon("ic-baseline-contrast"),
@@ -186,10 +177,40 @@ pub(crate) fn render(
                 .child(select),
         );
     }
-    // Fixed window / six-column grid: label + primary + collapsed extra gap,
-    // then the inner 16px gap and the color label + 44px select.
-    let status_height =
-        18.9 + 10. + TILE_HEIGHT + 8. + 16. + 18.9 + 10. + 44. + EXTRA_HEIGHT * extra;
+    let status_reveal = super::form::collapse(
+        "tray-status-content",
+        status_open,
+        status_content,
+        window,
+        cx,
+    );
+    let indicator = controls::select(
+        "tray-indicator-device",
+        app.snapshot.config.advanced.indicator_device.clone(),
+        SelectOptions::new(super::devices::indicator_device_options(
+            &app.snapshot.devices,
+            &app.snapshot.config.hotkeys,
+            &app.snapshot.config.advanced.indicator_device,
+            &app.snapshot.config.advanced.audio_device_name_display,
+        )),
+        app,
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |c| c.advanced.indicator_device = value.to_string())
+        },
+    );
+    let double_click = controls::toggle(
+        "tray-double-click-settings",
+        !app.snapshot.config.advanced.disable_tray_double_click_settings,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            app.update_config(cx, |config| {
+                config.advanced.disable_tray_double_click_settings = !checked
+            })
+        },
+    );
     let overview = div()
         .id("tray-icon-overview")
         .flex()
@@ -218,13 +239,35 @@ pub(crate) fn render(
                         .child(style::label("Tray icon style"))
                         .child(variants),
                 )
+                .child(status_reveal)
                 .child(
                     div()
-                        .h(px(status_height * status))
-                        .flex_shrink_0()
-                        .overflow_hidden()
-                        .opacity(status)
-                        .when(status > 0., |this| this.child(status_content)),
+                        .flex()
+                        .flex_col()
+                        .gap(px(10.))
+                        .child(style::label("Microphone shown in tray and overlay"))
+                        .child(indicator),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .gap(px(12.))
+                        .min_h(px(44.))
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(4.))
+                                .min_w_0()
+                                .child(style::h2("Double-click the icon to open settings"))
+                                .child(style::p(
+                                    "Turn off to mute on a single click with no delay.",
+                                    cx,
+                                )),
+                        )
+                        .child(double_click),
                 ),
         );
 
@@ -364,7 +407,7 @@ fn mic_tile(
 }
 
 /// `.overlay-icon-option` and its 56px preview; hover never changes borders.
-fn tile(
+pub(crate) fn tile(
     id: SharedString,
     label: &'static str,
     selected: bool,

@@ -34,11 +34,13 @@ pub(crate) struct State {
     library: Vec<LibraryRow>,
 }
 
-/// The preview sink is shared by both tabs; their UI state lives in Sections.
+/// The preview sink is shared; each page keeps its own playing flag.
 #[derive(Clone, Copy)]
 pub(crate) enum SoundContext {
     Sounds,
     HoldToMute,
+    /// One tick stored in `config.volume.sound.mute_theme`.
+    Volume,
 }
 
 impl SoundContext {
@@ -46,6 +48,7 @@ impl SoundContext {
         match self {
             Self::Sounds => &mut app.sections.sounds.preview,
             Self::HoldToMute => &mut app.sections.hold_to_mute.preview,
+            Self::Volume => &mut app.sections.volume.preview,
         }
     }
 }
@@ -215,50 +218,74 @@ pub(crate) fn sound_picker(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> Div {
-    let sounds = &app.snapshot.config.sound_settings;
-    let hold = &app.snapshot.config.hold_to_mute;
-    let base = if muted {
-        &sounds.mute_theme
+    let mic = app.snapshot.config.sound_settings.clone();
+    let hold = app.snapshot.config.hold_to_mute.clone();
+    let volume_sound = app.snapshot.config.volume.sound.clone();
+    let volume_tick = matches!(context, SoundContext::Volume);
+    let inherited = matches!(context, SoundContext::HoldToMute);
+    let mic_base = if muted {
+        mic.mute_theme.clone()
     } else {
-        &sounds.unmute_theme
+        mic.unmute_theme.clone()
     };
     let override_theme = if muted {
-        &hold.mute_theme_override
+        hold.mute_theme_override.clone()
     } else {
-        &hold.unmute_theme_override
+        hold.unmute_theme_override.clone()
     };
-    let inherited = matches!(context, SoundContext::HoldToMute);
+    // Volume has one tick. It lives in `mute_theme`; unmute stays untouched.
+    let base = if volume_tick {
+        volume_sound.mute_theme.clone()
+    } else {
+        mic_base.clone()
+    };
     let value = if inherited {
-        override_theme.as_deref().unwrap_or(DEFAULT_SOUND_OPTION)
+        override_theme
+            .clone()
+            .unwrap_or_else(|| DEFAULT_SOUND_OPTION.to_string())
     } else {
-        base
-    }
-    .to_string();
+        base.clone()
+    };
     let selection = if inherited {
-        override_theme.as_ref().unwrap_or(base)
+        override_theme.clone().unwrap_or(mic_base)
     } else {
-        base
-    }
-    .clone();
-    let volume = if inherited {
-        hold.volume_override.unwrap_or(sounds.volume)
+        base.clone()
+    };
+    // The volume tick always previews at full sample volume, like playback.
+    let playback_volume = if volume_tick {
+        100
+    } else if inherited {
+        hold.volume_override.unwrap_or(mic.volume)
     } else {
-        sounds.volume
+        mic.volume
     }
     .min(100);
     let has_override = override_theme.is_some();
+    let mut library = mic.custom_sounds.clone();
+    if volume_tick {
+        for sound in &volume_sound.custom_sounds {
+            if !library.iter().any(|existing| existing.id == sound.id) {
+                library.push(sound.clone());
+            }
+        }
+    }
+    let mut label_settings = if volume_tick { volume_sound } else { mic };
+    label_settings.custom_sounds = library.clone();
     let preview_title = if inherited {
         format!("Preview {title}")
     } else {
-        format!("Preview {}", crate::sound_selection_label(base, sounds))
+        format!(
+            "Preview {}",
+            crate::sound_selection_label(&base, &label_settings)
+        )
     };
-    let mut options = sound_options(&sounds.custom_sounds);
+    let mut options = sound_options(&library);
     if inherited {
         options.insert(
             0,
             SelectOption::new(
                 DEFAULT_SOUND_OPTION,
-                format!("Default ({})", crate::sound_selection_label(base, sounds)),
+                format!("Default ({})", crate::sound_selection_label(&base, &label_settings)),
             ),
         );
     } else {
@@ -271,7 +298,7 @@ pub(crate) fn sound_picker(
     options.disabled = inherited && !hold.play_sounds;
     if !inherited {
         options = options.on_option_action(move |app, value, _, cx| {
-            toggle_preview(app, context, value.to_string(), muted, volume, cx);
+            toggle_preview(app, context, value.to_string(), muted, playback_volume, cx);
         });
     }
     let select = controls::select(
@@ -283,7 +310,9 @@ pub(crate) fn sound_picker(
         cx,
         move |app, value, _, cx| {
             app.update_config(cx, |config| {
-                if inherited {
+                if volume_tick {
+                    config.volume.sound.mute_theme = value.to_string();
+                } else if inherited {
                     let value = (value.as_ref() != DEFAULT_SOUND_OPTION).then(|| value.to_string());
                     if muted {
                         config.hold_to_mute.mute_theme_override = value;
@@ -303,7 +332,7 @@ pub(crate) fn sound_picker(
         preview_title,
         selection,
         muted,
-        volume,
+        playback_volume,
         context,
         44.,
         app,
@@ -397,6 +426,12 @@ fn clear_preview(state: &mut PreviewState) {
     state.generation = state.generation.wrapping_add(1);
 }
 
+fn clear_all_previews(app: &mut SettingsApp) {
+    clear_preview(&mut app.sections.sounds.preview);
+    clear_preview(&mut app.sections.hold_to_mute.preview);
+    clear_preview(&mut app.sections.volume.preview);
+}
+
 fn toggle_preview(
     app: &mut SettingsApp,
     context: SoundContext,
@@ -409,15 +444,13 @@ fn toggle_preview(
     let stop = context.preview(app).playing.as_ref() == Some(&key);
     if stop {
         crate::stop_preview_sound();
-        clear_preview(&mut app.sections.sounds.preview);
-        clear_preview(&mut app.sections.hold_to_mute.preview);
+        clear_all_previews(app);
         cx.notify();
         return;
     }
     match crate::preview_sound(&selection, muted, volume) {
         Ok(duration_ms) => {
-            clear_preview(&mut app.sections.sounds.preview);
-            clear_preview(&mut app.sections.hold_to_mute.preview);
+            clear_all_previews(app);
             let state = context.preview(app);
             state.playing = Some(key);
             let generation = state.generation;
@@ -487,6 +520,17 @@ fn remove_sound(app: &mut SettingsApp, id: &str, cx: &mut Context<SettingsApp>) 
         }
         if config.hold_to_mute.unmute_theme_override.as_deref() == Some(&removed) {
             config.hold_to_mute.unmute_theme_override = None;
+        }
+        config
+            .volume
+            .sound
+            .custom_sounds
+            .retain(|sound| sound.id != id);
+        if config.volume.sound.mute_theme == removed {
+            config.volume.sound.mute_theme = "8bit".into();
+        }
+        if config.volume.sound.unmute_theme == removed {
+            config.volume.sound.unmute_theme = "8bit".into();
         }
     });
 }

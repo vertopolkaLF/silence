@@ -267,5 +267,7 @@ Section "Uninstall"
 
     ; Remove registry keys
     DeleteRegValue SHCTX "Software\Microsoft\Windows\CurrentVersion\Run" "silence!"
+    ; Highest-privileges logon task. Non-admin uninstall may fail to delete it.
+    ExecWait 'schtasks.exe /Delete /F /TN "\silence!\silence-elevated"'
     DeleteRegKey SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\{{bundle_id}}"
 SectionEnd

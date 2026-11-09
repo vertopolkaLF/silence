@@ -6,6 +6,9 @@ fn refresh_runtime_state() {
 }
 
 fn refresh_mic_in_use_state_throttled() {
+    if !microphone_module_enabled() {
+        return;
+    }
     let mut last_refresh = LAST_MIC_IN_USE_REFRESH.lock().unwrap();
     if last_refresh.is_some_and(|last| last.elapsed() < Duration::from_millis(MIC_IN_USE_REFRESH_MS))
     {
@@ -38,6 +41,9 @@ fn refresh_mic_in_use_state() {
 }
 
 fn refresh_mute_state() {
+    if !microphone_module_enabled() {
+        return;
+    }
     let states = enforce_default_capture_mute_volume()
         .and_then(|default_muted| Ok((default_muted, indicator_mute_state()?)));
     let (default_muted, muted) = match states {
@@ -59,6 +65,10 @@ fn refresh_mute_state() {
 }
 
 fn evaluate_auto_mute_inactivity() {
+    if !microphone_module_enabled() {
+        reset_auto_mute_monitoring_state();
+        return;
+    }
     let settings = STATE.lock().unwrap().auto_mute.clone();
     if !auto_mute_monitoring_enabled(&settings) {
         reset_auto_mute_monitoring_state();
@@ -214,15 +224,28 @@ fn load_config() -> Result<Config> {
 }
 
 fn parse_config_content(content: &str) -> Result<Config> {
-    let has_hotkeys = serde_json::from_str::<serde_json::Value>(&content)
-        .ok()
-        .and_then(|value| {
-            value
-                .as_object()
-                .map(|object| object.contains_key("hotkeys"))
-        })
-        .unwrap_or(false);
+    let raw = serde_json::from_str::<serde_json::Value>(&content).ok();
+    let has_key = |key: &str| {
+        raw.as_ref()
+            .and_then(|value| value.as_object())
+            .is_some_and(|object| object.contains_key(key))
+    };
+    let has_hotkeys = has_key("hotkeys");
+    let has_modules = has_key("modules");
     let mut config: Config = serde_json::from_str(&content)?;
+    // Configs from before the volume module: keep existing output/volume
+    // hotkeys working by turning the volume module on for their owners.
+    if !has_modules
+        && config
+            .hotkeys
+            .iter()
+            .any(|binding| binding.action.module() == HotkeyModule::Volume)
+    {
+        config.modules.volume = true;
+    }
+    if !config.modules.microphone && !config.modules.volume {
+        config.modules.microphone = true;
+    }
     if !has_hotkeys {
         config.hotkeys = vec![HotkeyBinding {
             shortcut: config.shortcut.clone(),
@@ -233,6 +256,7 @@ fn parse_config_content(content: &str) -> Result<Config> {
     migrate_custom_sound_settings(&mut config.sound_settings);
     normalize_overlay_config(&mut config.overlay);
     normalize_tray_icon_config(&mut config.tray_icon);
+    normalize_volume_config(&mut config.volume);
     config.advanced.audio_device_name_display =
         normalize_audio_device_name_display(&config.advanced.audio_device_name_display).to_string();
     config.auto_mute.after_inactivity_minutes =
@@ -385,6 +409,10 @@ pub fn import_settings() -> Result<()> {
     let mut config = parse_config_content(&content)?;
     config.welcome_completed = true;
     config.hotkeys_paused = false;
+    sync_startup_registration(
+        config.startup.launch_on_startup,
+        config.startup.run_as_administrator,
+    )?;
     save_config(&config)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
@@ -493,8 +521,11 @@ pub fn import_v1_settings() -> Result<()> {
         .unwrap_or_default();
     normalize_hotkeys(&mut config.hotkeys);
 
+    sync_startup_registration(
+        config.startup.launch_on_startup,
+        config.startup.run_as_administrator,
+    )?;
     save_config(&config)?;
-    sync_startup_registration(config.startup.launch_on_startup)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
 }
@@ -561,6 +592,10 @@ pub fn set_welcome_toggle_shortcut(shortcut: Shortcut) -> Result<()> {
 
 pub fn reset_settings() -> Result<()> {
     let config = Config::default();
+    sync_startup_registration(
+        config.startup.launch_on_startup,
+        config.startup.run_as_administrator,
+    )?;
     save_config(&config)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
@@ -853,6 +888,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     let indicator_device_changed =
         indicator_device_id(&state.advanced.indicator_device, &state.hotkeys)
             != indicator_device_id(&config.advanced.indicator_device, &config.hotkeys);
+    let microphone_was_enabled = state.modules.microphone;
     state.shortcut = config.shortcut.clone();
     state.hotkeys = config.hotkeys.clone();
     state.hotkeys_paused = config.hotkeys_paused;
@@ -862,6 +898,8 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.overlay = config.overlay.clone();
     state.tray_icon = config.tray_icon.clone();
     state.advanced = config.advanced.clone();
+    state.modules = config.modules.clone();
+    state.volume = config.volume.clone();
     state.welcome_completed = config.welcome_completed;
     state.modifiers = ModifierState::default();
     state.config_modified = modified;
@@ -883,10 +921,16 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     if gamepad_monitoring_needed(true) {
         ensure_gamepad_monitors(true);
     }
-    refresh_tray_icon();
-    apply_overlay_visibility();
+    sync_microphone_module(microphone_was_enabled);
+    if !hwnd.0.is_null() {
+        // Tray process only; the settings process has no OSD.
+        apply_volume_osd_config(config);
+    }
+    sync_volume_tray_icon();
     prime_sound_assets(&config.sound_settings);
+    sync_volume_input_runtime();
     if volume_zero_mute_changed
+        && config.modules.microphone
         && let Err(err) = sync_capture_volume_zero_mute_setting(
             config.advanced.set_mic_volume_to_zero_on_mute,
         )
@@ -897,6 +941,86 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
 
 fn hotkeys_blocked(state: &AppState) -> bool {
     state.hotkeys_paused || !state.welcome_completed
+}
+
+fn sync_microphone_module(was_enabled: bool) {
+    let enabled = microphone_module_enabled();
+    if was_enabled && !enabled {
+        let auto_muted = STATE.lock().unwrap().auto_muted_by_inactivity;
+        release_all_hold_hotkeys();
+        if auto_muted {
+            match set_mute(None, false) {
+                Ok(target_muted) => {
+                    let muted = indicator_mute_state().unwrap_or(target_muted);
+                    STATE.lock().unwrap().muted = muted;
+                }
+                Err(err) => eprintln!(
+                    "failed to clear inactivity auto-mute while disabling the microphone: {err:?}"
+                ),
+            }
+        }
+        reset_auto_mute_monitoring_state();
+    }
+
+    let hwnd = STATE.lock().unwrap().hwnd;
+    if !hwnd.0.is_null() {
+        if enabled {
+            let _ = add_tray_icon(hwnd);
+            refresh_tray_icon();
+            if !was_enabled {
+                refresh_mute_state();
+                refresh_mic_in_use_state();
+            }
+        } else {
+            remove_tray_icon();
+        }
+    }
+    apply_overlay_visibility();
+}
+
+fn normalize_volume_config(volume: &mut VolumeConfig) {
+    volume.wheel.step_percent = volume.wheel.step_percent.clamp(1, 100);
+    volume.tray_icon.custom_color = normalize_hex_color(&volume.tray_icon.custom_color)
+        .unwrap_or_else(default_volume_tray_color);
+    if !gpui_overlay::theme::THEMES
+        .iter()
+        .any(|(id, _)| *id == volume.osd.theme)
+    {
+        volume.osd.theme = default_volume_osd_theme();
+    }
+    volume.osd.display = volume.osd.display.trim().to_string();
+    if volume.osd.display.is_empty() {
+        volume.osd.display = default_volume_osd_display();
+    }
+    volume.osd.position_x = volume.osd.position_x.clamp(0.0, 100.0);
+    volume.osd.position_y = volume.osd.position_y.clamp(0.0, 100.0);
+    volume.osd.duration_ms = volume.osd.duration_ms.min(60_000);
+    volume.osd.scale = volume.osd.scale.clamp(10, 400);
+    volume.osd.text_font_weight = volume.osd.text_font_weight.clamp(100, 900);
+    volume.osd.background_opacity = volume.osd.background_opacity.min(100);
+    volume.osd.content_opacity = volume.osd.content_opacity.clamp(20, 100);
+    for radius in volume.osd.corner_radii.values_mut() {
+        *radius = (*radius).min(32);
+    }
+    migrate_custom_sound_settings(&mut volume.sound);
+    volume.sound.volume = volume.sound.volume.min(100);
+
+    let mut seen = HashSet::new();
+    volume.favorite_output_devices = volume
+        .favorite_output_devices
+        .iter()
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty() && seen.insert(id.clone()))
+        .collect();
+}
+
+fn normalize_hex_color(value: &str) -> Option<String> {
+    let hex = value.trim().trim_start_matches('#');
+    if hex.len() == 6 && hex.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        Some(format!("#{hex}").to_ascii_uppercase())
+    } else {
+        None
+    }
 }
 
 fn normalize_hotkeys(hotkeys: &mut [HotkeyBinding]) {
@@ -926,45 +1050,3 @@ fn config_modified_time() -> Option<SystemTime> {
     config_path().ok()?.metadata().ok()?.modified().ok()
 }
 
-pub(crate) fn sync_startup_registration(enabled: bool) -> Result<()> {
-    let subkey = wide(STARTUP_RUN_SUBKEY);
-    let value_name = wide(STARTUP_RUN_VALUE);
-
-    if enabled {
-        let command = format!(
-            "\"{}\"",
-            std::env::current_exe()
-                .context("locate current executable for startup registration")?
-                .display()
-        );
-        let command_wide = wide(&command);
-        let status = unsafe {
-            RegSetKeyValueW(
-                HKEY_CURRENT_USER,
-                PCWSTR(subkey.as_ptr()),
-                PCWSTR(value_name.as_ptr()),
-                REG_SZ.0,
-                Some(command_wide.as_ptr() as *const c_void),
-                (command_wide.len() * size_of::<u16>()) as u32,
-            )
-        };
-        anyhow::ensure!(
-            status == ERROR_SUCCESS,
-            "startup registration failed with status {status:?}"
-        );
-        return Ok(());
-    }
-
-    let status = unsafe {
-        RegDeleteKeyValueW(
-            HKEY_CURRENT_USER,
-            PCWSTR(subkey.as_ptr()),
-            PCWSTR(value_name.as_ptr()),
-        )
-    };
-    anyhow::ensure!(
-        status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND,
-        "startup registration removal failed with status {status:?}"
-    );
-    Ok(())
-}

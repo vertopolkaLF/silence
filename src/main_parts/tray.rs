@@ -1,4 +1,10 @@
 fn add_tray_icon(hwnd: HWND) -> Result<()> {
+    if !microphone_module_enabled() {
+        unsafe {
+            let _ = KillTimer(hwnd, ID_TRAY_ADD_RETRY_TIMER);
+        }
+        return Ok(());
+    }
     if TRAY_ICON_ADDED.load(Ordering::Relaxed) {
         return Ok(());
     }
@@ -146,7 +152,7 @@ fn create_status_mic_icon(config: &TrayIconConfig, muted: bool, mic_in_use: bool
                 (245, 245, 245)
             }
         }
-        "SystemColor" => WindowsAccent::load().accent,
+        "SystemColor" => WindowsAccent::load().fill(windows_uses_light_system_theme()),
         _ => state_accent(muted),
     };
     let mask = fit_alpha_mask(
@@ -207,7 +213,7 @@ fn draw_mic_in_use_badge(
     let accent = if config.status_style == "SystemColor" {
         if light_theme { (0, 0, 0) } else { (255, 255, 255) }
     } else {
-        WindowsAccent::load().accent
+        WindowsAccent::load().fill(light_theme)
     };
     let backing = if light_theme {
         (255, 255, 255)
@@ -541,17 +547,19 @@ fn refresh_tray_tip() {
 }
 
 fn remove_tray_icon() {
-    let state = STATE.lock().unwrap();
-    if state.hwnd.0.is_null() {
+    let hwnd = STATE.lock().unwrap().hwnd;
+    if hwnd.0.is_null() {
         return;
     }
     let nid = NOTIFYICONDATAW {
         cbSize: size_of::<NOTIFYICONDATAW>() as u32,
-        hWnd: state.hwnd,
+        hWnd: hwnd,
         uID: ID_TRAY,
         ..Default::default()
     };
     unsafe {
+        let _ = KillTimer(hwnd, ID_TRAY_ADD_RETRY_TIMER);
+        let _ = KillTimer(hwnd, ID_TRAY_CLICK_TIMER);
         let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
     }
     TRAY_ICON_ADDED.store(false, Ordering::Relaxed);
@@ -600,7 +608,15 @@ unsafe extern "system" fn main_wnd_proc(
 ) -> LRESULT {
     if msg == *TASKBAR_CREATED_MESSAGE {
         TRAY_ICON_ADDED.store(false, Ordering::Relaxed);
+        VOLUME_TRAY_ADDED.store(false, Ordering::Relaxed);
         let _ = add_tray_icon(hwnd);
+        add_volume_tray_icon(hwnd);
+        // The volume icon is added separately and should call
+        // `refresh_wheel_targets` again after its own NIM_ADD. This pass still
+        // picks up taskbar rects when that icon is missing.
+        if wheel_targets_refresh_wanted() {
+            refresh_wheel_targets();
+        }
         return LRESULT(0);
     }
 
@@ -612,6 +628,26 @@ unsafe extern "system" fn main_wnd_proc(
                 WM_LBUTTONDBLCLK => handle_tray_double_click(hwnd),
                 _ => {}
             }
+            LRESULT(0)
+        }
+        WM_VOLUME_TRAY => {
+            handle_volume_tray_message(hwnd, lparam.0 as u32);
+            LRESULT(0)
+        }
+        WM_VOLUME_OSD_PREVIEW => {
+            preview_volume_osd();
+            LRESULT(0)
+        }
+        WM_VOLUME_OSD_POSITIONING => {
+            set_volume_osd_positioning(wparam.0 != 0);
+            LRESULT(0)
+        }
+        WM_VOLUME_OSD_MOVED => {
+            save_moved_volume_osd();
+            LRESULT(0)
+        }
+        WM_VOLUME_POPUP => {
+            handle_volume_popup_request(wparam.0, lparam.0);
             LRESULT(0)
         }
         WM_COMMAND => {
@@ -635,6 +671,22 @@ unsafe extern "system" fn main_wnd_proc(
                 toggle_mute();
             } else if wparam.0 == ID_TRAY_ADD_RETRY_TIMER {
                 let _ = add_tray_icon(hwnd);
+            } else if wparam.0 == ID_WHEEL_REFRESH_TIMER {
+                if wheel_targets_refresh_wanted() {
+                    refresh_wheel_targets();
+                }
+            } else if wparam.0 == ID_HOOK_HEALTH_TIMER {
+                maintain_low_level_hooks();
+                check_volume_osd_positioning();
+            } else if wparam.0 == ID_VOLUME_SOUND_TIMER {
+                let _ = unsafe { KillTimer(hwnd, ID_VOLUME_SOUND_TIMER) };
+                play_debounced_volume_change_sound();
+            } else if wparam.0 == ID_VOLUME_TRAY_CLICK_TIMER {
+                let _ = unsafe { KillTimer(hwnd, ID_VOLUME_TRAY_CLICK_TIMER) };
+                let action = STATE.lock().unwrap().volume.clicks.left;
+                run_volume_click_action(action);
+            } else if wparam.0 == ID_VOLUME_TRAY_ADD_RETRY_TIMER {
+                add_volume_tray_icon(hwnd);
             }
             LRESULT(0)
         }
@@ -685,9 +737,30 @@ unsafe extern "system" fn main_wnd_proc(
         WM_AUDIO_ENDPOINT_CHANGED => {
             ensure_audio_notification_registration();
             refresh_mute_state();
+            on_capture_endpoints_changed();
+            LRESULT(0)
+        }
+        WM_OUTPUT_VOLUME_CHANGED => {
+            handle_output_volume_message(wparam, lparam);
+            LRESULT(0)
+        }
+        WM_OUTPUT_DEVICE_CHANGED => {
+            handle_output_device_changed();
+            LRESULT(0)
+        }
+        WM_VOLUME_WHEEL => {
+            handle_volume_wheel_message();
+            LRESULT(0)
+        }
+        WM_VOLUME_MEDIA_KEY => {
+            handle_volume_media_key(wparam.0);
             LRESULT(0)
         }
         WM_OVERLAY_POSITIONING => {
+            if !microphone_module_enabled() {
+                native_overlay::hide();
+                return LRESULT(0);
+            }
             let active = wparam.0 != 0;
             if let Some((x, y)) = native_overlay::set_positioning(active) {
                 save_overlay_position(x, y);
@@ -705,10 +778,22 @@ unsafe extern "system" fn main_wnd_proc(
         }
         WM_DISPLAYCHANGE => {
             native_overlay::reposition();
+            if wheel_targets_refresh_wanted() {
+                refresh_wheel_targets();
+            }
+            refresh_volume_tray();
             LRESULT(0)
         }
-        WM_SETTINGCHANGE | WM_THEMECHANGED => {
+        WM_DPICHANGED => {
+            if wheel_targets_refresh_wanted() {
+                refresh_wheel_targets();
+            }
+            refresh_volume_tray();
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+        }
+        WM_SETTINGCHANGE | WM_THEMECHANGED | WM_DWMCOLORIZATIONCOLORCHANGED => {
             refresh_tray_icon();
+            refresh_volume_tray();
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -743,6 +828,8 @@ fn show_tray_menu(hwnd: HWND) {
                 state.tray_icon.hide_mic_in_use_ignored_apps,
             )
         };
+        // Output devices live on the volume icon menu while that icon is shown.
+        let show_output_devices = !volume_menu_owns_output();
         let status = if muted {
             "Unmute Microphone"
         } else {
@@ -757,7 +844,11 @@ fn show_tray_menu(hwnd: HWND) {
         let install_update_w = wide("Install Update");
         let exit_w = wide("Exit");
         let input_devices = capture_devices().unwrap_or_default();
-        let output_devices = render_devices().unwrap_or_default();
+        let output_devices = if show_output_devices {
+            render_devices().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let mut mic_apps = mic_using_apps().unwrap_or_default();
         if hide_ignored_mic_apps {
             mic_apps.retain(|app| !is_process_image_ignored(&app.exe_name, &ignored_mic_apps));
@@ -784,21 +875,25 @@ fn show_tray_menu(hwnd: HWND) {
             let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
             commands.clear();
             if ungroup_devices {
-                append_output_device_menu(
-                    menu,
-                    &output_devices,
-                    &device_name_display,
-                    &mut commands,
-                );
-                let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+                if show_output_devices {
+                    append_output_device_menu(
+                        menu,
+                        &output_devices,
+                        &device_name_display,
+                        &mut commands,
+                    );
+                    let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
+                }
                 append_input_device_menu(menu, &input_devices, &device_name_display, &mut commands);
             } else {
-                append_output_device_menu(
-                    output_menu,
-                    &output_devices,
-                    &device_name_display,
-                    &mut commands,
-                );
+                if show_output_devices {
+                    append_output_device_menu(
+                        output_menu,
+                        &output_devices,
+                        &device_name_display,
+                        &mut commands,
+                    );
+                }
                 append_input_device_menu(
                     input_menu,
                     &input_devices,
@@ -811,12 +906,14 @@ fn show_tray_menu(hwnd: HWND) {
         let mic_apps_visible = !mic_apps.is_empty();
 
         if !ungroup_devices {
-            let _ = AppendMenuW(
-                menu,
-                MENU_ITEM_FLAGS(0x0000_0010),
-                output_menu.0 as usize,
-                PCWSTR(output_w.as_ptr()),
-            );
+            if show_output_devices {
+                let _ = AppendMenuW(
+                    menu,
+                    MENU_ITEM_FLAGS(0x0000_0010),
+                    output_menu.0 as usize,
+                    PCWSTR(output_w.as_ptr()),
+                );
+            }
             let _ = AppendMenuW(
                 menu,
                 MENU_ITEM_FLAGS(0x0000_0010),
@@ -872,7 +969,11 @@ fn show_tray_menu(hwnd: HWND) {
             (245, 245, 245)
         };
         let default_output_pos = MENU_POS_DEFAULT_OUTPUT + u32::from(update_available);
-        let default_input_pos = MENU_POS_DEFAULT_INPUT + u32::from(update_available);
+        let default_input_pos = if show_output_devices {
+            MENU_POS_DEFAULT_INPUT + u32::from(update_available)
+        } else {
+            default_output_pos
+        };
         if let Some(bitmap) = create_menu_app_bitmap() {
             let _ = SetMenuItemBitmaps(
                 menu,
@@ -912,10 +1013,12 @@ fn show_tray_menu(hwnd: HWND) {
             bitmaps.push(bitmap);
         }
         if !ungroup_devices {
-            if let Some(bitmap) = create_menu_svg_bitmap(
-                include_str!("../../assets/icons/volume-loud-linear.svg"),
-                icon_color,
-            ) {
+            if show_output_devices
+                && let Some(bitmap) = create_menu_svg_bitmap(
+                    include_str!("../../assets/icons/volume-loud-linear.svg"),
+                    icon_color,
+                )
+            {
                 let _ = SetMenuItemBitmaps(
                     menu,
                     default_output_pos,
@@ -984,6 +1087,8 @@ fn show_tray_menu(hwnd: HWND) {
         if ungroup_devices {
             let _ = DestroyMenu(output_menu);
             let _ = DestroyMenu(input_menu);
+        } else if !show_output_devices {
+            let _ = DestroyMenu(output_menu);
         }
         if !mic_apps_visible {
             let _ = DestroyMenu(mic_apps_menu);
@@ -1208,6 +1313,10 @@ fn launch_settings_window(tab_arg: Option<&str>) {
     let Ok(exe) = std::env::current_exe() else {
         return;
     };
+    // Settings inherits this process's integrity. Custom sounds are picked
+    // with a file dialog, not an Explorer drop target, so an elevated settings
+    // window does not lose a drag-drop. Keeping it elevated also lets shortcut
+    // capture see keys while an administrator window is focused.
     if tab_arg == Some("--about-update") {
         close_settings_window();
     }
@@ -1242,6 +1351,19 @@ fn focus_settings_window() -> bool {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
         SetForegroundWindow(hwnd).as_bool()
+    }
+}
+
+fn post_close_settings_window() {
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    let Ok(hwnd) = (unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }) else {
+        return;
+    };
+    if hwnd.0.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
     }
 }
 

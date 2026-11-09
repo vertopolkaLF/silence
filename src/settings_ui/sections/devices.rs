@@ -82,7 +82,7 @@ pub(crate) fn render(
         .child(device_list(
             "Output",
             "No active output devices found",
-            output,
+            output.clone(),
             rename_allowed,
             app,
             window,
@@ -96,7 +96,8 @@ pub(crate) fn render(
             app,
             window,
             cx,
-        ));
+        ))
+        ;
     let mut options = SelectOptions::new(vec![
         SelectOption::new(crate::AUDIO_DEVICE_NAME_PRETTY, "Pretty Name")
             .icon("microphone-3-linear"),
@@ -115,22 +116,6 @@ pub(crate) fn render(
             app.update_config(cx, |c| {
                 c.advanced.audio_device_name_display = value.to_string()
             })
-        },
-    );
-    let indicator = controls::select(
-        "devices-indicator",
-        app.snapshot.config.advanced.indicator_device.clone(),
-        SelectOptions::new(indicator_device_options(
-            &app.snapshot.devices,
-            &app.snapshot.config.hotkeys,
-            &app.snapshot.config.advanced.indicator_device,
-            &app.snapshot.config.advanced.audio_device_name_display,
-        )),
-        app,
-        window,
-        cx,
-        |app, value, _, cx| {
-            app.update_config(cx, |c| c.advanced.indicator_device = value.to_string())
         },
     );
     let toggle = controls::toggle(
@@ -153,14 +138,6 @@ pub(crate) fn render(
                     .flex()
                     .flex_col()
                     .gap(px(20.))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(16.))
-                            .child(style::h2("Tray icon and overlay show"))
-                            .child(indicator),
-                    )
                     .child(
                         div()
                             .flex()
@@ -481,6 +458,40 @@ fn device_row(
             },
         )
     });
+    let favorite = (!row.input).then(|| {
+        let is_favorite = app
+            .snapshot
+            .config
+            .volume
+            .favorite_output_devices
+            .iter()
+            .any(|id| id == &row.id);
+        let favorite_id = row.id.clone();
+        action(
+            (key.clone(), "favorite"),
+            if is_favorite { "star-bold" } else { "star-linear" },
+            if is_favorite {
+                "Favorite: next/previous output hotkeys cycle through favorites"
+            } else {
+                "Add to favorites for next/previous output hotkeys"
+            },
+            ActionKind::Favorite(is_favorite),
+            false,
+            window,
+            cx,
+            move |app, _, cx| {
+                let id = favorite_id.clone();
+                app.update_config(cx, |config| {
+                    let list = &mut config.volume.favorite_output_devices;
+                    if list.iter().any(|existing| existing == &id) {
+                        list.retain(|existing| existing != &id);
+                    } else {
+                        list.push(id);
+                    }
+                });
+            },
+        )
+    });
     let properties_row = row.clone();
     let properties = action(
         (key.clone(), "properties"),
@@ -573,6 +584,7 @@ fn device_row(
                 .flex()
                 .items_center()
                 .flex_shrink_0()
+                .children(favorite.map(|star| div().pr(px(6.)).child(star)))
                 .child(default)
                 .when(rename_slot > 0., |this| {
                     this.child(
@@ -591,6 +603,8 @@ fn device_row(
 #[derive(Clone, Copy)]
 enum ActionKind {
     Normal,
+    /// Star toggle; `true` while the device is a favorite.
+    Favorite(bool),
     Default,
     Commit,
     Cancel,
@@ -649,6 +663,13 @@ fn action(
     );
     let fg = match kind {
         ActionKind::Default => lerp(lerp(p.muted, p.text, hover), p.accent_text, default_active),
+        ActionKind::Favorite(on) => {
+            if on {
+                p.accent_text
+            } else {
+                lerp(p.muted, p.text, hover)
+            }
+        }
         ActionKind::Commit => p.success,
         ActionKind::Cancel => lerp(p.danger, p.danger_hover, hover),
         _ => lerp(p.muted, p.text, if disabled { 0. } else { hover }),
@@ -697,7 +718,7 @@ fn action(
 }
 
 /// Which microphone the tray icon and overlay reflect (`advanced.indicator_device`).
-fn indicator_device_options(
+pub(crate) fn indicator_device_options(
     devices: &[crate::MicDevice],
     hotkeys: &[crate::HotkeyBinding],
     selected: &str,

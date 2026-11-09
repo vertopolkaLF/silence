@@ -8,6 +8,7 @@ pub(crate) mod assets;
 pub(crate) mod color;
 pub(crate) mod controls;
 pub(crate) mod live;
+pub(crate) mod modules;
 pub(crate) mod sections;
 pub(crate) mod shell;
 pub(crate) mod style;
@@ -87,8 +88,12 @@ pub(crate) struct SettingsApp {
 impl SettingsApp {
     fn new(snapshot: SettingsSnapshot, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let palette = *cx.global::<Palette>();
-        let startup_tab = if settings_should_open_about() {
+        let startup_tab = if let Some(tab) = debug_startup_tab() {
+            tab
+        } else if settings_should_open_about() {
             SettingsTab::About
+        } else if settings_should_open_volume() {
+            SettingsTab::VolumeWheel
         } else {
             SettingsTab::Hotkeys
         };
@@ -125,16 +130,13 @@ impl SettingsApp {
         update: impl FnOnce(&mut crate::Config),
     ) {
         let mut config = crate::load_config().unwrap_or_else(|_| self.snapshot.config.clone());
-        let startup_was_enabled = config.startup.launch_on_startup;
         let mica_was_enabled = crate::effective_settings_mica_enabled(&config);
         update(&mut config);
         crate::normalize_hotkeys(&mut config.hotkeys);
         crate::normalize_overlay_config(&mut config.overlay);
         crate::normalize_tray_icon_config(&mut config.tray_icon);
+        crate::normalize_volume_config(&mut config.volume);
         let _ = crate::save_config(&config);
-        if config.startup.launch_on_startup != startup_was_enabled {
-            let _ = crate::sync_startup_registration(config.startup.launch_on_startup);
-        }
         crate::apply_live_config(&config, crate::config_modified_time());
         let mica = crate::effective_settings_mica_enabled(&config);
         self.snapshot.config = config;
@@ -267,6 +269,23 @@ fn check_for_update(cx: &mut Context<SettingsApp>) -> gpui::Task<()> {
 
 pub(crate) fn settings_should_open_about() -> bool {
     std::env::args().any(|arg| arg == "--about" || arg == "--about-update")
+}
+
+/// Debug builds only: `--tab=<Debug name>` (e.g. `--tab=VolumeOsd`) opens
+/// that page directly, for screenshots.
+fn debug_startup_tab() -> Option<SettingsTab> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    let name = std::env::args().find_map(|arg| arg.strip_prefix("--tab=").map(str::to_owned))?;
+    SettingsTab::ALL
+        .iter()
+        .copied()
+        .find(|tab| format!("{tab:?}").eq_ignore_ascii_case(&name))
+}
+
+fn settings_should_open_volume() -> bool {
+    std::env::args().any(|arg| arg == "--volume")
 }
 
 pub(crate) fn settings_should_start_update() -> bool {

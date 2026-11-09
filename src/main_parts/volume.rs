@@ -1,0 +1,919 @@
+// Output-volume foundation shared by the tray icon, OSD, wheel and media keys.
+//
+// COM callbacks only post to the hidden window. State changes land on the UI
+// thread through [`on_output_volume_changed`] and [`on_output_device_changed`].
+
+/// Event-context GUID passed to every volume or mute write this process makes.
+/// Notifications that carry it are [`VolumeChangeSource::Own`].
+pub const OUTPUT_VOLUME_EVENT_CONTEXT: GUID =
+    GUID::from_u128(0x4f8c_2a91_6d3e_4b7a_8c15_2e9f_0b6d_4a73);
+
+const RENDER_GENERATION_MASK: u64 = 0x3FFF_FFFF;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VolumeChangeSource {
+    /// silence! wrote the change (`OUTPUT_VOLUME_EVENT_CONTEXT`).
+    Own,
+    /// Windows or another process wrote the change.
+    External,
+}
+
+/// Default console render endpoint. `level` is the master scalar, `0.0..=1.0`.
+/// `device_name` is `PKEY_Device_FriendlyName`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OutputVolumeState {
+    pub device_id: String,
+    pub device_name: String,
+    pub level: f32,
+    pub muted: bool,
+}
+
+impl Default for OutputVolumeState {
+    fn default() -> Self {
+        Self {
+            device_id: String::new(),
+            device_name: String::new(),
+            level: 0.0,
+            muted: false,
+        }
+    }
+}
+
+enum RenderVolumeBind {
+    /// Same device, callback already current. Not a device change.
+    Unchanged,
+    Bound(OutputVolumeState),
+    /// No active console render endpoint.
+    Missing,
+    /// Registration is absent or the read failed for a reason other than a missing device.
+    Unavailable,
+}
+
+#[windows_core::implement(IAudioEndpointVolumeCallback)]
+struct OutputEndpointVolumeSink {
+    hwnd: HWND,
+    generation: u64,
+}
+
+impl windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolumeCallback_Impl
+    for OutputEndpointVolumeSink_Impl
+{
+    fn OnNotify(&self, pnotify: *mut AUDIO_VOLUME_NOTIFICATION_DATA) -> windows::core::Result<()> {
+        if pnotify.is_null() || self.hwnd.0.is_null() {
+            return Ok(());
+        }
+        let notify = unsafe { &*pnotify };
+        let own = notify.guidEventContext == OUTPUT_VOLUME_EVENT_CONTEXT;
+        let mut flags = (self.generation & RENDER_GENERATION_MASK) << 2;
+        if notify.bMuted.as_bool() {
+            flags |= 1;
+        }
+        if own {
+            flags |= 2;
+        }
+        unsafe {
+            let _ = PostMessageW(
+                self.hwnd,
+                WM_OUTPUT_VOLUME_CHANGED,
+                WPARAM(flags as usize),
+                LPARAM(notify.fMasterVolume.to_bits() as i32 as isize),
+            );
+        }
+        Ok(())
+    }
+}
+
+impl AudioNotificationRegistration {
+    fn rebind_render_volume(&mut self, force: bool) -> Result<RenderVolumeBind> {
+        let device = match unsafe { self.enumerator.GetDefaultAudioEndpoint(eRender, eConsole) } {
+            Ok(device) => device,
+            Err(err) if err.code() == win32_not_found() => {
+                self.clear_render_binding();
+                return Ok(RenderVolumeBind::Missing);
+            }
+            Err(err) => return Err(err).context("get default render endpoint"),
+        };
+        let device_id = unsafe { endpoint_device_id(&device)? };
+        if !force
+            && self.render_volume.is_some()
+            && self.render_device_id.as_deref() == Some(device_id.as_str())
+        {
+            return Ok(RenderVolumeBind::Unchanged);
+        }
+
+        let device_name = endpoint_friendly_name(&device);
+        let volume: IAudioEndpointVolume = unsafe { device.Activate(CLSCTX_ALL, None) }
+            .context("activate render endpoint volume")?;
+        let generation = self.render_generation.wrapping_add(1).max(1);
+        let callback: IAudioEndpointVolumeCallback =
+            windows_core::ComObject::new(OutputEndpointVolumeSink {
+                hwnd: self.hwnd,
+                generation,
+            })
+            .into_interface();
+        unsafe {
+            volume
+                .RegisterControlChangeNotify(&callback)
+                .context("register render volume callback")?;
+        }
+        // Drop the previous callback only after the new one is registered, so a
+        // change that lands during the swap still has a listener.
+        self.unregister_render_volume_callback();
+
+        let level = match unsafe { volume.GetMasterVolumeLevelScalar() } {
+            Ok(level) => level,
+            Err(err) => {
+                unsafe {
+                    let _ = volume.UnregisterControlChangeNotify(&callback);
+                }
+                return Err(err).context("read render volume");
+            }
+        };
+        let muted = match unsafe { volume.GetMute() } {
+            Ok(muted) => muted.as_bool(),
+            Err(err) => {
+                unsafe {
+                    let _ = volume.UnregisterControlChangeNotify(&callback);
+                }
+                return Err(err).context("read render mute");
+            }
+        };
+
+        self.render_volume = Some(volume);
+        self.render_volume_callback = Some(callback);
+        self.render_device_id = Some(device_id.clone());
+        self.render_device_name = Some(device_name.clone());
+        self.render_generation = generation;
+        Ok(RenderVolumeBind::Bound(OutputVolumeState {
+            device_id,
+            device_name,
+            level: level.clamp(0.0, 1.0),
+            muted,
+        }))
+    }
+
+    fn clear_render_binding(&mut self) {
+        self.unregister_render_volume_callback();
+        self.render_device_id = None;
+        self.render_device_name = None;
+        self.render_generation = self.render_generation.wrapping_add(1);
+    }
+
+    fn unregister_render_volume_callback(&mut self) {
+        if let (Some(volume), Some(callback)) = (
+            self.render_volume.take(),
+            self.render_volume_callback.take(),
+        ) {
+            unsafe {
+                if let Err(err) = volume.UnregisterControlChangeNotify(&callback) {
+                    eprintln!("failed to unregister render volume callback: {err:?}");
+                }
+            }
+        }
+    }
+
+    fn render_identity(&self) -> Option<(String, String, u64)> {
+        Some((
+            self.render_device_id.clone()?,
+            self.render_device_name.clone().unwrap_or_default(),
+            self.render_generation,
+        ))
+    }
+}
+
+pub fn output_volume_state() -> OutputVolumeState {
+    STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .output_volume
+        .clone()
+}
+
+pub fn volume_module_enabled() -> bool {
+    STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .modules
+        .volume
+}
+
+pub fn microphone_module_enabled() -> bool {
+    STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .modules
+        .microphone
+}
+
+pub fn module_enabled(module: HotkeyModule) -> bool {
+    match module {
+        HotkeyModule::Microphone => microphone_module_enabled(),
+        HotkeyModule::Volume => volume_module_enabled(),
+        HotkeyModule::System => true,
+    }
+}
+
+/// Move the default output by `steps` notches of `volume.wheel.step_percent`.
+/// The result snaps onto that grid. A positive step unmutes.
+///
+/// Wheel and media-key stages call this. Nothing in this stage does, yet.
+#[allow(dead_code)]
+pub fn step_output_volume(steps: i32) -> Result<()> {
+    if steps == 0 {
+        return Ok(());
+    }
+    with_output_volume(|volume| step_output_volume_on(volume, steps))
+}
+
+/// `level` is a master scalar, clamped to `0.0..=1.0`.
+pub fn set_output_volume(level: f32) -> Result<()> {
+    let level = level.clamp(0.0, 1.0);
+    with_output_volume(|volume| {
+        unsafe {
+            volume
+                .SetMasterVolumeLevelScalar(level, &OUTPUT_VOLUME_EVENT_CONTEXT)
+                .context("set output volume")?;
+        }
+        Ok(())
+    })
+}
+
+pub fn toggle_output_mute() -> Result<()> {
+    with_output_volume(|volume| {
+        let muted = unsafe { volume.GetMute().context("read output mute")?.as_bool() };
+        unsafe {
+            volume
+                .SetMute(BOOL::from(!muted), &OUTPUT_VOLUME_EVENT_CONTEXT)
+                .context("toggle output mute")?;
+        }
+        Ok(())
+    })
+}
+
+/// Cycle the console, multimedia and communications defaults together.
+/// Favorites are used when at least one of them is currently active; otherwise
+/// every active render device is used. The list is ordered by friendly name.
+pub fn cycle_output_device(forward: bool) -> Result<()> {
+    let favorites = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .volume
+        .favorite_output_devices
+        .clone();
+    let mut devices = list_render_devices()?;
+    if devices.is_empty() {
+        return Ok(());
+    }
+    if !favorites.is_empty() {
+        let favorite: Vec<_> = devices
+            .iter()
+            .filter(|device| favorites.iter().any(|id| id == &device.id))
+            .cloned()
+            .collect();
+        if !favorite.is_empty() {
+            devices = favorite;
+        }
+    }
+    devices.sort_by(|left, right| {
+        left.friendly_name
+            .to_lowercase()
+            .cmp(&right.friendly_name.to_lowercase())
+            .then_with(|| left.id.cmp(&right.id))
+    });
+
+    let len = devices.len();
+    let next_index = match devices.iter().position(|device| device.is_default) {
+        Some(index) if forward => (index + 1) % len,
+        Some(index) => (index + len - 1) % len,
+        None if forward => 0,
+        None => len - 1,
+    };
+    if devices[next_index].is_default {
+        return Ok(());
+    }
+    set_default_audio_device(&devices[next_index].id)
+}
+
+pub(crate) fn popup_state(state: &OutputVolumeState) -> volume_popup::VolumePopupState {
+    volume_popup::VolumePopupState {
+        percent: output_percent(state),
+        muted: state.muted,
+        device_name: output_display_name(state),
+    }
+}
+
+fn post_volume_popup(kind: usize, value: isize) {
+    let hwnd = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .hwnd;
+    if !hwnd.0.is_null() {
+        unsafe {
+            let _ = PostMessageW(hwnd, WM_VOLUME_POPUP, WPARAM(kind), LPARAM(value));
+        }
+    }
+}
+
+/// Called from the popup's thread; the write happens on the tray thread.
+pub(crate) fn request_popup_volume(percent: u8) {
+    post_volume_popup(0, isize::from(percent.min(100)));
+}
+
+pub(crate) fn request_popup_step(steps: i32) {
+    post_volume_popup(1, steps as isize);
+}
+
+pub(crate) fn request_popup_mute() {
+    post_volume_popup(2, 0);
+}
+
+pub(crate) fn handle_volume_popup_request(kind: usize, value: isize) {
+    let result = match kind {
+        0 => set_output_volume(value.clamp(0, 100) as f32 / 100.0),
+        1 => step_output_volume(value as i32),
+        _ => toggle_output_mute(),
+    };
+    if let Err(err) = result {
+        eprintln!("volume popup request failed: {err:?}");
+    }
+}
+
+/// Single place later stages attach to a level or mute change.
+pub fn on_output_volume_changed(state: &OutputVolumeState, source: VolumeChangeSource) {
+    // Own writes only: wheel, media keys, and any other silence! call that
+    // passes `OUTPUT_VOLUME_EVENT_CONTEXT`. External changes from other apps
+    // do not play. Device switches go through `on_output_device_changed` and
+    // stay silent. Playback itself is debounced and skipped while muted.
+    let arm = if let Ok(mut app) = STATE.lock() {
+        app.output_volume = state.clone();
+        app.output_volume_seeded = true;
+        source == VolumeChangeSource::Own
+            && app.modules.volume
+            && app.volume.sound.enabled
+            && !state.muted
+    } else {
+        false
+    };
+    refresh_volume_tray();
+    if volume_popup::volume_popup_open() {
+        // The popup already shows the level; a second readout would be noise.
+        volume_popup::volume_popup_update(popup_state(state));
+        consider_volume_change_sound(source, state.muted, arm);
+        return;
+    }
+    show_volume_osd(volume_osd::VolumeOsdContent::Level {
+        percent: output_percent(state),
+        muted: state.muted,
+    });
+    consider_volume_change_sound(source, state.muted, arm);
+}
+
+/// Single place later stages attach to a default-output switch.
+/// Fires once per device id change, whether silence! or Windows switched it.
+pub fn on_output_device_changed(state: &OutputVolumeState) {
+    if let Ok(mut app) = STATE.lock() {
+        app.output_volume = state.clone();
+        app.output_volume_seeded = true;
+    }
+    refresh_volume_tray();
+    volume_popup::volume_popup_update(popup_state(state));
+    let show_device = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .volume
+        .osd
+        .show_on_device_change;
+    if show_device && !state.device_id.is_empty() {
+        show_volume_osd(volume_osd::VolumeOsdContent::Device {
+            name: output_display_name(state),
+            kind: output_device_kind(&state.device_name),
+            percent: output_percent(state),
+            muted: state.muted,
+        });
+    }
+    // No sound for device switches; volume ticks are own level/mute changes only.
+    cancel_volume_change_sound();
+}
+
+static LAST_DEFAULT_CAPTURE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// The default microphone changed: show the device OSD with its name, like
+/// an output switch. The first call only records the current default.
+pub(crate) fn on_capture_endpoints_changed() {
+    let Some(device) = capture_devices()
+        .ok()
+        .and_then(|devices| devices.into_iter().find(|device| device.is_default))
+    else {
+        return;
+    };
+    let changed = {
+        let mut last = LAST_DEFAULT_CAPTURE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let changed = last.as_deref().is_some_and(|id| id != device.id);
+        *last = Some(device.id.clone());
+        changed
+    };
+    if !changed {
+        return;
+    }
+    let (show, mode) = {
+        let app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        (
+            app.volume.osd.show_on_device_change,
+            app.advanced.audio_device_name_display.clone(),
+        )
+    };
+    if show {
+        show_volume_osd(volume_osd::VolumeOsdContent::Device {
+            name: device.display_name(&mode),
+            kind: volume_osd::DeviceKind::Microphone,
+            percent: 0,
+            muted: false,
+        });
+    }
+}
+
+/// Device name as the user chose to see names (Pretty / System / Both).
+/// Output device name as the "Displayed audio device name" setting wants it.
+/// Cached per device and setting: the tray tip asks on every volume step.
+fn output_display_name(state: &OutputVolumeState) -> String {
+    static CACHE: Mutex<Option<(String, String, String, String)>> = Mutex::new(None);
+    let mode = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .advanced
+        .audio_device_name_display
+        .clone();
+    if let Some((id, cached_mode, raw, name)) = CACHE.lock().unwrap().as_ref()
+        && *id == state.device_id
+        && *cached_mode == mode
+        && *raw == state.device_name
+    {
+        return name.clone();
+    }
+    let name = render_devices()
+        .ok()
+        .and_then(|devices| devices.into_iter().find(|device| device.id == state.device_id))
+        .map(|device| device.display_name(&mode))
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| state.device_name.clone());
+    *CACHE.lock().unwrap() = Some((
+        state.device_id.clone(),
+        mode,
+        state.device_name.clone(),
+        name.clone(),
+    ));
+    name
+}
+
+fn output_percent(state: &OutputVolumeState) -> u8 {
+    (state.level.clamp(0.0, 1.0) * 100.0).round() as u8
+}
+
+/// Friendly names are all we have cheaply; good enough to pick a glyph.
+fn output_device_kind(name: &str) -> volume_osd::DeviceKind {
+    let name = name.to_lowercase();
+    let has = |words: &[&str]| words.iter().any(|word| name.contains(word));
+    if has(&["headphone", "headset", "earphone", "buds", "airpods", "наушник", "гарнитур"]) {
+        volume_osd::DeviceKind::Headphones
+    } else if has(&["hdmi", "displayport", "display", "monitor", "nvidia high definition", "монитор"]) {
+        volume_osd::DeviceKind::Display
+    } else if has(&["speaker", "динамик", "колонк", "realtek"]) {
+        volume_osd::DeviceKind::Speakers
+    } else {
+        volume_osd::DeviceKind::Other
+    }
+}
+
+fn volume_osd_style(config: &VolumeConfig) -> volume_osd::VolumeOsdStyle {
+    let osd = &config.osd;
+    volume_osd::VolumeOsdStyle {
+        theme: osd.theme.clone(),
+        display: osd.display.clone(),
+        position_x: osd.position_x,
+        position_y: osd.position_y,
+        duration_ms: osd.duration_ms,
+        while_muted: osd.visibility == VolumeOsdVisibility::OnChangeAndWhileMuted,
+        enabled: osd.enabled,
+        scale: osd.scale.clamp(10, 400) as f32 / 100.0,
+        corner_radius: osd.corner_radii.get(&osd.theme).map(|radius| f32::from(*radius)),
+        custom: volume_osd::CustomLook {
+            font: osd.text_font.clone(),
+            weight: osd.text_font_weight,
+            icon_style: osd.icon_style.clone(),
+            light_background: osd.background_style == "Light",
+            background_opacity: f32::from(osd.background_opacity.min(100)) / 100.0,
+            content_opacity: f32::from(osd.content_opacity.clamp(20, 100)) / 100.0,
+            border: osd.show_border,
+        },
+    }
+}
+
+fn show_volume_osd(content: volume_osd::VolumeOsdContent) {
+    let (enabled, style) = {
+        let app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        (
+            app.modules.volume && app.volume.osd.enabled,
+            volume_osd_style(&app.volume),
+        )
+    };
+    if !enabled {
+        return;
+    }
+    if let Err(err) = volume_osd::volume_osd_init() {
+        eprintln!("failed to start volume OSD: {err:?}");
+        return;
+    }
+    volume_osd::volume_osd_show(content, &style);
+}
+
+/// Start the OSD thread (and the popup window on it) and the wallpaper blur
+/// now, so the first volume change or click shows them without a delay.
+pub(crate) fn prewarm_volume_ui() {
+    crate::gpui_overlay::mica::prewarm();
+    if let Err(err) = volume_osd::volume_osd_init() {
+        eprintln!("failed to start volume OSD: {err:?}");
+    }
+}
+
+static OSD_POSITIONING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// "Move OSD" belongs to the settings window; end it if that window closed.
+pub(crate) fn check_volume_osd_positioning() {
+    if !OSD_POSITIONING.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    let settings_open = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }
+        .is_ok_and(|hwnd| !hwnd.0.is_null());
+    if !settings_open {
+        set_volume_osd_positioning(false);
+    }
+}
+
+/// Settings "Move OSD": show the OSD with the current level and let it be dragged.
+pub(crate) fn set_volume_osd_positioning(active: bool) {
+    OSD_POSITIONING.store(active, std::sync::atomic::Ordering::Relaxed);
+    if active {
+        let state = output_volume_state();
+        show_volume_osd(volume_osd::VolumeOsdContent::Level {
+            percent: output_percent(&state),
+            muted: state.muted,
+        });
+    }
+    volume_osd::volume_osd_set_positioning(active);
+}
+
+/// A drag ended: save the new display and position like any other setting.
+pub(crate) fn save_moved_volume_osd() {
+    let Some((display, x, y)) = volume_osd::take_moved_position() else {
+        return;
+    };
+    let Ok(mut config) = load_config() else {
+        return;
+    };
+    config.volume.osd.display = display;
+    config.volume.osd.position_x = x;
+    config.volume.osd.position_y = y;
+    if save_config(&config).is_ok() {
+        apply_live_config(&config, config_modified_time());
+    }
+}
+
+/// Settings changed something about the OSD: show it now with the current level.
+pub(crate) fn preview_volume_osd() {
+    let state = output_volume_state();
+    if state.device_id.is_empty() {
+        return;
+    }
+    show_volume_osd(volume_osd::VolumeOsdContent::Level {
+        percent: output_percent(&state),
+        muted: state.muted,
+    });
+}
+
+/// Called after a config reload so a visible OSD restyles, hides or (in
+/// "while muted" mode) appears without waiting for the next volume change.
+pub(crate) fn apply_volume_osd_config(config: &Config) {
+    let style = volume_osd_style(&config.volume);
+    if config.modules.volume {
+        // Turning the module on warms the OSD and popup like a fresh start.
+        let _ = volume_osd::volume_osd_init();
+    }
+    if !config.modules.volume || !style.enabled {
+        volume_osd::volume_osd_hide();
+        return;
+    }
+    volume_osd::volume_osd_apply_style(&style);
+    let state = output_volume_state();
+    if style.while_muted && state.muted && !state.device_id.is_empty() {
+        show_volume_osd(volume_osd::VolumeOsdContent::Level {
+            percent: output_percent(&state),
+            muted: true,
+        });
+    }
+}
+
+pub(crate) fn handle_output_volume_message(wparam: WPARAM, lparam: LPARAM) {
+    let generation = (wparam.0 as u64) >> 2;
+    let muted = wparam.0 & 1 != 0;
+    let own = wparam.0 & 2 != 0;
+    let level = f32::from_bits(lparam.0 as u32);
+    if !level.is_finite() {
+        return;
+    }
+    let Some((device_id, device_name, bound_generation)) = render_identity() else {
+        return;
+    };
+    if generation != (bound_generation & RENDER_GENERATION_MASK) {
+        return;
+    }
+    observe_output_state(
+        OutputVolumeState {
+            device_id,
+            device_name,
+            level: level.clamp(0.0, 1.0),
+            muted,
+        },
+        Some(if own {
+            VolumeChangeSource::Own
+        } else {
+            VolumeChangeSource::External
+        }),
+    );
+}
+
+pub(crate) fn handle_output_device_changed() {
+    let previous_id = output_volume_state().device_id;
+    let outcome = rebind_output_volume_for_message();
+    // A same-id rebind means the old interface was dead. Publish the level we
+    // just read; a real device switch is reported by `observe_output_state`.
+    let same_device = matches!(
+        &outcome,
+        RenderVolumeBind::Bound(state) if state.device_id == previous_id
+    );
+    publish_render_bind(outcome, same_device);
+}
+
+/// Rebind the console render callback. If the cached interface is dead but the
+/// device id did not change, replace it. Does not publish hub events.
+pub(crate) fn rebind_output_volume_for_message() -> RenderVolumeBind {
+    let outcome = rebind_output_volume_callback(false);
+    if matches!(outcome, RenderVolumeBind::Unchanged) && read_bound_render_state().is_err() {
+        rebind_output_volume_callback(true)
+    } else {
+        outcome
+    }
+}
+
+/// Bind the render callback without telling the volume hub.
+/// The settings process uses this so it does not run tray/OSD hooks.
+pub(crate) fn rebind_output_volume_callback(force: bool) -> RenderVolumeBind {
+    AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
+        let mut registration = registration.borrow_mut();
+        let Some(registration) = registration.as_mut() else {
+            return RenderVolumeBind::Unavailable;
+        };
+        let rebound = registration.rebind_render_volume(force);
+        match rebound {
+            Ok(outcome) => outcome,
+            Err(err) if error_is_device_invalidated(&err) && !force => {
+                match registration.rebind_render_volume(true) {
+                    Ok(outcome) => outcome,
+                    Err(err) => {
+                        eprintln!("failed to rebind render volume after invalidation: {err:?}");
+                        registration.clear_render_binding();
+                        RenderVolumeBind::Missing
+                    }
+                }
+            }
+            Err(err) if error_is_missing_endpoint(&err) => {
+                registration.clear_render_binding();
+                RenderVolumeBind::Missing
+            }
+            Err(err) => {
+                eprintln!("failed to rebind render volume: {err:?}");
+                RenderVolumeBind::Unavailable
+            }
+        }
+    })
+}
+
+fn publish_render_bind(outcome: RenderVolumeBind, level_refresh: bool) {
+    match outcome {
+        RenderVolumeBind::Unavailable => {}
+        RenderVolumeBind::Unchanged => {
+            if !output_volume_is_seeded()
+                && let Ok(state) = read_bound_render_state()
+            {
+                observe_output_state(state, None);
+            }
+        }
+        RenderVolumeBind::Missing => observe_output_state(OutputVolumeState::default(), None),
+        RenderVolumeBind::Bound(state) => observe_output_state(
+            state,
+            level_refresh.then_some(VolumeChangeSource::External),
+        ),
+    }
+}
+
+fn observe_output_state(state: OutputVolumeState, volume_source: Option<VolumeChangeSource>) {
+    let previous = output_volume_state();
+    let seeded = output_volume_is_seeded();
+    if !seeded {
+        {
+            let mut app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            app.output_volume = state;
+            app.output_volume_seeded = true;
+        }
+        // The hub stays quiet on the first sample so startup does not show an OSD.
+        // The tray icon still has to leave the placeholder level.
+        refresh_volume_tray();
+        return;
+    }
+    if previous.device_id != state.device_id {
+        on_output_device_changed(&state);
+        return;
+    }
+    if let Some(source) = volume_source
+        && output_snapshot_changed(&previous, &state)
+    {
+        on_output_volume_changed(&state, source);
+    }
+}
+
+fn output_volume_is_seeded() -> bool {
+    STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .output_volume_seeded
+}
+
+fn output_snapshot_changed(previous: &OutputVolumeState, next: &OutputVolumeState) -> bool {
+    previous.device_id != next.device_id
+        || previous.device_name != next.device_name
+        || previous.muted != next.muted
+        || (previous.level - next.level).abs() > 0.0005
+}
+
+fn render_identity() -> Option<(String, String, u64)> {
+    AUDIO_NOTIFICATION_REGISTRATION
+        .with(|registration| registration.borrow().as_ref().and_then(|registration| registration.render_identity()))
+}
+
+fn read_bound_render_state() -> Result<OutputVolumeState> {
+    AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
+        let registration = registration.borrow();
+        let registration = registration
+            .as_ref()
+            .context("audio notifications are not registered")?;
+        let volume = registration
+            .render_volume
+            .as_ref()
+            .context("render volume is not bound")?;
+        let device_id = registration
+            .render_device_id
+            .clone()
+            .context("render device is not bound")?;
+        let device_name = registration.render_device_name.clone().unwrap_or_default();
+        let level = unsafe { volume.GetMasterVolumeLevelScalar().context("read render volume")? };
+        let muted = unsafe { volume.GetMute().context("read render mute")?.as_bool() };
+        Ok(OutputVolumeState {
+            device_id,
+            device_name,
+            level: level.clamp(0.0, 1.0),
+            muted,
+        })
+    })
+}
+
+#[allow(dead_code)]
+fn step_output_volume_on(volume: &IAudioEndpointVolume, steps: i32) -> Result<()> {
+    let step_percent = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .volume
+        .wheel
+        .step_percent
+        .max(1);
+    let current = unsafe { volume.GetMasterVolumeLevelScalar().context("read output volume")? };
+    let muted = unsafe { volume.GetMute().context("read output mute")?.as_bool() };
+    let next = stepped_output_percent(current, steps, step_percent);
+    unsafe {
+        volume
+            .SetMasterVolumeLevelScalar(f32::from(next) / 100.0, &OUTPUT_VOLUME_EVENT_CONTEXT)
+            .context("step output volume")?;
+        if steps > 0 && muted {
+            volume
+                .SetMute(BOOL::from(false), &OUTPUT_VOLUME_EVENT_CONTEXT)
+                .context("unmute output while increasing volume")?;
+        }
+    }
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn stepped_output_percent(current: f32, steps: i32, step_percent: u8) -> u8 {
+    let step = i32::from(step_percent.max(1));
+    let current_percent = (current.clamp(0.0, 1.0) * 100.0).round() as i32;
+    if steps == 0 {
+        return current_percent.clamp(0, 100) as u8;
+    }
+    let remainder = current_percent.rem_euclid(step);
+    let (on_grid, consumed) = if remainder == 0 {
+        (current_percent, 0)
+    } else if steps > 0 {
+        (current_percent + (step - remainder), 1)
+    } else {
+        (current_percent - remainder, 1)
+    };
+    let remaining_steps = steps - steps.signum() * consumed;
+    (on_grid + remaining_steps * step).clamp(0, 100) as u8
+}
+
+fn with_output_volume<T>(operation: impl Fn(&IAudioEndpointVolume) -> Result<T>) -> Result<T> {
+    match output_volume() {
+        Ok(volume) => match operation(&volume) {
+            Err(err) if error_is_device_invalidated(&err) => {
+                recover_invalidated_output_volume();
+                operation(&output_volume()?)
+            }
+            other => other,
+        },
+        Err(err) if error_is_device_invalidated(&err) => {
+            recover_invalidated_output_volume();
+            operation(&output_volume()?)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+fn recover_invalidated_output_volume() {
+    let hwnd = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .hwnd;
+    if hwnd.0.is_null() {
+        return;
+    }
+    let on_window_thread =
+        unsafe { GetWindowThreadProcessId(hwnd, None) == GetCurrentThreadId() };
+    if on_window_thread {
+        publish_render_bind(rebind_output_volume_callback(true), true);
+    } else {
+        post_audio_window_message(hwnd, WM_OUTPUT_DEVICE_CHANGED);
+    }
+}
+
+#[derive(Clone)]
+struct RenderDeviceChoice {
+    id: String,
+    friendly_name: String,
+    is_default: bool,
+}
+
+fn list_render_devices() -> Result<Vec<RenderDeviceChoice>> {
+    unsafe {
+        let enumerator = audio_device_enumerator()?;
+        let default_id = enumerator
+            .GetDefaultAudioEndpoint(eRender, eConsole)
+            .ok()
+            .and_then(|device| endpoint_device_id(&device).ok());
+        let collection = enumerator
+            .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
+            .context("enumerate render endpoints")?;
+        let count = collection.GetCount().context("count render endpoints")?;
+        let mut devices = Vec::with_capacity(count as usize);
+        for index in 0..count {
+            let device = collection.Item(index).context("get render endpoint")?;
+            let id = endpoint_device_id(&device)?;
+            let friendly_name = endpoint_friendly_name(&device);
+            let is_default = default_id.as_deref() == Some(id.as_str());
+            devices.push(RenderDeviceChoice {
+                id,
+                friendly_name,
+                is_default,
+            });
+        }
+        Ok(devices)
+    }
+}
+
+fn win32_not_found() -> HRESULT {
+    HRESULT::from_win32(ERROR_NOT_FOUND.0)
+}
+
+fn error_is_device_invalidated(err: &anyhow::Error) -> bool {
+    windows_error_code(err).is_some_and(|code| code == AUDCLNT_E_DEVICE_INVALIDATED)
+}
+
+fn error_is_missing_endpoint(err: &anyhow::Error) -> bool {
+    windows_error_code(err)
+        .is_some_and(|code| code == win32_not_found() || code == AUDCLNT_E_DEVICE_INVALIDATED)
+}
+
+fn windows_error_code(err: &anyhow::Error) -> Option<HRESULT> {
+    err.chain()
+        .find_map(|cause| cause.downcast_ref::<windows::core::Error>().map(|error| error.code()))
+}
