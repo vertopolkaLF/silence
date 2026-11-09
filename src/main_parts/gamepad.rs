@@ -231,6 +231,7 @@ fn run_background_app() -> Result<()> {
     }
     ensure_audio_notification_registration();
     add_tray_icon(hwnd)?;
+    add_volume_tray_icon(hwnd);
     if !STATE.lock().unwrap().welcome_completed {
         open_settings_window();
     }

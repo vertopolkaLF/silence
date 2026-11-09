@@ -911,6 +911,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
         ensure_gamepad_monitors(true);
     }
     sync_microphone_module(microphone_was_enabled);
+    sync_volume_tray_icon();
     prime_sound_assets(&config.sound_settings);
     if volume_zero_mute_changed
         && config.modules.microphone

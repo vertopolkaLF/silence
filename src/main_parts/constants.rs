@@ -19,13 +19,19 @@ const WM_CONFIG_CHANGED: u32 = WM_APP + 14;
 const WM_OUTPUT_VOLUME_CHANGED: u32 = WM_APP + 15;
 /// Default console render device changed, or the render endpoint must be rebound.
 const WM_OUTPUT_DEVICE_CHANGED: u32 = WM_APP + 16;
+/// Mouse messages for the output-volume icon. `lparam` is the raw mouse
+/// message, same as `WM_TRAY` (the mic icon does not use `NOTIFYICON_VERSION_4`).
+const WM_VOLUME_TRAY: u32 = WM_APP + 17;
 const ID_TRAY: u32 = 1;
+const ID_VOLUME_TRAY: u32 = 2;
 const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
 const ID_OVERLAY_DRAG_TIMER: usize = 12;
 const ID_TRAY_CLICK_TIMER: usize = 13;
 const ID_TRAY_ADD_RETRY_TIMER: usize = 14;
 const ID_MUTE_FAILURE_TIMER: usize = 15;
+const ID_VOLUME_TRAY_CLICK_TIMER: usize = 16;
+const ID_VOLUME_TRAY_ADD_RETRY_TIMER: usize = 17;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
@@ -34,6 +40,12 @@ const ID_MENU_INSTALL_UPDATE: usize = 1005;
 const ID_MENU_INPUT_DEVICE_BASE: usize = 2000;
 const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
 const ID_MENU_MIC_APP_BASE: usize = 4000;
+const ID_MENU_VOLUME_TITLE: usize = 5100;
+const ID_MENU_VOLUME_MUTE: usize = 5101;
+const ID_MENU_VOLUME_MIXER: usize = 5102;
+const ID_MENU_VOLUME_SOUND: usize = 5103;
+const ID_MENU_VOLUME_SETTINGS: usize = 5104;
+const ID_MENU_VOLUME_EXIT: usize = 5105;
 const MENU_POS_DEFAULT_OUTPUT: u32 = 2;
 const MENU_POS_DEFAULT_INPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";

@@ -302,7 +302,7 @@ pub fn on_output_volume_changed(state: &OutputVolumeState, source: VolumeChangeS
     }
     match source {
         VolumeChangeSource::Own | VolumeChangeSource::External => {
-            // stage 2 hooks: refresh the volume tray icon
+            refresh_volume_tray();
             // stage 3 hooks: show the volume OSD
             // stage 4 hooks: play the volume change sound
         }
@@ -316,7 +316,7 @@ pub fn on_output_device_changed(state: &OutputVolumeState) {
         app.output_volume = state.clone();
         app.output_volume_seeded = true;
     }
-    // stage 2 hooks: refresh the volume tray icon
+    refresh_volume_tray();
     // stage 3 hooks: show the volume OSD when `osd.show_on_device_change` is set
     // stage 4 hooks: play the device-change sound
 }
@@ -428,9 +428,14 @@ fn observe_output_state(state: OutputVolumeState, volume_source: Option<VolumeCh
     let previous = output_volume_state();
     let seeded = output_volume_is_seeded();
     if !seeded {
-        let mut app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        app.output_volume = state;
-        app.output_volume_seeded = true;
+        {
+            let mut app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            app.output_volume = state;
+            app.output_volume_seeded = true;
+        }
+        // The hub stays quiet on the first sample so startup does not show an OSD.
+        // The tray icon still has to leave the placeholder level.
+        refresh_volume_tray();
         return;
     }
     if previous.device_id != state.device_id {

@@ -2,6 +2,7 @@ fn cleanup() {
     shutdown_audio_notification_registration();
     native_overlay::destroy();
     remove_tray_icon();
+    remove_volume_tray_icon();
     let (hook, mouse_hook) = {
         let state = STATE.lock().unwrap();
         (state.hook, state.mouse_hook)

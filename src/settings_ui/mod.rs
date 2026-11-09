@@ -90,6 +90,8 @@ impl SettingsApp {
         let palette = *cx.global::<Palette>();
         let startup_tab = if settings_should_open_about() {
             SettingsTab::About
+        } else if settings_should_open_volume() {
+            SettingsTab::VolumeWheel
         } else {
             SettingsTab::Hotkeys
         };
@@ -269,6 +271,10 @@ fn check_for_update(cx: &mut Context<SettingsApp>) -> gpui::Task<()> {
 
 pub(crate) fn settings_should_open_about() -> bool {
     std::env::args().any(|arg| arg == "--about" || arg == "--about-update")
+}
+
+fn settings_should_open_volume() -> bool {
+    std::env::args().any(|arg| arg == "--volume")
 }
 
 pub(crate) fn settings_should_start_update() -> bool {
