@@ -352,8 +352,27 @@ fn run_volume_click_action(action: VolumeClickAction) {
 }
 
 fn show_volume_popup() {
-    // TODO(lead): popup slider (last stage)
-    eprintln!("volume popup slider is not implemented");
+    if volume_popup::volume_popup_open() {
+        volume_popup::volume_popup_close();
+        return;
+    }
+    // This click already closed the popup by taking focus from it.
+    if volume_popup::volume_popup_just_closed() {
+        return;
+    }
+    let hwnd = STATE.lock().unwrap().hwnd;
+    use windows::Win32::UI::Shell::{NOTIFYICONIDENTIFIER, Shell_NotifyIconGetRect};
+    let identifier = NOTIFYICONIDENTIFIER {
+        cbSize: size_of::<NOTIFYICONIDENTIFIER>() as u32,
+        hWnd: hwnd,
+        uID: ID_VOLUME_TRAY,
+        ..Default::default()
+    };
+    let anchor = unsafe { Shell_NotifyIconGetRect(&identifier) }
+        .ok()
+        .filter(|rect| rect.right > rect.left && rect.bottom > rect.top)
+        .unwrap_or_else(volume_popup::cursor_anchor);
+    volume_popup::volume_popup_show(anchor, popup_state(&output_volume_state()));
 }
 
 fn open_volume_mixer() {

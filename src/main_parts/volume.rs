@@ -294,6 +294,50 @@ pub fn cycle_output_device(forward: bool) -> Result<()> {
     set_default_audio_device(&devices[next_index].id)
 }
 
+pub(crate) fn popup_state(state: &OutputVolumeState) -> volume_popup::VolumePopupState {
+    volume_popup::VolumePopupState {
+        percent: output_percent(state),
+        muted: state.muted,
+        device_name: state.device_name.clone(),
+    }
+}
+
+fn post_volume_popup(kind: usize, value: isize) {
+    let hwnd = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .hwnd;
+    if !hwnd.0.is_null() {
+        unsafe {
+            let _ = PostMessageW(hwnd, WM_VOLUME_POPUP, WPARAM(kind), LPARAM(value));
+        }
+    }
+}
+
+/// Called from the popup's thread; the write happens on the tray thread.
+pub(crate) fn request_popup_volume(percent: u8) {
+    post_volume_popup(0, isize::from(percent.min(100)));
+}
+
+pub(crate) fn request_popup_step(steps: i32) {
+    post_volume_popup(1, steps as isize);
+}
+
+pub(crate) fn request_popup_mute() {
+    post_volume_popup(2, 0);
+}
+
+pub(crate) fn handle_volume_popup_request(kind: usize, value: isize) {
+    let result = match kind {
+        0 => set_output_volume(value.clamp(0, 100) as f32 / 100.0),
+        1 => step_output_volume(value as i32),
+        _ => toggle_output_mute(),
+    };
+    if let Err(err) = result {
+        eprintln!("volume popup request failed: {err:?}");
+    }
+}
+
 /// Single place later stages attach to a level or mute change.
 pub fn on_output_volume_changed(state: &OutputVolumeState, source: VolumeChangeSource) {
     // Own writes only: wheel, media keys, and any other silence! call that
@@ -311,6 +355,12 @@ pub fn on_output_volume_changed(state: &OutputVolumeState, source: VolumeChangeS
         false
     };
     refresh_volume_tray();
+    if volume_popup::volume_popup_open() {
+        // The popup already shows the level; a second readout would be noise.
+        volume_popup::volume_popup_update(popup_state(state));
+        consider_volume_change_sound(source, state.muted, arm);
+        return;
+    }
     show_volume_osd(volume_osd::VolumeOsdContent::Level {
         percent: output_percent(state),
         muted: state.muted,
@@ -326,6 +376,7 @@ pub fn on_output_device_changed(state: &OutputVolumeState) {
         app.output_volume_seeded = true;
     }
     refresh_volume_tray();
+    volume_popup::volume_popup_update(popup_state(state));
     let show_device = STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())

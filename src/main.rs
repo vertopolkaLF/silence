@@ -127,6 +127,7 @@ mod gpui_overlay;
 mod native_overlay;
 pub(crate) mod overlay_icons;
 mod volume_osd;
+mod volume_popup;
 mod settings_ui;
 pub mod updater;
 #[path = "main_parts/wheel_volume.rs"]

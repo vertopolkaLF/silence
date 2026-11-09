@@ -98,6 +98,14 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) {
                             let quit = batch.iter().any(|command| {
                                 matches!(command, Command::Shutdown)
                             });
+                            let (popup, batch): (Vec<_>, Vec<_>) = batch
+                                .into_iter()
+                                .partition(|command| matches!(command, Command::Popup(_)));
+                            for command in popup {
+                                if let Command::Popup(command) = command {
+                                    let _ = cx.update(|cx| super::volume_popup::handle(command, cx));
+                                }
+                            }
                             let applied = handle.update(cx, |view, window, cx| {
                                 for command in batch {
                                     if !matches!(command, Command::Shutdown) {
@@ -268,7 +276,7 @@ impl VolumeView {
             Command::Style(style) => self.apply_style(style, cx),
             Command::Hide => self.hide(cx),
             Command::SurfaceReady => self.on_surface_ready(cx),
-            Command::Shutdown => {}
+            Command::Popup(_) | Command::Shutdown => {}
         }
     }
 
@@ -1120,7 +1128,7 @@ fn mute_sensitive(theme: &str) -> bool {
     !matches!(theme, "Windows" | "Custom")
 }
 
-fn icon_svg(id: &str) -> Option<&'static str> {
+pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
     Some(match id {
         "speaker-none" => include_str!("../../assets/icons/volume/volume-bold.svg"),
         "speaker-low" => include_str!("../../assets/icons/volume/volume-small-bold.svg"),
