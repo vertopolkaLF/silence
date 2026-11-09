@@ -184,11 +184,19 @@ pub fn volume_osd_show(content: VolumeOsdContent, style: &VolumeOsdStyle) {
 
 /// Restyle a visible flyout without restarting its content. Also restarts the hide timer.
 pub fn volume_osd_apply_style(style: &VolumeOsdStyle) {
-    send(Command::Style(style.clone()));
+    send_if_running(Command::Style(style.clone()));
 }
 
+/// No-op when the OSD thread was never started.
 pub fn volume_osd_hide() {
-    send(Command::Hide);
+    send_if_running(Command::Hide);
+}
+
+/// Restyle/hide must not spin up a GPUI thread for an OSD nobody has shown.
+fn send_if_running(command: Command) {
+    if let Some(runtime) = RUNTIME.lock().unwrap().as_ref() {
+        let _ = runtime.sender.send(command);
+    }
 }
 
 /// Hidden CLI: cycle levels, mute, and a device change, then exit.
