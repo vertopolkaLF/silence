@@ -243,6 +243,9 @@ fn parse_config_content(content: &str) -> Result<Config> {
     {
         config.modules.volume = true;
     }
+    if !config.modules.microphone && !config.modules.volume {
+        config.modules.microphone = true;
+    }
     if !has_hotkeys {
         config.hotkeys = vec![HotkeyBinding {
             shortcut: config.shortcut.clone(),

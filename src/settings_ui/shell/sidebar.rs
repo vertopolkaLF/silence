@@ -237,7 +237,7 @@ fn module_switch(
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(cx.listener(move |app, _, _, cx| {
             cx.stop_propagation();
-            if modules::set_enabled(app, module, !enabled) {
+            if modules::set_enabled(app, module, !enabled, cx) {
                 cx.notify();
             }
         }))

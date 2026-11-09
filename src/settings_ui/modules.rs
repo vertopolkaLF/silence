@@ -1,7 +1,6 @@
 //! Master switches for the Microphone and Volume halves of the app.
 //!
-//! TODO(lead): bind to config.modules `{ microphone: bool, volume: bool }`.
-//! Until that field exists, the flags live only on the settings window.
+//! Backed by `config.modules`; every change is saved and applied immediately.
 
 use super::{
     SettingsApp,
@@ -49,15 +48,6 @@ pub(crate) struct ModuleFlags {
     pub volume: bool,
 }
 
-impl Default for ModuleFlags {
-    fn default() -> Self {
-        Self {
-            microphone: true,
-            volume: true,
-        }
-    }
-}
-
 impl ModuleFlags {
     pub fn get(self, module: ModuleId) -> bool {
         match module {
@@ -88,14 +78,31 @@ impl ModuleFlags {
     }
 }
 
-/// TODO(lead): bind to config.modules
 pub(crate) fn flags(app: &SettingsApp) -> ModuleFlags {
-    app.module_flags
+    let modules = &app.snapshot.config.modules;
+    ModuleFlags {
+        microphone: modules.microphone,
+        volume: modules.volume,
+    }
 }
 
-/// TODO(lead): bind to config.modules and persist with `SettingsApp::update_config`.
-pub(crate) fn set_enabled(app: &mut SettingsApp, module: ModuleId, enabled: bool) -> bool {
-    app.module_flags.set(module, enabled)
+/// Saves the switch to `config.modules`. Returns false (and changes nothing)
+/// when it would turn the last enabled module off.
+pub(crate) fn set_enabled(
+    app: &mut SettingsApp,
+    module: ModuleId,
+    enabled: bool,
+    cx: &mut Context<SettingsApp>,
+) -> bool {
+    let mut next = flags(app);
+    if !next.set(module, enabled) {
+        return false;
+    }
+    app.update_config(cx, |config| {
+        config.modules.microphone = next.microphone;
+        config.modules.volume = next.volume;
+    });
+    true
 }
 
 const BANNER: Transition = Transition::new(220, Easing::EaseInOut);
@@ -173,7 +180,7 @@ pub(crate) fn off_banner(
                                 anim::set_hovered(&pointer, *hovered, cx)
                             })
                             .on_click(cx.listener(move |app, _, _, cx| {
-                                if set_enabled(app, module, true) {
+                                if set_enabled(app, module, true, cx) {
                                     cx.notify();
                                 }
                             })),
