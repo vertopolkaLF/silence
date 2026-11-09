@@ -92,6 +92,7 @@ pub(crate) fn allow_cross_process_window_messages(hwnd: HWND) {
         WM_WHATS_NEW,
         WM_EXIT_ALL,
         WM_CONFIG_CHANGED,
+        WM_VOLUME_OSD_PREVIEW,
         // Settings sends this with SendMessage while positioning the overlay.
         WM_OVERLAY_POSITIONING,
     ];

@@ -88,22 +88,9 @@ pub(crate) fn render(
     }
     status = status
         .child(toggle_card(
-            "general-double-click",
-            "Double-click tray icon to open Settings",
-            Some("Disable to remove delay from muting mic with single-click"),
-            !advanced.disable_tray_double_click_settings,
-            window,
-            cx,
-            |app, checked, _, cx| {
-                app.update_config(cx, |config| {
-                    config.advanced.disable_tray_double_click_settings = !checked
-                })
-            },
-        ))
-        .child(toggle_card(
             "general-volume-zero",
-            "Set mic volume to 0 in addition to mute",
-            Some("Enable this if your mute isn't working"),
+            "Set microphone volume to 0 when muting",
+            Some("Turn on if some apps still hear you while muted"),
             advanced.set_mic_volume_to_zero_on_mute,
             window,
             cx,

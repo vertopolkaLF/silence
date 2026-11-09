@@ -1,5 +1,5 @@
 //! Volume → OSD.
-use super::super::form::{field, percent_slider};
+use super::super::form::{self, field, percent_slider};
 use super::super::overlay;
 use super::{column, heading};
 use crate::settings_ui::{
@@ -8,6 +8,16 @@ use crate::settings_ui::{
     style,
 };
 use gpui::{prelude::*, *};
+
+/// Saves an OSD setting and flashes the OSD so the change is visible at once.
+fn update_and_preview(
+    app: &mut SettingsApp,
+    cx: &mut Context<SettingsApp>,
+    update: impl FnOnce(&mut crate::VolumeOsdConfig),
+) {
+    app.update_config(cx, |config| update(&mut config.volume.osd));
+    crate::request_volume_osd_preview();
+}
 
 pub(crate) fn render(
     app: &mut SettingsApp,
@@ -20,19 +30,60 @@ pub(crate) fn render(
         osd.enabled,
         window,
         cx,
-        |app, checked, _, cx| app.update_config(cx, |config| config.volume.osd.enabled = checked),
+        |app, checked, _, cx| {
+            update_and_preview(app, cx, |osd| osd.enabled = checked);
+        },
     );
-    let theme = controls::select(
-        "volume-osd-theme",
-        osd.theme.clone(),
-        overlay::theme_options(),
+    let visibility = controls::select(
+        "volume-osd-visibility",
+        visibility_key(osd.visibility),
+        SelectOptions::new(vec![
+            SelectOption::new("OnChange", "When the volume changes")
+                .detail("Hides after the duration below")
+                .icon("volume-loud-linear"),
+            SelectOption::new("OnChangeAndWhileMuted", "On change, and while muted")
+                .detail("Stays on screen until you unmute")
+                .icon("volume-cross-linear"),
+        ]),
         app,
         window,
         cx,
         |app, value, _, cx| {
-            app.update_config(cx, |config| config.volume.osd.theme = value.to_string());
+            let visibility = visibility_from_key(value.as_ref());
+            update_and_preview(app, cx, |osd| osd.visibility = visibility);
         },
     );
+    let duration_ms = osd.duration_ms.clamp(500, 5_000);
+    let duration = controls::range(
+        "volume-osd-duration",
+        f64::from(duration_ms),
+        RangeOptions {
+            min: 500.,
+            max: 5_000.,
+            step: 100.,
+            label: "Duration".into(),
+            value_label: format!("{:.1} s", f64::from(duration_ms) / 1000.).into(),
+            icon: None,
+        },
+        window,
+        cx,
+        |app, value, _, cx| {
+            let ms = (value / 100.).round() as u32 * 100;
+            update_and_preview(app, cx, |osd| osd.duration_ms = ms.clamp(500, 5_000));
+        },
+    );
+    let on_device = controls::toggle(
+        "volume-osd-device-change",
+        osd.show_on_device_change,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            app.update_config(cx, |config| {
+                config.volume.osd.show_on_device_change = checked;
+            });
+        },
+    );
+
     let mut displays = overlay::display_options(&app.snapshot.overlay_displays);
     displays.insert(
         0,
@@ -53,12 +104,10 @@ pub(crate) fn render(
         window,
         cx,
         |app, value, _, cx| {
-            app.update_config(cx, |config| config.volume.osd.display = value.to_string());
+            let display = value.to_string();
+            update_and_preview(app, cx, |osd| osd.display = display);
         },
     );
-    // TODO(lead): volume OSD drag positioning. The mic overlay drag mode uses
-    // `set_overlay_positioning` / `WM_OVERLAY_POSITIONING` and writes
-    // `config.overlay`. Do not reuse that IPC here.
     let horizontal = percent_slider(
         "volume-osd-x",
         "Horizontal position",
@@ -67,7 +116,7 @@ pub(crate) fn render(
         window,
         cx,
         |app, value, _, cx| {
-            app.update_config(cx, |config| config.volume.osd.position_x = value as f32);
+            update_and_preview(app, cx, |osd| osd.position_x = value as f32);
         },
     );
     let vertical = percent_slider(
@@ -78,96 +127,57 @@ pub(crate) fn render(
         window,
         cx,
         |app, value, _, cx| {
-            app.update_config(cx, |config| config.volume.osd.position_y = value as f32);
+            update_and_preview(app, cx, |osd| osd.position_y = value as f32);
         },
     );
-    let duration_ms = osd.duration_ms;
-    let duration = controls::range(
-        "volume-osd-duration",
-        f64::from(duration_ms),
-        RangeOptions {
-            min: 0.,
-            max: 8_000.,
-            step: 100.,
-            label: "Duration".into(),
-            value_label: format!("{duration_ms} ms").into(),
-            icon: Some("clock-circle-linear".into()),
-        },
-        window,
-        cx,
-        |app, value, _, cx| {
-            app.update_config(cx, |config| {
-                config.volume.osd.duration_ms = value.round().clamp(0., 60_000.) as u32;
-            });
-        },
-    );
-    let visibility = controls::select(
-        "volume-osd-visibility",
-        visibility_key(osd.visibility),
-        SelectOptions::new(vec![
-            SelectOption::new("OnChange", "On change").icon("clock-circle-linear"),
-            SelectOption::new("OnChangeAndWhileMuted", "On change and while muted")
-                .icon("volume-cross-linear"),
-        ]),
+    let theme = controls::select(
+        "volume-osd-theme",
+        osd.theme.clone(),
+        overlay::theme_options(),
         app,
         window,
         cx,
         |app, value, _, cx| {
-            let visibility = visibility_from_key(value.as_ref());
-            app.update_config(cx, |config| config.volume.osd.visibility = visibility);
+            let theme = value.to_string();
+            update_and_preview(app, cx, |osd| osd.theme = theme);
         },
     );
-    let on_device = controls::toggle(
-        "volume-osd-device-change",
-        osd.show_on_device_change,
-        window,
-        cx,
-        |app, checked, _, cx| {
-            app.update_config(cx, |config| {
-                config.volume.osd.show_on_device_change = checked;
-            });
-        },
-    );
-    vec![column()
-        .child(heading(
-            "OSD",
-            "The on-screen display that appears when the volume changes.",
-            Some(enabled),
-            cx,
-        ))
-        .child(field("Theme", theme))
-        .child(field("Display", display))
-        .child(horizontal)
-        .child(vertical)
-        .child(duration)
-        .child(field("Visibility", visibility))
-        .child(super::super::general::card_row(
-            "Show when the output device changes",
-            None,
-            on_device,
-            true,
-            cx,
-        ))
-        .child(live_preview_strip(cx))
-        .into_any_element()]
-}
 
-fn live_preview_strip(cx: &App) -> Div {
-    // TODO(lead): live preview strip. OSD rendering is being built by another agent.
-    let palette = style::palette(cx);
-    div()
-        .min_h(px(72.))
-        .flex()
-        .items_center()
-        .px(px(16.))
-        .rounded(px(12.))
-        .border_1()
-        .border_dashed()
-        .border_color(palette.border_strong.hsla())
-        .bg(crate::settings_ui::color::mix_pct(palette.surface_2, 76., crate::settings_ui::color::TRANSPARENT).hsla())
-        .text_size(px(14.))
-        .text_color(palette.muted.hsla())
-        .child("Live preview")
+    vec![column()
+        .gap(px(0.))
+        .child(heading("OSD", "", Some(enabled), cx))
+        .child(
+            form::panel(18., false, cx)
+                .child(field("Visibility", visibility))
+                .child(duration)
+                .child(super::super::general::card_row(
+                    "Show when the output device changes",
+                    Some("Names the new device, then shows its volume."),
+                    on_device,
+                    true,
+                    cx,
+                )),
+        )
+        .child(
+            form::panel(10., false, cx)
+                .mt(px(18.))
+                .child(field("Display", display))
+                .child(div().h(px(4.)))
+                .child(horizontal)
+                .child(vertical)
+                .child(
+                    style::p("Changes here show the OSD so you can see where it lands.", cx)
+                        .text_size(px(13.))
+                        .mt(px(4.)),
+                ),
+        )
+        .child(
+            form::panel(18., true, cx)
+                .mt(px(18.))
+                .child(form::section_heading("Appearance"))
+                .child(field("Theme", theme)),
+        )
+        .into_any_element()]
 }
 
 fn visibility_key(visibility: crate::VolumeOsdVisibility) -> &'static str {

@@ -255,7 +255,7 @@ fn volume_tray_tip(device_name: &str, percent: u8, muted: bool) -> String {
     }
 }
 
-fn volume_icon_style(config: &VolumeTrayIconConfig) -> volume_tray_icons::VolumeIconStyle {
+pub(crate) fn volume_icon_style(config: &VolumeTrayIconConfig) -> volume_tray_icons::VolumeIconStyle {
     let accent = match config.color {
         TrayColorMode::Accent => volume_tray_icons::windows_accent_rgb(),
         TrayColorMode::Custom => parse_volume_tray_color(&config.custom_color),
@@ -267,7 +267,7 @@ fn volume_icon_style(config: &VolumeTrayIconConfig) -> volume_tray_icons::Volume
     )
 }
 
-fn map_volume_tray_skin(skin: VolumeTraySkin) -> volume_tray_icons::VolumeTraySkin {
+pub(crate) fn map_volume_tray_skin(skin: VolumeTraySkin) -> volume_tray_icons::VolumeTraySkin {
     match skin {
         VolumeTraySkin::Rings => volume_tray_icons::VolumeTraySkin::Rings,
         VolumeTraySkin::Digits => volume_tray_icons::VolumeTraySkin::Digits,
@@ -276,7 +276,7 @@ fn map_volume_tray_skin(skin: VolumeTraySkin) -> volume_tray_icons::VolumeTraySk
     }
 }
 
-fn parse_volume_tray_color(value: &str) -> [u8; 3] {
+pub(crate) fn parse_volume_tray_color(value: &str) -> [u8; 3] {
     let hex = value.trim().trim_start_matches('#');
     if hex.len() == 6
         && let (Ok(r), Ok(g), Ok(b)) = (

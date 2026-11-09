@@ -106,7 +106,7 @@ fn module_group(
 fn module_header(
     app: &mut SettingsApp,
     module: ModuleId,
-    open: bool,
+    _open: bool,
     open_t: f32,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,

@@ -394,6 +394,18 @@ fn show_volume_osd(content: volume_osd::VolumeOsdContent) {
     volume_osd::volume_osd_show(content, &style);
 }
 
+/// Settings changed something about the OSD: show it now with the current level.
+pub(crate) fn preview_volume_osd() {
+    let state = output_volume_state();
+    if state.device_id.is_empty() {
+        return;
+    }
+    show_volume_osd(volume_osd::VolumeOsdContent::Level {
+        percent: output_percent(&state),
+        muted: state.muted,
+    });
+}
+
 /// Called after a config reload so a visible OSD restyles, hides or (in
 /// "while muted" mode) appears without waiting for the next volume change.
 pub(crate) fn apply_volume_osd_config(config: &Config) {

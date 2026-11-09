@@ -190,6 +190,33 @@ pub(crate) fn render(
     // then the inner 16px gap and the color label + 44px select.
     let status_height =
         18.9 + 10. + TILE_HEIGHT + 8. + 16. + 18.9 + 10. + 44. + EXTRA_HEIGHT * extra;
+    let indicator = controls::select(
+        "tray-indicator-device",
+        app.snapshot.config.advanced.indicator_device.clone(),
+        SelectOptions::new(super::devices::indicator_device_options(
+            &app.snapshot.devices,
+            &app.snapshot.config.hotkeys,
+            &app.snapshot.config.advanced.indicator_device,
+            &app.snapshot.config.advanced.audio_device_name_display,
+        )),
+        app,
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |c| c.advanced.indicator_device = value.to_string())
+        },
+    );
+    let double_click = controls::toggle(
+        "tray-double-click-settings",
+        !app.snapshot.config.advanced.disable_tray_double_click_settings,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            app.update_config(cx, |config| {
+                config.advanced.disable_tray_double_click_settings = !checked
+            })
+        },
+    );
     let overview = div()
         .id("tray-icon-overview")
         .flex()
@@ -225,6 +252,35 @@ pub(crate) fn render(
                         .overflow_hidden()
                         .opacity(status)
                         .when(status > 0., |this| this.child(status_content)),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(10.))
+                        .child(style::label("Microphone shown in tray and overlay"))
+                        .child(indicator),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .gap(px(12.))
+                        .min_h(px(44.))
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(4.))
+                                .min_w_0()
+                                .child(style::h2("Double-click the icon to open settings"))
+                                .child(style::p(
+                                    "Turn off to mute on a single click with no delay.",
+                                    cx,
+                                )),
+                        )
+                        .child(double_click),
                 ),
         );
 
@@ -364,7 +420,7 @@ fn mic_tile(
 }
 
 /// `.overlay-icon-option` and its 56px preview; hover never changes borders.
-fn tile(
+pub(crate) fn tile(
     id: SharedString,
     label: &'static str,
     selected: bool,

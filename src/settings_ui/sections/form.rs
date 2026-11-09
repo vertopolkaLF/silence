@@ -18,6 +18,62 @@ pub(crate) fn field(label: &'static str, control: impl IntoElement) -> Div {
         .child(control)
 }
 
+/// Page block separated from the next one by a rule, like the overlay page.
+pub(crate) fn panel(gap: f32, last: bool, cx: &App) -> Div {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(gap))
+        .max_w(px(720.))
+        .when(!last, |d| {
+            d.pb(px(18.))
+                .border_b_1()
+                .border_color(style::palette(cx).border.hsla())
+        })
+}
+
+/// Sub-section title inside a page ("Appearance", "Clicks").
+pub(crate) fn section_heading(label: &'static str) -> Div {
+    div()
+        .h(px(40.))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .child(style::h1(label))
+}
+
+/// Integer slider with a suffix ("2%", "1500 ms").
+pub(crate) fn int_slider(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    value: f64,
+    min: f64,
+    max: f64,
+    step: f64,
+    suffix: &str,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+    on_change: impl Fn(&mut SettingsApp, f64, &mut Window, &mut Context<SettingsApp>) + 'static,
+) -> Stateful<Div> {
+    let value = value.clamp(min, max);
+    let text = format!("{value:.0}{suffix}");
+    controls::range(
+        id,
+        value,
+        RangeOptions {
+            min,
+            max,
+            step,
+            label: label.into(),
+            value_label: text.into(),
+            icon: None,
+        },
+        window,
+        cx,
+        on_change,
+    )
+}
+
 /// 0–100% slider used for overlay placement and the volume OSD.
 /// Callers add any page-specific margin; the track itself matches.
 pub(crate) fn percent_slider(

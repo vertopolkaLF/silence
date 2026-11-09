@@ -4,11 +4,9 @@ use super::{column, heading};
 use crate::settings_ui::{
     SettingsApp,
     anim::UI,
-    assets::icon,
     color::{TRANSPARENT, lerp},
-    controls::{self, SegmentedToggleOption, TextInputEvent, TextInputOptions},
+    controls::{self, SelectOption, SelectOptions, TextInputEvent, TextInputOptions},
     style,
-    theme::FONT_DISPLAY,
 };
 use gpui::{prelude::*, *};
 
@@ -34,21 +32,40 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.volume.tray_icon.enabled = checked);
         },
     );
-    let mut skins = div().w_full().flex().gap(px(10.));
+    let style = crate::volume_icon_style(&tray);
+    let light = app.palette.bg.l > 0.6;
+    let mut skins = div().flex().gap(px(12.));
     for (skin, label) in SKINS {
-        skins = skins.child(skin_card(*skin, label, tray.skin == *skin, window, cx));
+        let skin = *skin;
+        let preview = skin_image(app, skin, style.accent, light, window);
+        skins = skins.child(super::super::tray_icon::tile(
+            format!("volume-skin-{label}").into(),
+            label,
+            tray.skin == skin,
+            img(preview).size(px(PREVIEW_PX)).into_any_element(),
+            window,
+            cx,
+            move |app, _, cx| {
+                app.update_config(cx, |config| config.volume.tray_icon.skin = skin);
+            },
+        ));
     }
     let mode = match tray.color {
         crate::TrayColorMode::Custom => "Custom",
         crate::TrayColorMode::Accent => "Accent",
     };
-    let color_mode = controls::segmented_toggle(
+    let color_mode = controls::select(
         "volume-tray-color",
         mode,
-        vec![
-            SegmentedToggleOption::new("Accent", "Windows accent").icon("widget-linear"),
-            SegmentedToggleOption::new("Custom", "Custom").icon("pallete-2-linear"),
-        ],
+        SelectOptions::new(vec![
+            SelectOption::new("Accent", "Windows accent")
+                .detail("Follows your Windows accent color")
+                .icon("pallete-2-linear"),
+            SelectOption::new("Custom", "Custom color")
+                .detail("Pick any color below")
+                .icon("pallete-2-linear"),
+        ]),
+        app,
         window,
         cx,
         |app, value, window, cx| {
@@ -69,187 +86,86 @@ pub(crate) fn render(
     let custom = tray.color == crate::TrayColorMode::Custom;
     let color = custom_color(tray.custom_color, app, window, cx);
     vec![column()
-        .child(heading(
-            "Tray icon",
-            "How volume shows up in the tray.",
-            Some(show),
-            cx,
-        ))
-        .child(field("Skin", skins))
+        .gap(px(0.))
+        .child(heading("Tray icon", "", Some(show), cx))
         .child(
-            div()
-                .flex()
-                .flex_col()
-                .child(style::label("Color").mb(px(10.)))
-                .child(color_mode)
-                .child(form::collapse(
-                    "volume-tray-custom-color",
-                    custom,
-                    div().pt(px(10.)).child(color),
-                    window,
-                    cx,
-                )),
+            form::panel(18., true, cx)
+                .child(field("Style", skins))
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .child(style::label("Color").mb(px(10.)))
+                        .child(color_mode)
+                        .child(form::collapse(
+                            "volume-tray-custom-color",
+                            custom,
+                            div().pt(px(10.)).child(color),
+                            window,
+                            cx,
+                        )),
+                )
+                .child(
+                    style::p(
+                        "Scroll over the icon to change the volume. Clicks are set on Wheel & clicks.",
+                        cx,
+                    )
+                    .text_size(px(13.)),
+                ),
         )
         .into_any_element()]
 }
 
-fn skin_card(
+const PREVIEW_PX: f32 = 32.;
+const PREVIEW_LEVEL: u8 = 66;
+
+/// The real tray rasterizer at the tile's device-pixel size, cached so
+/// re-renders and hover animations don't redraw it.
+fn skin_image(
+    app: &mut SettingsApp,
     skin: crate::VolumeTraySkin,
-    label: &'static str,
-    selected: bool,
-    window: &mut Window,
-    cx: &mut Context<SettingsApp>,
-) -> Stateful<Div> {
-    let p = style::palette(cx);
-    let id = SharedString::from(format!("volume-skin-{label}"));
-    let (pointer, hover, _) = controls::hover_tween(id.clone(), window, cx);
-    let active = crate::settings_ui::anim::tween(
-        window,
-        cx,
-        (ElementId::from(id.clone()), "selected"),
-        selected as u8 as f32,
-        UI,
-    );
-    let focus = window
-        .use_keyed_state((ElementId::from(id.clone()), "focus"), cx, |_, cx| {
-            cx.focus_handle()
+    accent: [u8; 3],
+    light: bool,
+    window: &Window,
+) -> std::sync::Arc<Image> {
+    let size = (PREVIEW_PX * window.scale_factor()).round().max(16.) as u32;
+    let key = (skin as u8, accent, light, size, PREVIEW_LEVEL);
+    app.sections
+        .volume
+        .skin_images
+        .entry(key)
+        .or_insert_with(|| {
+            let style = crate::volume_tray_icons::VolumeIconStyle::new(
+                crate::map_volume_tray_skin(skin),
+                accent,
+                light,
+            );
+            let rgba = crate::volume_tray_icons::render_volume_icon_rgba(
+                &style,
+                PREVIEW_LEVEL,
+                false,
+                size,
+            );
+            std::sync::Arc::new(Image::from_bytes(ImageFormat::Png, rgba_to_png(&rgba, size)))
         })
-        .read(cx)
-        .clone();
-    let ink = lerp(p.muted, p.accent, active.max(hover * 0.35)).hsla();
-    let preview = skin_preview(skin, 0.66, false, ink, p.danger.hsla());
-    controls::track_pointer(
-        div()
-            .id(id)
-            .track_focus(&focus)
-            .tab_index(0)
-            .focus_visible(move |style| controls::focus_outline(style, p.focus.hsla()))
-            .flex_1()
-            .min_w_0()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap(px(8.))
-            .px(px(8.))
-            .py(px(12.))
-            .rounded(px(12.))
-            .border_1()
-            .border_color(lerp(p.border, p.accent, active).hsla())
-            .bg(lerp(p.surface_2, p.surface_hover, hover).hsla())
-            .cursor_pointer()
-            .child(
-                div()
-                    .h(px(56.))
-                    .w_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .overflow_hidden()
-                    .child(preview),
-            )
-            .child(
-                div()
-                    .text_size(px(13.))
-                    .line_height(relative(1.2))
-                    .font_weight(FontWeight(600.))
-                    .text_color(lerp(p.muted, p.text, active.max(hover)).hsla())
-                    .child(label),
-            ),
-        pointer,
-    )
-    .on_key_down(cx.listener(move |app, event: &KeyDownEvent, _, cx| {
-        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
-            app.update_config(cx, |config| config.volume.tray_icon.skin = skin);
-            cx.stop_propagation();
+        .clone()
+}
+
+fn rgba_to_png(rgba: &[u8], size: u32) -> Vec<u8> {
+    let mut premultiplied = Vec::with_capacity(rgba.len());
+    for px in rgba.chunks_exact(4) {
+        let a = u16::from(px[3]);
+        for channel in &px[..3] {
+            premultiplied.push(((u16::from(*channel) * a + 127) / 255) as u8);
         }
-    }))
-    .on_click(cx.listener(move |app, _, _, cx| {
-        app.update_config(cx, |config| config.volume.tray_icon.skin = skin);
-    }))
-}
-
-/// Sample glyph for a skin card.
-///
-/// TODO(lead): render preview with render_volume_icon_rgba
-fn skin_preview(
-    skin: crate::VolumeTraySkin,
-    level: f32,
-    muted: bool,
-    ink: Hsla,
-    danger: Hsla,
-) -> AnyElement {
-    // `render_volume_icon_rgba(style, level, muted, size) -> Vec<u8>`
-    // in `src/main_parts/volume_tray_icons.rs` is not merged yet.
-    let level = if muted { 0. } else { level.clamp(0., 1.) };
-    let ink = if muted { danger } else { ink };
-    match skin {
-        crate::VolumeTraySkin::Rings => rings(ink, level),
-        crate::VolumeTraySkin::Digits => digits(ink, level),
-        crate::VolumeTraySkin::Bar => bars(ink, level),
-        crate::VolumeTraySkin::Speaker => speaker(ink, muted),
+        premultiplied.push(px[3]);
     }
-}
-
-fn rings(ink: Hsla, level: f32) -> AnyElement {
-    let inner = 8. + 12. * level;
-    div()
-        .size(px(34.))
-        .rounded_full()
-        .border_1()
-        .border_color(ink)
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(
-            div()
-                .size(px(inner))
-                .rounded_full()
-                .border_1()
-                .border_color(ink),
-        )
-        .into_any_element()
-}
-
-fn digits(ink: Hsla, level: f32) -> AnyElement {
-    let percent = (level * 100.).round() as u8;
-    div()
-        .font_family(FONT_DISPLAY)
-        .text_size(px(22.))
-        .line_height(relative(1.))
-        .font_weight(FontWeight(650.))
-        .text_color(ink)
-        .child(percent.to_string())
-        .into_any_element()
-}
-
-fn bars(ink: Hsla, level: f32) -> AnyElement {
-    let heights = [0.35, 0.55, 0.85, 0.62, 0.4];
-    div()
-        .h(px(28.))
-        .flex()
-        .items_end()
-        .gap(px(3.))
-        .children(heights.into_iter().map(|height| {
-            let height = 6. + 22. * height * (0.35 + 0.65 * level);
-            div()
-                .w(px(4.))
-                .h(px(height))
-                .rounded(px(2.))
-                .bg(ink)
-        }))
-        .into_any_element()
-}
-
-fn speaker(ink: Hsla, muted: bool) -> AnyElement {
-    svg()
-        .path(icon(if muted {
-            "volume-cross-linear"
-        } else {
-            "volume-loud-linear"
-        }))
-        .size(px(30.))
-        .text_color(ink)
-        .into_any_element()
+    resvg::tiny_skia::Pixmap::from_vec(
+        premultiplied,
+        resvg::tiny_skia::IntSize::from_wh(size, size).expect("non-zero preview size"),
+    )
+    .and_then(|pixmap| pixmap.encode_png().ok())
+    .unwrap_or_default()
 }
 
 fn custom_color(

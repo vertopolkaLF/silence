@@ -27,6 +27,8 @@ const ID_TRAY: u32 = 1;
 /// Mouse messages for the output-volume icon. `lparam` is the raw mouse
 /// message, same as `WM_TRAY` (the mic icon does not use `NOTIFYICON_VERSION_4`).
 const WM_VOLUME_TRAY: u32 = WM_APP + 19;
+/// Settings asks the tray to flash the volume OSD after an OSD setting changed.
+const WM_VOLUME_OSD_PREVIEW: u32 = WM_APP + 20;
 /// Second notify icon for output volume. The microphone icon keeps [`ID_TRAY`].
 const ID_VOLUME_TRAY: u32 = 2;
 const ID_STATE_TIMER: usize = 10;

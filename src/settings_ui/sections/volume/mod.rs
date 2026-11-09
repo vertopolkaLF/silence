@@ -33,6 +33,8 @@ pub(crate) struct State {
     color_backing: String,
     color_focused: bool,
     color_input: Option<Entity<TextInput>>,
+    /// Rendered skin previews keyed by (skin, accent, light, size, level).
+    pub(crate) skin_images: HashMap<(u8, [u8; 3], bool, u32, u8), std::sync::Arc<Image>>,
 }
 
 pub(crate) fn column() -> Div {
@@ -44,25 +46,20 @@ pub(crate) fn column() -> Div {
         .gap(px(18.))
 }
 
-/// Page title, optional enable switch, and the one-line intro under it.
+/// Page title and optional enable switch. Like the microphone pages, no intro
+/// line: the controls speak for themselves.
 pub(crate) fn heading<T: IntoElement>(
     title: &'static str,
-    intro: &'static str,
+    _intro: &'static str,
     toggle: Option<T>,
-    cx: &App,
+    _cx: &App,
 ) -> Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(8.))
-        .mb(px(4.))
-        .child(
-            style::page_header()
-                .h(px(40.))
-                .child(style::h1(title))
-                .children(toggle),
-        )
-        .child(style::p(intro, cx))
+    div().mb(px(4.)).child(
+        style::page_header()
+            .h(px(40.))
+            .child(style::h1(title))
+            .children(toggle),
+    )
 }
 
 /// Compact integer field. In-range keystrokes apply immediately; blur clamps.

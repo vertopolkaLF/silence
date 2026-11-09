@@ -634,6 +634,10 @@ unsafe extern "system" fn main_wnd_proc(
             handle_volume_tray_message(hwnd, lparam.0 as u32);
             LRESULT(0)
         }
+        WM_VOLUME_OSD_PREVIEW => {
+            preview_volume_osd();
+            LRESULT(0)
+        }
         WM_COMMAND => {
             handle_tray_menu_command(wparam.0 & 0xffff);
             LRESULT(0)

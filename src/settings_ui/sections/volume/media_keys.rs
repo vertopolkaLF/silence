@@ -1,6 +1,6 @@
 //! Volume → Media keys.
 use super::{column, heading};
-use crate::settings_ui::{SettingsApp, controls, style};
+use crate::settings_ui::{SettingsApp, controls};
 use gpui::{prelude::*, *};
 
 pub(crate) fn render(
@@ -19,25 +19,15 @@ pub(crate) fn render(
         },
     );
     vec![column()
-        .child(heading(
-            "Media keys",
-            "What the keyboard volume keys do.",
-            None::<Div>,
-            cx,
-        ))
+        .child(heading("Media keys", "", None::<Div>, cx))
         .child(super::super::general::card_row(
-            "Use silence! for the keyboard volume keys",
-            Some("Replaces the Windows volume flyout with silence!'s OSD."),
+            "Use silence! for the volume keys",
+            Some(
+                "Volume up, down and mute show silence!'s OSD instead of the Windows flyout and step like the wheel. Apps running as administrator keep the Windows flyout unless silence! runs as administrator too.",
+            ),
             toggle,
             true,
             cx,
         ))
-        .child(
-            style::p(
-                "While an app running as administrator is focused, Windows handles the keys, unless silence! runs as administrator.",
-                cx,
-            )
-            .text_size(px(13.)),
-        )
         .into_any_element()]
 }

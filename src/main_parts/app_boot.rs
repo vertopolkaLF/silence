@@ -90,6 +90,16 @@ pub(crate) fn notify_config_changed() {
     }
 }
 
+/// Ask the tray to show the volume OSD with the current level, so OSD
+/// settings changes are visible right away. Posted after the config change.
+pub(crate) fn request_volume_osd_preview() {
+    if let Some(hwnd) = hidden_window() {
+        unsafe {
+            let _ = PostMessageW(hwnd, WM_VOLUME_OSD_PREVIEW, WPARAM(0), LPARAM(0));
+        }
+    }
+}
+
 /// Mute/endpoint callbacks for the settings window, posted to its procedure.
 pub(crate) fn register_settings_audio_notifications(hwnd: isize) {
     ensure_audio_notification_registration_for(HWND(hwnd as *mut c_void));

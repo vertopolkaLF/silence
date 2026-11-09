@@ -1,10 +1,9 @@
 //! Volume → Wheel & clicks.
 use super::super::form::{self, field};
-use super::{column, heading, numeric_field};
+use super::{column, heading};
 use crate::settings_ui::{
     SettingsApp,
     controls::{self, SelectOption, SelectOptions},
-    style,
 };
 use gpui::{prelude::*, *};
 
@@ -13,35 +12,35 @@ const ZONES: &[(crate::WheelZone, &str, &str, &str, &str)] = &[
         crate::WheelZone::Off,
         "Off",
         "Off",
-        "The wheel does not change the volume.",
+        "The wheel never changes the volume.",
         "forbidden-circle-linear",
     ),
     (
         crate::WheelZone::TrayIcon,
         "TrayIcon",
         "Tray icon",
-        "Scroll over the volume icon in the tray.",
-        "widget-linear",
+        "Over the volume icon. Keep it pinned on the taskbar, not behind ^.",
+        "volume-loud-linear",
     ),
     (
         crate::WheelZone::NotificationArea,
         "NotificationArea",
         "Notification area",
-        "Scroll anywhere over the icons by the clock.",
+        "Anywhere over the icons next to the clock.",
         "bell-linear",
     ),
     (
         crate::WheelZone::Taskbar,
         "Taskbar",
         "Whole taskbar",
-        "Scroll anywhere on the taskbar.",
-        "slider-minimalistic-horizontal-linear",
+        "Anywhere on the taskbar, on every monitor.",
+        "window-frame-linear",
     ),
 ];
 
 const CLICKS: &[(&str, &str, &str)] = &[
     ("None", "None", "close-circle-linear"),
-    ("Popup", "Volume slider popup", "widget-linear"),
+    ("Popup", "Volume slider popup", "slider-minimalistic-horizontal-linear"),
     ("ToggleMute", "Mute", "volume-cross-linear"),
     ("OpenMixer", "Windows volume mixer", "tuning-2-linear"),
     ("OpenSoundSettings", "Windows sound settings", "settings-linear"),
@@ -50,7 +49,7 @@ const CLICKS: &[(&str, &str, &str)] = &[
         "Next output device",
         "round-transfer-horizontal-linear",
     ),
-    ("OpenSettings", "Open silence! settings", "settings-bold"),
+    ("OpenSettings", "Open silence! settings", "settings-minimalistic-linear"),
 ];
 
 pub(crate) fn render(
@@ -69,7 +68,7 @@ pub(crate) fn render(
             })
             .collect(),
     );
-    zone_options.show_current_detail = false;
+    zone_options.show_current_detail = true;
     let zone = controls::select(
         "volume-wheel-zone",
         zone_id,
@@ -82,16 +81,20 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.volume.wheel.zone = zone);
         },
     );
-    let step = numeric_field(
+    let step = form::int_slider(
         "volume-wheel-step",
-        u64::from(wheel.step_percent),
-        1,
-        10,
+        "Step per notch",
+        f64::from(wheel.step_percent.clamp(1, 10)),
+        1.,
+        10.,
+        1.,
         "%",
-        app,
         window,
         cx,
-        |config, value| config.volume.wheel.step_percent = value as u8,
+        |app, value, _, cx| {
+            let value = value.round().clamp(1., 10.) as u8;
+            app.update_config(cx, |config| config.volume.wheel.step_percent = value);
+        },
     );
     let left = click_select("volume-click-left", "Left click", clicks.left, app, window, cx, |clicks, action| {
         clicks.left = action;
@@ -114,52 +117,23 @@ pub(crate) fn render(
         cx,
         |clicks, action| clicks.middle = action,
     );
-    let explanation = zone_detail(wheel.zone);
-    let tray_hint = wheel.zone == crate::WheelZone::TrayIcon;
     vec![column()
-        .child(heading(
-            "Wheel & clicks",
-            "How the mouse wheel and buttons change the volume.",
-            None::<Div>,
-            cx,
-        ))
-        .child(field("Zone", zone))
+        .gap(px(0.))
+        .child(heading("Wheel & clicks", "", None::<Div>, cx))
         .child(
-            div()
-                .flex()
-                .flex_col()
-                .child(style::p(explanation, cx).text_size(px(13.)))
-                .child(form::collapse(
-                    "volume-wheel-tray-hint",
-                    tray_hint,
-                    div().pt(px(10.)).child(tray_hint_row(cx)),
-                    window,
-                    cx,
-                )),
+            form::panel(18., false, cx)
+                .child(field("Scroll zone", zone))
+                .child(step),
         )
         .child(
-            field("Step", step)
-                .child(style::p("Percent per notch, from 1 to 10.", cx).text_size(px(13.))),
+            form::panel(18., true, cx)
+                .mt(px(18.))
+                .child(form::section_heading("Clicks"))
+                .child(left)
+                .child(double)
+                .child(middle),
         )
-        .child(style::h2("Clicks").mt(px(4.)))
-        .child(left)
-        .child(double)
-        .child(middle)
         .into_any_element()]
-}
-
-fn tray_hint_row(cx: &App) -> Div {
-    let palette = style::palette(cx);
-    div()
-        .w_full()
-        .px(px(14.))
-        .py(px(10.))
-        .rounded(px(10.))
-        .bg(palette.accent_soft.hsla())
-        .text_size(px(13.))
-        .line_height(relative(1.4))
-        .text_color(palette.text.hsla())
-        .child("If the icon is hidden behind the ^ arrow, drag it onto the taskbar so the wheel can reach it.")
 }
 
 fn click_select(
@@ -199,14 +173,6 @@ fn zone_key(zone: crate::WheelZone) -> &'static str {
         .find(|(item, ..)| *item == zone)
         .map(|(_, key, ..)| *key)
         .unwrap_or("TrayIcon")
-}
-
-fn zone_detail(zone: crate::WheelZone) -> &'static str {
-    ZONES
-        .iter()
-        .find(|(item, ..)| *item == zone)
-        .map(|(_, _, _, detail, _)| *detail)
-        .unwrap_or("Scroll over the volume icon in the tray.")
 }
 
 fn zone_from_key(key: &str) -> crate::WheelZone {
