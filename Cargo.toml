@@ -80,5 +80,8 @@ winresource = "0.1"
 
 # GPUI (layout, text shaping, rendering) is painfully slow at opt-level 0.
 # Optimize dependencies in dev builds; our own crate stays fast to compile.
+[profile.dev]
+opt-level = 1
+
 [profile.dev.package."*"]
 opt-level = 2

@@ -230,8 +230,29 @@ pub(crate) struct Nav {
     pub scroll: ScrollHandle,
     /// Scroll handle kept for the outgoing panel during a slide.
     pub outgoing_scroll: ScrollHandle,
-    /// Smooth scroll toward a section: (start offset, target offset, start time).
-    pub smooth_scroll: Option<(f32, f32, Instant)>,
+    /// Animated scroll in progress (section jump or mouse wheel).
+    pub smooth_scroll: Option<SmoothScroll>,
+}
+
+/// Scroll offset animating from `from` to `to` (content pixels, positive down).
+#[derive(Clone, Copy)]
+pub(crate) struct SmoothScroll {
+    pub from: f32,
+    pub to: f32,
+    pub started: Instant,
+    pub duration_ms: f32,
+    pub easing: crate::settings_ui::anim::Easing,
+}
+
+impl SmoothScroll {
+    pub fn value(&self) -> f32 {
+        let t = self.progress();
+        self.from + (self.to - self.from) * self.easing.apply(t)
+    }
+
+    pub fn progress(&self) -> f32 {
+        (self.started.elapsed().as_secs_f32() * 1000. / self.duration_ms).min(1.)
+    }
 }
 
 impl Nav {

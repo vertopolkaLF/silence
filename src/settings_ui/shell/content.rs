@@ -1,6 +1,6 @@
 //! The content area (`assets/styles/layout.css`): sliding tab panels, the
 //! scroll container with a thin scrollbar, and active sub-section tracking.
-use super::nav::{SettingsTab, TabSlideDirection};
+use super::nav::{SettingsTab, SmoothScroll, TabSlideDirection};
 use crate::settings_ui::{
     SettingsApp,
     anim::{self, Easing, Transition, cubic_bezier},
@@ -8,13 +8,17 @@ use crate::settings_ui::{
 };
 use gpui::{
     AnyElement, BoxShadow, Context, InteractiveElement, IntoElement, ParentElement, Pixels,
-    ScrollHandle, Styled, Window, div, point, prelude::*, px,
+    ScrollDelta, ScrollHandle, ScrollWheelEvent, Styled, Window, div, point, prelude::*, px,
 };
 use std::time::Instant;
 
 /// `[data-settings-section] { scroll-margin-top: 50px }`.
 const SCROLL_MARGIN_TOP: f32 = 50.;
 const SMOOTH_SCROLL_MS: f32 = 450.;
+/// One mouse-wheel notch glides instead of jumping.
+const WHEEL_SCROLL_MS: f32 = 220.;
+/// `easeOutCubic`: fast start, so rapid notches feel immediate.
+const WHEEL_EASING: Easing = Easing::Bezier(0.33, 1., 0.68, 1.);
 /// Width reserved by `scrollbar-gutter: stable` with a thin scrollbar.
 const SCROLLBAR_GUTTER: f32 = 10.;
 
@@ -145,11 +149,15 @@ fn panel(
                         .py(px(44.))
                         .children(blocks);
                     if resting {
+                        // On the page, not the scroll container: a child's
+                        // listener runs before the container's own scrolling.
                         page.on_children_prepainted(|bounds, _, _| {
                             record_section_tops(bounds.iter().map(|b| b.origin.y).collect())
                         })
+                        .on_scroll_wheel(cx.listener(on_wheel))
+                        .into_any_element()
                     } else {
-                        page
+                        page.into_any_element()
                     }
                 }),
         )
@@ -232,7 +240,13 @@ pub(crate) fn scroll_to_section(
     let current = -scroll.offset().y.as_f32();
     // `max_offset` can be negative before the first layout; clamp would panic.
     let target = (top - SCROLL_MARGIN_TOP).clamp(0., max.max(0.));
-    app.nav.smooth_scroll = Some((current, target, Instant::now()));
+    app.nav.smooth_scroll = Some(SmoothScroll {
+        from: current,
+        to: target,
+        started: Instant::now(),
+        duration_ms: SMOOTH_SCROLL_MS,
+        easing: Easing::EaseInOut,
+    });
     // Not `window.request_animation_frame()`: outside render it has no current
     // view and panics. The re-render runs `apply_smooth_scroll`, which keeps
     // requesting frames until the scroll settles.
@@ -240,15 +254,51 @@ pub(crate) fn scroll_to_section(
 }
 
 fn apply_smooth_scroll(app: &mut SettingsApp, window: &mut Window) {
-    let Some((from, to, started)) = app.nav.smooth_scroll else {
+    let Some(smooth) = app.nav.smooth_scroll else {
         return;
     };
-    let t = (started.elapsed().as_secs_f32() * 1000. / SMOOTH_SCROLL_MS).min(1.);
-    let y = from + (to - from) * Easing::EaseInOut.apply(t);
-    app.nav.scroll.set_offset(point(px(0.), px(-y)));
-    if t >= 1. {
+    app.nav.scroll.set_offset(point(px(0.), px(-smooth.value())));
+    if smooth.progress() >= 1. {
         app.nav.smooth_scroll = None;
     } else {
         window.request_animation_frame();
     }
+}
+
+/// Mouse wheel: glide to the new offset, adding notches to the running target.
+/// Touchpads report pixel deltas that are already smooth; they scroll natively.
+fn on_wheel(
+    app: &mut SettingsApp,
+    event: &ScrollWheelEvent,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) {
+    if !matches!(event.delta, ScrollDelta::Lines(_)) {
+        app.nav.smooth_scroll = None;
+        return;
+    }
+    let delta = event.delta.pixel_delta(window.line_height()).y.as_f32();
+    if delta == 0. {
+        return;
+    }
+    cx.stop_propagation();
+    let scroll = &app.nav.scroll;
+    let max = scroll.max_offset().y.as_f32().max(0.);
+    let current = -scroll.offset().y.as_f32();
+    let base = match app.nav.smooth_scroll {
+        Some(smooth) if smooth.progress() < 1. => smooth.to,
+        _ => current,
+    };
+    let target = (base - delta).clamp(0., max);
+    if (target - current).abs() < 0.5 {
+        return;
+    }
+    app.nav.smooth_scroll = Some(SmoothScroll {
+        from: current,
+        to: target,
+        started: Instant::now(),
+        duration_ms: WHEEL_SCROLL_MS,
+        easing: WHEEL_EASING,
+    });
+    cx.notify();
 }

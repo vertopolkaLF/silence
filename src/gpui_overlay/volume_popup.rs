@@ -8,6 +8,7 @@
 //! while the popup is open.
 
 use super::{motion::Motion, theme::System};
+use crate::settings_ui::anim::{self, Easing, Transition};
 use crate::volume_popup::{CARD_W, GUTTER, PopupCommand, VolumePopupState};
 use crate::volume_sessions::{self, AppVolume};
 use gpui::{
@@ -61,6 +62,16 @@ const APPEAR_MS: u64 = 160;
 const CLOSE_MS: u64 = 130;
 const RESIZE_MS: u64 = 200;
 const POLL: Duration = Duration::from_millis(500);
+/// Rows fade up one after another as the popup opens.
+const STAGGER_DELAY_MS: f32 = 40.0;
+const STAGGER_STEP_MS: f32 = 18.0;
+const STAGGER_MS: f32 = 200.0;
+const STAGGER_RISE: f32 = 6.0;
+/// Slider level glide on wheel, keys and outside changes.
+const LEVEL: Transition = Transition::new(140, Easing::Bezier(0.33, 1., 0.68, 1.));
+/// Hover backgrounds and the thumb's inner dot.
+const HOVER: Transition = Transition::new(100, Easing::EaseOut);
+const PRESS: Transition = Transition::new(80, Easing::EaseOut);
 /// Closes on its own if Windows never let it take focus.
 const UNFOCUSED_TIMEOUT: Duration = Duration::from_secs(6);
 
@@ -356,11 +367,27 @@ enum Target {
     App(String),
 }
 
+impl Target {
+    /// Element id for per-target animation state, stable as rows reorder.
+    fn key(&self, part: &str) -> ElementId {
+        let name = match self {
+            Self::Device => format!("popup-{part}-device"),
+            Self::App(key) => format!("popup-{part}-app-{key}"),
+        };
+        ElementId::Name(name.into())
+    }
+}
+
 struct AppRow {
     app: AppVolume,
     icon: Option<Arc<Image>>,
     /// Shown level while dragging, ahead of the session's own value.
     local_percent: Option<u8>,
+    /// 0..1: the row grows in when an app starts playing and collapses
+    /// when it goes away, so the rows below slide instead of jumping.
+    presence: Motion,
+    /// Session ended; kept until it has collapsed.
+    leaving: bool,
 }
 
 struct PopupView {
@@ -381,6 +408,8 @@ struct PopupView {
     /// Card height the window is currently sized for.
     window_card_h: f32,
     closing: bool,
+    /// When the popup last opened, for the rows' staggered entrance.
+    opened_at: Instant,
     was_active: bool,
     focus: FocusHandle,
     timeout: Option<Task<()>>,
@@ -419,6 +448,7 @@ impl PopupView {
             card_h: Motion::new(height, RESIZE_MS),
             window_card_h: height,
             closing: true,
+            opened_at: Instant::now(),
             was_active: false,
             focus: cx.focus_handle(),
             timeout: None,
@@ -451,6 +481,7 @@ impl PopupView {
         }
         if self.closing {
             self.closing = false;
+            self.opened_at = Instant::now();
             self.appear.retarget(1.0, Instant::now());
         }
         self.was_active = false;
@@ -508,11 +539,20 @@ impl PopupView {
             let image = png.map(|png| Arc::new(Image::from_bytes(ImageFormat::Png, (*png).clone())));
             self.icons.insert(path, image);
         }
+        let now = Instant::now();
+        let animate = !self.closing;
+        let live_before = self.live_apps();
         let mut rows = Vec::with_capacity(apps.len());
         for app in apps {
             let previous = self.apps.iter().find(|row| row.app.key == app.key);
             let dragging = self.dragging == Some(Target::App(app.key.clone()));
             let local_percent = previous.and_then(|row| row.local_percent);
+            let mut presence = match previous {
+                Some(row) if animate => row.presence.clone(),
+                None if animate => Motion::new(0.0, RESIZE_MS),
+                _ => Motion::new(1.0, RESIZE_MS),
+            };
+            presence.retarget(1.0, now);
             let icon = app
                 .icon_path
                 .as_ref()
@@ -522,16 +562,36 @@ impl PopupView {
                 icon,
                 // Keep the dragged value until the session reports it.
                 local_percent: if dragging { local_percent } else { None },
+                presence,
+                leaving: false,
             });
         }
-        let changed_count = rows.len() != self.apps.len();
-        let changed = changed_count
-            || rows
-                .iter()
-                .zip(&self.apps)
-                .any(|(a, b)| a.app != b.app || a.icon.is_some() != b.icon.is_some());
+        // While open, gone apps collapse where they were instead of vanishing.
+        if animate {
+            for (index, old) in self.apps.iter().enumerate() {
+                if rows.iter().any(|row| row.app.key == old.app.key) {
+                    continue;
+                }
+                let mut presence = old.presence.clone();
+                presence.retarget(0.0, now);
+                rows.insert(
+                    index.min(rows.len()),
+                    AppRow {
+                        app: old.app.clone(),
+                        icon: old.icon.clone(),
+                        local_percent: None,
+                        presence,
+                        leaving: true,
+                    },
+                );
+            }
+        }
+        let changed = rows.len() != self.apps.len()
+            || rows.iter().zip(&self.apps).any(|(a, b)| {
+                a.app != b.app || a.icon.is_some() != b.icon.is_some() || a.leaving != b.leaving
+            });
         self.apps = rows;
-        if changed_count {
+        if self.live_apps() != live_before {
             self.resize(cx);
         }
         if changed {
@@ -539,10 +599,22 @@ impl PopupView {
         }
     }
 
+    fn live_apps(&self) -> usize {
+        self.apps.iter().filter(|row| !row.leaving).count()
+    }
+
+    /// Entrance progress (0..1) of the `index`th row since the popup opened.
+    fn stagger(&self, index: usize, now: Instant) -> f32 {
+        let elapsed = now.saturating_duration_since(self.opened_at).as_secs_f32() * 1000.0;
+        let delay = STAGGER_DELAY_MS + index.min(12) as f32 * STAGGER_STEP_MS;
+        let t = ((elapsed - delay) / STAGGER_MS).clamp(0.0, 1.0);
+        1.0 - (1.0 - t).powi(3)
+    }
+
     /// Animates the card to fit the rows. The window grows at once and
     /// shrinks after the card has, so the animation is never clipped.
     fn resize(&mut self, cx: &mut Context<Self>) {
-        let target = self.layout.card_height(self.apps.len());
+        let target = self.layout.card_height(self.live_apps());
         let now = Instant::now();
         if self.closing {
             self.card_h = Motion::new(target, RESIZE_MS);
@@ -589,6 +661,8 @@ impl PopupView {
         self.closing = true;
         self.dragging = None;
         self.poll = None;
+        // Don't replay collapses on the next open.
+        self.apps.retain(|row| !row.leaving);
         crate::volume_popup::mark_open(false);
         self.appear.retarget(0.0, Instant::now());
         cx.notify();
@@ -705,20 +779,30 @@ impl PopupView {
         percent: u8,
         muted: bool,
         colors: &Colors,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
-        let level = f32::from(percent) / 100.0;
+        let dragging = self.dragging.as_ref() == Some(&target);
+        // The thumb follows the pointer exactly; other changes glide.
+        let level = anim::tween(
+            window,
+            cx,
+            target.key("level"),
+            f32::from(percent) / 100.0,
+            if dragging { Transition::new(0, Easing::Linear) } else { LEVEL },
+        );
         let track_w = self.layout.track_w(&target);
         let usable = track_w - THUMB;
         let thumb_x = usable * level;
         let fill = if muted { colors.secondary } else { colors.fill };
-        let inner = if self.dragging.as_ref() == Some(&target) {
-            8.0
+        let (inner, transition) = if dragging {
+            (8.0, PRESS)
         } else if self.hovered_slider.as_ref() == Some(&target) {
-            14.0
+            (14.0, HOVER)
         } else {
-            12.0
+            (12.0, HOVER)
         };
+        let inner = anim::tween(window, cx, target.key("thumb"), inner, transition);
         let hover_target = target.clone();
         div()
             .id(id)
@@ -786,8 +870,11 @@ impl PopupView {
         id: ElementId,
         target: Target,
         colors: &Colors,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
+        let hovered = self.hovered_button.as_ref() == Some(&target);
+        let hover = anim::tween(window, cx, target.key("button"), hovered as u8 as f32, HOVER);
         let hover_target = target.clone();
         div()
             .id(id)
@@ -797,8 +884,11 @@ impl PopupView {
             .items_center()
             .justify_center()
             .rounded(px(4.))
-            .when(self.hovered_button.as_ref() == Some(&target), |d| {
-                d.bg(colors.hover)
+            .when(hover > 0.0, |d| {
+                d.bg(Rgba {
+                    a: colors.hover.a * hover,
+                    ..colors.hover
+                })
             })
             .on_hover(cx.listener(move |view, hovered: &bool, _, cx| {
                 if *hovered {
@@ -884,11 +974,16 @@ impl PopupView {
         }
     }
 
-    fn device_row(&self, colors: &Colors, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
+    fn device_row(
+        &self,
+        colors: &Colors,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
         let percent = self.device_percent();
         let labeled = self.layout.device_labeled();
         let mut button = self
-            .button("popup-mute".into(), Target::Device, colors, cx)
+            .button("popup-mute".into(), Target::Device, colors, window, cx)
             .on_click(cx.listener(|_, _, _, _| crate::request_popup_mute()))
             .child(glyph_box(self.device_glyph(), DEVICE_GLYPH, APP_ICON, colors.text));
         if !labeled && !self.layout.header {
@@ -900,6 +995,7 @@ impl PopupView {
             percent,
             self.state.muted,
             colors,
+            window,
             cx,
         );
         Self::row(
@@ -922,11 +1018,18 @@ impl PopupView {
         }))
     }
 
-    fn app_row(&self, index: usize, row: &AppRow, colors: &Colors, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
+    fn app_row(
+        &self,
+        row: &AppRow,
+        colors: &Colors,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
         let key = row.app.key.clone();
         let target = Target::App(key.clone());
         let percent = row.local_percent.unwrap_or(row.app.percent).min(100);
         let muted = row.app.muted;
+        let mute = anim::tween(window, cx, target.key("mute"), muted as u8 as f32, HOVER);
         let icon: gpui::AnyElement = match &row.icon {
             Some(image) => img(image.clone())
                 .size(px(APP_ICON))
@@ -946,40 +1049,44 @@ impl PopupView {
             rgb(0x2C2C2C)
         };
         let click_key = key.clone();
+        // The badge pops in from its corner as the icon dims.
+        let badge = 14.0 * mute;
         let mut button = self
-            .button(ElementId::NamedInteger("popup-app-mute".into(), index as u64), target.clone(), colors, cx)
+            .button(target.key("mute-button"), target.clone(), colors, window, cx)
             .on_click(cx.listener(move |view, _, _, cx| view.toggle_app_mute(&click_key, cx)))
             .child(
                 div()
                     .relative()
                     .size(px(APP_ICON))
-                    .child(div().size_full().opacity(if muted { 0.4 } else { 1.0 }).child(icon))
-                    .when(muted, |d| {
+                    .child(div().size_full().opacity(1.0 - 0.6 * mute).child(icon))
+                    .when(mute > 0.01, |d| {
                         d.child(
                             div()
                                 .absolute()
-                                .right(px(-5.))
-                                .bottom(px(-5.))
-                                .size(px(14.))
+                                .right(px(-5. + (14.0 - badge) / 2.0))
+                                .bottom(px(-5. + (14.0 - badge) / 2.0))
+                                .size(px(badge))
+                                .opacity(mute)
                                 .rounded_full()
                                 .bg(badge_bg)
                                 .flex()
                                 .items_center()
                                 .justify_center()
                                 .font_family(super::volume::fluent_font())
-                                .text_size(px(9.))
-                                .line_height(px(9.))
+                                .text_size(px(9. * mute))
+                                .line_height(px(9. * mute))
                                 .text_color(colors.text)
                                 .child(char::from_u32(0xE74F).unwrap_or(' ').to_string()),
                         )
                     }),
             );
         let slider = self.slider(
-            ElementId::NamedInteger("popup-app-slider".into(), index as u64),
-            target,
+            target.key("slider"),
+            target.clone(),
             percent,
             muted,
             colors,
+            window,
             cx,
         )
         // Wheel on the slider sets the app's volume; anywhere else in the
@@ -991,7 +1098,7 @@ impl PopupView {
             button = button.tooltip(name_tooltip(row.app.name.clone(), self.system.light));
         }
         Self::row(
-            ElementId::NamedInteger("popup-app".into(), index as u64),
+            target.key("row"),
             self.layout.labeled,
             button,
             div()
@@ -1069,7 +1176,12 @@ impl Render for PopupView {
         let colors = Colors::load(self.system);
         let t = self.appear.value(now).clamp(0.0, 1.0);
         let height = self.card_h.value(now);
-        if self.appear.active(now) || self.card_h.active(now) {
+        self.apps
+            .retain(|row| !(row.leaving && !row.presence.active(now)));
+        let rows_moving = self.apps.iter().any(|row| row.presence.active(now));
+        let last_row = self.apps.len() + 2;
+        let staggering = !self.closing && self.stagger(last_row, now) < 1.0;
+        if self.appear.active(now) || self.card_h.active(now) || rows_moving || staggering {
             window.request_animation_frame();
         }
 
@@ -1109,10 +1221,22 @@ impl Render for PopupView {
             .flex_shrink_0()
             .h(px(list_h.max(0.)))
             .overflow_y_scroll();
+        let row_h = self.layout.app_row_h();
+        let first_app = 1 + usize::from(self.layout.header);
         for index in 0..self.apps.len() {
             let row = &self.apps[index];
-            let element = self.app_row(index, row, &colors, cx);
-            list = list.child(element);
+            let presence = row.presence.value(now).clamp(0.0, 1.0);
+            let enter = self.stagger(first_app + index, now);
+            let element = self.app_row(row, &colors, window, cx);
+            list = list.child(
+                // Grows/collapses so the rows below slide along with the card.
+                div()
+                    .flex_shrink_0()
+                    .h(px(row_h * presence))
+                    .overflow_hidden()
+                    .opacity(presence * presence * enter)
+                    .child(element.relative().top(px(STAGGER_RISE * (1.0 - enter)))),
+            );
         }
 
         let mut card = div()
@@ -1154,6 +1278,13 @@ impl Render for PopupView {
             None if glass => card.bg(colors.glass_tint),
             None => card.bg(colors.surface),
         };
+        let header_enter = self.stagger(0, now);
+        let device_enter = self.stagger(usize::from(self.layout.header), now);
+        let device_row = self
+            .device_row(&colors, window, cx)
+            .relative()
+            .top(px(STAGGER_RISE * (1.0 - device_enter)))
+            .opacity(device_enter);
         let content = div()
             .relative()
             .size_full()
@@ -1165,6 +1296,9 @@ impl Render for PopupView {
                 d.child(
                     // Starts at the icons' left edge.
                     div()
+                        .relative()
+                        .top(px(STAGGER_RISE * (1.0 - header_enter)))
+                        .opacity(header_enter)
                         .h(px(HEADER_H))
                         .flex_shrink_0()
                         .pl(px(PAD_LEFT + (BUTTON - APP_ICON) / 2.0))
@@ -1180,7 +1314,7 @@ impl Render for PopupView {
                         .child(self.device_name()),
                 )
             })
-            .child(self.device_row(&colors, cx))
+            .child(device_row)
             .when(!self.apps.is_empty(), |d| {
                 d.child(
                     div()
