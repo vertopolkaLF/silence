@@ -18,7 +18,6 @@ pub(crate) struct State {
 }
 
 const TILE_HEIGHT: f32 = 56. + 5. + 16.5;
-const EXTRA_HEIGHT: f32 = 2. + TILE_HEIGHT * 2. + 10.;
 
 /// Native `title` hints from the original buttons, hosted by GPUI.
 struct Hint(SharedString);
@@ -127,7 +126,7 @@ pub(crate) fn render(
     ));
 
     let mut extras = div().flex().flex_col().gap(px(10.)).pt(px(2.));
-    if status > 0. && extra > 0. {
+    {
         for pairs in crate::overlay_icons::extra_overlay_icon_pairs().chunks(6) {
             extras = extras.child(
                 div().flex().justify_between().w_full().children(
@@ -148,17 +147,16 @@ pub(crate) fn render(
             .child(primary)
             // CSS gives the closed extra wrapper a -2px margin, leaving 8px
             // of the field's 10px gap. Clip during the 200ms grid reveal.
-            .child(
-                div()
-                    .mt(px(-2.))
-                    .h(px(EXTRA_HEIGHT * extra))
-                    .flex_shrink_0()
-                    .overflow_hidden()
-                    .opacity(extra)
-                    .child(extras),
-            ),
+            // Measured reveal: the grid's real height, not a hard-coded one.
+            .child(div().mt(px(-2.)).child(super::form::collapse(
+                "tray-extra-icons",
+                expanded,
+                extras,
+                window,
+                cx,
+            ))),
     );
-    if status > 0. {
+    {
         let mut options = SelectOptions::new(vec![
             SelectOption::new("Colored", "Colored").icon("pallete-2-linear"),
             SelectOption::new("Monochrome", "Monochrome").icon("ic-baseline-contrast"),
@@ -186,10 +184,13 @@ pub(crate) fn render(
                 .child(select),
         );
     }
-    // Fixed window / six-column grid: label + primary + collapsed extra gap,
-    // then the inner 16px gap and the color label + 44px select.
-    let status_height =
-        18.9 + 10. + TILE_HEIGHT + 8. + 16. + 18.9 + 10. + 44. + EXTRA_HEIGHT * extra;
+    let status_reveal = super::form::collapse(
+        "tray-status-content",
+        status_open,
+        status_content,
+        window,
+        cx,
+    );
     let indicator = controls::select(
         "tray-indicator-device",
         app.snapshot.config.advanced.indicator_device.clone(),
@@ -245,14 +246,7 @@ pub(crate) fn render(
                         .child(style::label("Tray icon style"))
                         .child(variants),
                 )
-                .child(
-                    div()
-                        .h(px(status_height * status))
-                        .flex_shrink_0()
-                        .overflow_hidden()
-                        .opacity(status)
-                        .when(status > 0., |this| this.child(status_content)),
-                )
+                .child(status_reveal)
                 .child(
                     div()
                         .flex()
