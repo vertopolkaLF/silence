@@ -535,6 +535,13 @@ mod volume_mixer {
     }
 }
 
+/// Classic Sound control panel on the Playback tab.
+fn open_audio_devices() {
+    if let Err(err) = Command::new("control.exe").arg("mmsys.cpl,,0").spawn() {
+        eprintln!("failed to open audio devices: {err:?}");
+    }
+}
+
 fn open_sound_settings() {
     if let Err(err) = open_external("ms-settings:sound") {
         eprintln!("failed to open sound settings: {err:?}");
@@ -560,6 +567,7 @@ fn show_volume_tray_menu(hwnd: HWND) {
     let title = format!("silence! - v{}", env!("CARGO_PKG_VERSION"));
     let title_w = wide(&title);
     let mixer_w = wide("Volume mixer");
+    let devices_w = wide("Audio devices");
     let sound_w = wide("Sound settings");
     let settings_w = wide("Settings");
     let exit_w = wide("Exit");
@@ -591,6 +599,12 @@ fn show_volume_tray_menu(hwnd: HWND) {
             MENU_ITEM_FLAGS(0),
             ID_MENU_VOLUME_MIXER,
             PCWSTR(mixer_w.as_ptr()),
+        );
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_VOLUME_DEVICES,
+            PCWSTR(devices_w.as_ptr()),
         );
         let _ = AppendMenuW(
             menu,
@@ -630,6 +644,10 @@ fn show_volume_tray_menu(hwnd: HWND) {
             (
                 ID_MENU_VOLUME_MIXER,
                 include_str!("../../assets/icons/volume-loud-linear.svg"),
+            ),
+            (
+                ID_MENU_VOLUME_DEVICES,
+                include_str!("../../assets/icons/headphones-round-sound-linear.svg"),
             ),
             (
                 ID_MENU_VOLUME_SOUND,
@@ -687,6 +705,7 @@ fn handle_volume_tray_menu_command(command_id: usize) {
             }
         }
         ID_MENU_VOLUME_MIXER => open_volume_mixer(),
+        ID_MENU_VOLUME_DEVICES => open_audio_devices(),
         ID_MENU_VOLUME_SOUND => open_sound_settings(),
         ID_MENU_VOLUME_SETTINGS => open_volume_settings_window(),
         ID_MENU_VOLUME_EXIT => exit_all_processes(),

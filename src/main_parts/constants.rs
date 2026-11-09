@@ -66,6 +66,7 @@ const ID_MENU_VOLUME_MIXER: usize = 5102;
 const ID_MENU_VOLUME_SOUND: usize = 5103;
 const ID_MENU_VOLUME_SETTINGS: usize = 5104;
 const ID_MENU_VOLUME_EXIT: usize = 5105;
+const ID_MENU_VOLUME_DEVICES: usize = 5106;
 const MENU_POS_DEFAULT_OUTPUT: u32 = 2;
 const MENU_POS_DEFAULT_INPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";
