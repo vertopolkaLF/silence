@@ -671,7 +671,16 @@ fn click_action(section: Option<&BTreeMap<String, String>>, key: &str, unknown: 
         unknown.push(format!("unknown {key} value \"{raw}\""));
         return None;
     };
-    match action_info(index) {
+    // Click settings store the ItemIndex of a combobox that Volume² fills at
+    // startup, not the action Tag used by [ShortKeys]. On Windows 10/11 the
+    // list is: No, Standard regulator, Audio properties, Mute, Options,
+    // Open Volume Control (Tag 7), System regulator (Tag 33). Indices 7-9 only
+    // exist on Vista/7/8, so on current Windows they do nothing.
+    let Some(&tag) = VOLUME2_CLICK_TAGS.get(index as usize) else {
+        unknown.push(format!("unknown {key} index {index}"));
+        return None;
+    };
+    match action_info(tag) {
         Some(info) => Some(info.action),
         None => {
             unknown.push(format!("unknown {key} index {index}"));
@@ -679,6 +688,9 @@ fn click_action(section: Option<&BTreeMap<String, String>>, key: &str, unknown: 
         }
     }
 }
+
+/// Tag executed for each mouse-click combobox index (Windows 10/11 list).
+const VOLUME2_CLICK_TAGS: &[u32] = &[0, 1, 2, 3, 4, 7, 33];
 
 fn osd_position(section: Option<&BTreeMap<String, String>>, unknown: &mut Vec<String>) -> Option<ImportedOsdPosition> {
     let section = section?;
@@ -1734,8 +1746,9 @@ mod tests {
         assert!(settings.wheel_disabled_in_fullscreen);
         assert_eq!(settings.step_percent, Some(2));
         assert_eq!(settings.left_click, Some(ImportedAction::VolumePopup));
-        assert_eq!(settings.double_click, Some(ImportedAction::VolumeUp));
-        assert_eq!(settings.middle_click, Some(ImportedAction::OpenMixer));
+        assert_eq!(settings.double_click, Some(ImportedAction::OpenMixer));
+        // Index 7 only exists on Vista/7/8; on Windows 10/11 it does nothing.
+        assert_eq!(settings.middle_click, None);
         assert!(settings.middle_button_mutes);
         assert!(settings.osd_enabled);
         assert_eq!(settings.osd_duration_ms, Some(400));
