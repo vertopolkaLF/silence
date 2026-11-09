@@ -3,6 +3,10 @@ name = "silence"
 version = "2.5.0"
 edition = "2024"
 
+[features]
+# Set only by the standalone volume-icon preview bin. Keeps Win32 out of that build.
+volume_icon_raster_only = []
+
 [dependencies]
 anyhow = "1.0"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "a84689073d296dfd39987bc7dd478e43ef76d83a", default-features = false, features = ["windows-manifest"] }

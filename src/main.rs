@@ -139,3 +139,8 @@ include!("main_parts/mute_feedback.rs");
 include!("main_parts/audio.rs");
 include!("main_parts/runtime_config.rs");
 include!("main_parts/input_utils.rs");
+
+#[allow(dead_code)]
+pub mod volume_tray_icons {
+    include!("main_parts/volume_tray_icons.rs");
+}
