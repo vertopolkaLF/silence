@@ -129,6 +129,9 @@ pub mod updater;
 #[path = "main_parts/wheel_volume.rs"]
 #[allow(dead_code)] // lead wires the hook and the timer; nothing calls this yet
 pub mod wheel_volume;
+#[allow(dead_code)]
+#[path = "main_parts/volume2_import.rs"]
+mod volume2_import;
 
 include!("main_parts/constants.rs");
 include!("main_parts/models.rs");
