@@ -126,6 +126,9 @@ mod native_overlay;
 pub(crate) mod overlay_icons;
 mod settings_ui;
 pub mod updater;
+#[path = "main_parts/wheel_volume.rs"]
+#[allow(dead_code)] // lead wires the hook and the timer; nothing calls this yet
+pub mod wheel_volume;
 
 include!("main_parts/constants.rs");
 include!("main_parts/models.rs");
