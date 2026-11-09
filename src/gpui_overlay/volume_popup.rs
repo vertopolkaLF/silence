@@ -51,8 +51,6 @@ const APP_ROW_H: f32 = 4.0 + APP_CAPTION_H + SLIDER_H + 4.0;
 const DIVIDER_H: f32 = 13.0;
 const PAD_TOP: f32 = 8.0;
 const PAD_BOTTOM: f32 = 8.0;
-/// More apps than this scroll inside the card.
-const MAX_VISIBLE_APPS: usize = 7;
 const APP_ICON: f32 = 24.0;
 const RADIUS: f32 = 8.0;
 const APP_STEP: i32 = 2;
@@ -65,7 +63,7 @@ const POLL: Duration = Duration::from_millis(500);
 const UNFOCUSED_TIMEOUT: Duration = Duration::from_secs(6);
 
 fn card_height(apps: usize) -> f32 {
-    let apps = apps.min(MAX_VISIBLE_APPS);
+    let apps = apps.min(max_visible_apps());
     let list = if apps == 0 {
         0.0
     } else {
@@ -77,7 +75,33 @@ fn card_height(apps: usize) -> f32 {
 /// The window is created at the tallest card: GPUI never grows a window past
 /// its first size, so it is shrunk to fit instead.
 fn max_card_height() -> f32 {
-    card_height(MAX_VISIBLE_APPS)
+    card_height(max_visible_apps())
+}
+
+/// As many app rows as fit in the primary work area; more only scroll.
+fn max_visible_apps() -> usize {
+    static COUNT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *COUNT.get_or_init(|| {
+        use windows::Win32::UI::{
+            HiDpi::GetDpiForSystem,
+            WindowsAndMessaging::{
+                SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
+            },
+        };
+        let mut work = RECT::default();
+        let _ = unsafe {
+            SystemParametersInfoW(
+                SPI_GETWORKAREA,
+                0,
+                Some((&mut work as *mut RECT).cast()),
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+            )
+        };
+        let scale = unsafe { GetDpiForSystem() }.max(96) as f32 / 96.0;
+        let work_h = (work.bottom - work.top) as f32 / scale;
+        let free = work_h - 2.0 * GUTTER - 24.0 - (PAD_TOP + DEVICE_ROW_H + DIVIDER_H + PAD_BOTTOM);
+        ((free / APP_ROW_H).floor() as usize).max(4)
+    })
 }
 
 thread_local! {
@@ -872,7 +896,12 @@ impl PopupView {
             muted,
             colors,
             cx,
-        );
+        )
+        // Wheel on the slider sets the app's volume; anywhere else in the
+        // list it scrolls.
+        .on_scroll_wheel(cx.listener(move |view, event: &ScrollWheelEvent, _, cx| {
+            view.on_app_wheel(&key, event, cx)
+        }));
         div()
             .id(ElementId::NamedInteger("popup-app".into(), index as u64))
             .h(px(APP_ROW_H))
@@ -881,9 +910,6 @@ impl PopupView {
             .flex()
             .items_center()
             .gap(px(GAP))
-            .on_scroll_wheel(cx.listener(move |view, event: &ScrollWheelEvent, _, cx| {
-                view.on_app_wheel(&key, event, cx)
-            }))
             .child(button_slot(button, APP_CAPTION_H))
             .child(Self::controls(
                 div()
@@ -987,10 +1013,7 @@ impl Render for PopupView {
                 spread_radius: px(0.),
                 inset: false,
             }])
-            .font_family("Segoe UI Variable Text")
-            .on_scroll_wheel(cx.listener(|view, event: &ScrollWheelEvent, _, cx| {
-                view.on_device_wheel(event, cx)
-            }));
+            .font_family("Segoe UI Variable Text");
         card = match &mica {
             Some(wallpaper) => card
                 .child(

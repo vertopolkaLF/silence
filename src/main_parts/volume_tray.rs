@@ -405,7 +405,11 @@ mod volume_mixer {
         Foundation::{BOOL, HWND, LPARAM, RECT},
         Graphics::{
             Dwm::{DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute},
-            Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromRect},
+            Gdi::{
+                GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromRect,
+                RDW_ALLCHILDREN, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW,
+                RedrawWindow,
+            },
         },
         UI::{
             HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
@@ -511,6 +515,15 @@ mod volume_mixer {
                 visible_w + left + right,
                 visible_h + top + bottom,
                 SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+        };
+        // The mixer leaves unpainted (black) areas after an outside resize.
+        let _ = unsafe {
+            RedrawWindow(
+                mixer,
+                None,
+                None,
+                RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW,
             )
         };
     }
