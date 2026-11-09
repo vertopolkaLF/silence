@@ -24,6 +24,9 @@ const WM_VOLUME_WHEEL: u32 = WM_APP + 17;
 /// Intercepted volume key-down. `wparam` is `VK_VOLUME_UP`, `VK_VOLUME_DOWN`, or `VK_VOLUME_MUTE`.
 const WM_VOLUME_MEDIA_KEY: u32 = WM_APP + 18;
 const ID_TRAY: u32 = 1;
+/// Mouse messages for the output-volume icon. `lparam` is the raw mouse
+/// message, same as `WM_TRAY` (the mic icon does not use `NOTIFYICON_VERSION_4`).
+const WM_VOLUME_TRAY: u32 = WM_APP + 19;
 /// Second notify icon for output volume. The microphone icon keeps [`ID_TRAY`].
 const ID_VOLUME_TRAY: u32 = 2;
 const ID_STATE_TIMER: usize = 10;
@@ -38,6 +41,8 @@ const ID_WHEEL_REFRESH_TIMER: usize = 16;
 const ID_HOOK_HEALTH_TIMER: usize = 17;
 /// Fires once about 150 ms after the last own volume change in a burst.
 const ID_VOLUME_SOUND_TIMER: usize = 18;
+const ID_VOLUME_TRAY_CLICK_TIMER: usize = 19;
+const ID_VOLUME_TRAY_ADD_RETRY_TIMER: usize = 20;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
@@ -46,6 +51,12 @@ const ID_MENU_INSTALL_UPDATE: usize = 1005;
 const ID_MENU_INPUT_DEVICE_BASE: usize = 2000;
 const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
 const ID_MENU_MIC_APP_BASE: usize = 4000;
+const ID_MENU_VOLUME_TITLE: usize = 5100;
+const ID_MENU_VOLUME_MUTE: usize = 5101;
+const ID_MENU_VOLUME_MIXER: usize = 5102;
+const ID_MENU_VOLUME_SOUND: usize = 5103;
+const ID_MENU_VOLUME_SETTINGS: usize = 5104;
+const ID_MENU_VOLUME_EXIT: usize = 5105;
 const MENU_POS_DEFAULT_OUTPUT: u32 = 2;
 const MENU_POS_DEFAULT_INPUT: u32 = 3;
 const SETTINGS_WINDOW_TITLE: &str = "silence!";

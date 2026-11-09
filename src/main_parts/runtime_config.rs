@@ -915,6 +915,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
         // Tray process only; the settings process has no OSD.
         apply_volume_osd_config(config);
     }
+    sync_volume_tray_icon();
     prime_sound_assets(&config.sound_settings);
     sync_volume_input_runtime();
     if volume_zero_mute_changed
