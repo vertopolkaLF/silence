@@ -82,7 +82,7 @@ pub(crate) fn render(
         .child(device_list(
             "Output",
             "No active output devices found",
-            output,
+            output.clone(),
             rename_allowed,
             app,
             window,
@@ -96,7 +96,8 @@ pub(crate) fn render(
             app,
             window,
             cx,
-        ));
+        ))
+        .child(favorite_outputs(output.clone(), app, window, cx));
     let mut options = SelectOptions::new(vec![
         SelectOption::new(crate::AUDIO_DEVICE_NAME_PRETTY, "Pretty Name")
             .icon("microphone-3-linear"),
@@ -182,6 +183,78 @@ pub(crate) fn render(
             )
             .into_any_element(),
     ]
+}
+
+fn favorite_outputs(
+    rows: Vec<DeviceRow>,
+    app: &mut SettingsApp,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) -> Div {
+    let p = app.palette;
+    let favorites = app.snapshot.config.volume.favorite_output_devices.clone();
+    let body = if rows.is_empty() {
+        div()
+            .min_h(px(44.))
+            .flex()
+            .items_center()
+            .px(px(14.))
+            .rounded(px(12.))
+            .border_1()
+            .border_dashed()
+            .border_color(p.border_strong.hsla())
+            .bg(mix_pct(p.surface_2, 76., TRANSPARENT).hsla())
+            .text_color(p.muted.hsla())
+            .child("No active output devices found")
+    } else {
+        div().flex().flex_col().gap(px(10.)).children(
+            rows.into_iter()
+                .map(|row| {
+                    let checked = favorites.iter().any(|id| id == &row.id);
+                    let id = row.id.clone();
+                    let label = if row.default {
+                        format!("{} (default)", row.name)
+                    } else {
+                        row.name
+                    };
+                    controls::checkbox(
+                        SharedString::from(format!("volume-favorite-{id}")),
+                        checked,
+                        false,
+                        label,
+                        window,
+                        cx,
+                        move |app, on, _, cx| {
+                            let id = id.clone();
+                            app.update_config(cx, |config| {
+                                let list = &mut config.volume.favorite_output_devices;
+                                if on {
+                                    if !list.iter().any(|existing| existing == &id) {
+                                        list.push(id);
+                                    }
+                                } else {
+                                    list.retain(|existing| existing != &id);
+                                }
+                            });
+                        },
+                    )
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(12.))
+        .child(style::h2("Favorite outputs"))
+        .child(
+            style::p(
+                "Next/previous output hotkeys cycle through these. Leave empty to cycle through all.",
+                cx,
+            )
+            .text_size(px(13.)),
+        )
+        .child(body)
 }
 
 fn device_list(
