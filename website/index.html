@@ -1126,7 +1126,7 @@
         .features-heading {
             font-size: clamp(2rem, 3.6vw, 3rem);
             line-height: 1.05;
-            margin: 40px 4px 4px;
+            margin: 96px 4px 8px;
         }
 
         .tricks-grid {
@@ -1179,7 +1179,8 @@
             grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
             align-items: center;
             gap: 32px;
-            padding: 40px;
+            margin-top: 96px;
+            padding: 48px;
             border-radius: var(--radius-box);
             background: linear-gradient(135deg, var(--faq-green-dim), #141d17);
         }
@@ -1198,7 +1199,7 @@
 
         .weight-stats {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 12px;
         }
 
@@ -1237,26 +1238,16 @@
 
         /* Also in the box */
         .also {
-            padding: 32px 36px;
+            padding: 40px 44px;
             border-radius: var(--radius-box);
-            background: #141210;
-        }
-
-        .also-title {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.85rem;
-            font-weight: 800;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--pop-green);
+            background: var(--surface);
         }
 
         .also-list {
             list-style: none;
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 22px 28px;
-            margin-top: 22px;
+            gap: 32px 40px;
         }
 
         .also-list li {
@@ -1300,7 +1291,7 @@
 
         .guide-banner {
             width: var(--content-width);
-            margin: 16px auto 0;
+            margin: 120px auto 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -2227,8 +2218,8 @@
             </div>
         </div>
 
+        <h2 class="features-heading">Also in the box.</h2>
         <div class="also">
-            <h2 class="also-title">Also in the box</h2>
             <ul class="also-list">
                 <li><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon><div><b>Settings apply instantly</b><span>No Save buttons. Ever.</span></div></li>
                 <li><iconify-icon icon="solar:power-bold-duotone"></iconify-icon><div><b>Start with Windows</b><span>Straight to the tray, out of your way</span></div></li>
