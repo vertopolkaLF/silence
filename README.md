@@ -138,7 +138,10 @@ git clone https://github.com/vertopolkaLF/silence.git
 cd silence
 cargo run              # tray app
 cargo run -- --settings  # settings window only
+cargo run -- --volume-osd-demo  # hidden: cycle the volume OSD, then exit
 ```
+
+`--volume-osd-demo` starts only the volume on-screen display, sweeps the level from 0 to 100, flashes mute, then a device change, and exits. It does not touch a running tray instance. Optional theme ids after the flag (`Windows`, `Neon`, `Cute`, …) restyle that same OSD before it closes.
 
 Build a release app:
 

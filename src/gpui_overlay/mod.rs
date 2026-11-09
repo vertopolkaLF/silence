@@ -7,6 +7,7 @@ pub(crate) mod fonts;
 mod motion;
 mod sticker;
 pub(crate) mod theme;
+pub(crate) mod volume;
 
 use crate::{OverlayConfig, native_overlay};
 use anyhow::{Context as _, Result};

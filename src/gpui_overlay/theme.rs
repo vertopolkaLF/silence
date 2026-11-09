@@ -77,12 +77,13 @@ impl System {
             light: crate::windows_uses_light_system_theme(),
         }
     }
-    fn accent(self) -> u32 {
+    pub(super) fn accent(self) -> u32 {
         let (r, g, b) = self.accent;
         (r as u32) << 16 | (g as u32) << 8 | b as u32
     }
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum Shadow {
     /// The original subtle drop shadow, clipped to the surface.
     Soft,
@@ -107,6 +108,7 @@ pub(super) enum Detail {
     Radar,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct IconBox {
     pub size: f32,
     /// Logical radius; `None` keeps the box concentric with the card.
@@ -717,7 +719,7 @@ pub(super) fn color_alpha(color: u32, alpha: f32) -> Rgba {
     rgba((color << 8) | (alpha.clamp(0., 1.) * 255.).round() as u32)
 }
 
-fn hsl(color: u32) -> (f32, f32, f32) {
+pub(super) fn hsl(color: u32) -> (f32, f32, f32) {
     let r = ((color >> 16) & 0xff) as f32 / 255.;
     let g = ((color >> 8) & 0xff) as f32 / 255.;
     let b = (color & 0xff) as f32 / 255.;
@@ -739,7 +741,7 @@ fn hsl(color: u32) -> (f32, f32, f32) {
     (h, s, l)
 }
 
-fn from_hsl(h: f32, s: f32, l: f32) -> u32 {
+pub(super) fn from_hsl(h: f32, s: f32, l: f32) -> u32 {
     let c = (1. - (2. * l - 1.).abs()) * s;
     let x = c * (1. - ((h / 60.).rem_euclid(2.) - 1.).abs());
     let m = l - c / 2.;
