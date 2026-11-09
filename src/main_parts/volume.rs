@@ -435,19 +435,36 @@ pub(crate) fn on_capture_endpoints_changed() {
 }
 
 /// Device name as the user chose to see names (Pretty / System / Both).
+/// Output device name as the "Displayed audio device name" setting wants it.
+/// Cached per device and setting: the tray tip asks on every volume step.
 fn output_display_name(state: &OutputVolumeState) -> String {
+    static CACHE: Mutex<Option<(String, String, String, String)>> = Mutex::new(None);
     let mode = STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .advanced
         .audio_device_name_display
         .clone();
-    render_devices()
+    if let Some((id, cached_mode, raw, name)) = CACHE.lock().unwrap().as_ref()
+        && *id == state.device_id
+        && *cached_mode == mode
+        && *raw == state.device_name
+    {
+        return name.clone();
+    }
+    let name = render_devices()
         .ok()
         .and_then(|devices| devices.into_iter().find(|device| device.id == state.device_id))
         .map(|device| device.display_name(&mode))
         .filter(|name| !name.trim().is_empty())
-        .unwrap_or_else(|| state.device_name.clone())
+        .unwrap_or_else(|| state.device_name.clone());
+    *CACHE.lock().unwrap() = Some((
+        state.device_id.clone(),
+        mode,
+        state.device_name.clone(),
+        name.clone(),
+    ));
+    name
 }
 
 fn output_percent(state: &OutputVolumeState) -> u8 {

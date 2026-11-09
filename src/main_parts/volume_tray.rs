@@ -212,7 +212,7 @@ fn volume_tray_snapshot() -> VolumeTraySnapshot {
     };
     VolumeTraySnapshot {
         key,
-        tip: volume_tray_tip(&output.device_name, percent, output.muted),
+        tip: volume_tray_tip(&output_display_name(&output), percent, output.muted),
     }
 }
 
