@@ -19,16 +19,6 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.volume.sound.enabled = checked);
         },
     );
-    let volume = controls::range(
-        "volume-sounds-volume",
-        f64::from(sound.volume.min(100)),
-        sounds::volume_options(format!("{}%", sound.volume.min(100))),
-        window,
-        cx,
-        |app, value, _, cx| {
-            app.update_config(cx, |config| config.volume.sound.volume = value as u8);
-        },
-    );
     // The tick is `volume.sound.mute_theme`. Preview plays that theme's mute sample.
     let tick = sounds::sound_picker(
         "volume-sound-tick",
@@ -46,7 +36,6 @@ pub(crate) fn render(
             Some(enabled),
             cx,
         ))
-        .child(sounds::card(true, cx).child(volume))
         .child(sounds::card(false, cx).child(tick))
         .into_any_element()]
 }

@@ -251,8 +251,9 @@ pub(crate) fn sound_picker(
     } else {
         base.clone()
     };
+    // The volume tick always previews at full sample volume, like playback.
     let playback_volume = if volume_tick {
-        volume_sound.volume
+        100
     } else if inherited {
         hold.volume_override.unwrap_or(mic.volume)
     } else {

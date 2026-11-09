@@ -383,12 +383,14 @@ fn play_debounced_volume_change_sound() {
     };
     // Scheduled only for silence!'s own writes (wheel, media keys, other
     // `OUTPUT_VOLUME_EVENT_CONTEXT` calls). External apps do not arm the timer.
+    // Full sample volume: the tick is there to hear the new output level, so
+    // only the system volume may scale it.
     // The tick is `mute_theme` (the settings page picks and previews that
     // sample). Skipped while the output is muted. Device changes never get here.
     if !module_on || muted || !settings.enabled {
         return;
     }
-    if let Err(err) = play_configured_sound(&settings, true, settings.volume) {
+    if let Err(err) = play_configured_sound(&settings, true, 100) {
         eprintln!("failed to play volume change sound: {err:?}");
     }
 }
