@@ -579,31 +579,6 @@
             margin-bottom: 24px;
         }
 
-        .showcase-points {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .showcase-points li {
-            display: flex;
-            gap: 12px;
-            color: rgba(250, 250, 249, 0.86);
-            font-size: 1.02rem;
-            line-height: 1.45;
-        }
-
-        .showcase-points li::before {
-            content: '';
-            flex: none;
-            width: 8px;
-            height: 8px;
-            margin-top: 0.5em;
-            border-radius: 999px;
-            background: var(--tone);
-        }
-
         .stage-hint {
             position: absolute;
             top: 18px;
@@ -628,112 +603,63 @@
             background: rgba(12, 10, 9, 0.75);
         }
 
-        .seg {
-            display: inline-flex;
-            gap: 2px;
-            padding: 4px;
-            border-radius: 999px;
-            background: rgba(0, 0, 0, 0.3);
-        }
-
-        .seg-btn {
-            appearance: none;
-            border: 0;
-            font: inherit;
-            font-size: 0.82rem;
-            font-weight: 700;
-            padding: 8px 14px;
-            border-radius: 999px;
-            background: transparent;
-            color: rgba(250, 250, 249, 0.7);
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            transition: background-color 0.2s ease, color 0.2s ease;
-        }
-
-        .seg-btn:hover,
-        .seg-btn:focus-visible {
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text);
-        }
-
-        .seg-btn.is-on {
-            background: color-mix(in srgb, var(--tone) 24%, transparent);
-            color: var(--tone);
-        }
-
-        .seg-icons .seg-btn {
-            padding: 8px 10px;
-            font-size: 1rem;
-        }
-
         /* Hotkeys stage */
         .hotkey-stage {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            outline: none;
-            transition: box-shadow 0.3s ease;
+            background:
+                radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--tone) 20%, transparent), transparent 62%),
+                rgba(0, 0, 0, 0.28);
         }
 
-        .hotkey-stage:focus-visible,
-        .hotkey-stage.is-listening {
-            box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tone) 55%, transparent);
-        }
-
-        .hotkey-stage .hotkey-cloud {
+        .bind {
             position: absolute;
-            inset: -60px -160px;
-            justify-content: center;
-            gap: 12px;
-            transform: rotate(-8deg);
-            opacity: 0.6;
-            pointer-events: none;
-            -webkit-mask-image: radial-gradient(ellipse at center, black 25%, transparent 72%);
-            mask-image: radial-gradient(ellipse at center, black 25%, transparent 72%);
-            transition: opacity 0.4s ease;
-        }
-
-        .hotkey-stage.is-listening .hotkey-cloud {
-            opacity: 0.2;
-        }
-
-        .hotkey-stage .hotkey-pill {
-            font-size: 0.8rem;
-        }
-
-        .hotkey-readout {
-            position: relative;
-            z-index: 2;
-            min-width: 300px;
+            left: 50%;
+            top: 50%;
+            width: min(380px, 80%);
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 14px;
             padding: 26px 30px;
             border-radius: 28px;
-            background: rgba(20, 14, 26, 0.82);
-            backdrop-filter: blur(14px);
+            background: rgba(20, 14, 26, 0.85);
             box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+            opacity: 0;
+            transform: translate(-50%, -50%) translateY(260px) scale(0.6);
+            transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
         }
 
-        .hotkey-readout-label {
+        .bind.is-current {
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
+
+        .bind.is-prev {
+            opacity: 0.22;
+            transform: translate(-50%, -50%) translateY(-150px) scale(0.78);
+        }
+
+        .bind.is-next {
+            opacity: 0.22;
+            transform: translate(-50%, -50%) translateY(150px) scale(0.78);
+        }
+
+        .bind.is-gone {
+            opacity: 0;
+            transform: translate(-50%, -50%) translateY(-260px) scale(0.6);
+        }
+
+        .bind-label {
             color: var(--tone);
             font-size: 0.8rem;
             font-weight: 800;
             letter-spacing: 0.1em;
             text-transform: uppercase;
-            animation: key-pop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
-        .hotkey-readout-keys {
+        .bind-keys {
             display: flex;
-            flex-wrap: wrap;
             justify-content: center;
             gap: 8px;
-            min-height: 56px;
         }
 
         .readout-key {
@@ -750,11 +676,18 @@
             font-family: 'Bricolage Grotesque', sans-serif;
             font-size: 1.25rem;
             font-weight: 800;
-            animation: key-pop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
-        .readout-key.is-empty {
-            color: rgba(250, 250, 249, 0.35);
+        .bind.is-current .readout-key {
+            animation: key-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .bind.is-current .readout-key:nth-child(2) {
+            animation-delay: 60ms;
+        }
+
+        .bind.is-current .readout-key:nth-child(3) {
+            animation-delay: 120ms;
         }
 
         @keyframes key-pop {
@@ -764,190 +697,163 @@
             }
         }
 
-        /* Overlay stage */
+        /* Overlay and sounds stage */
         .overlay-stage {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 14px;
             padding: 16px;
         }
 
-        .overlay-desktop {
-            position: relative;
+        .ov-gallery {
             flex: 1;
             min-height: 340px;
-            border-radius: 16px;
-            background: linear-gradient(160deg, #2a1d24, #150f12);
-            overflow: hidden;
-            cursor: pointer;
-        }
-
-        .fake-window {
-            position: absolute;
-            inset: 26% 18%;
             display: flex;
+            flex-wrap: wrap;
+            align-content: center;
             align-items: center;
             justify-content: center;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.04);
-            color: rgba(250, 250, 249, 0.45);
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-align: center;
-            padding: 0 16px;
+            gap: 28px 32px;
+            padding: 32px;
+            border-radius: 16px;
+            background: linear-gradient(160deg, #2a1d24, #150f12);
         }
 
-        .fake-window::before {
-            content: '';
-            position: absolute;
-            top: 12px;
-            left: 14px;
-            width: 40px;
-            height: 8px;
-            border-radius: 999px;
-            background: radial-gradient(circle at 4px 4px, rgba(255, 255, 255, 0.18) 3.5px, transparent 4px) 0 0 / 14px 8px repeat-x;
-        }
-
-        .demo-overlay {
-            position: absolute;
-            left: 16px;
-            top: 16px;
-            transform: translate(0, 0);
-            width: 240px;
-            height: 56px;
+        .ov {
+            height: 52px;
             padding: 0 18px;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
-            overflow: hidden;
-            white-space: nowrap;
-            border-radius: 18px;
+            border-radius: 16px;
             border: 1px solid rgba(250, 250, 249, 0.1);
-            background: rgba(22, 17, 18, 0.72);
+            background: rgba(22, 17, 18, 0.8);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
             color: var(--text);
-            font: inherit;
             font-size: 0.85rem;
             font-weight: 700;
-            cursor: pointer;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
-            transition:
-                left 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-                top 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-                transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-                width 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-                height 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-                padding 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-                gap 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-                border-radius 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-                background-color 0.3s ease,
-                opacity 0.3s ease,
-                scale 0.3s ease;
+            white-space: nowrap;
+            transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .demo-overlay-icon {
-            flex: none;
-            font-size: 1.7rem;
+        .ov iconify-icon {
+            font-size: 1.6rem;
             color: #ff6b63;
-            transition: color 0.3s ease, opacity 0.25s ease, font-size 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: color 0.3s ease;
         }
 
-        .demo-overlay.is-live .demo-overlay-icon {
+        .ov.is-live iconify-icon {
             color: var(--pop-green);
         }
 
-        .demo-overlay-text {
-            max-width: 170px;
-            overflow: hidden;
-            transition: max-width 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+        .ov.is-flip {
+            animation: theme-bump 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .demo-overlay.style-icon {
+        .ov-icontext {
+            min-width: 226px;
+            justify-content: flex-start;
+        }
+
+        .ov-icon {
             width: 56px;
+            height: 56px;
             padding: 0;
-            gap: 0;
-            justify-content: center;
             border-radius: 999px;
         }
 
-        .demo-overlay.style-dot {
-            width: 20px;
-            height: 20px;
+        .ov-light {
+            min-width: 112px;
+            border-color: transparent;
+            border-radius: 999px;
+            background: rgba(255, 247, 244, 0.96);
+            color: #1c1614;
+        }
+
+        .ov-mono {
+            width: 64px;
+            height: 64px;
             padding: 0;
-            gap: 0;
-            justify-content: center;
+            border-color: transparent;
+            border-radius: 20px;
+            background: rgba(255, 247, 244, 0.96);
+        }
+
+        .ov-mono iconify-icon,
+        .ov-mono.is-live iconify-icon {
+            font-size: 2rem;
+            color: #1c1614;
+        }
+
+        .ov-text {
+            min-width: 104px;
+            color: #ff6b63;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .ov-text.is-live {
+            color: var(--pop-green);
+        }
+
+        .ov-dot {
+            width: 18px;
+            height: 18px;
+            padding: 0;
+            border: 0;
             border-radius: 999px;
             background: #ff6b63;
+            box-shadow: 0 0 0 6px rgba(255, 107, 99, 0.18);
         }
 
-        .demo-overlay.style-dot.is-live {
+        .ov-dot.is-live {
             background: var(--pop-green);
+            box-shadow: 0 0 0 6px rgba(74, 222, 128, 0.18);
         }
 
-        .demo-overlay.style-icon .demo-overlay-text,
-        .demo-overlay.style-dot .demo-overlay-text {
-            max-width: 0;
-            opacity: 0;
-        }
-
-        .demo-overlay.style-dot .demo-overlay-icon {
-            opacity: 0;
-            font-size: 0;
-        }
-
-        .demo-overlay.is-hidden {
-            opacity: 0;
-            scale: 0.85;
-            pointer-events: none;
-        }
-
-        .stage-controls {
+        .sound-row {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        /* Sounds stage */
-        .sound-stage {
-            display: flex;
-            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            gap: 28px;
-            padding: 72px 28px 32px;
+            gap: 8px;
         }
 
-        .sound-themes {
-            width: 100%;
-            max-width: 480px;
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
+        .sound-row-label {
+            margin: 0 6px 0 6px;
+            color: rgba(250, 250, 249, 0.6);
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
         }
 
         .sound-theme {
             appearance: none;
             border: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 13px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.3);
+            color: rgba(250, 250, 249, 0.8);
             font: inherit;
-            font-size: 0.88rem;
+            font-size: 0.85rem;
             font-weight: 700;
-            padding: 10px 8px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.06);
-            color: rgba(250, 250, 249, 0.78);
             cursor: pointer;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
 
-        .sound-theme:hover,
-        .sound-theme:focus-visible {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text);
+        .sound-theme iconify-icon {
+            font-size: 0.8rem;
+            color: var(--tone);
         }
 
-        .sound-theme.is-on {
-            background: color-mix(in srgb, var(--tone) 24%, transparent);
-            color: var(--tone);
+        .sound-theme:hover,
+        .sound-theme:focus-visible {
+            background: color-mix(in srgb, var(--tone) 22%, transparent);
+            color: var(--text);
         }
 
         .sound-theme.is-playing {
@@ -960,140 +866,72 @@
             }
         }
 
-        .sound-mic {
-            position: relative;
-            width: 120px;
-            height: 120px;
-            border: 0;
-            border-radius: 999px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3.2rem;
-            color: var(--bg);
-            background: var(--pop-green);
-            box-shadow: 0 18px 40px rgba(74, 222, 128, 0.25);
-            cursor: pointer;
-            transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
-        }
-
-        .sound-mic:hover {
-            transform: scale(1.04);
-        }
-
-        .sound-mic:active {
-            transform: scale(0.96);
-        }
-
-        .sound-mic.is-muted {
-            background: #ff6b63;
-            box-shadow: 0 18px 40px rgba(255, 107, 99, 0.25);
-        }
-
-        .sound-mic::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            pointer-events: none;
-        }
-
-        .sound-mic.is-pulsing::after {
-            animation: mic-ring 0.7s ease-out;
-        }
-
-        @keyframes mic-ring {
-            from {
-                box-shadow: 0 0 0 0 rgba(250, 250, 249, 0.45);
-            }
-
-            to {
-                box-shadow: 0 0 0 32px rgba(250, 250, 249, 0);
-            }
-        }
-
-        .sound-sliders {
-            width: 100%;
-            max-width: 480px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px 24px;
-        }
-
-        .sound-slider {
-            display: grid;
-            grid-template-columns: auto 1fr 3.5ch;
-            align-items: center;
-            gap: 10px;
-            color: rgba(250, 250, 249, 0.78);
-            font-size: 0.85rem;
-            font-weight: 700;
-        }
-
-        .sound-slider input {
-            width: 100%;
-            accent-color: var(--tone);
-            cursor: pointer;
-        }
-
-        .sound-slider output {
-            color: var(--text-dim);
-            font-variant-numeric: tabular-nums;
-            text-align: right;
-        }
-
         /* Gamepad stage */
         .pad-stage {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 24px;
-            padding: 72px 28px 32px;
+            gap: 36px;
+            padding: 48px 28px 72px;
+            background:
+                radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--tone) 18%, transparent), transparent 62%),
+                rgba(0, 0, 0, 0.28);
         }
 
-        .pad {
-            width: min(100%, 440px);
-            height: auto;
-            overflow: visible;
+        .pad-stage .stage-hint {
+            top: auto;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
         }
 
-        .pad-body {
-            fill: #33251b;
-            stroke: rgba(255, 255, 255, 0.07);
-            stroke-width: 2;
+        .pad-combo {
+            display: flex;
+            align-items: center;
+            gap: 22px;
         }
 
-        .pad-well {
-            fill: rgba(0, 0, 0, 0.28);
+        .pad-plus {
+            color: rgba(250, 250, 249, 0.4);
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
         }
 
-        .pad-btn {
-            fill: rgba(255, 255, 255, 0.09);
-            transition: fill 0.15s ease, filter 0.15s ease;
+        .pad-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.35), 0 14px 30px rgba(0, 0, 0, 0.35);
+            color: var(--text);
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 800;
+            transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
         }
 
-        .pad-label {
-            fill: rgba(250, 250, 249, 0.7);
-            font: 700 12px 'Plus Jakarta Sans', sans-serif;
-            text-anchor: middle;
-            dominant-baseline: central;
-            pointer-events: none;
-            transition: fill 0.15s ease;
+        .pad-bumper {
+            width: 150px;
+            height: 70px;
+            border-radius: 34px 34px 18px 18px;
+            font-size: 1.6rem;
         }
 
-        .pad-label.is-a { fill: var(--pop-green); }
-        .pad-label.is-b { fill: #ff6b63; }
-        .pad-label.is-x { fill: var(--pop-blue); }
-        .pad-label.is-y { fill: var(--pop-yellow); }
-
-        .is-pressed .pad-btn {
-            fill: var(--pop-orange);
-            filter: drop-shadow(0 0 10px rgba(251, 146, 60, 0.7));
+        .pad-face {
+            width: 96px;
+            height: 96px;
+            border-radius: 999px;
+            color: var(--pop-green);
+            font-size: 2.4rem;
         }
 
-        .is-pressed .pad-label {
-            fill: var(--bg);
+        .pad-key.is-pressed {
+            transform: translateY(4px);
+            background: var(--pop-orange);
+            color: var(--bg);
+            box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 0 34px rgba(251, 146, 60, 0.55);
         }
 
         .pad-state {
@@ -1122,6 +960,13 @@
             animation: theme-bump 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
+        .pad-devices {
+            display: flex;
+            gap: 22px;
+            color: rgba(250, 250, 249, 0.45);
+            font-size: 1.9rem;
+        }
+
         /* More tricks */
         .features-heading {
             font-size: clamp(2rem, 3.6vw, 3rem);
@@ -1131,15 +976,24 @@
 
         .tricks-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 16px;
         }
 
         .trick {
+            min-height: 230px;
             padding: 28px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             border-radius: var(--radius-box);
-            background: var(--surface);
+            background: var(--c);
+            color: var(--bg);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .trick.is-wide {
+            grid-column: span 2;
         }
 
         .trick:hover {
@@ -1148,28 +1002,33 @@
         }
 
         .trick-icon {
-            width: 52px;
-            height: 52px;
-            margin-bottom: 22px;
-            border-radius: 16px;
+            width: 56px;
+            height: 56px;
+            border-radius: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.8rem;
-            color: var(--c);
-            background: color-mix(in srgb, var(--c) 16%, transparent);
+            background: rgba(0, 0, 0, 0.1);
+            color: var(--bg);
+            font-size: 2rem;
         }
 
         .trick h3 {
-            font-size: 1.5rem;
-            line-height: 1.15;
-            margin-bottom: 8px;
+            color: var(--bg);
+            font-size: 1.7rem;
+            line-height: 1.1;
+            margin-bottom: 6px;
+        }
+
+        .trick.is-wide h3 {
+            font-size: 2.2rem;
         }
 
         .trick p {
-            color: var(--text-dim);
+            color: rgba(0, 0, 0, 0.68);
             font-size: 1rem;
-            line-height: 1.55;
+            font-weight: 600;
+            line-height: 1.45;
         }
 
         /* Lightweight */
@@ -1237,17 +1096,12 @@
         }
 
         /* Also in the box */
-        .also {
-            padding: 40px 44px;
-            border-radius: var(--radius-box);
-            background: var(--surface);
-        }
-
         .also-list {
             list-style: none;
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 32px 40px;
+            padding: 8px 4px 0;
         }
 
         .also-list li {
@@ -1334,80 +1188,6 @@
             color: var(--bg);
             font-weight: 700;
             font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-
-        .hotkey-cloud {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-        }
-
-        .hotkey-row {
-            display: flex;
-            width: max-content;
-            gap: 8px;
-            white-space: nowrap;
-        }
-
-        .hotkey-row-inner {
-            display: flex;
-            gap: 8px;
-            width: max-content;
-            flex-shrink: 0;
-        }
-
-        .hotkey-pill {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 7px 9px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(250, 250, 249, 0.82);
-            font-size: 0.68rem;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
-
-        .hotkey-key {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 25px;
-            min-height: 24px;
-            padding: 4px 7px;
-            border-radius: 7px;
-            background: rgba(0, 0, 0, 0.22);
-        }
-
-        .hotkey-row-left {
-            animation: hotkey-slide-left 22s linear infinite;
-        }
-
-        .hotkey-row-right {
-            animation: hotkey-slide-right 24s linear infinite;
-        }
-
-        @keyframes hotkey-slide-left {
-            from {
-                transform: translateX(0);
-            }
-
-            to {
-                transform: translateX(calc(-50% - 5px));
-            }
-        }
-
-        @keyframes hotkey-slide-right {
-            from {
-                transform: translateX(calc(-50% - 5px));
-            }
-
-            to {
-                transform: translateX(0);
-            }
         }
 
         .bg-faq-purple {
@@ -1513,6 +1293,10 @@
             .also-list {
                 grid-template-columns: 1fr;
             }
+
+            .trick.is-wide {
+                grid-column: auto;
+            }
         }
 
         @media (max-width: 500px) {
@@ -1529,20 +1313,12 @@
                 flex: 1 0 100%;
                 justify-content: center;
             }
-
-            .sound-themes {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .sound-sliders {
-                grid-template-columns: 1fr;
-            }
         }
 
         /* FAQ Section */
         .faq-section {
             width: var(--content-width);
-            margin: 16px auto;
+            margin: 16px auto 120px;
             position: relative;
             box-sizing: border-box;
         }
@@ -1918,281 +1694,136 @@
         <h2 class="visually-hidden" id="features-title">silence! features</h2>
 
         <article class="showcase tone-purple">
-            <div class="showcase-stage hotkey-stage" id="hotkey-stage" tabindex="0" aria-label="Hotkey demo. Focus it and press any shortcut.">
-                <p class="stage-hint" id="hotkey-hint">Click here and press any shortcut</p>
-                <div class="hotkey-cloud" aria-hidden="true">
-                    <div class="hotkey-row hotkey-row-left">
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">M</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">F23</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">~</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Caps</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Space</span></span>
-                        </div>
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">M</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">F23</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">~</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Caps</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Space</span></span>
-                        </div>
-                    </div>
-                    <div class="hotkey-row hotkey-row-right">
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">Shift</span><span class="hotkey-key">V</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F13</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Mouse 4</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">]</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">.</span></span>
-                        </div>
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">Shift</span><span class="hotkey-key">V</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F13</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Mouse 4</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">]</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">.</span></span>
-                        </div>
-                    </div>
-                    <div class="hotkey-row hotkey-row-left">
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">K</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">F19</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">LB</span><span class="hotkey-key">A</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Tab</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">;</span></span>
-                        </div>
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">K</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">F19</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">LB</span><span class="hotkey-key">A</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">Tab</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">;</span></span>
-                        </div>
-                    </div>
-                    <div class="hotkey-row hotkey-row-right">
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">F24</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">/</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">M</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Mouse 5</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F15</span></span>
-                        </div>
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">F24</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">/</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">M</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Mouse 5</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">F15</span></span>
-                        </div>
-                    </div>
-                    <div class="hotkey-row hotkey-row-left">
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Pause</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">M</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">RB</span><span class="hotkey-key">Y</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">\</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Scroll Lock</span></span>
-                        </div>
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Pause</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Shift</span><span class="hotkey-key">M</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">RB</span><span class="hotkey-key">Y</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">\</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Scroll Lock</span></span>
-                        </div>
-                    </div>
-                    <div class="hotkey-row hotkey-row-right">
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">/</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">F20</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">=</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">End</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">F12</span></span>
-                        </div>
-                        <div class="hotkey-row-inner">
-                            <span class="hotkey-pill"><span class="hotkey-key">Win</span><span class="hotkey-key">/</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">F20</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Alt</span><span class="hotkey-key">=</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Ctrl</span><span class="hotkey-key">Alt</span><span class="hotkey-key">End</span></span>
-                            <span class="hotkey-pill"><span class="hotkey-key">Shift</span><span class="hotkey-key">F12</span></span>
-                        </div>
-                    </div>
+            <div class="showcase-stage hotkey-stage" aria-hidden="true">
+                <div class="bind is-current">
+                    <span class="bind-label">Toggle mute</span>
+                    <span class="bind-keys"><span class="readout-key">Ctrl</span><span class="readout-key">Alt</span><span class="readout-key">M</span></span>
                 </div>
-                <div class="hotkey-readout" aria-live="polite">
-                    <span class="hotkey-readout-label" id="hotkey-label">Toggle mute</span>
-                    <span class="hotkey-readout-keys" id="hotkey-keys">
-                        <span class="readout-key">Ctrl</span><span class="readout-key">Alt</span><span class="readout-key">M</span>
-                    </span>
+                <div class="bind is-next">
+                    <span class="bind-label">Hold to talk</span>
+                    <span class="bind-keys"><span class="readout-key">Mouse 4</span></span>
+                </div>
+                <div class="bind">
+                    <span class="bind-label">Force mute</span>
+                    <span class="bind-keys"><span class="readout-key">F23</span></span>
+                </div>
+                <div class="bind">
+                    <span class="bind-label">Mute with a controller</span>
+                    <span class="bind-keys"><span class="readout-key">LB</span><span class="readout-key">A</span></span>
+                </div>
+                <div class="bind">
+                    <span class="bind-label">Switch output</span>
+                    <span class="bind-keys"><span class="readout-key">Alt</span><span class="readout-key">Shift</span><span class="readout-key">V</span></span>
+                </div>
+                <div class="bind is-prev">
+                    <span class="bind-label">Open Settings</span>
+                    <span class="bind-keys"><span class="readout-key">Win</span><span class="readout-key">/</span></span>
                 </div>
             </div>
             <div class="showcase-copy">
                 <p class="showcase-kicker">Global hotkeys</p>
                 <h3>Every action gets its own key.</h3>
-                <p>Keyboard, mouse side buttons, or a controller. Your mute key works from any window.</p>
-                <ul class="showcase-points">
-                    <li>Toggle, force mute, force unmute, and hold actions</li>
-                    <li>As many shortcuts per action as you want</li>
-                    <li>Switch audio devices and open Settings by hotkey</li>
-                </ul>
+                <p>Keyboard, mouse, or controller. Works from any window.</p>
             </div>
         </article>
 
         <article class="showcase tone-pink is-flipped">
             <div class="showcase-stage overlay-stage">
-                <div class="overlay-desktop" id="overlay-desktop">
-                    <div class="fake-window" aria-hidden="true">Click anywhere to mute and unmute</div>
-                    <button type="button" class="demo-overlay style-text" id="demo-overlay" aria-pressed="true" aria-label="Toggle demo microphone">
-                        <iconify-icon class="demo-overlay-icon" icon="fluent:mic-off-24-filled"></iconify-icon>
-                        <span class="demo-overlay-text">Microphone is muted</span>
-                    </button>
+                <div class="ov-gallery" aria-hidden="true">
+                    <span class="ov ov-icontext" data-ov-text="Microphone is muted|Microphone is live"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon><span>Microphone is muted</span></span>
+                    <span class="ov ov-icon"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span>
+                    <span class="ov ov-dot"></span>
+                    <span class="ov ov-light" data-ov-text="Muted|Live"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon><span>Muted</span></span>
+                    <span class="ov ov-mono"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span>
+                    <span class="ov ov-text" data-ov-text="Muted|Live"><span>Muted</span></span>
                 </div>
-                <div class="stage-controls">
-                    <div class="seg" role="group" aria-label="Overlay style">
-                        <button type="button" class="seg-btn is-on" data-overlay-style="text" aria-pressed="true">Text</button>
-                        <button type="button" class="seg-btn" data-overlay-style="icon" aria-pressed="false">Icon</button>
-                        <button type="button" class="seg-btn" data-overlay-style="dot" aria-pressed="false">Dot</button>
-                    </div>
-                    <div class="seg" role="group" aria-label="When to show the overlay">
-                        <button type="button" class="seg-btn is-on" data-overlay-show="always" aria-pressed="true">Always</button>
-                        <button type="button" class="seg-btn" data-overlay-show="muted" aria-pressed="false">When muted</button>
-                        <button type="button" class="seg-btn" data-overlay-show="toggle" aria-pressed="false">After toggle</button>
-                    </div>
-                    <div class="seg seg-icons" role="group" aria-label="Overlay position">
-                        <button type="button" class="seg-btn is-on" data-overlay-pos="tl" aria-pressed="true" aria-label="Top left"><iconify-icon icon="fluent:arrow-up-left-20-filled"></iconify-icon></button>
-                        <button type="button" class="seg-btn" data-overlay-pos="tr" aria-pressed="false" aria-label="Top right"><iconify-icon icon="fluent:arrow-up-right-20-filled"></iconify-icon></button>
-                        <button type="button" class="seg-btn" data-overlay-pos="bl" aria-pressed="false" aria-label="Bottom left"><iconify-icon icon="fluent:arrow-down-left-20-filled"></iconify-icon></button>
-                        <button type="button" class="seg-btn" data-overlay-pos="br" aria-pressed="false" aria-label="Bottom right"><iconify-icon icon="fluent:arrow-down-right-20-filled"></iconify-icon></button>
-                    </div>
+                <div class="sound-row" role="group" aria-label="Preview sound themes">
+                    <span class="sound-row-label">Sounds</span>
+                    <button type="button" class="sound-theme" data-sound-theme="8bit"><iconify-icon icon="solar:play-bold"></iconify-icon>8-Bit</button>
+                    <button type="button" class="sound-theme" data-sound-theme="blob"><iconify-icon icon="solar:play-bold"></iconify-icon>Blob</button>
+                    <button type="button" class="sound-theme" data-sound-theme="digital"><iconify-icon icon="solar:play-bold"></iconify-icon>Digital</button>
+                    <button type="button" class="sound-theme" data-sound-theme="discord"><iconify-icon icon="solar:play-bold"></iconify-icon>Discord</button>
+                    <button type="button" class="sound-theme" data-sound-theme="pop"><iconify-icon icon="solar:play-bold"></iconify-icon>Pop</button>
+                    <button type="button" class="sound-theme" data-sound-theme="punchy"><iconify-icon icon="solar:play-bold"></iconify-icon>Punchy</button>
+                    <button type="button" class="sound-theme" data-sound-theme="scifi"><iconify-icon icon="solar:play-bold"></iconify-icon>Sci-Fi</button>
+                    <button type="button" class="sound-theme" data-sound-theme="vibrant"><iconify-icon icon="solar:play-bold"></iconify-icon>Vibrant</button>
                 </div>
             </div>
             <div class="showcase-copy">
-                <p class="showcase-kicker">Visual overlay</p>
-                <h3>Always know if you're muted.</h3>
-                <p>A small always-on-top badge shows your mic state over every app. Style it, move it, or click it.</p>
-                <ul class="showcase-points">
-                    <li>Mic icon, colored dot, or icon with text</li>
-                    <li>Show always, only when muted, or right after a toggle</li>
-                    <li>Doubles as an on-screen mic button</li>
-                    <li>Size, opacity, colors, and icon packs are all yours</li>
-                </ul>
+                <p class="showcase-kicker">Overlay and sounds</p>
+                <h3>See it. Hear it.</h3>
+                <p>An on-screen badge in your style, plus a sound every time you mute.</p>
             </div>
         </article>
 
-        <article class="showcase tone-blue">
-            <div class="showcase-stage sound-stage">
-                <p class="stage-hint">Sound on, then click the mic</p>
-                <div class="sound-themes" role="group" aria-label="Sound theme">
-                    <button type="button" class="sound-theme is-on" data-sound-theme="8bit" aria-pressed="true">8-Bit</button>
-                    <button type="button" class="sound-theme" data-sound-theme="blob" aria-pressed="false">Blob</button>
-                    <button type="button" class="sound-theme" data-sound-theme="digital" aria-pressed="false">Digital</button>
-                    <button type="button" class="sound-theme" data-sound-theme="discord" aria-pressed="false">Discord</button>
-                    <button type="button" class="sound-theme" data-sound-theme="pop" aria-pressed="false">Pop</button>
-                    <button type="button" class="sound-theme" data-sound-theme="punchy" aria-pressed="false">Punchy</button>
-                    <button type="button" class="sound-theme" data-sound-theme="scifi" aria-pressed="false">Sci-Fi</button>
-                    <button type="button" class="sound-theme" data-sound-theme="vibrant" aria-pressed="false">Vibrant</button>
-                </div>
-                <button type="button" class="sound-mic" id="sound-mic" aria-label="Mute demo microphone">
-                    <iconify-icon icon="fluent:mic-24-filled"></iconify-icon>
-                </button>
-                <div class="sound-sliders">
-                    <label class="sound-slider">
-                        <span>Mute</span>
-                        <input type="range" min="0" max="100" value="80" data-sound-volume="mute">
-                        <output>80%</output>
-                    </label>
-                    <label class="sound-slider">
-                        <span>Unmute</span>
-                        <input type="range" min="0" max="100" value="50" data-sound-volume="unmute">
-                        <output>50%</output>
-                    </label>
-                </div>
-            </div>
-            <div class="showcase-copy">
-                <p class="showcase-kicker">Sounds</p>
-                <h3>Hear the moment you mute.</h3>
-                <p>8 built-in sound themes, or your own MP3, WAV, OGG, and FLAC files.</p>
-                <ul class="showcase-points">
-                    <li>Different sounds for mute and unmute</li>
-                    <li>Separate volume for every action</li>
-                    <li>Hold actions can get their own sounds</li>
-                </ul>
-            </div>
-        </article>
-
-        <article class="showcase tone-orange is-flipped">
+        <article class="showcase tone-orange">
             <div class="showcase-stage pad-stage">
-                <p class="stage-hint" id="pad-hint">Got a controller? Plug it in and press LB + A</p>
-                <svg class="pad" viewBox="0 0 400 260" role="img" aria-label="Game controller with LB and A buttons bound to mute">
-                    <g data-pad-btn="6"><rect class="pad-btn" x="80" y="4" width="66" height="22" rx="11" /><text class="pad-label" x="113" y="15">LT</text></g>
-                    <g data-pad-btn="7"><rect class="pad-btn" x="254" y="4" width="66" height="22" rx="11" /><text class="pad-label" x="287" y="15">RT</text></g>
-                    <g data-pad-btn="4"><rect class="pad-btn" x="66" y="30" width="94" height="24" rx="12" /><text class="pad-label" x="113" y="42">LB</text></g>
-                    <g data-pad-btn="5"><rect class="pad-btn" x="240" y="30" width="94" height="24" rx="12" /><text class="pad-label" x="287" y="42">RB</text></g>
-                    <path class="pad-body" d="M118 58 H282 C336 58 366 88 382 148 C398 208 386 254 350 254 C322 254 306 230 292 208 H108 C94 230 78 254 50 254 C14 254 2 208 18 148 C34 88 64 58 118 58 Z" />
-                    <circle class="pad-well" cx="112" cy="122" r="30" />
-                    <g data-pad-btn="10"><circle class="pad-btn" cx="112" cy="122" r="19" /></g>
-                    <circle class="pad-well" cx="248" cy="180" r="26" />
-                    <g data-pad-btn="11"><circle class="pad-btn" cx="248" cy="180" r="16" /></g>
-                    <g data-pad-btn="16"><circle class="pad-btn" cx="200" cy="86" r="11" /></g>
-                    <g data-pad-btn="8"><circle class="pad-btn" cx="176" cy="110" r="7" /></g>
-                    <g data-pad-btn="9"><circle class="pad-btn" cx="224" cy="110" r="7" /></g>
-                    <rect class="pad-well" x="144" y="172" width="16" height="16" />
-                    <g data-pad-btn="12"><rect class="pad-btn" x="144" y="156" width="16" height="16" rx="3" /></g>
-                    <g data-pad-btn="13"><rect class="pad-btn" x="144" y="188" width="16" height="16" rx="3" /></g>
-                    <g data-pad-btn="14"><rect class="pad-btn" x="128" y="172" width="16" height="16" rx="3" /></g>
-                    <g data-pad-btn="15"><rect class="pad-btn" x="160" y="172" width="16" height="16" rx="3" /></g>
-                    <g data-pad-btn="3"><circle class="pad-btn" cx="288" cy="94" r="14" /><text class="pad-label is-y" x="288" y="94">Y</text></g>
-                    <g data-pad-btn="2"><circle class="pad-btn" cx="260" cy="122" r="14" /><text class="pad-label is-x" x="260" y="122">X</text></g>
-                    <g data-pad-btn="1"><circle class="pad-btn" cx="316" cy="122" r="14" /><text class="pad-label is-b" x="316" y="122">B</text></g>
-                    <g data-pad-btn="0"><circle class="pad-btn" cx="288" cy="150" r="14" /><text class="pad-label is-a" x="288" y="150">A</text></g>
-                </svg>
+                <div class="pad-combo" aria-hidden="true">
+                    <span class="pad-key pad-bumper" data-pad-btn="4">LB</span>
+                    <span class="pad-plus">+</span>
+                    <span class="pad-key pad-face" data-pad-btn="0">A</span>
+                </div>
                 <span class="pad-state" id="pad-state" aria-live="polite">
                     <iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon>
                     <span>Muted</span>
                 </span>
+                <div class="pad-devices" aria-label="Xbox, PlayStation, and racing wheels">
+                    <iconify-icon icon="mdi:microsoft-xbox"></iconify-icon>
+                    <iconify-icon icon="mdi:sony-playstation"></iconify-icon>
+                    <iconify-icon icon="mdi:steering"></iconify-icon>
+                </div>
+                <p class="stage-hint" id="pad-hint">Got a controller? Press LB + A</p>
             </div>
             <div class="showcase-copy">
                 <p class="showcase-kicker">Gamepad support</p>
                 <h3>Your controller is a mute button now.</h3>
-                <p>Bind any button or combo. The keyboard can stay on the other side of the room.</p>
-                <ul class="showcase-points">
-                    <li>Button combos like LB + A</li>
-                    <li>Xbox and PlayStation controllers, even racing wheels</li>
-                    <li>Every hotkey action works on the controller too</li>
-                </ul>
+                <p>Any button or combo. Xbox, PlayStation, even wheels.</p>
             </div>
         </article>
 
         <h2 class="features-heading">More tricks.</h2>
         <div class="tricks-grid">
-            <article class="trick">
-                <span class="trick-icon" style="--c: var(--pop-yellow);"><iconify-icon icon="solar:microphone-bold-duotone"></iconify-icon></span>
-                <h3>Hold to talk</h3>
-                <p>Hold a key to unmute, let go to mute. Or flip it and hold to cough.</p>
+            <article class="trick is-wide" style="--c: var(--pop-yellow);">
+                <span class="trick-icon"><iconify-icon icon="solar:microphone-bold-duotone"></iconify-icon></span>
+                <div>
+                    <h3>Hold to talk</h3>
+                    <p>Hold to speak. Let go, muted.</p>
+                </div>
             </article>
-            <article class="trick">
-                <span class="trick-icon" style="--c: var(--pop-blue);"><iconify-icon icon="solar:stopwatch-bold-duotone"></iconify-icon></span>
-                <h3>Auto-mute</h3>
-                <p>Mutes when the app starts or after you go AFK. Unmutes when you are back, if you want.</p>
+            <article class="trick" style="--c: var(--pop-blue);">
+                <span class="trick-icon"><iconify-icon icon="solar:stopwatch-bold-duotone"></iconify-icon></span>
+                <div>
+                    <h3>Auto-mute</h3>
+                    <p>On launch or when AFK.</p>
+                </div>
             </article>
-            <article class="trick">
-                <span class="trick-icon" style="--c: var(--pop-green);"><iconify-icon icon="solar:target-bold-duotone"></iconify-icon></span>
-                <h3>Every mic at once</h3>
-                <p>Mute one exact microphone, or all of them with a single press.</p>
+            <article class="trick" style="--c: var(--pop-green);">
+                <span class="trick-icon"><iconify-icon icon="solar:target-bold-duotone"></iconify-icon></span>
+                <div>
+                    <h3>Every mic</h3>
+                    <p>One press, all of them.</p>
+                </div>
             </article>
-            <article class="trick">
-                <span class="trick-icon" style="--c: var(--pop-purple);"><iconify-icon icon="solar:headphones-round-sound-bold-duotone"></iconify-icon></span>
-                <h3>Device switching</h3>
-                <p>Swap the default input or output with a hotkey or from the tray menu.</p>
+            <article class="trick" style="--c: var(--pop-purple);">
+                <span class="trick-icon"><iconify-icon icon="solar:headphones-round-sound-bold-duotone"></iconify-icon></span>
+                <div>
+                    <h3>Device switching</h3>
+                    <p>Swap input or output by hotkey.</p>
+                </div>
             </article>
-            <article class="trick">
-                <span class="trick-icon" style="--c: var(--pop-pink);"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon></span>
-                <h3>Panic key</h3>
-                <p>Force mute only ever mutes. Smash it twice, you are still muted.</p>
+            <article class="trick" style="--c: var(--pop-pink);">
+                <span class="trick-icon"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon></span>
+                <div>
+                    <h3>Panic key</h3>
+                    <p>Force mute never unmutes.</p>
+                </div>
             </article>
-            <article class="trick">
-                <span class="trick-icon" style="--c: var(--pop-orange);"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
-                <h3>Tray status</h3>
-                <p>The logo, a mic, or a colored dot next to the clock shows your state.</p>
+            <article class="trick is-wide" style="--c: var(--pop-orange);">
+                <span class="trick-icon"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
+                <div>
+                    <h3>Tray status</h3>
+                    <p>Your state, right next to the clock.</p>
+                </div>
             </article>
         </div>
 
@@ -2219,19 +1850,16 @@
         </div>
 
         <h2 class="features-heading">Also in the box.</h2>
-        <div class="also">
-            <ul class="also-list">
-                <li><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon><div><b>Settings apply instantly</b><span>No Save buttons. Ever.</span></div></li>
-                <li><iconify-icon icon="solar:power-bold-duotone"></iconify-icon><div><b>Start with Windows</b><span>Straight to the tray, out of your way</span></div></li>
-                <li><iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon><div><b>Auto-updates</b><span>Check, download, and install from the app</span></div></li>
-                <li><iconify-icon icon="solar:import-bold-duotone"></iconify-icon><div><b>Import and export</b><span>Back up settings or bring them from v1</span></div></li>
-                <li><iconify-icon icon="solar:palette-bold-duotone"></iconify-icon><div><b>Mica design</b><span>Feels at home on Windows 11</span></div></li>
-                <li><iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon><div><b>Ignore modifiers</b><span>Hotkeys still fire with Shift or Ctrl held</span></div></li>
-                <li><iconify-icon icon="solar:settings-bold-duotone"></iconify-icon><div><b>Settings hotkey</b><span>Open Settings from a shortcut</span></div></li>
-                <li><iconify-icon icon="fluent:cursor-click-24-filled"></iconify-icon><div><b>Faster tray clicks</b><span>Single-click to mute, or double-click for Settings</span></div></li>
-                <li><iconify-icon icon="mdi:github"></iconify-icon><div><b>Free and open source</b><span>Apache 2.0, free forever</span></div></li>
-            </ul>
-        </div>
+        <ul class="also-list">
+            <li><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon><div><b>Settings apply instantly</b><span>No Save buttons. Ever.</span></div></li>
+            <li><iconify-icon icon="solar:power-bold-duotone"></iconify-icon><div><b>Start with Windows</b><span>Straight to the tray</span></div></li>
+            <li><iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon><div><b>Auto-updates</b><span>Right from the app</span></div></li>
+            <li><iconify-icon icon="solar:import-bold-duotone"></iconify-icon><div><b>Import and export</b><span>Including v1 settings</span></div></li>
+            <li><iconify-icon icon="solar:palette-bold-duotone"></iconify-icon><div><b>Mica design</b><span>Feels at home on Windows 11</span></div></li>
+            <li><iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon><div><b>Ignore modifiers</b><span>Fires with Shift or Ctrl held</span></div></li>
+            <li><iconify-icon icon="solar:settings-bold-duotone"></iconify-icon><div><b>Settings hotkey</b><span>Open Settings from a shortcut</span></div></li>
+            <li><iconify-icon icon="mdi:github"></iconify-icon><div><b>Free and open source</b><span>Apache 2.0, forever</span></div></li>
+        </ul>
     </section>
 
     <a class="guide-banner bento-anim" href="mic-mute/">
@@ -2518,227 +2146,69 @@
 
     <script>
         (function () {
-            const renderKeys = (container, keys) => {
-                container.replaceChildren(...(keys.length ? keys : ['…']).map((key, index) => {
-                    const el = document.createElement('span');
-                    el.className = 'readout-key' + (keys.length ? '' : ' is-empty');
-                    el.style.animationDelay = `${index * 50}ms`;
-                    el.textContent = key;
-                    return el;
-                }));
-            };
-
-            const restartAnimation = (el) => {
-                el.style.animation = 'none';
+            const bump = (el, className) => {
+                el.classList.remove(className);
                 void el.offsetWidth;
-                el.style.animation = '';
+                el.classList.add(className);
             };
 
             // Hotkeys
-            const hotkeyStage = document.getElementById('hotkey-stage');
-            const hotkeyLabel = document.getElementById('hotkey-label');
-            const hotkeyKeys = document.getElementById('hotkey-keys');
-            const hotkeyHint = document.getElementById('hotkey-hint');
-            const hotkeyDemo = [
-                ['Toggle mute', ['Ctrl', 'Alt', 'M']],
-                ['Hold to talk', ['Mouse 4']],
-                ['Force mute', ['F23']],
-                ['Mute with a controller', ['LB', 'A']],
-                ['Switch output', ['Alt', 'Shift', 'V']],
-                ['Open Settings', ['Win', '/']],
-            ];
-            const keyNames = { ' ': 'Space', Control: 'Ctrl', Meta: 'Win', Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
-            const modifierNames = ['Ctrl', 'Alt', 'Shift', 'Win'];
-            let hotkeyIndex = 0;
-            let hotkeyTimer = null;
-
-            const showHotkey = (label, keys) => {
-                hotkeyLabel.textContent = label;
-                restartAnimation(hotkeyLabel);
-                renderKeys(hotkeyKeys, keys);
+            const binds = Array.from(document.querySelectorAll('.bind'));
+            let bindIndex = 0;
+            const placeBinds = () => {
+                const count = binds.length;
+                binds.forEach((bind, index) => {
+                    const offset = (index - bindIndex + count) % count;
+                    bind.classList.toggle('is-current', offset === 0);
+                    bind.classList.toggle('is-next', offset === 1);
+                    bind.classList.toggle('is-prev', offset === count - 1);
+                    bind.classList.toggle('is-gone', offset === count - 2);
+                });
             };
-
-            const startHotkeyDemo = () => {
-                clearInterval(hotkeyTimer);
-                hotkeyTimer = setInterval(() => {
-                    hotkeyIndex = (hotkeyIndex + 1) % hotkeyDemo.length;
-                    showHotkey(...hotkeyDemo[hotkeyIndex]);
+            if (binds.length) {
+                placeBinds();
+                setInterval(() => {
+                    bindIndex = (bindIndex + 1) % binds.length;
+                    placeBinds();
                 }, 2200);
-            };
-
-            const keyName = (event) => {
-                if (keyNames[event.key]) return keyNames[event.key];
-                if (event.code.startsWith('Key')) return event.code.slice(3);
-                if (event.code.startsWith('Digit')) return event.code.slice(5);
-                return event.key.length === 1 ? event.key.toUpperCase() : event.key;
-            };
-
-            hotkeyStage?.addEventListener('focus', () => {
-                clearInterval(hotkeyTimer);
-                hotkeyStage.classList.add('is-listening');
-                hotkeyHint.textContent = 'Listening. Press any shortcut';
-                hotkeyHint.classList.add('is-active');
-                showHotkey('Press any shortcut', []);
-            });
-
-            hotkeyStage?.addEventListener('blur', () => {
-                hotkeyStage.classList.remove('is-listening');
-                hotkeyHint.textContent = 'Click here and press any shortcut';
-                hotkeyHint.classList.remove('is-active');
-                showHotkey(...hotkeyDemo[hotkeyIndex]);
-                startHotkeyDemo();
-            });
-
-            hotkeyStage?.addEventListener('keydown', (event) => {
-                if (event.key === 'Tab') return;
-                event.preventDefault();
-                const mods = [];
-                if (event.ctrlKey) mods.push('Ctrl');
-                if (event.altKey) mods.push('Alt');
-                if (event.shiftKey) mods.push('Shift');
-                if (event.metaKey) mods.push('Win');
-                const name = keyName(event);
-                showHotkey('Your shortcut', modifierNames.includes(name) ? mods : [...mods, name]);
-            });
-
-            const mouseNames = { 1: 'Middle click', 3: 'Mouse 4', 4: 'Mouse 5' };
-            hotkeyStage?.addEventListener('mousedown', (event) => {
-                if (!mouseNames[event.button]) return;
-                event.preventDefault();
-                hotkeyStage.focus();
-                showHotkey('Your shortcut', [mouseNames[event.button]]);
-            });
-            ['mouseup', 'auxclick'].forEach((type) => hotkeyStage?.addEventListener(type, (event) => {
-                if (mouseNames[event.button]) event.preventDefault();
-            }));
-
-            startHotkeyDemo();
-
-            // Overlay
-            const desktop = document.getElementById('overlay-desktop');
-            const overlay = document.getElementById('demo-overlay');
-            const overlayIcon = overlay?.querySelector('.demo-overlay-icon');
-            const overlayText = overlay?.querySelector('.demo-overlay-text');
-            const overlayPositions = {
-                tl: ['16px', '16px', '0, 0'],
-                tr: ['calc(100% - 16px)', '16px', '-100%, 0'],
-                bl: ['16px', 'calc(100% - 16px)', '0, -100%'],
-                br: ['calc(100% - 16px)', 'calc(100% - 16px)', '-100%, -100%'],
-            };
-            let overlayMuted = true;
-            let overlayShow = 'always';
-            let overlayHideTimer = null;
-
-            const applyOverlayVisibility = (flash) => {
-                clearTimeout(overlayHideTimer);
-                const visible = overlayShow === 'always'
-                    || (overlayShow === 'muted' && overlayMuted)
-                    || (overlayShow === 'toggle' && flash);
-                overlay.classList.toggle('is-hidden', !visible);
-                if (overlayShow === 'toggle' && flash) {
-                    overlayHideTimer = setTimeout(() => overlay.classList.add('is-hidden'), 1600);
-                }
-            };
-
-            const renderOverlay = () => {
-                overlay.classList.toggle('is-live', !overlayMuted);
-                overlay.setAttribute('aria-pressed', String(overlayMuted));
-                overlayIcon.setAttribute('icon', overlayMuted ? 'fluent:mic-off-24-filled' : 'fluent:mic-24-filled');
-                overlayText.textContent = overlayMuted ? 'Microphone is muted' : 'Microphone is live';
-            };
-
-            desktop?.addEventListener('click', () => {
-                overlayMuted = !overlayMuted;
-                renderOverlay();
-                applyOverlayVisibility(true);
-            });
-
-            const bindSegment = (attr, onPick) => {
-                const buttons = Array.from(document.querySelectorAll(`[${attr}]`));
-                buttons.forEach((button) => button.addEventListener('click', () => {
-                    buttons.forEach((item) => {
-                        item.classList.toggle('is-on', item === button);
-                        item.setAttribute('aria-pressed', String(item === button));
-                    });
-                    onPick(button.getAttribute(attr));
-                }));
-            };
-
-            if (overlay) {
-                bindSegment('data-overlay-style', (style) => {
-                    overlay.classList.remove('style-text', 'style-icon', 'style-dot');
-                    overlay.classList.add(`style-${style}`);
-                });
-                bindSegment('data-overlay-show', (mode) => {
-                    overlayShow = mode;
-                    applyOverlayVisibility(true);
-                });
-                bindSegment('data-overlay-pos', (pos) => {
-                    const [left, top, shift] = overlayPositions[pos];
-                    overlay.style.left = left;
-                    overlay.style.top = top;
-                    overlay.style.transform = `translate(${shift})`;
-                    if (overlayShow === 'toggle') applyOverlayVisibility(true);
-                });
             }
 
-            // Sounds
-            const soundMic = document.getElementById('sound-mic');
-            const soundThemes = Array.from(document.querySelectorAll('[data-sound-theme]'));
-            const soundVolumes = {};
-            document.querySelectorAll('[data-sound-volume]').forEach((input) => {
-                soundVolumes[input.dataset.soundVolume] = input;
-            });
-            const soundCache = {};
-            let soundTheme = '8bit';
-            let soundMuted = false;
+            // Overlay styles
+            const overlays = Array.from(document.querySelectorAll('.ov'));
+            const setOverlayLive = (overlay, live) => {
+                overlay.classList.toggle('is-live', live);
+                overlay.querySelector('iconify-icon')?.setAttribute('icon', live ? 'fluent:mic-24-filled' : 'fluent:mic-off-24-filled');
+                const labels = overlay.dataset.ovText?.split('|');
+                const text = overlay.querySelector('span');
+                if (labels && text) text.textContent = live ? labels[1] : labels[0];
+                bump(overlay, 'is-flip');
+            };
+            let overlaysLive = false;
+            const flipOverlays = () => {
+                overlaysLive = !overlaysLive;
+                overlays.forEach((overlay, index) => setTimeout(() => setOverlayLive(overlay, overlaysLive), index * 90));
+            };
+            if (overlays.length) setInterval(flipOverlays, 2600);
 
-            const playSound = (kind) => {
-                const src = `sounds/${soundTheme}_${kind}.mp3`;
+            // Sounds
+            const soundCache = {};
+            document.querySelectorAll('[data-sound-theme]').forEach((button) => button.addEventListener('click', () => {
+                const kind = overlaysLive ? 'mute' : 'unmute';
+                const src = `sounds/${button.dataset.soundTheme}_${kind}.mp3`;
                 const audio = soundCache[src] || (soundCache[src] = new Audio(src));
-                audio.volume = soundVolumes[kind].value / 100;
                 audio.currentTime = 0;
                 audio.play().catch(() => { });
-            };
-
-            soundThemes.forEach((button) => button.addEventListener('click', () => {
-                soundTheme = button.dataset.soundTheme;
-                soundThemes.forEach((item) => {
-                    item.classList.toggle('is-on', item === button);
-                    item.setAttribute('aria-pressed', String(item === button));
-                });
-                button.classList.remove('is-playing');
-                void button.offsetWidth;
-                button.classList.add('is-playing');
-                playSound(soundMuted ? 'unmute' : 'mute');
+                bump(button, 'is-playing');
+                flipOverlays();
             }));
-
-            soundMic?.addEventListener('click', () => {
-                soundMuted = !soundMuted;
-                soundMic.classList.toggle('is-muted', soundMuted);
-                soundMic.setAttribute('aria-label', soundMuted ? 'Unmute demo microphone' : 'Mute demo microphone');
-                soundMic.querySelector('iconify-icon').setAttribute('icon', soundMuted ? 'fluent:mic-off-24-filled' : 'fluent:mic-24-filled');
-                soundMic.classList.remove('is-pulsing');
-                void soundMic.offsetWidth;
-                soundMic.classList.add('is-pulsing');
-                playSound(soundMuted ? 'mute' : 'unmute');
-            });
-
-            Object.entries(soundVolumes).forEach(([kind, input]) => {
-                const output = input.parentElement.querySelector('output');
-                input.addEventListener('input', () => {
-                    output.textContent = `${input.value}%`;
-                });
-                input.addEventListener('change', () => playSound(kind));
-            });
 
             // Gamepad
             const padState = document.getElementById('pad-state');
             const padHint = document.getElementById('pad-hint');
             const padHintDefault = padHint?.textContent;
-            const padButtons = {};
-            document.querySelectorAll('[data-pad-btn]').forEach((group) => {
-                padButtons[group.dataset.padBtn] = group;
+            const padKeys = {};
+            document.querySelectorAll('[data-pad-btn]').forEach((key) => {
+                padKeys[key.dataset.padBtn] = key;
             });
             let padMuted = true;
             let padIndex = null;
@@ -2747,23 +2217,21 @@
             let padDemoTimer = null;
             let padDemoSteps = [];
 
-            const setPadPressed = (index, pressed) => padButtons[index]?.classList.toggle('is-pressed', pressed);
+            const setPadPressed = (index, pressed) => padKeys[index]?.classList.toggle('is-pressed', pressed);
 
             const togglePad = () => {
                 padMuted = !padMuted;
                 padState.classList.toggle('is-live', !padMuted);
                 padState.querySelector('iconify-icon').setAttribute('icon', padMuted ? 'fluent:mic-off-24-filled' : 'fluent:mic-24-filled');
                 padState.querySelector('span').textContent = padMuted ? 'Muted' : 'Live';
-                padState.classList.remove('is-bump');
-                void padState.offsetWidth;
-                padState.classList.add('is-bump');
+                bump(padState, 'is-bump');
             };
 
             const stopPadDemo = () => {
                 clearInterval(padDemoTimer);
                 padDemoSteps.forEach(clearTimeout);
                 padDemoSteps = [];
-                Object.keys(padButtons).forEach((index) => setPadPressed(index, false));
+                Object.keys(padKeys).forEach((index) => setPadPressed(index, false));
             };
 
             const padDemoCycle = () => {
@@ -2794,7 +2262,8 @@
                 }
                 const pad = navigator.getGamepads?.()[padIndex];
                 if (pad) {
-                    pad.buttons.forEach((button, index) => setPadPressed(index, button.pressed || button.value > 0.5));
+                    setPadPressed(4, Boolean(pad.buttons[4]?.pressed));
+                    setPadPressed(0, Boolean(pad.buttons[0]?.pressed));
                     const combo = Boolean(pad.buttons[4]?.pressed && pad.buttons[0]?.pressed);
                     if (combo && !comboHeld) togglePad();
                     comboHeld = combo;
