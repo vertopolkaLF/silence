@@ -110,6 +110,7 @@ pub(crate) fn render(
         .gap(px(14.))
         .child(field("Ring starts at", ring_start).flex_1())
         .child(field("Ring direction", ring_direction).flex_1());
+    let popup = tray_popup_panel(app, window, cx);
     vec![column()
         .gap(px(0.))
         .child(heading("Tray icon", "", Some(show), cx))
@@ -132,7 +133,59 @@ pub(crate) fn render(
                     .text_size(px(13.)),
                 ),
         )
+        .child(popup)
         .into_any_element()]
+}
+
+/// The slider popup a click on the icon opens.
+fn tray_popup_panel(
+    app: &mut SettingsApp,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) -> Div {
+    let popup = app.snapshot.config.volume.popup.clone();
+    let layout = controls::select(
+        "volume-popup-layout",
+        match popup.layout {
+            crate::VolumePopupLayout::Compact => "Compact",
+            crate::VolumePopupLayout::Labeled => "Labeled",
+        },
+        SelectOptions::new(vec![
+            SelectOption::new("Compact", "Compact: names on hover"),
+            SelectOption::new("Labeled", "App names above sliders"),
+        ]),
+        app,
+        window,
+        cx,
+        |app, value, _, cx| {
+            let layout = if value.as_ref() == "Labeled" {
+                crate::VolumePopupLayout::Labeled
+            } else {
+                crate::VolumePopupLayout::Compact
+            };
+            app.update_config(cx, |config| config.volume.popup.layout = layout);
+        },
+    );
+    let header = controls::toggle(
+        "volume-popup-header",
+        popup.device_header,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            app.update_config(cx, |config| config.volume.popup.device_header = checked);
+        },
+    );
+    form::panel(18., true, cx)
+        .mt(px(18.))
+        .child(form::section_heading("Slider popup"))
+        .child(field("Layout", layout))
+        .child(super::super::general::card_row(
+            "Device name header",
+            Some("Shows the output device's name above its slider."),
+            header,
+            true,
+            cx,
+        ))
 }
 
 fn skin_card(

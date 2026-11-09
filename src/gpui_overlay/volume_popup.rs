@@ -34,24 +34,26 @@ use windows::Win32::{
 // Row geometry (logical pixels). Every row shares the same columns so the
 // sliders line up: [pad][button][gap][slider][gap][number][pad].
 const PAD_LEFT: f32 = 8.0;
-const PAD_RIGHT: f32 = 14.0;
+const PAD_RIGHT: f32 = 12.0;
 const BUTTON: f32 = 36.0;
 const GAP: f32 = 8.0;
-const NUMBER_W: f32 = 28.0;
-const TRACK_W: f32 = CARD_W - PAD_LEFT - BUTTON - GAP - GAP - NUMBER_W - PAD_RIGHT;
+const NUMBER_W: f32 = 26.0;
 /// Window-relative x of every slider's left edge.
 const TRACK_X: f32 = GUTTER + PAD_LEFT + BUTTON + GAP;
+/// Slider beside a number column, and a labeled row's full-width slider.
+const TRACK_W: f32 = CARD_W - PAD_LEFT - BUTTON - GAP - GAP - NUMBER_W - PAD_RIGHT;
+const TRACK_W_WIDE: f32 = CARD_W - PAD_LEFT - BUTTON - GAP - PAD_RIGHT;
 const SLIDER_H: f32 = 24.0;
 const THUMB: f32 = 20.0;
-/// Caption line above each slider: the device name is larger.
-const DEVICE_CAPTION_H: f32 = 20.0;
-const APP_CAPTION_H: f32 = 16.0;
-const DEVICE_ROW_H: f32 = 4.0 + DEVICE_CAPTION_H + SLIDER_H + 4.0;
-const APP_ROW_H: f32 = 4.0 + APP_CAPTION_H + SLIDER_H + 4.0;
+const COMPACT_ROW_H: f32 = 40.0;
+/// Name-and-number line of a labeled row.
+const LABEL_H: f32 = 18.0;
+const LABELED_ROW_H: f32 = 4.0 + LABEL_H + SLIDER_H + 4.0;
+const HEADER_H: f32 = 30.0;
 const DIVIDER_H: f32 = 13.0;
-const PAD_TOP: f32 = 8.0;
-const PAD_BOTTOM: f32 = 8.0;
-const APP_ICON: f32 = 24.0;
+const PAD_Y: f32 = 6.0;
+const APP_ICON: f32 = 20.0;
+const DEVICE_GLYPH: f32 = 16.0;
 const RADIUS: f32 = 8.0;
 const APP_STEP: i32 = 2;
 
@@ -62,26 +64,76 @@ const POLL: Duration = Duration::from_millis(500);
 /// Closes on its own if Windows never let it take focus.
 const UNFOCUSED_TIMEOUT: Duration = Duration::from_secs(6);
 
-fn card_height(apps: usize) -> f32 {
-    let apps = apps.min(max_visible_apps());
-    let list = if apps == 0 {
-        0.0
-    } else {
-        DIVIDER_H + apps as f32 * APP_ROW_H
-    };
-    PAD_TOP + DEVICE_ROW_H + list + PAD_BOTTOM
+/// Row style from Settings → Volume → Tray icon → Slider popup.
+#[derive(Clone, Copy, PartialEq)]
+struct Layout {
+    /// Names above full-width sliders instead of one line per row.
+    labeled: bool,
+    /// Device name as a header above the device row.
+    header: bool,
 }
 
-/// The window is created at the tallest card: GPUI never grows a window past
-/// its first size, so it is shrunk to fit instead.
+impl Layout {
+    fn load() -> Self {
+        let config = crate::STATE.lock().unwrap().volume.popup.clone();
+        Self {
+            labeled: config.layout == crate::VolumePopupLayout::Labeled,
+            header: config.device_header,
+        }
+    }
+
+    /// With a header the device row needs no name of its own.
+    fn device_labeled(self) -> bool {
+        self.labeled && !self.header
+    }
+
+    fn device_row_h(self) -> f32 {
+        if self.device_labeled() { LABELED_ROW_H } else { COMPACT_ROW_H }
+    }
+
+    fn app_row_h(self) -> f32 {
+        if self.labeled { LABELED_ROW_H } else { COMPACT_ROW_H }
+    }
+
+    fn header_h(self) -> f32 {
+        if self.header { HEADER_H } else { 0.0 }
+    }
+
+    /// Everything but the app rows, divider included.
+    fn fixed_h(self) -> f32 {
+        PAD_Y * 2.0 + self.header_h() + self.device_row_h() + DIVIDER_H
+    }
+
+    fn card_height(self, apps: usize) -> f32 {
+        let apps = apps.min(self.max_visible_apps());
+        let list = if apps == 0 {
+            0.0
+        } else {
+            DIVIDER_H + apps as f32 * self.app_row_h()
+        };
+        PAD_Y * 2.0 + self.header_h() + self.device_row_h() + list
+    }
+
+    /// As many app rows as fit the screen; more only scroll.
+    fn max_visible_apps(self) -> usize {
+        (((max_card_height() - self.fixed_h()) / self.app_row_h()).floor() as usize).max(3)
+    }
+
+    fn track_w(self, target: &Target) -> f32 {
+        let labeled = match target {
+            Target::Device => self.device_labeled(),
+            Target::App(_) => self.labeled,
+        };
+        if labeled { TRACK_W_WIDE } else { TRACK_W }
+    }
+}
+
+/// The card may grow to the primary work area's height. The window is
+/// created this tall (GPUI never grows a window past its first size) and
+/// shrunk to fit.
 fn max_card_height() -> f32 {
-    card_height(max_visible_apps())
-}
-
-/// As many app rows as fit in the primary work area; more only scroll.
-fn max_visible_apps() -> usize {
-    static COUNT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    *COUNT.get_or_init(|| {
+    static HEIGHT: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *HEIGHT.get_or_init(|| {
         use windows::Win32::UI::{
             HiDpi::GetDpiForSystem,
             WindowsAndMessaging::{
@@ -99,8 +151,7 @@ fn max_visible_apps() -> usize {
         };
         let scale = unsafe { GetDpiForSystem() }.max(96) as f32 / 96.0;
         let work_h = (work.bottom - work.top) as f32 / scale;
-        let free = work_h - 2.0 * GUTTER - 24.0 - (PAD_TOP + DEVICE_ROW_H + DIVIDER_H + PAD_BOTTOM);
-        ((free / APP_ROW_H).floor() as usize).max(4)
+        (work_h - 2.0 * GUTTER - 24.0).max(240.0)
     })
 }
 
@@ -321,6 +372,7 @@ struct PopupView {
     dragging: Option<Target>,
     hovered_slider: Option<Target>,
     hovered_button: Option<Target>,
+    layout: Layout,
     wheel: f32,
     system: System,
     appear: Motion,
@@ -349,7 +401,8 @@ impl PopupView {
                 view.close(cx);
             }
         });
-        let height = card_height(0);
+        let layout = Layout::load();
+        let height = layout.card_height(0);
         Self {
             state,
             local_percent: None,
@@ -358,6 +411,7 @@ impl PopupView {
             dragging: None,
             hovered_slider: None,
             hovered_button: None,
+            layout,
             wheel: 0.0,
             system: System::load(),
             // Created hidden (prewarmed); `reopen` shows it.
@@ -388,6 +442,13 @@ impl PopupView {
 
     fn reopen(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.system = System::load();
+        // Settings can change while the popup is hidden; size for them
+        // before it is placed.
+        let layout = Layout::load();
+        if layout != self.layout {
+            self.layout = layout;
+            self.resize(cx);
+        }
         if self.closing {
             self.closing = false;
             self.appear.retarget(1.0, Instant::now());
@@ -481,7 +542,7 @@ impl PopupView {
     /// Animates the card to fit the rows. The window grows at once and
     /// shrinks after the card has, so the animation is never clipped.
     fn resize(&mut self, cx: &mut Context<Self>) {
-        let target = card_height(self.apps.len());
+        let target = self.layout.card_height(self.apps.len());
         let now = Instant::now();
         if self.closing {
             self.card_h = Motion::new(target, RESIZE_MS);
@@ -557,7 +618,7 @@ impl PopupView {
     }
 
     fn set_from_x(&mut self, target: &Target, x: f32, cx: &mut Context<Self>) {
-        let usable = TRACK_W - THUMB;
+        let usable = self.layout.track_w(target) - THUMB;
         let fraction = ((x - TRACK_X - THUMB / 2.0) / usable).clamp(0.0, 1.0);
         let percent = (fraction * 100.0).round() as u8;
         match target {
@@ -647,7 +708,8 @@ impl PopupView {
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let level = f32::from(percent) / 100.0;
-        let usable = TRACK_W - THUMB;
+        let track_w = self.layout.track_w(&target);
+        let usable = track_w - THUMB;
         let thumb_x = usable * level;
         let fill = if muted { colors.secondary } else { colors.fill };
         let inner = if self.dragging.as_ref() == Some(&target) {
@@ -661,7 +723,7 @@ impl PopupView {
         div()
             .id(id)
             .relative()
-            .w(px(TRACK_W))
+            .w(px(track_w))
             .h(px(SLIDER_H))
             .flex_shrink_0()
             .on_hover(cx.listener(move |view, hovered: &bool, _, cx| {
@@ -734,7 +796,7 @@ impl PopupView {
             .flex()
             .items_center()
             .justify_center()
-            .rounded(px(6.))
+            .rounded(px(4.))
             .when(self.hovered_button.as_ref() == Some(&target), |d| {
                 d.bg(colors.hover)
             })
@@ -748,63 +810,90 @@ impl PopupView {
             }))
     }
 
-    fn number(percent: u8, muted: bool, strong: bool, colors: &Colors) -> impl IntoElement {
+    fn number_text(percent: u8, muted: bool, strong: bool, colors: &Colors) -> gpui::Div {
         div()
-            .w(px(NUMBER_W))
-            .h(px(SLIDER_H))
             .flex_shrink_0()
-            .flex()
-            .items_center()
-            .justify_end()
             .text_size(px(if strong { 14. } else { 13. }))
             .font_weight(FontWeight(if strong { 600. } else { 400. }))
             .text_color(if muted { colors.secondary } else { colors.text })
             .child(percent.to_string())
     }
 
-    /// Caption above the slider, then the slider and its number.
-    fn controls(
-        caption: gpui::Div,
-        caption_h: f32,
-        slider: impl IntoElement,
-        number: impl IntoElement,
-    ) -> gpui::Div {
-        div()
+    /// One row in either layout: compact is `[button] slider number` on one
+    /// line; labeled puts `name … number` above a full-width slider.
+    #[allow(clippy::too_many_arguments)]
+    fn row(
+        id: ElementId,
+        labeled: bool,
+        button: gpui::Stateful<gpui::Div>,
+        name: gpui::Div,
+        slider: gpui::Stateful<gpui::Div>,
+        percent: u8,
+        muted: bool,
+        strong: bool,
+        colors: &Colors,
+    ) -> gpui::Stateful<gpui::Div> {
+        let number = Self::number_text(percent, muted, strong, colors);
+        let row = div()
+            .id(id)
+            .flex_shrink_0()
+            .pl(px(PAD_LEFT))
+            .pr(px(PAD_RIGHT))
             .flex()
-            .flex_col()
-            .child(
-                caption
-                    .h(px(caption_h))
-                    .line_height(px(caption_h))
-                    .w(px(TRACK_W + GAP + NUMBER_W))
-                    .pl(px(THUMB / 2.0 - 1.0))
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis(),
-            )
-            .child(
-                div()
+            .items_center()
+            .gap(px(GAP));
+        if !labeled {
+            return row.h(px(COMPACT_ROW_H)).child(button).child(slider).child(
+                number
+                    .w(px(NUMBER_W))
                     .flex()
-                    .items_center()
-                    .gap(px(GAP))
-                    .child(slider)
-                    .child(number),
-            )
+                    .justify_end(),
+            );
+        }
+        row.h(px(LABELED_ROW_H)).child(button).child(
+            div()
+                .flex()
+                .flex_col()
+                .child(
+                    // Text lines up with the rail, not the thumb's overhang.
+                    div()
+                        .h(px(LABEL_H))
+                        .w(px(TRACK_W_WIDE))
+                        .px(px(THUMB / 2.0 - 1.0))
+                        .flex()
+                        .items_center()
+                        .gap(px(GAP))
+                        .child(
+                            name.flex_1()
+                                .min_w_0()
+                                .overflow_hidden()
+                                .whitespace_nowrap()
+                                .text_ellipsis(),
+                        )
+                        .child(number),
+                )
+                .child(slider),
+        )
+    }
+
+    fn device_name(&self) -> String {
+        if self.state.device_name.is_empty() {
+            "Output".to_string()
+        } else {
+            self.state.device_name.clone()
+        }
     }
 
     fn device_row(&self, colors: &Colors, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
         let percent = self.device_percent();
-        let name = if self.state.device_name.is_empty() {
-            "Output".to_string()
-        } else {
-            self.state.device_name.clone()
-        };
-        let button = self
+        let labeled = self.layout.device_labeled();
+        let mut button = self
             .button("popup-mute".into(), Target::Device, colors, cx)
             .on_click(cx.listener(|_, _, _, _| crate::request_popup_mute()))
-            .child(
-                glyph_box(self.device_glyph(), 16.0, APP_ICON, colors.text),
-            );
+            .child(glyph_box(self.device_glyph(), DEVICE_GLYPH, APP_ICON, colors.text));
+        if !labeled && !self.layout.header {
+            button = button.tooltip(name_tooltip(self.device_name(), self.system.light));
+        }
         let slider = self.slider(
             "popup-slider".into(),
             Target::Device,
@@ -813,28 +902,24 @@ impl PopupView {
             colors,
             cx,
         );
-        div()
-            .id("popup-device")
-            .h(px(DEVICE_ROW_H))
-            .flex_shrink_0()
-            .pl(px(PAD_LEFT))
-            .flex()
-            .items_center()
-            .gap(px(GAP))
-            .on_scroll_wheel(cx.listener(|view, event: &ScrollWheelEvent, _, cx| {
-                view.on_device_wheel(event, cx)
-            }))
-            .child(button_slot(button, DEVICE_CAPTION_H))
-            .child(Self::controls(
-                div()
-                    .text_size(px(14.))
-                    .font_weight(FontWeight(600.))
-                    .text_color(colors.text)
-                    .child(name),
-                DEVICE_CAPTION_H,
-                slider,
-                Self::number(percent, self.state.muted, true, colors),
-            ))
+        Self::row(
+            "popup-device".into(),
+            labeled,
+            button,
+            div()
+                .text_size(px(14.))
+                .font_weight(FontWeight(600.))
+                .text_color(colors.text)
+                .child(self.device_name()),
+            slider,
+            percent,
+            self.state.muted,
+            true,
+            colors,
+        )
+        .on_scroll_wheel(cx.listener(|view, event: &ScrollWheelEvent, _, cx| {
+            view.on_device_wheel(event, cx)
+        }))
     }
 
     fn app_row(&self, index: usize, row: &AppRow, colors: &Colors, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
@@ -849,7 +934,7 @@ impl PopupView {
                 .into_any_element(),
             None => glyph_box(
                 char::from_u32(if row.app.system { 0xE7F5 } else { 0xECAA }).unwrap_or(' '),
-                18.0,
+                DEVICE_GLYPH,
                 APP_ICON,
                 colors.text,
             )
@@ -861,7 +946,7 @@ impl PopupView {
             rgb(0x2C2C2C)
         };
         let click_key = key.clone();
-        let button = self
+        let mut button = self
             .button(ElementId::NamedInteger("popup-app-mute".into(), index as u64), target.clone(), colors, cx)
             .on_click(cx.listener(move |view, _, _, cx| view.toggle_app_mute(&click_key, cx)))
             .child(
@@ -875,7 +960,7 @@ impl PopupView {
                                 .absolute()
                                 .right(px(-5.))
                                 .bottom(px(-5.))
-                                .size(px(15.))
+                                .size(px(14.))
                                 .rounded_full()
                                 .bg(badge_bg)
                                 .flex()
@@ -902,34 +987,66 @@ impl PopupView {
         .on_scroll_wheel(cx.listener(move |view, event: &ScrollWheelEvent, _, cx| {
             view.on_app_wheel(&key, event, cx)
         }));
-        div()
-            .id(ElementId::NamedInteger("popup-app".into(), index as u64))
-            .h(px(APP_ROW_H))
-            .flex_shrink_0()
-            .pl(px(PAD_LEFT))
-            .flex()
-            .items_center()
-            .gap(px(GAP))
-            .child(button_slot(button, APP_CAPTION_H))
-            .child(Self::controls(
-                div()
-                    .text_size(px(12.))
-                    .text_color(colors.secondary)
-                    .child(row.app.name.clone()),
-                APP_CAPTION_H,
-                slider,
-                Self::number(percent, muted, false, colors),
-            ))
+        if !self.layout.labeled {
+            button = button.tooltip(name_tooltip(row.app.name.clone(), self.system.light));
+        }
+        Self::row(
+            ElementId::NamedInteger("popup-app".into(), index as u64),
+            self.layout.labeled,
+            button,
+            div()
+                .text_size(px(12.))
+                .text_color(colors.secondary)
+                .child(row.app.name.clone()),
+            slider,
+            percent,
+            muted,
+            false,
+            colors,
+        )
     }
 }
 
-/// Centers a row's button on its caption and slider.
-fn button_slot(button: impl IntoElement, caption_h: f32) -> gpui::Div {
-    div()
-        .h(px(caption_h + SLIDER_H))
-        .flex()
-        .items_center()
-        .child(button)
+/// Tooltip with an app or device name, for rows that show no name.
+fn name_tooltip(name: String, light: bool) -> impl Fn(&mut Window, &mut App) -> gpui::AnyView + 'static {
+    move |_, cx| {
+        let name = name.clone();
+        cx.new(|_| NameTooltip { name, light }).into()
+    }
+}
+
+struct NameTooltip {
+    name: String,
+    light: bool,
+}
+
+impl Render for NameTooltip {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let (bg, border, text) = if self.light {
+            (rgb(0xF9F9F9), rgba(0x0000_000F), rgb(0x1B1B1B))
+        } else {
+            (rgb(0x2C2C2C), rgba(0x0000_0033), rgb(0xFFFFFF))
+        };
+        div()
+            .mt(px(6.))
+            .px(px(8.))
+            .py(px(5.))
+            .rounded(px(4.))
+            .bg(bg)
+            .border_1()
+            .border_color(border)
+            .shadow(vec![BoxShadow {
+                color: rgba(0x0000_0040).into(),
+                offset: point(px(0.), px(4.)),
+                blur_radius: px(8.),
+                spread_radius: px(0.),
+                inset: false,
+            }])
+            .font_family("Segoe UI Variable Text")
+            .text_size(px(12.))
+            .text_color(text)
+            .child(self.name.clone())
+    }
 }
 
 /// A Fluent glyph centered in a `box_size` square.
@@ -984,13 +1101,13 @@ impl Render for PopupView {
             window.request_animation_frame();
         }
 
-        let apps_h = height - PAD_TOP - DEVICE_ROW_H - PAD_BOTTOM;
+        let list_h = height - self.layout.fixed_h();
         let mut list = div()
             .id("popup-apps")
             .flex()
             .flex_col()
             .flex_shrink_0()
-            .h(px((apps_h - DIVIDER_H).max(0.)))
+            .h(px(list_h.max(0.)))
             .overflow_y_scroll();
         for index in 0..self.apps.len() {
             let row = &self.apps[index];
@@ -1041,9 +1158,28 @@ impl Render for PopupView {
             .relative()
             .size_full()
             .overflow_hidden()
-            .pt(px(PAD_TOP))
+            .pt(px(PAD_Y))
             .flex()
             .flex_col()
+            .when(self.layout.header, |d| {
+                d.child(
+                    // Starts at the icons' left edge.
+                    div()
+                        .h(px(HEADER_H))
+                        .flex_shrink_0()
+                        .pl(px(PAD_LEFT + (BUTTON - APP_ICON) / 2.0))
+                        .pr(px(PAD_RIGHT))
+                        .flex()
+                        .items_center()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight(600.))
+                        .text_color(colors.text)
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .child(self.device_name()),
+                )
+            })
             .child(self.device_row(&colors, cx))
             .when(!self.apps.is_empty(), |d| {
                 d.child(

@@ -1967,6 +1967,8 @@ pub struct VolumeConfig {
     pub media_keys: VolumeMediaKeysConfig,
     #[serde(default = "default_volume_sound_settings")]
     pub sound: SoundSettings,
+    #[serde(default)]
+    pub popup: VolumePopupConfig,
     /// Endpoint ids. Empty means cycle every active render device.
     #[serde(default)]
     pub favorite_output_devices: Vec<String>,
@@ -1981,7 +1983,40 @@ impl Default for VolumeConfig {
             osd: VolumeOsdConfig::default(),
             media_keys: VolumeMediaKeysConfig::default(),
             sound: default_volume_sound_settings(),
+            popup: VolumePopupConfig::default(),
             favorite_output_devices: Vec::new(),
+        }
+    }
+}
+
+/// Row style of the volume slider popup.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum VolumePopupLayout {
+    /// Icon, slider and number on one line; app names in tooltips.
+    #[default]
+    Compact,
+    /// App name and number above a full-width slider.
+    Labeled,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VolumePopupConfig {
+    #[serde(default)]
+    pub layout: VolumePopupLayout,
+    /// Device name as a small header above the device slider.
+    #[serde(default = "default_volume_popup_device_header")]
+    pub device_header: bool,
+}
+
+fn default_volume_popup_device_header() -> bool {
+    true
+}
+
+impl Default for VolumePopupConfig {
+    fn default() -> Self {
+        Self {
+            layout: VolumePopupLayout::default(),
+            device_header: default_volume_popup_device_header(),
         }
     }
 }
