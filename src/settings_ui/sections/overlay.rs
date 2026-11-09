@@ -10,6 +10,7 @@ use crate::settings_ui::{
     },
     style,
 };
+use super::form::{collapse, field, percent_slider};
 use gpui::{prelude::*, *};
 use std::time::{Duration, Instant};
 
@@ -24,16 +25,6 @@ pub(crate) struct State {
     focus_pending: bool,
 }
 
-fn field(label: &'static str, control: impl IntoElement) -> Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(10.))
-        .min_w_0()
-        .flex_shrink_0()
-        .child(style::label(label))
-        .child(control)
-}
 fn panel(gap: f32, last: bool, cx: &App) -> Div {
     div()
         .flex()
@@ -129,58 +120,46 @@ fn options(values: &[(&str, &str, &str)]) -> SelectOptions {
             .collect(),
     )
 }
-/// Measure the unshrunk child, just as CSS grid's 0fr/1fr transition does.
-fn collapse(
-    id: &'static str,
-    open: bool,
-    content: Div,
-    window: &mut Window,
-    cx: &mut Context<SettingsApp>,
-) -> Div {
-    let measured = window.use_keyed_state((ElementId::from(id), "measure"), cx, |_, _| 0f32);
-    let height = *measured.read(cx);
-    let inner = div()
-        .w_full()
-        .child(content.w_full().flex_shrink_0())
-        .on_children_prepainted(move |bounds, _, cx| {
-            if let Some(bounds) = bounds.first() {
-                let height = bounds.size.height.as_f32();
-                measured.update(cx, |old, cx| {
-                    if (*old - height).abs() > 0.5 {
-                        *old = height;
-                        cx.notify();
-                    }
-                });
-            }
-        });
-    if height == 0. {
-        return div()
-            .flex_shrink_0()
-            .when(!open, |d| d.h(px(0.)).overflow_hidden())
-            .child(inner);
-    }
-    let t = anim::tween(
-        window,
-        cx,
-        (ElementId::from(id), "reveal"),
-        open as u8 as f32,
-        anim::UI,
-    );
-    let animated_height = anim::tween(
-        window,
-        cx,
-        (ElementId::from(id), "height"),
-        if open { height } else { 0. },
-        anim::UI,
-    );
-    div()
-        .flex_shrink_0()
-        .h(px(animated_height))
-        .opacity(t)
-        .when(!open || (animated_height - height).abs() > 0.5, |d| {
-            d.overflow_hidden()
+
+/// Monitor rows shared with the volume OSD. The OSD prepends "under cursor".
+pub(crate) fn display_options(displays: &[crate::OverlayDisplay]) -> Vec<SelectOption> {
+    displays
+        .iter()
+        .map(|display| {
+            SelectOption::new(display.id.clone(), display.label.clone())
+                .detail(display.detail.clone())
+                .icon("monitor-linear")
         })
-        .child(inner)
+        .collect()
+}
+
+/// Theme catalogue shared with the volume OSD. Ids match `gpui_overlay::theme::THEMES`.
+pub(crate) fn theme_options() -> SelectOptions {
+    SelectOptions::new(
+        crate::gpui_overlay::theme::THEMES
+            .iter()
+            .map(|(id, label)| {
+                let (icon, detail) = match *id {
+                    "Windows" => ("microsoft-windows", "Native acrylic flyout"),
+                    "MaterialYou" => ("material-design", "Tonal colors from your accent"),
+                    "Cute" => ("heart-linear", "Pastel sticker"),
+                    "CuteSticker" => ("heart-linear", "Die-cut sticker, stick & peel motion"),
+                    "Neon" => ("bolt-linear", "Glowing tube sign"),
+                    "Brutalism" => ("box-linear", "Flat slab, hard shadow"),
+                    "Terminal" => ("monitor-linear", "Upward scan lines, blinking underscore"),
+                    "Blueprint" => ("tuning-2-linear", "Drafting grid, precise square frame"),
+                    "Cassette" => ("box-linear", "Tape label, bare mic, vintage cream"),
+                    "Arcade" => ("bolt-linear", "Pixel edge, violet cabinet, hard shadow"),
+                    "Paper" => ("box-linear", "Ruled note, red margin, ink lettering"),
+                    "Frosted" => ("sun-2-linear", "Icy translucent surface, glass highlights"),
+                    "Porcelain" => ("pallete-2-linear", "Blue ceramic medallion, double rim"),
+                    "Radar" => ("monitor-linear", "Instrument panel, pulsing signal rings"),
+                    _ => ("tuning-2-linear", "Your own style, icons and labels"),
+                };
+                SelectOption::new(*id, *label).icon(icon).detail(detail)
+            })
+            .collect(),
+    )
 }
 
 pub(crate) fn render(
@@ -208,17 +187,7 @@ pub(crate) fn render(
         cx,
         |o, v| o.duration_secs = v,
     );
-    let displays = SelectOptions::new(
-        app.snapshot
-            .overlay_displays
-            .iter()
-            .map(|d| {
-                SelectOption::new(d.id.clone(), d.label.clone())
-                    .detail(d.detail.clone())
-                    .icon("monitor-linear")
-            })
-            .collect(),
-    );
+    let displays = SelectOptions::new(display_options(&app.snapshot.overlay_displays));
     let positioning = controls::toggle(
         "overlay-positioning",
         app.sections.overlay.positioning,
@@ -273,30 +242,34 @@ pub(crate) fn render(
                     cx,
                     |o, v| o.display = v,
                 ))
-                .child(slider(
-                    "overlay-x",
-                    "Horizontal position",
-                    o.position_x,
-                    0.,
-                    100.,
-                    1.,
-                    "%",
-                    window,
-                    cx,
-                    |o, v| o.position_x = v,
-                ))
-                .child(slider(
-                    "overlay-y",
-                    "Vertical position",
-                    o.position_y,
-                    0.,
-                    100.,
-                    1.,
-                    "%",
-                    window,
-                    cx,
-                    |o, v| o.position_y = v,
-                ))
+                .child(
+                    percent_slider(
+                        "overlay-x",
+                        "Horizontal position",
+                        o.position_x,
+                        "%",
+                        window,
+                        cx,
+                        |app, value, _, cx| {
+                            app.update_config(cx, |config| config.overlay.position_x = value);
+                        },
+                    )
+                    .mt(px(-6.)),
+                )
+                .child(
+                    percent_slider(
+                        "overlay-y",
+                        "Vertical position",
+                        o.position_y,
+                        "%",
+                        window,
+                        cx,
+                        |app, value, _, cx| {
+                            app.update_config(cx, |config| config.overlay.position_y = value);
+                        },
+                    )
+                    .mt(px(-10.)),
+                )
                 .child(super::general::card_row(
                     "Move overlay",
                     Some("Shows the overlay until this is turned off."),
@@ -305,31 +278,7 @@ pub(crate) fn render(
                     cx,
                 )),
         );
-    let theme_options = SelectOptions::new(
-        crate::gpui_overlay::theme::THEMES
-            .iter()
-            .map(|(id, label)| {
-                let (i, d) = match *id {
-                    "Windows" => ("microsoft-windows", "Native acrylic flyout"),
-                    "MaterialYou" => ("material-design", "Tonal colors from your accent"),
-                    "Cute" => ("heart-linear", "Pastel sticker"),
-                    "CuteSticker" => ("heart-linear", "Die-cut sticker, stick & peel motion"),
-                    "Neon" => ("bolt-linear", "Glowing tube sign"),
-                    "Brutalism" => ("box-linear", "Flat slab, hard shadow"),
-                    "Terminal" => ("monitor-linear", "Upward scan lines, blinking underscore"),
-                    "Blueprint" => ("tuning-2-linear", "Drafting grid, precise square frame"),
-                    "Cassette" => ("box-linear", "Tape label, bare mic, vintage cream"),
-                    "Arcade" => ("bolt-linear", "Pixel edge, violet cabinet, hard shadow"),
-                    "Paper" => ("box-linear", "Ruled note, red margin, ink lettering"),
-                    "Frosted" => ("sun-2-linear", "Icy translucent surface, glass highlights"),
-                    "Porcelain" => ("pallete-2-linear", "Blue ceramic medallion, double rim"),
-                    "Radar" => ("monitor-linear", "Instrument panel, pulsing signal rings"),
-                    _ => ("tuning-2-linear", "Your own style, icons and labels"),
-                };
-                SelectOption::new(*id, *label).icon(i).detail(d)
-            })
-            .collect(),
-    );
+    let theme_options = theme_options();
     let mut variants = div().flex().gap(px(12.));
     for (value, label) in [
         ("MicIcon", "Icon"),

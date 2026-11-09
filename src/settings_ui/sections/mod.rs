@@ -30,6 +30,7 @@ pub(crate) struct Sections {
     pub auto_mute: auto_mute::State,
     pub about: about::State,
     pub hotkeys: hotkeys::State,
+    pub volume: volume::State,
 }
 
 pub(crate) fn render(
