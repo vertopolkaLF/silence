@@ -208,9 +208,7 @@ fn show(anchor: RECT, state: VolumePopupState, cx: &mut App) {
         })
         .ok();
     match card_h {
-        Some(card_h) => {
-            place(hwnd, anchor, card_h, true);
-        }
+        Some(card_h) => place_later(cx, hwnd, anchor, card_h, true),
         None => {
             POPUP.with(|popup| popup.borrow_mut().take());
         }
@@ -279,8 +277,16 @@ fn create(cx: &mut App) -> Option<(WindowHandle<PopupView>, HWND)> {
     Some((handle, hwnd))
 }
 
+/// [`place`] once GPUI has released the app. `SetWindowPos` delivers
+/// `WM_SIZE` synchronously; inside an update GPUI cannot apply it, keeps the
+/// old viewport and draws the card offset and cropped.
+fn place_later(cx: &App, hwnd: HWND, anchor: RECT, card_h: f32, activate: bool) {
+    cx.spawn(async move |_| place(hwnd, anchor, card_h, activate))
+        .detach();
+}
+
 /// Moves (and with `activate`, shows and focuses) the window for a card
-/// `card_h` tall above `anchor`.
+/// `card_h` tall above `anchor`. Never call it inside a GPUI update.
 fn place(hwnd: HWND, anchor: RECT, card_h: f32, activate: bool) {
     let (x, y, width, height) = crate::volume_popup::placement(anchor, card_h);
     unsafe {
@@ -628,19 +634,21 @@ impl PopupView {
             self.shrink = None;
             self.window_card_h = target;
             if !self.closing {
-                place(hwnd, crate::volume_popup::last_anchor(), target, false);
+                place_later(cx, hwnd, crate::volume_popup::last_anchor(), target, false);
             }
         } else {
             self.shrink = Some(cx.spawn(async move |view, cx| {
                 cx.background_executor()
                     .timer(Duration::from_millis(RESIZE_MS + 20))
                     .await;
-                let _ = view.update(cx, |view, _| {
+                let open = view.update(cx, |view, _| {
                     view.window_card_h = target;
-                    if !view.closing {
-                        place(hwnd, crate::volume_popup::last_anchor(), target, false);
-                    }
+                    !view.closing
                 });
+                // Outside the update; see `place_later`.
+                if open.unwrap_or(false) {
+                    place(hwnd, crate::volume_popup::last_anchor(), target, false);
+                }
             }));
         }
         cx.notify();
