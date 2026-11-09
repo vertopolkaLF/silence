@@ -109,7 +109,7 @@ impl SettingsTab {
     pub fn icon(self) -> &'static str {
         match self {
             Self::General => "settings-linear",
-            Self::Devices => "microphone-3-linear",
+            Self::Devices => "headphones-round-sound-linear",
             Self::HoldToMute => "oven-mitts-linear",
             Self::Hotkeys => "keyboard-linear",
             // Bell, not a speaker: the speaker glyph belongs to the Volume group.
@@ -119,7 +119,7 @@ impl SettingsTab {
             Self::AutoMute => "clock-circle-linear",
             Self::About => "info-circle-linear",
             Self::VolumeWheel => "mouse-linear",
-            Self::VolumeOsd => "screencast-2-linear",
+            Self::VolumeOsd => "slider-minimalistic-horizontal-linear",
             Self::VolumeSounds => "music-note-2-linear",
             Self::VolumeTray => "widget-linear",
             Self::VolumeMediaKeys => "play-circle-linear",
@@ -130,7 +130,7 @@ impl SettingsTab {
     pub fn active_icon(self) -> &'static str {
         match self {
             Self::General => "settings-bold",
-            Self::Devices => "microphone-3-bold",
+            Self::Devices => "headphones-round-sound-bold",
             Self::HoldToMute => "oven-mitts-bold",
             Self::Hotkeys => "keyboard-bold",
             Self::Sounds => "bell-bold",
@@ -139,7 +139,7 @@ impl SettingsTab {
             Self::AutoMute => "clock-circle-bold",
             Self::About => "info-circle-bold",
             Self::VolumeWheel => "mouse-bold",
-            Self::VolumeOsd => "screencast-2-bold",
+            Self::VolumeOsd => "slider-minimalistic-horizontal-bold",
             Self::VolumeSounds => "music-note-2-bold",
             Self::VolumeTray => "widget-bold",
             Self::VolumeMediaKeys => "play-circle-bold",

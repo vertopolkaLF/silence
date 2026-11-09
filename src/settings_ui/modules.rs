@@ -29,8 +29,16 @@ impl ModuleId {
     /// Solid Solar glyph for the sidebar group header.
     pub fn icon(self) -> &'static str {
         match self {
-            Self::Microphone => "microphone-bold",
+            Self::Microphone => "microphone-3-bold",
             Self::Volume => "volume-loud-bold",
+        }
+    }
+
+    /// Outline glyph shown while the group does not hold the current page.
+    pub fn icon_linear(self) -> &'static str {
+        match self {
+            Self::Microphone => "microphone-3-linear",
+            Self::Volume => "volume-loud-linear",
         }
     }
 

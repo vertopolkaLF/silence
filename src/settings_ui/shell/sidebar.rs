@@ -124,18 +124,27 @@ fn module_header(
     let contains = nav::module_tabs(module)
         .iter()
         .any(|tab| *tab == app.nav.active_tab);
-    // Collapsed group that holds the current page keeps a quiet accent,
-    // so the selection is still visible after the rows fold away.
-    let parked = anim::tween(
+    // The group that holds the current page keeps an accent label, so the
+    // selection is still visible after its rows fold away.
+    let current = anim::tween(
         window,
         cx,
-        ("nav-group-parked", module.index()),
-        (contains && !open) as u8 as f32,
+        ("nav-group-current", module.index()),
+        contains as u8 as f32,
+        UI,
+    );
+    let enabled = modules::flags(app).get(module);
+    let enabled_t = anim::tween(
+        window,
+        cx,
+        ("nav-group-label-enabled", module.index()),
+        enabled as u8 as f32,
         UI,
     );
     let bg = lerp(TRANSPARENT, palette.surface_color(2), hover);
-    let fg = lerp(palette.text, palette.accent_text, parked);
-    let chevron = fg.opacity(0.62 + 0.38 * open_t);
+    let rest_fg = lerp(palette.muted, palette.text, hover.max(open_t * 0.6));
+    let fg = lerp(rest_fg, palette.accent_text, current);
+    let chevron = palette.muted.opacity(0.55 + 0.45 * hover.max(open_t));
 
     div()
         .id(("nav-group", module.index()))
@@ -143,9 +152,10 @@ fn module_header(
         .flex_shrink_0()
         .flex()
         .items_center()
-        .gap(px(8.))
+        .gap(px(10.))
         .w_full()
-        .px(px(12.))
+        .pl(px(12.))
+        .pr(px(10.))
         .rounded(px(8.))
         .bg(bg.hsla())
         .text_color(fg.hsla())
@@ -158,43 +168,42 @@ fn module_header(
             cx.notify();
         }))
         .child(
-            svg()
-                .size(px(21.))
+            div()
                 .flex_shrink_0()
-                .path(icon(module.icon()))
-                .text_color(fg.hsla()),
+                .opacity(0.45 + 0.55 * enabled_t)
+                .child(icon_pair(
+                    module.icon_linear(),
+                    module.icon(),
+                    current,
+                    fg,
+                    21.,
+                )),
         )
         .child(
             div()
                 .flex_1()
                 .min_w_0()
                 .overflow_hidden()
-                .flex()
-                .items_center()
-                .gap(px(6.))
-                .child(
-                    div()
-                        .flex_none()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .child(module.name()),
-                )
-                .child(
-                    svg()
-                        .size(px(15.))
-                        .flex_shrink_0()
-                        .flex_none()
-                        .path(icon("alt-arrow-down-linear"))
-                        .with_transformation(Transformation::rotate(radians(
-                            -std::f32::consts::FRAC_PI_2 * (1. - open_t),
-                        )))
-                        .text_color(chevron.hsla()),
-                ),
+                .whitespace_nowrap()
+                .opacity(0.45 + 0.55 * enabled_t)
+                .child(module.name()),
         )
         .child(module_switch(app, module, window, cx))
+        .child(
+            svg()
+                .size(px(14.))
+                .flex_shrink_0()
+                .path(icon("alt-arrow-down-linear"))
+                .with_transformation(Transformation::rotate(radians(
+                    -std::f32::consts::FRAC_PI_2 * (1. - open_t),
+                )))
+                .text_color(chevron.hsla()),
+        )
 }
 
-/// Pill on the group header. Clicking it does not expand or collapse the group.
+/// Compact module switch on the group header. Quiet when on (soft accent
+/// track, accent knob) so two enabled modules don't shout; clicking it does
+/// not expand or collapse the group.
 fn module_switch(
     app: &mut SettingsApp,
     module: ModuleId,
@@ -218,12 +227,25 @@ fn module_switch(
         locked as u8 as f32,
         UI,
     );
-    let track = lerp(palette.surface_3, palette.accent, on);
+    let pointer = anim::pointer(window, cx, ("nav-module-switch-pointer", module.index()));
+    let hovered = pointer.read(cx).hovered;
+    let hover = anim::tween(
+        window,
+        cx,
+        ("nav-module-switch-hover", module.index()),
+        (hovered && !locked) as u8 as f32,
+        UI,
+    );
+    let track = lerp(
+        palette.surface_3,
+        palette.accent.opacity(0.32 + 0.12 * hover),
+        on,
+    );
+    let knob = lerp(palette.muted, palette.accent, on);
     div()
         .id(("nav-module-switch", module.index()))
         .flex_shrink_0()
-        .flex_none()
-        .w(px(36.))
+        .w(px(34.))
         .h(px(28.))
         .flex()
         .items_center()
@@ -234,6 +256,19 @@ fn module_switch(
                 controls::tooltip("At least one module has to stay on.", cx)
             })
         })
+        .when(!locked, move |this| {
+            this.tooltip(move |_, cx| {
+                controls::tooltip(
+                    if enabled {
+                        "Turn this module off"
+                    } else {
+                        "Turn this module on"
+                    },
+                    cx,
+                )
+            })
+        })
+        .on_hover(move |hovered, _, cx| anim::set_hovered(&pointer, *hovered, cx))
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(cx.listener(move |app, _, _, cx| {
             cx.stop_propagation();
@@ -244,19 +279,19 @@ fn module_switch(
         .child(
             div()
                 .relative()
-                .w(px(28.))
-                .h(px(16.))
+                .w(px(26.))
+                .h(px(15.))
                 .rounded_full()
-                .opacity(1. - 0.5 * lock_t)
+                .opacity(1. - 0.45 * lock_t)
                 .bg(track.hsla())
                 .child(
                     div()
                         .absolute()
-                        .top(px(2.))
-                        .left(px(2. + 12. * on))
-                        .size(px(12.))
+                        .top(px(2.5))
+                        .left(px(2.5 + 11. * on))
+                        .size(px(10.))
                         .rounded_full()
-                        .bg(palette.on_accent.hsla()),
+                        .bg(knob.hsla()),
                 ),
         )
 }
