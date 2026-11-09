@@ -409,6 +409,10 @@ pub fn import_settings() -> Result<()> {
     let mut config = parse_config_content(&content)?;
     config.welcome_completed = true;
     config.hotkeys_paused = false;
+    sync_startup_registration(
+        config.startup.launch_on_startup,
+        config.startup.run_as_administrator,
+    )?;
     save_config(&config)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
@@ -517,8 +521,11 @@ pub fn import_v1_settings() -> Result<()> {
         .unwrap_or_default();
     normalize_hotkeys(&mut config.hotkeys);
 
+    sync_startup_registration(
+        config.startup.launch_on_startup,
+        config.startup.run_as_administrator,
+    )?;
     save_config(&config)?;
-    sync_startup_registration(config.startup.launch_on_startup)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
 }
@@ -585,6 +592,10 @@ pub fn set_welcome_toggle_shortcut(shortcut: Shortcut) -> Result<()> {
 
 pub fn reset_settings() -> Result<()> {
     let config = Config::default();
+    sync_startup_registration(
+        config.startup.launch_on_startup,
+        config.startup.run_as_administrator,
+    )?;
     save_config(&config)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
@@ -1026,45 +1037,3 @@ fn config_modified_time() -> Option<SystemTime> {
     config_path().ok()?.metadata().ok()?.modified().ok()
 }
 
-pub(crate) fn sync_startup_registration(enabled: bool) -> Result<()> {
-    let subkey = wide(STARTUP_RUN_SUBKEY);
-    let value_name = wide(STARTUP_RUN_VALUE);
-
-    if enabled {
-        let command = format!(
-            "\"{}\"",
-            std::env::current_exe()
-                .context("locate current executable for startup registration")?
-                .display()
-        );
-        let command_wide = wide(&command);
-        let status = unsafe {
-            RegSetKeyValueW(
-                HKEY_CURRENT_USER,
-                PCWSTR(subkey.as_ptr()),
-                PCWSTR(value_name.as_ptr()),
-                REG_SZ.0,
-                Some(command_wide.as_ptr() as *const c_void),
-                (command_wide.len() * size_of::<u16>()) as u32,
-            )
-        };
-        anyhow::ensure!(
-            status == ERROR_SUCCESS,
-            "startup registration failed with status {status:?}"
-        );
-        return Ok(());
-    }
-
-    let status = unsafe {
-        RegDeleteKeyValueW(
-            HKEY_CURRENT_USER,
-            PCWSTR(subkey.as_ptr()),
-            PCWSTR(value_name.as_ptr()),
-        )
-    };
-    anyhow::ensure!(
-        status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND,
-        "startup registration removal failed with status {status:?}"
-    );
-    Ok(())
-}

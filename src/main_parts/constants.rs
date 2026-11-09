@@ -40,6 +40,11 @@ const SETTINGS_WINDOW_TITLE: &str = "silence!";
 const APP_USER_MODEL_ID: &str = "Silence.SilenceV2";
 const APP_PROTOCOL: &str = "silence";
 const ARG_POST_INSTALL: &str = "--post-install";
+/// New instance asks the running tray to exit, waits for its mutex, then
+/// becomes the only instance. Used to hand over between elevated and normal.
+const ARG_REPLACE: &str = "--replace";
+/// Task Scheduler folder and name for the highest-privileges logon task.
+const ELEVATED_TASK_NAME: &str = r"\silence!\silence-elevated";
 const MAIN_INSTANCE_MUTEX: PCWSTR = w!("SilenceV2BackgroundApp");
 const DWMWA_MICA_EFFECT: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(1029);
 const TRAY_DOUBLE_CLICK_DELAY_MS: u32 = 500;

@@ -1228,6 +1228,10 @@ fn launch_settings_window(tab_arg: Option<&str>) {
     let Ok(exe) = std::env::current_exe() else {
         return;
     };
+    // Settings inherits this process's integrity. Custom sounds are picked
+    // with a file dialog, not an Explorer drop target, so an elevated settings
+    // window does not lose a drag-drop. Keeping it elevated also lets shortcut
+    // capture see keys while an administrator window is focused.
     if tab_arg == Some("--about-update") {
         close_settings_window();
     }
@@ -1262,6 +1266,19 @@ fn focus_settings_window() -> bool {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
         SetForegroundWindow(hwnd).as_bool()
+    }
+}
+
+fn post_close_settings_window() {
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    let Ok(hwnd) = (unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }) else {
+        return;
+    };
+    if hwnd.0.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
     }
 }
 
