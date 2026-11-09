@@ -39,7 +39,7 @@
             "author": {
                 "@type": "Person",
                 "name": "vertopolkaLF",
-                "url": "https://github.com/vertopolkaLF"
+                "url": "https://vertopolkalf.ru"
             },
             "publisher": {
                 "@type": "Organization",
@@ -114,7 +114,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
-    <link rel="stylesheet" href="../footer-cta.css">
+    <link rel="stylesheet" href="../footer-cta.css?v=5">
     <link rel="stylesheet" href="../faq.css">
 
     <style>
@@ -800,7 +800,7 @@
             <div class="cta-background">
                 <canvas id="stars-canvas" style="position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; border-radius: inherit;"></canvas>
             </div>
-            <div class="cta-content-wrapper">
+            <div class="cta-content-wrapper has-footer">
                 <div class="cta-main">
                     <h2 class="cta-animate cta-delay-1">Drop the janky scripts.</h2>
                     <p class="cta-animate cta-delay-2">One clean utility. Zero bloat. Total control.</p>
@@ -810,20 +810,53 @@
                         </a>
                     </div>
                 </div>
-                <div class="footer-info">
-                    <div class="cta-animate cta-delay-4" style="margin: 0;">
-                        <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkaLF" target="_blank">vertopolkaLF</a>.
+                <footer class="site-footer cta-animate cta-delay-4">
+                    <div class="site-footer-top">
+                        <div class="site-footer-brand">
+                            <a href="../" class="brand">silence<span>!</span></a>
+                            <p>Mute your mic in every app. A free mic mute app for Windows 10 and 11.</p>
+                        </div>
+                        <div class="site-footer-cols">
+                            <div>
+                                <h4>App</h4>
+                                <ul>
+                                    <li><a href="https://github.com/vertopolkaLF/silence/releases" data-download-link>Download</a></li>
+                                    <li><a href="../#screenshots">Screenshots</a></li>
+                                    <li><a href="https://github.com/vertopolkaLF/silence/releases" target="_blank" rel="noopener noreferrer">Release notes</a></li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4>Learn</h4>
+                                <ul>
+                                    <li><a href="../mic-mute/">How to mute</a></li>
+                                    <li><a href="../compare/">Compare apps</a></li>
+                                    <li><a href="../#faq">FAQ</a></li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4>Project</h4>
+                                <ul>
+                                    <li><a href="https://github.com/vertopolkaLF/silence" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+                                    <li><a href="https://github.com/vertopolkaLF/silence/issues" target="_blank" rel="noopener noreferrer">Report a bug</a></li>
+                                    <li><a href="https://github.com/vertopolkaLF/silence/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">License</a></li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                    <div class="site-footer-bottom">
+                        <span>Open source and free forever. Apache 2.0.</span>
+                        <span>Made by <a href="https://vertopolkalf.ru" target="_blank" rel="noopener noreferrer">vertopolkaLF</a></span>
+                    </div>
 
-                <div id="replay-section" class="replay-section">
-                    <h3>Liked the animation?</h3>
-                    <p class="replay-text">Here is the button to enjoy it again.</p>
-                    <button id="replay-btn" class="btn btn-secondary replay-btn">
-                        <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
-                        Replay Animation
-                    </button>
-                </div>
+                    <div id="replay-section" class="replay-section">
+                        <h3>Liked the animation?</h3>
+                        <p class="replay-text">Here is the button to enjoy it again.</p>
+                        <button id="replay-btn" class="btn btn-secondary replay-btn">
+                            <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
+                            Replay Animation
+                        </button>
+                    </div>
+                </footer>
             </div>
         </div>
     </section>

@@ -47,7 +47,7 @@
             "author": {
                 "@type": "Person",
                 "name": "vertopolkaLF",
-                "url": "https://github.com/vertopolkaLF"
+                "url": "https://vertopolkalf.ru"
             },
             "offers": {
                 "@type": "Offer",
@@ -177,7 +177,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Orbitron:wght@600;800&family=Nunito:wght@700;800;900&family=Archivo+Black&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.css">
     <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
-    <link rel="stylesheet" href="footer-cta.css">
+    <link rel="stylesheet" href="footer-cta.css?v=5">
     <link rel="stylesheet" href="faq.css">
 
     <style>
@@ -213,7 +213,11 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            scroll-behavior: smooth;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--pop-orange);
+            outline-offset: 3px;
         }
 
         body {
@@ -227,6 +231,7 @@
         }
 
         html {
+            scroll-behavior: smooth;
             scrollbar-width: thin;
             scrollbar-color: var(--pop-orange) var(--bg);
             scrollbar-gutter: stable;
@@ -331,7 +336,6 @@
 
         /* Hero Wrapper (Nav + Hero Content) */
         .hero-wrapper {
-            min-height: calc(100dvh - 120px);
             display: flex;
             flex-direction: column;
         }
@@ -425,12 +429,12 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding-bottom: 48px;
+            padding: clamp(16px, 4vh, 48px) 0 16px;
 
             h1 {
-                font-size: clamp(3rem, 8vw, 6.5rem);
+                font-size: clamp(3rem, 7vw, 5.75rem);
                 line-height: 0.9;
-                margin-bottom: 32px;
+                margin-bottom: 28px;
                 max-width: 1000px;
 
                 .highlight {
@@ -445,39 +449,177 @@
                 }
             }
 
-            .hero-lead {
-                font-size: clamp(1.35rem, 2.4vw, 1.85rem);
-                line-height: 1.3;
-                font-weight: 600;
-                color: #e7e5e4;
-                margin-bottom: 14px;
-
-                b {
-                    color: var(--pop-orange);
-                    font-weight: 800;
-                }
-            }
-
             .hero-sub {
                 font-size: clamp(1.05rem, 1.6vw, 1.25rem);
                 line-height: 1.6;
                 color: var(--text-dim);
                 max-width: 600px;
-                margin-bottom: 48px;
+                margin-bottom: 32px;
             }
         }
 
-        .hero-pill {
-            background: #fb923c22;
-            color: var(--pop-orange);
-            padding: 8px 20px;
-            border-radius: var(--radius-btn);
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-bottom: 32px;
+        .hero-facts {
+            margin-top: 18px;
+            color: rgba(168, 162, 158, 0.85);
+            font-size: 0.92rem;
+            font-weight: 500;
+        }
+
+        /* Hero demo: one microphone, every app listening to it */
+        .desk {
+            width: 100%;
+            margin-top: clamp(28px, 5vh, 56px);
+            padding: 16px;
+            border-radius: var(--radius-box);
+            background: var(--surface);
+            text-align: left;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .desk-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            align-items: center;
+            gap: 16px;
+            padding: 8px 12px 20px;
+        }
+
+        .desk-key {
+            justify-self: start;
             display: inline-flex;
             align-items: center;
+            gap: 14px;
+            padding: 0;
+            border: 0;
+            border-radius: 14px;
+            background: none;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .desk-keycap {
+            flex: none;
+            width: 52px;
+            height: 52px;
+            margin-bottom: 5px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+            background: var(--text);
+            box-shadow: 0 5px 0 #a8a29e;
+            color: var(--bg);
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+        }
+
+        .desk-key.is-down .desk-keycap,
+        .desk:active .desk-keycap {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 #a8a29e;
+        }
+
+        .desk-key-text b {
+            display: block;
+            white-space: nowrap;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .desk-key-text span {
+            color: var(--text-dim);
+            font-size: 0.88rem;
+        }
+
+        .desk-key-text .for-touch {
+            display: none;
+        }
+
+        @media (hover: none) {
+            .desk-key-text .for-touch {
+                display: block;
+            }
+
+            .desk-key-text .for-keys {
+                display: none;
+            }
+        }
+
+        .desk-ov {
+            --h: 52px;
+            --fs: 15px;
+            --pad: 20px;
+            --pad-icon: 10px;
+            --r: 14px;
+        }
+
+        .desk-status {
+            justify-self: end;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-dim);
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .desk-status::before {
+            content: "";
+            flex: none;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--pop-green);
+            transition: background-color 0.2s ease;
+        }
+
+        .desk.is-muted .desk-status::before {
+            background: #ff6b63;
+        }
+
+        .desk-apps {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 8px;
+        }
+
+        .desk-app {
+            padding: 14px 16px 12px;
+            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.32);
+        }
+
+        .desk-app-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            color: rgba(250, 250, 249, 0.85);
+            font-size: 0.9rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .desk-app-head svg {
+            flex: none;
+            width: 18px;
+            height: 18px;
+            color: var(--tone);
+        }
+
+        .desk-wave {
+            display: block;
+            width: 100%;
+            height: 56px;
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 35%);
+            mask-image: linear-gradient(90deg, transparent, #000 35%);
         }
 
         .hero-actions {
@@ -1456,6 +1598,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            gap: 20px;
             border-radius: var(--radius-box);
             background: var(--c);
             color: var(--bg);
@@ -1471,16 +1614,158 @@
             box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
         }
 
-        .trick-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 18px;
+        .trick-art {
+            min-height: 52px;
             display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            color: var(--bg);
+        }
+
+        .art-key {
+            height: 48px;
+            margin-bottom: 4px;
+            padding: 0 16px;
+            display: inline-flex;
+            align-items: center;
+            border-radius: 14px;
+            background: var(--bg);
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28);
+            color: var(--c);
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .art-dot {
+            flex: none;
+            width: 48px;
+            height: 48px;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: rgba(0, 0, 0, 0.1);
-            color: var(--bg);
+            border-radius: 999px;
+            background: var(--bg);
+            color: var(--c);
+            font-size: 1.5rem;
+        }
+
+        .art-stack {
+            display: flex;
+        }
+
+        .art-stack .art-dot + .art-dot {
+            margin-left: -12px;
+            box-shadow: 0 0 0 3px var(--c);
+        }
+
+        .art-pill {
+            height: 48px;
+            padding: 0 16px 0 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.12);
+            font-size: 1.05rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .art-pill iconify-icon,
+        .art-arrow {
+            font-size: 1.35rem;
+        }
+
+        .art-arrow {
+            opacity: 0.55;
+        }
+
+        .art-key.is-ghost {
+            background: none;
+            box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.3);
+            color: rgba(0, 0, 0, 0.45);
+            margin-bottom: 0;
+        }
+
+        .art-seg {
+            height: 48px;
+            padding: 4px;
+            display: inline-flex;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.12);
+            font-size: 0.95rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .art-seg span {
+            padding: 0 14px;
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .art-seg .is-on {
+            background: var(--bg);
+            color: var(--c);
+        }
+
+        .art-cursor {
+            margin: 28px 0 0 -16px;
             font-size: 2rem;
+            z-index: 1;
+        }
+
+        .art-wave {
+            height: 48px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .art-wave i {
+            width: 4px;
+            height: calc(var(--v) * 1%);
+            border-radius: 2px;
+            background: var(--bg);
+        }
+
+        .art-wave.is-flat i {
+            height: 4px;
+            opacity: 0.35;
+        }
+
+        .art-tray {
+            height: 48px;
+            padding: 0 16px 0 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            border-radius: 14px;
+            background: var(--bg);
+            color: rgba(250, 250, 249, 0.8);
+            font-size: 1.15rem;
+        }
+
+        .art-tray b {
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .art-tray .is-mic {
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: rgba(255, 107, 99, 0.18);
+            color: #ff6b63;
         }
 
         .trick h3 {
@@ -1533,7 +1818,7 @@
         }
 
         .weight-stat {
-            min-height: 200px;
+            min-height: 170px;
             padding: 26px 22px;
             border-radius: 24px;
             background: rgba(0, 0, 0, 0.25);
@@ -1560,6 +1845,7 @@
         }
 
         .weight-label {
+            min-height: 3em;
             color: rgba(250, 250, 249, 0.78);
             font-size: 1rem;
             font-weight: 600;
@@ -1697,9 +1983,47 @@
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .guide-card:hover .guide-cta {
+        .guide-card:hover .guide-cta,
+        .compare-card:hover .guide-cta {
             transform: translateX(3px);
             box-shadow: 0 10px 25px rgba(250, 250, 249, 0.18);
+        }
+
+        .compare-card {
+            --tone: var(--pop-yellow);
+            margin-top: 16px;
+            padding: 36px 48px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px 40px;
+            flex-wrap: wrap;
+            border-radius: var(--radius-box);
+            background: var(--faq-yellow-dim);
+            color: inherit;
+            text-decoration: none;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .compare-card:hover,
+        .compare-card:focus-visible {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        .compare-card h3 {
+            font-size: clamp(1.7rem, 2.6vw, 2.4rem);
+            line-height: 1.05;
+            margin-bottom: 8px;
+        }
+
+        .compare-card p:not(.showcase-kicker) {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+        }
+
+        .compare-card .guide-cta {
+            align-self: center;
         }
 
         /* Screenshots */
@@ -1791,8 +2115,8 @@
             display: block;
             width: 100%;
             height: auto;
-            aspect-ratio: 1280 / 800;
-            object-fit: cover;
+            aspect-ratio: 950 / 738;
+            object-fit: scale-down;
         }
 
         .shot-caption {
@@ -1905,6 +2229,33 @@
                 }
             }
 
+            .desk-bar {
+                grid-template-columns: 1fr auto;
+                padding: 8px 8px 16px;
+            }
+
+            .desk-ov {
+                grid-column: 1 / -1;
+                justify-self: center;
+                order: -1;
+            }
+
+            .desk-apps {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .compare-card {
+                padding: 28px 24px;
+            }
+
+            .guide-stage {
+                padding: 8px;
+            }
+
+            .guide-row {
+                padding: 14px 16px;
+            }
+
             .showcase,
             .showcase.is-flipped,
             .weight {
@@ -1963,6 +2314,44 @@
             .nav-actions .btn {
                 flex: 1 0 100%;
                 justify-content: center;
+            }
+
+            .desk-apps {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .desk-status {
+                font-size: 0.85rem;
+            }
+
+            .desk-key-text span {
+                display: none !important;
+            }
+
+            .art-seg {
+                font-size: 0.8rem;
+            }
+
+            .art-seg span {
+                padding: 0 9px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            html {
+                scroll-behavior: auto;
+            }
+
+            .hero-anim,
+            .bento-anim {
+                opacity: 1;
+                animation: none;
+            }
+
+            .hero h1 .highlight,
+            .th-terminal,
+            .radar-waves i {
+                animation: none;
             }
         }
 
@@ -2028,18 +2417,13 @@
         </nav>
 
         <section class="hero">
-            <div class="hero-pill hero-anim hero-delay-1">
-                <iconify-icon icon="fluent:sparkle-32-filled"></iconify-icon>
-                Open Source & Free Forever
-            </div>
             <h1>
-                <span class="hero-anim hero-delay-2" style="display: inline-block;">Mute your mic</span> <br>
-                <span class="hero-anim hero-delay-3" style="display: inline-block;">in <span class="highlight">every app.</span></span>
+                <span class="hero-anim hero-delay-1" style="display: inline-block;">Mute your mic</span> <br>
+                <span class="hero-anim hero-delay-2" style="display: inline-block;">in <span class="highlight">every app.</span></span>
             </h1>
-            <p class="hero-lead hero-anim hero-delay-4">Never ask <b>"Am I muted?"</b> again.</p>
-            <p class="hero-sub hero-anim hero-delay-5">A Windows mic mute app that silences the microphone itself, so every app goes quiet at once.</p>
+            <p class="hero-sub hero-anim hero-delay-3">A Windows mic mute app that silences the microphone itself, so every app goes quiet at once.</p>
 
-            <div class="hero-actions hero-anim hero-delay-6">
+            <div class="hero-actions hero-anim hero-delay-4">
                 <a href="https://github.com/vertopolkaLF/silence/releases" class="btn btn-primary" data-download-link>
                     <iconify-icon icon="fluent:arrow-download-24-filled"></iconify-icon>
                     Get for Windows
@@ -2048,6 +2432,29 @@
                     <iconify-icon icon="mdi:github"></iconify-icon>
                     Star on GitHub
                 </a>
+            </div>
+            <p class="hero-facts hero-anim hero-delay-5">Free and open source · Windows 10 and 11<span data-latest-version></span></p>
+
+            <div class="desk hero-anim hero-delay-6" id="desk">
+                <div class="desk-bar">
+                    <button type="button" class="desk-key" id="desk-key" aria-pressed="false" aria-label="Mute the demo microphone">
+                        <span class="desk-keycap" aria-hidden="true">M</span>
+                        <span class="desk-key-text" aria-hidden="true">
+                            <b class="for-keys">Press M</b><span class="for-keys">or click anywhere here</span>
+                            <b class="for-touch">Tap to mute</b><span class="for-touch">sound on for the full effect</span>
+                        </span>
+                    </button>
+                    <span class="ov th-custom pair-fluent is-live desk-ov" data-ov-text="Microphone muted|Microphone on" aria-hidden="true"><span class="ov-box"><span class="ov-ico"></span></span><span class="ov-label">Microphone on</span></span>
+                    <span class="desk-status" id="desk-status">Every app hears you</span>
+                </div>
+                <div class="desk-apps" aria-hidden="true">
+                    <div class="desk-app" style="--tone: var(--pop-purple);"><span class="desk-app-head"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.317 4.37a19.8 19.8 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.3 18.3 0 0 0-5.487 0a13 13 0 0 0-.617-1.25a.08.08 0 0 0-.079-.037A19.7 19.7 0 0 0 3.677 4.37a.1.1 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.08.08 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.08.08 0 0 0 .084-.028a14 14 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13 13 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10 10 0 0 0 .372-.292a.07.07 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.07.07 0 0 1 .078.01q.181.149.373.292a.077.077 0 0 1-.006.127a12.3 12.3 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.08.08 0 0 0 .084.028a19.8 19.8 0 0 0 6.002-3.03a.08.08 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.03M8.02 15.33c-1.182 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418m7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418"/></svg>Discord</span><canvas class="desk-wave"></canvas></div>
+                    <div class="desk-app" style="--tone: var(--pop-blue);"><span class="desk-app-head"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.625 8.127q-.55 0-1.025-.205t-.832-.563t-.563-.832T18 5.502q0-.54.205-1.02t.563-.837q.357-.358.832-.563q.474-.205 1.025-.205q.54 0 1.02.205t.837.563q.358.357.563.837t.205 1.02q0 .55-.205 1.025t-.563.832q-.357.358-.837.563t-1.02.205m0-3.75q-.469 0-.797.328t-.328.797t.328.797t.797.328t.797-.328t.328-.797t-.328-.797t-.797-.328M24 10.002v5.578q0 .774-.293 1.46t-.803 1.194q-.51.51-1.195.803q-.686.293-1.459.293q-.445 0-.908-.105q-.463-.106-.85-.329q-.293.95-.855 1.729t-1.319 1.336t-1.67.861t-1.898.305q-1.148 0-2.162-.398q-1.014-.399-1.805-1.102t-1.312-1.664t-.674-2.086h-5.8q-.411 0-.704-.293T0 16.881V6.873q0-.41.293-.703t.703-.293h8.59q-.34-.715-.34-1.5q0-.727.275-1.365q.276-.639.75-1.114q.475-.474 1.114-.75q.638-.275 1.365-.275t1.365.275t1.114.75q.474.475.75 1.114q.275.638.275 1.365t-.275 1.365q-.276.639-.75 1.113q-.475.475-1.114.75q-.638.276-1.365.276q-.188 0-.375-.024q-.188-.023-.375-.058v1.078h10.875q.469 0 .797.328t.328.797M12.75 2.373q-.41 0-.78.158q-.368.158-.638.434q-.27.275-.428.639q-.158.363-.158.773t.158.78q.159.368.428.638q.27.27.639.428t.779.158t.773-.158q.364-.159.64-.428q.274-.27.433-.639t.158-.779t-.158-.773q-.159-.364-.434-.64q-.275-.275-.639-.433q-.363-.158-.773-.158M6.937 9.814h2.25V7.94H2.814v1.875h2.25v6h1.875zm10.313 7.313v-6.75H12v6.504q0 .41-.293.703t-.703.293H8.309q.152.809.556 1.5q.405.691.985 1.19q.58.497 1.318.779q.738.281 1.582.281q.926 0 1.746-.352q.82-.351 1.436-.966q.615-.616.966-1.43q.352-.815.352-1.752m5.25-1.547v-5.203h-3.75v6.855q.305.305.691.452q.387.146.809.146q.469 0 .879-.176q.41-.175.715-.48q.304-.305.48-.715t.176-.879"/></svg>Teams</span><canvas class="desk-wave"></canvas></div>
+                    <div class="desk-app" style="--tone: var(--pop-green);"><span class="desk-app-head"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M1.984 7.506v6.74c.006 1.524 1.361 2.75 3.014 2.745h10.693c.303 0 .549-.225.549-.498v-6.74c-.008-1.523-1.363-2.75-3.014-2.744H2.531c-.302 0-.547.224-.547.497m14.936 2.63l4.416-2.963c.383-.292.68-.219.68.309v9.036c0 .601-.363.528-.68.309L16.92 13.87z"/></svg>Zoom</span><canvas class="desk-wave"></canvas></div>
+                    <div class="desk-app" style="--tone: var(--pop-yellow);"><span class="desk-app-head"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5.53 2.13L0 7.75h5.53zm.398 0v5.62h7.608v3.65l5.47-4.45c-.014-1.22.031-2.25-.025-3.46c-.148-1.09-1.287-1.47-2.236-1.36zM23.1 4.32c-.802.295-1.358.995-2.047 1.49c-2.506 2.05-4.982 4.12-7.468 6.19c3.025 2.59 6.04 5.18 9.065 7.76c1.218.671 1.428-.814 1.328-1.64v-13a.83.83 0 0 0-.877-.825zM.038 8.15v7.7h5.53v-7.7zm13.577 8.1H6.008v5.62c3.864-.006 7.737.011 11.58-.009c1.02-.07 1.618-1.12 1.468-2.07v-2.51l-5.47-4.68v3.65zm-13.577 0c.02 1.44-.041 2.88.033 4.31c.162.948 1.158 1.43 2.047 1.31h3.464v-5.62z"/></svg>Google Meet</span><canvas class="desk-wave"></canvas></div>
+                    <div class="desk-app" style="--tone: var(--pop-orange);"><span class="desk-app-head"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 24C5.383 24 0 18.617 0 12S5.383 0 12 0s12 5.383 12 12s-5.383 12-12 12m0-22.891C5.995 1.109 1.11 5.995 1.11 12S5.995 22.89 12 22.89S22.89 18.005 22.89 12S18.005 1.109 12 1.109M6.182 5.99c.352-1.698 1.503-3.229 3.05-3.996c-.269.273-.595.483-.844.78c-1.02 1.1-1.48 2.692-1.199 4.156c.355 2.235 2.455 4.06 4.732 4.028c1.765.079 3.485-.937 4.348-2.468c1.848.063 3.645 1.017 4.7 2.548c.54.799.962 1.736.991 2.711c-.342-1.295-1.202-2.446-2.375-3.095a4.9 4.9 0 0 0-3.772-.425c-1.56.448-2.849 1.723-3.293 3.293c-.377 1.25-.216 2.628.377 3.772c-.825 1.429-2.315 2.449-3.932 2.756c-1.244.261-2.551.059-3.709-.464c1.036.302 2.161.355 3.191-.011a4.91 4.91 0 0 0 3.024-2.935c.556-1.49.345-3.261-.591-4.54c-.7-1.007-1.803-1.717-3.002-1.969c-.38-.068-.764-.098-1.148-.134c-.611-1.231-.834-2.66-.528-3.996z"/></svg>OBS</span><canvas class="desk-wave"></canvas></div>
+                    <div class="desk-app" style="--tone: var(--pop-pink);"><span class="desk-app-head"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M10.6669 6.13443L10.165 5.77922C9.44862 5.27225 8.59264 5 7.71504 5H7.10257C6.69838 5 6.29009 5.02549 5.90915 5.16059C3.52645 6.00566 1.88749 9.09504 2.00604 16.1026C2.02992 17.5145 2.3603 19.075 3.63423 19.6842C4.03121 19.8741 4.49667 20 5.02671 20C5.66273 20 6.1678 19.8187 6.55763 19.5632C6.96641 19.2953 7.32633 18.9471 7.68612 18.599C8.13071 18.1688 8.57511 17.7389 9.11125 17.4609C9.69519 17.1581 10.3434 17 11.0011 17H12.9989C13.6566 17 14.3048 17.1581 14.8888 17.4609C15.4249 17.7389 15.8693 18.1688 16.3139 18.599C16.6737 18.9471 17.0336 19.2953 17.4424 19.5632C17.8322 19.8187 18.3373 20 18.9733 20C19.5033 20 19.9688 19.8741 20.3658 19.6842C21.6397 19.075 21.9701 17.5145 21.994 16.1026C22.1125 9.09503 20.4735 6.00566 18.0908 5.16059C17.7099 5.02549 17.3016 5 16.8974 5H16.2849C15.4074 5 14.5514 5.27225 13.8351 5.77922L13.3332 6.13441C12.9434 6.41029 12.4776 6.55844 12 6.55844C11.5225 6.55844 11.0567 6.41029 10.6669 6.13443ZM16.75 9C17.1642 9 17.5 9.33579 17.5 9.75C17.5 10.1642 17.1642 10.5 16.75 10.5C16.3358 10.5 16 10.1642 16 9.75C16 9.33579 16.3358 9 16.75 9ZM7.5 9.25C7.91421 9.25 8.25 9.58579 8.25 10V10.75H9C9.41421 10.75 9.75 11.0858 9.75 11.5C9.75 11.9142 9.41421 12.25 9 12.25H8.25V13C8.25 13.4142 7.91421 13.75 7.5 13.75C7.08579 13.75 6.75 13.4142 6.75 13V12.25H6C5.58579 12.25 5.25 11.9142 5.25 11.5C5.25 11.0858 5.58579 10.75 6 10.75H6.75V10C6.75 9.58579 7.08579 9.25 7.5 9.25ZM19 11.25C19 11.6642 18.6642 12 18.25 12C17.8358 12 17.5 11.6642 17.5 11.25C17.5 10.8358 17.8358 10.5 18.25 10.5C18.6642 10.5 19 10.8358 19 11.25ZM15.25 12C15.6642 12 16 11.6642 16 11.25C16 10.8358 15.6642 10.5 15.25 10.5C14.8358 10.5 14.5 10.8358 14.5 11.25C14.5 11.6642 14.8358 12 15.25 12ZM17.5 12.75C17.5 12.3358 17.1642 12 16.75 12C16.3358 12 16 12.3358 16 12.75C16 13.1642 16.3358 13.5 16.75 13.5C17.1642 13.5 17.5 13.1642 17.5 12.75Z"/></svg>Your game</span><canvas class="desk-wave"></canvas></div>
+                </div>
             </div>
         </section>
     </div>
@@ -2121,8 +2528,8 @@
             </div>
             <div class="showcase-copy">
                 <p class="showcase-kicker">Overlay and sounds</p>
-                <h3>See it. Hear it.</h3>
-                <p>15 overlay themes, from Windows-native to neon. Plus a sound every time you mute.</p>
+                <h3>Never ask "Am I muted?" again.</h3>
+                <p>15 overlay themes and 8 sound packs. You see it and hear it every time.</p>
             </div>
         </article>
 
@@ -2154,45 +2561,87 @@
         <h2 class="features-heading">More tricks.</h2>
         <div class="tricks-grid">
             <article class="trick is-wide" style="--c: var(--pop-yellow);">
-                <span class="trick-icon"><iconify-icon icon="solar:microphone-bold-duotone"></iconify-icon></span>
+                <span class="trick-art" aria-hidden="true"><span class="art-key">Mouse 4</span><span class="art-wave"><i style="--v:30"></i><i style="--v:62"></i><i style="--v:88"></i><i style="--v:54"></i><i style="--v:100"></i><i style="--v:70"></i><i style="--v:42"></i><i style="--v:84"></i><i style="--v:96"></i><i style="--v:58"></i><i style="--v:34"></i><i style="--v:72"></i></span><span class="art-wave is-flat"><i style="--v:0"></i><i style="--v:0"></i><i style="--v:0"></i><i style="--v:0"></i><i style="--v:0"></i><i style="--v:0"></i><i style="--v:0"></i></span></span>
                 <div>
                     <h3>Hold to talk</h3>
                     <p>Hold to speak. Let go, muted.</p>
                 </div>
             </article>
             <article class="trick" style="--c: var(--pop-blue);">
-                <span class="trick-icon"><iconify-icon icon="solar:stopwatch-bold-duotone"></iconify-icon></span>
+                <span class="trick-art" aria-hidden="true"><span class="art-pill"><iconify-icon icon="solar:stopwatch-bold"></iconify-icon>5:00</span><span class="art-arrow"><iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></span><span class="art-dot"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span></span>
                 <div>
                     <h3>Auto-mute</h3>
                     <p>On launch or when AFK.</p>
                 </div>
             </article>
             <article class="trick" style="--c: var(--pop-green);">
-                <span class="trick-icon"><iconify-icon icon="solar:target-bold-duotone"></iconify-icon></span>
+                <span class="trick-art" aria-hidden="true"><span class="art-stack"><span class="art-dot"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span><span class="art-dot"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span><span class="art-dot"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span></span></span>
                 <div>
                     <h3>Every mic</h3>
                     <p>One press, all of them.</p>
                 </div>
             </article>
             <article class="trick" style="--c: var(--pop-purple);">
-                <span class="trick-icon"><iconify-icon icon="solar:headphones-round-sound-bold-duotone"></iconify-icon></span>
+                <span class="trick-art" aria-hidden="true"><span class="art-dot"><iconify-icon icon="solar:headphones-round-bold"></iconify-icon></span><span class="art-arrow"><iconify-icon icon="fluent:arrow-swap-20-filled"></iconify-icon></span><span class="art-dot"><iconify-icon icon="solar:volume-loud-bold"></iconify-icon></span></span>
                 <div>
                     <h3>Device switching</h3>
                     <p>Swap input or output by hotkey.</p>
                 </div>
             </article>
             <article class="trick" style="--c: var(--pop-pink);">
-                <span class="trick-icon"><iconify-icon icon="solar:shield-check-bold-duotone"></iconify-icon></span>
+                <span class="trick-art" aria-hidden="true"><span class="art-key">F23</span><span class="art-arrow"><iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></span><span class="art-dot"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span></span>
                 <div>
                     <h3>Panic key</h3>
                     <p>Force mute never unmutes.</p>
                 </div>
             </article>
             <article class="trick is-wide" style="--c: var(--pop-orange);">
-                <span class="trick-icon"><iconify-icon icon="solar:bell-bold-duotone"></iconify-icon></span>
+                <span class="trick-art" aria-hidden="true"><span class="art-tray"><iconify-icon icon="fluent:chevron-up-20-filled"></iconify-icon><span class="is-mic"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span><iconify-icon icon="fluent:wifi-1-20-filled"></iconify-icon><iconify-icon icon="fluent:speaker-2-20-filled"></iconify-icon><b>21:47</b></span></span>
                 <div>
                     <h3>Tray status</h3>
                     <p>Your state, right next to the clock.</p>
+                </div>
+            </article>
+            <article class="trick" style="--c: var(--pop-green);">
+                <span class="trick-art" aria-hidden="true"><span class="art-pill"><iconify-icon icon="fluent:music-note-2-20-filled"></iconify-icon>airhorn.mp3</span><span class="art-wave"><i style="--v:40"></i><i style="--v:90"></i><i style="--v:60"></i><i style="--v:100"></i><i style="--v:50"></i><i style="--v:76"></i><i style="--v:34"></i></span></span>
+                <div>
+                    <h3>Your own sounds</h3>
+                    <p>MP3, WAV, OGG or FLAC.</p>
+                </div>
+            </article>
+            <article class="trick is-wide" style="--c: var(--pop-blue);">
+                <span class="trick-art" aria-hidden="true"><span class="art-seg"><span>Always</span><span class="is-on">Muted only</span><span>After toggle</span></span></span>
+                <div>
+                    <h3>Overlay on your terms</h3>
+                    <p>Always there, only while muted, or just after a toggle.</p>
+                </div>
+            </article>
+            <article class="trick" style="--c: var(--pop-yellow);">
+                <span class="trick-art" aria-hidden="true"><span class="art-key is-ghost">Shift</span><span class="art-key">F23</span></span>
+                <div>
+                    <h3>Ignore modifiers</h3>
+                    <p>Fires with Shift or Ctrl held.</p>
+                </div>
+            </article>
+            <article class="trick is-wide" style="--c: var(--pop-pink);">
+                <span class="trick-art" aria-hidden="true"><span class="art-key">F23</span><span class="art-key">Mouse 5</span><span class="art-key">LB + A</span><span class="art-arrow"><iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></span><span class="art-dot"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span></span>
+                <div>
+                    <h3>Many keys, one action</h3>
+                    <p>Keyboard, mouse and controller can all do the same thing.</p>
+                </div>
+            </article>
+            <article class="trick" style="--c: var(--pop-orange);">
+                <span class="trick-art" aria-hidden="true"><span class="art-pill"><iconify-icon icon="fluent:document-20-filled"></iconify-icon>settings</span><span class="art-dot"><iconify-icon icon="fluent:arrow-download-20-filled"></iconify-icon></span></span>
+                <div>
+                    <h3>Settings backup</h3>
+                    <p>Export, import, bring v1 along.</p>
+                </div>
+            </article>
+            <article class="trick" style="--c: var(--pop-purple);">
+                <span class="trick-art" aria-hidden="true"><span class="art-dot"><iconify-icon icon="fluent:mic-off-24-filled"></iconify-icon></span><span class="art-cursor"><iconify-icon icon="fluent:cursor-click-20-filled"></iconify-icon></span></span>
+                <div>
+                    <h3>Click to mute</h3>
+                    <p>One click on the tray icon.</p>
                 </div>
             </article>
         </div>
@@ -2224,15 +2673,37 @@
             <li><iconify-icon icon="solar:bolt-bold-duotone"></iconify-icon><div><b>Settings apply instantly</b><span>No Save buttons. Ever.</span></div></li>
             <li><iconify-icon icon="solar:power-bold-duotone"></iconify-icon><div><b>Start with Windows</b><span>Straight to the tray</span></div></li>
             <li><iconify-icon icon="solar:refresh-circle-bold-duotone"></iconify-icon><div><b>Auto-updates</b><span>Right from the app</span></div></li>
-            <li><iconify-icon icon="solar:import-bold-duotone"></iconify-icon><div><b>Import and export</b><span>Including v1 settings</span></div></li>
+            <li><iconify-icon icon="solar:user-check-bold-duotone"></iconify-icon><div><b>Unmute on return</b><span>Auto-mute can undo itself</span></div></li>
             <li><iconify-icon icon="solar:palette-bold-duotone"></iconify-icon><div><b>Mica design</b><span>Feels at home on Windows 11</span></div></li>
-            <li><iconify-icon icon="solar:keyboard-bold-duotone"></iconify-icon><div><b>Ignore modifiers</b><span>Fires with Shift or Ctrl held</span></div></li>
+            <li><iconify-icon icon="solar:ruler-cross-pen-bold-duotone"></iconify-icon><div><b>Overlay your way</b><span>Position, size, opacity, corners</span></div></li>
             <li><iconify-icon icon="solar:settings-bold-duotone"></iconify-icon><div><b>Settings hotkey</b><span>Open Settings from a shortcut</span></div></li>
             <li><iconify-icon icon="mdi:github"></iconify-icon><div><b>Free and open source</b><span>Apache 2.0, forever</span></div></li>
         </ul>
     </section>
 
-    <section class="guide-section bento-anim">
+    <section class="shots" id="screenshots" aria-labelledby="shots-title">
+        <div class="shots-head">
+            <h2 class="features-heading" id="shots-title">Screenshots.</h2>
+            <div class="shots-nav">
+                <button type="button" class="shots-btn" data-shots-dir="-1" aria-label="Previous screenshot" disabled><iconify-icon icon="fluent:arrow-left-20-filled"></iconify-icon></button>
+                <button type="button" class="shots-btn" data-shots-dir="1" aria-label="Next screenshot"><iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></button>
+            </div>
+        </div>
+        <div class="shots-track" id="shots-track">
+            <a class="shot" href="screenshots/1.png" data-fancybox="screenshots" data-caption="Hotkeys"><img src="screenshots/1.png" alt="silence! hotkeys page for Windows mic mute" width="950" height="738" loading="lazy"><span class="shot-caption">Hotkeys</span></a>
+            <a class="shot" href="screenshots/2.png" data-fancybox="screenshots" data-caption="Devices"><img src="screenshots/2.png" alt="silence! microphone device selection for mic mute" width="950" height="738" loading="lazy"><span class="shot-caption">Devices</span></a>
+            <a class="shot" href="screenshots/3.png" data-fancybox="screenshots" data-caption="Sounds"><img src="screenshots/3.png" alt="silence! mute and unmute sound settings" width="950" height="738" loading="lazy"><span class="shot-caption">Sounds</span></a>
+            <a class="shot" href="screenshots/4.png" data-fancybox="screenshots" data-caption="Overlay"><img src="screenshots/4.png" alt="silence! on-screen mic mute overlay settings" width="950" height="738" loading="lazy"><span class="shot-caption">Overlay</span></a>
+            <a class="shot" href="screenshots/5.png" data-fancybox="screenshots" data-caption="Hold to mute"><img src="screenshots/5.png" alt="silence! hold to mute settings" width="950" height="738" loading="lazy"><span class="shot-caption">Hold to mute</span></a>
+            <a class="shot" href="screenshots/6.png" data-fancybox="screenshots" data-caption="Tray icon"><img src="screenshots/6.png" alt="silence! tray icon styles showing mic mute status" width="950" height="738" loading="lazy"><span class="shot-caption">Tray icon</span></a>
+            <a class="shot" href="screenshots/7.png" data-fancybox="screenshots" data-caption="Auto-mute"><img src="screenshots/7.png" alt="silence! auto-mute timer settings" width="950" height="738" loading="lazy"><span class="shot-caption">Auto-mute</span></a>
+            <a class="shot" href="screenshots/8.png" data-fancybox="screenshots" data-caption="General, import and export"><img src="screenshots/8.png" alt="silence! general settings and import export" width="950" height="738" loading="lazy"><span class="shot-caption">General, import and export</span></a>
+            <a class="shot" href="screenshots/9.png" data-fancybox="screenshots" data-caption="About and updates"><img src="screenshots/9.png" alt="silence! about and in-app updates" width="950" height="738" loading="lazy"><span class="shot-caption">About and updates</span></a>
+            <a class="shot" href="screenshots/10.png" data-fancybox="screenshots" data-caption="Tray menu"><img src="screenshots/10.png" alt="silence! tray menu with mic mute controls" width="950" height="738" loading="lazy"><span class="shot-caption">Tray menu</span></a>
+        </div>
+    </section>
+
+    <section class="guide-section">
         <a class="showcase tone-blue guide-card" href="mic-mute/">
             <div class="showcase-stage guide-stage" aria-hidden="true">
                 <div class="guide-row"><b>Win + Alt + K</b><span class="guide-mark is-mid">Some apps</span></div>
@@ -2247,28 +2718,14 @@
                 <span class="guide-cta">Read the guide <iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></span>
             </div>
         </a>
-    </section>
-
-    <section class="shots" id="screenshots" aria-labelledby="shots-title">
-        <div class="shots-head">
-            <h2 class="features-heading" id="shots-title">Screenshots.</h2>
-            <div class="shots-nav">
-                <button type="button" class="shots-btn" data-shots-dir="-1" aria-label="Previous screenshot" disabled><iconify-icon icon="fluent:arrow-left-20-filled"></iconify-icon></button>
-                <button type="button" class="shots-btn" data-shots-dir="1" aria-label="Next screenshot"><iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></button>
+        <a class="compare-card" href="compare/">
+            <div>
+                <p class="showcase-kicker">The comparison</p>
+                <h3>Every Windows mic mute app, side by side.</h3>
+                <p>Including the ones that beat silence! at something.</p>
             </div>
-        </div>
-        <div class="shots-track" id="shots-track">
-            <a class="shot" href="screenshots/1.png" data-fancybox="screenshots" data-caption="Hotkeys"><img src="screenshots/1.png" alt="silence! hotkeys page for Windows mic mute" width="1280" height="800" loading="lazy"><span class="shot-caption">Hotkeys</span></a>
-            <a class="shot" href="screenshots/2.png" data-fancybox="screenshots" data-caption="Devices"><img src="screenshots/2.png" alt="silence! microphone device selection for mic mute" width="1280" height="800" loading="lazy"><span class="shot-caption">Devices</span></a>
-            <a class="shot" href="screenshots/3.png" data-fancybox="screenshots" data-caption="Sounds"><img src="screenshots/3.png" alt="silence! mute and unmute sound settings" width="1280" height="800" loading="lazy"><span class="shot-caption">Sounds</span></a>
-            <a class="shot" href="screenshots/4.png" data-fancybox="screenshots" data-caption="Overlay"><img src="screenshots/4.png" alt="silence! on-screen mic mute overlay settings" width="1280" height="800" loading="lazy"><span class="shot-caption">Overlay</span></a>
-            <a class="shot" href="screenshots/5.png" data-fancybox="screenshots" data-caption="Hold to mute"><img src="screenshots/5.png" alt="silence! hold to mute settings" width="1280" height="800" loading="lazy"><span class="shot-caption">Hold to mute</span></a>
-            <a class="shot" href="screenshots/6.png" data-fancybox="screenshots" data-caption="Tray icon"><img src="screenshots/6.png" alt="silence! tray icon styles showing mic mute status" width="1280" height="800" loading="lazy"><span class="shot-caption">Tray icon</span></a>
-            <a class="shot" href="screenshots/7.png" data-fancybox="screenshots" data-caption="Auto-mute"><img src="screenshots/7.png" alt="silence! auto-mute timer settings" width="1280" height="800" loading="lazy"><span class="shot-caption">Auto-mute</span></a>
-            <a class="shot" href="screenshots/8.png" data-fancybox="screenshots" data-caption="General, import and export"><img src="screenshots/8.png" alt="silence! general settings and import export" width="1280" height="800" loading="lazy"><span class="shot-caption">General, import and export</span></a>
-            <a class="shot" href="screenshots/9.png" data-fancybox="screenshots" data-caption="About and updates"><img src="screenshots/9.png" alt="silence! about and in-app updates" width="1280" height="800" loading="lazy"><span class="shot-caption">About and updates</span></a>
-            <a class="shot" href="screenshots/10.png" data-fancybox="screenshots" data-caption="Tray menu"><img src="screenshots/10.png" alt="silence! tray menu with mic mute controls" width="1280" height="800" loading="lazy"><span class="shot-caption">Tray menu</span></a>
-        </div>
+            <span class="guide-cta">Compare them <iconify-icon icon="fluent:arrow-right-20-filled"></iconify-icon></span>
+        </a>
     </section>
 
     <section class="faq-block" id="faq" aria-labelledby="faq-title">
@@ -2284,7 +2741,7 @@
             <div class="cta-background">
                 <canvas id="stars-canvas" style="position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; border-radius: inherit;"></canvas>
             </div>
-            <div class="cta-content-wrapper">
+            <div class="cta-content-wrapper has-footer">
                 <div class="cta-main">
                     <h2 class="cta-animate cta-delay-1">Drop the janky scripts.</h2>
                     <p class="cta-animate cta-delay-2">One clean utility. Zero bloat. Total control.</p>
@@ -2294,20 +2751,53 @@
                         </a>
                     </div>
                 </div>
-                <div class="footer-info">
-                    <div class="cta-animate cta-delay-4" style="margin: 0;">
-                        <strong>silence!</strong> is open source and free forever. Made by <a href="https://github.com/vertopolkaLF" target="_blank">vertopolkaLF</a>.
+                <footer class="site-footer cta-animate cta-delay-4">
+                    <div class="site-footer-top">
+                        <div class="site-footer-brand">
+                            <a href="/" class="brand">silence<span>!</span></a>
+                            <p>Mute your mic in every app. A free mic mute app for Windows 10 and 11.</p>
+                        </div>
+                        <div class="site-footer-cols">
+                            <div>
+                                <h4>App</h4>
+                                <ul>
+                                    <li><a href="https://github.com/vertopolkaLF/silence/releases" data-download-link>Download</a></li>
+                                    <li><a href="#screenshots">Screenshots</a></li>
+                                    <li><a href="https://github.com/vertopolkaLF/silence/releases" target="_blank" rel="noopener noreferrer">Release notes</a></li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4>Learn</h4>
+                                <ul>
+                                    <li><a href="mic-mute/">How to mute</a></li>
+                                    <li><a href="compare/">Compare apps</a></li>
+                                    <li><a href="#faq">FAQ</a></li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4>Project</h4>
+                                <ul>
+                                    <li><a href="https://github.com/vertopolkaLF/silence" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+                                    <li><a href="https://github.com/vertopolkaLF/silence/issues" target="_blank" rel="noopener noreferrer">Report a bug</a></li>
+                                    <li><a href="https://github.com/vertopolkaLF/silence/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">License</a></li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                    <div class="site-footer-bottom">
+                        <span>Open source and free forever. Apache 2.0.</span>
+                        <span>Made by <a href="https://vertopolkalf.ru" target="_blank" rel="noopener noreferrer">vertopolkaLF</a></span>
+                    </div>
 
-                <div id="replay-section" class="replay-section">
-                    <h3>Liked the animation?</h3>
-                    <p class="replay-text">Here is the button to enjoy it again.</p>
-                    <button id="replay-btn" class="btn btn-secondary replay-btn">
-                        <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
-                        Replay Animation
-                    </button>
-                </div>
+                    <div id="replay-section" class="replay-section">
+                        <h3>Liked the animation?</h3>
+                        <p class="replay-text">Here is the button to enjoy it again.</p>
+                        <button id="replay-btn" class="btn btn-secondary replay-btn">
+                            <iconify-icon icon="solar:play-bold-duotone"></iconify-icon>
+                            Replay Animation
+                        </button>
+                    </div>
+                </footer>
             </div>
         </div>
     </section>
@@ -2339,6 +2829,12 @@
 
                 if (latestMajor < 2) {
                     return;
+                }
+
+                if (/^v?\d+(\.\d+)+$/.test(latestVersion)) {
+                    document.querySelectorAll('[data-latest-version]').forEach((el) => {
+                        el.textContent = ` · ${latestVersion.startsWith('v') ? latestVersion : 'v' + latestVersion}`;
+                    });
                 }
 
                 // Determine architecture
@@ -2479,8 +2975,97 @@
                 }, 2200);
             }
 
-            // Overlay styles
+            // One mute state for the whole page: the hero demo, the overlay themes and the sounds all follow it
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             const overlays = Array.from(document.querySelectorAll('.ov'));
+            const desk = document.getElementById('desk');
+            const deskKey = document.getElementById('desk-key');
+            const deskStatus = document.getElementById('desk-status');
+            let micLive = true;
+            let soundTheme = '8bit';
+            const soundCache = {};
+
+            // Hero waveform: every app draws the same signal, because it is the same microphone
+            const WAVE_PITCH = 6;
+            const WAVE_BAR = 3;
+            const WAVE_SPEED = 72;
+            const WAVE_SAMPLES = 80;
+            const waves = Array.from(document.querySelectorAll('.desk-wave')).map((canvas) => ({
+                canvas,
+                ctx: canvas.getContext('2d'),
+                tone: getComputedStyle(canvas.parentElement).getPropertyValue('--tone').trim() || '#fafaf9',
+                width: 0,
+                height: 0,
+            }));
+            const samples = [];
+            let voiceLevel = 0;
+            let voiceTarget = 0;
+            let voiceHold = 0;
+            let waveOffset = 0;
+            let waveFrame = 0;
+            let waveTime = 0;
+
+            // Loose imitation of speech: bursts of syllables with short pauses between them
+            const nextVoice = () => {
+                if (voiceHold-- <= 0) {
+                    const pause = Math.random() < 0.2;
+                    voiceTarget = pause ? 0.04 : 0.3 + Math.random() * 0.7;
+                    voiceHold = pause ? 2 + Math.random() * 3 : 1 + Math.random() * 3;
+                }
+                voiceLevel += (voiceTarget - voiceLevel) * 0.55;
+                return Math.max(0.05, voiceLevel * (0.7 + Math.random() * 0.3));
+            };
+
+            // A negative sample is silence
+            const pushSample = () => {
+                samples.push(micLive ? nextVoice() : -1);
+                if (samples.length > WAVE_SAMPLES) samples.shift();
+            };
+
+            const fillSamples = () => {
+                samples.length = 0;
+                for (let i = 0; i < WAVE_SAMPLES; i++) pushSample();
+            };
+
+            const sizeWaves = () => {
+                const ratio = window.devicePixelRatio || 1;
+                waves.forEach((wave) => {
+                    const box = wave.canvas.getBoundingClientRect();
+                    wave.width = box.width;
+                    wave.height = box.height;
+                    wave.canvas.width = Math.round(box.width * ratio);
+                    wave.canvas.height = Math.round(box.height * ratio);
+                    wave.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+                });
+            };
+
+            const drawWaves = () => {
+                waves.forEach(({ ctx, width, height, tone }) => {
+                    ctx.clearRect(0, 0, width, height);
+                    let x = width - WAVE_BAR + WAVE_PITCH - waveOffset;
+                    for (let i = samples.length - 1; i >= 0 && x > -WAVE_BAR; i--, x -= WAVE_PITCH) {
+                        const value = samples[i];
+                        const bar = value < 0 ? 2 : Math.max(2, value * height);
+                        ctx.fillStyle = value < 0 ? 'rgba(250, 250, 249, 0.22)' : tone;
+                        ctx.beginPath();
+                        if (ctx.roundRect) ctx.roundRect(x, (height - bar) / 2, WAVE_BAR, bar, 1.5);
+                        else ctx.rect(x, (height - bar) / 2, WAVE_BAR, bar);
+                        ctx.fill();
+                    }
+                });
+            };
+
+            const waveTick = (now) => {
+                waveOffset += Math.min((now - waveTime) / 1000, 0.1) * WAVE_SPEED;
+                waveTime = now;
+                while (waveOffset >= WAVE_PITCH) {
+                    waveOffset -= WAVE_PITCH;
+                    pushSample();
+                }
+                drawWaves();
+                waveFrame = requestAnimationFrame(waveTick);
+            };
+
             const setOverlayLive = (overlay, live) => {
                 overlay.classList.toggle('is-live', live);
                 const labels = overlay.dataset.ovText?.split('|');
@@ -2488,13 +3073,80 @@
                 if (labels && label) label.textContent = live ? labels[1] : labels[0];
                 bump(overlay, 'is-flip');
             };
-            let overlaysLive = false;
-            const flipOverlays = () => {
-                overlaysLive = !overlaysLive;
-                overlays.forEach((overlay, index) => setTimeout(() => setOverlayLive(overlay, overlaysLive), index * 60));
+
+            const applyMic = () => {
+                const live = micLive;
+                let gridIndex = 0;
+                overlays.forEach((overlay) => {
+                    if (overlay.closest('.desk')) setOverlayLive(overlay, live);
+                    else setTimeout(() => setOverlayLive(overlay, live), gridIndex++ * 60);
+                });
+                if (!desk) return;
+                desk.classList.toggle('is-muted', !live);
+                deskKey.setAttribute('aria-pressed', String(!live));
+                deskStatus.textContent = live ? 'Every app hears you' : 'Every app hears silence';
+                if (reduceMotion) {
+                    fillSamples();
+                    drawWaves();
+                }
             };
-            // The overlays flip on a timer until a sound is clicked; then the visitor drives mute
-            let overlayTimer = overlays.length ? setInterval(flipOverlays, 2600) : null;
+
+            const playSound = (kind) => {
+                const src = `sounds/${soundTheme}_${kind}.mp3`;
+                const audio = soundCache[src] || (soundCache[src] = new Audio(src));
+                audio.currentTime = 0;
+                audio.play().catch(() => { });
+                return audio;
+            };
+
+            const toggleMic = (withSound) => {
+                micLive = !micLive;
+                const audio = withSound ? playSound(micLive ? 'unmute' : 'mute') : null;
+                applyMic();
+                return audio;
+            };
+
+            // The page mutes and unmutes on a timer until the visitor takes over
+            let autoTimer = reduceMotion ? null : setInterval(() => toggleMic(false), 3200);
+            const takeOver = () => {
+                clearInterval(autoTimer);
+                autoTimer = null;
+            };
+
+            if (desk) {
+                fillSamples();
+                sizeWaves();
+                drawWaves();
+                window.addEventListener('resize', () => {
+                    sizeWaves();
+                    drawWaves();
+                });
+
+                if (!reduceMotion) {
+                    new IntersectionObserver(([entry]) => {
+                        cancelAnimationFrame(waveFrame);
+                        if (!entry.isIntersecting) return;
+                        waveTime = performance.now();
+                        waveFrame = requestAnimationFrame(waveTick);
+                    }).observe(desk);
+                }
+
+                desk.addEventListener('click', () => {
+                    takeOver();
+                    toggleMic(true);
+                });
+
+                window.addEventListener('keydown', (event) => {
+                    if (event.code !== 'KeyM' || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+                    if (event.target.closest?.('input, textarea, select, [contenteditable]')) return;
+                    takeOver();
+                    deskKey.classList.add('is-down');
+                    setTimeout(() => deskKey.classList.remove('is-down'), 160);
+                    toggleMic(true);
+                });
+            }
+
+            applyMic();
 
             // Sounds: top half of each wave is the mute sound, bottom half is unmute
             const soundPeaks = {
@@ -2507,7 +3159,6 @@
                 scifi: ['11122996332222222211111100000000', '47844597645645544354321122221100'],
                 vibrant: ['00000111111129521110006210000000', '94210000000000098421110000000000'],
             };
-            const soundCache = {};
             document.querySelectorAll('[data-sound-theme]').forEach((pad) => {
                 const theme = pad.dataset.soundTheme;
                 const [mute, unmute] = soundPeaks[theme];
@@ -2515,11 +3166,11 @@
                 pad.querySelector('.pad-wave').innerHTML = `<span class="pad-bars is-base">${bars}</span><span class="pad-bars is-fill">${bars}</span>`;
                 const kindLabel = pad.querySelector('.pad-kind');
                 pad.addEventListener('click', () => {
-                    const kind = overlaysLive ? 'mute' : 'unmute';
-                    const src = `sounds/${theme}_${kind}.mp3`;
-                    const audio = soundCache[src] || (soundCache[src] = new Audio(src));
-                    audio.currentTime = 0;
-                    audio.play().catch(() => { });
+                    // The picked sound pack is also what the M key plays from now on
+                    takeOver();
+                    soundTheme = theme;
+                    const kind = micLive ? 'mute' : 'unmute';
+                    const audio = toggleMic(true);
                     const seconds = audio.duration > 0 ? audio.duration : 0.5;
                     pad.style.setProperty('--dur', `${Math.max(seconds, 0.45).toFixed(2)}s`);
                     pad.classList.remove('play-mute', 'play-unmute');
@@ -2528,9 +3179,6 @@
                     kindLabel.textContent = kind;
                     clearTimeout(pad.kindTimer);
                     pad.kindTimer = setTimeout(() => { kindLabel.textContent = 'Play'; }, 1400);
-                    clearInterval(overlayTimer);
-                    overlayTimer = null;
-                    flipOverlays();
                 });
             });
 
