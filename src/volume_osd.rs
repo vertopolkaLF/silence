@@ -283,7 +283,10 @@ pub fn volume_osd_hide() {
 /// Popup commands share the OSD thread. Showing starts it; the rest only
 /// matter while it already runs.
 pub(crate) fn send_popup(command: crate::volume_popup::PopupCommand) {
-    if matches!(command, crate::volume_popup::PopupCommand::Show { .. }) {
+    if matches!(
+        command,
+        crate::volume_popup::PopupCommand::Show { .. } | crate::volume_popup::PopupCommand::Prewarm
+    ) {
         send(Command::Popup(command));
     } else {
         send_if_running(Command::Popup(command));

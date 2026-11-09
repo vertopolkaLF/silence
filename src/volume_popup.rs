@@ -44,6 +44,8 @@ pub(crate) enum PopupCommand {
     },
     Update(VolumePopupState),
     Close,
+    /// Create the hidden window ahead of the first click.
+    Prewarm,
 }
 
 static OPEN: AtomicBool = AtomicBool::new(false);

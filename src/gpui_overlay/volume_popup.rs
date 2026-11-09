@@ -46,6 +46,11 @@ pub(crate) fn handle(command: PopupCommand, cx: &mut App) {
         PopupCommand::Show { anchor, state } => show(anchor, state, cx),
         PopupCommand::Update(state) => with_view(cx, |view, cx| view.set_state(state, cx)),
         PopupCommand::Close => with_view(cx, |view, cx| view.close(cx)),
+        PopupCommand::Prewarm => {
+            if POPUP.with(|popup| popup.borrow().is_none()) {
+                create(cx);
+            }
+        }
     }
 }
 
@@ -57,20 +62,31 @@ fn with_view(cx: &mut App, f: impl FnOnce(&mut PopupView, &mut Context<PopupView
 }
 
 fn show(anchor: windows::Win32::Foundation::RECT, state: VolumePopupState, cx: &mut App) {
-    if let Some((handle, hwnd)) = POPUP.with(|popup| popup.borrow().clone()) {
-        let alive = handle
-            .update(cx, |view, window, cx| {
-                view.set_state(state.clone(), cx);
-                view.reopen(window, cx);
-            })
-            .is_ok();
-        if alive {
-            place(hwnd, anchor);
-            return;
-        }
+    let existing = POPUP.with(|popup| popup.borrow().clone());
+    let Some((handle, hwnd)) = existing.or_else(|| create(cx)) else {
+        return;
+    };
+    let alive = handle
+        .update(cx, |view, window, cx| {
+            view.set_state(state, cx);
+            view.reopen(window, cx);
+        })
+        .is_ok();
+    if alive {
+        place(hwnd, anchor);
+    } else {
         POPUP.with(|popup| popup.borrow_mut().take());
     }
+}
 
+/// The popup window lives for the whole session, hidden between uses, so a
+/// click only has to move and show it.
+fn create(cx: &mut App) -> Option<(WindowHandle<PopupView>, HWND)> {
+    let state = VolumePopupState {
+        percent: 0,
+        muted: false,
+        device_name: String::new(),
+    };
     let opened = cx.open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::new(
@@ -78,7 +94,7 @@ fn show(anchor: windows::Win32::Foundation::RECT, state: VolumePopupState, cx: &
                 size(px(CARD_W + GUTTER * 2.0), px(CARD_H + GUTTER * 2.0)),
             ))),
             titlebar: None,
-            focus: true,
+            focus: false,
             show: false,
             kind: WindowKind::PopUp,
             is_movable: false,
@@ -91,7 +107,7 @@ fn show(anchor: windows::Win32::Foundation::RECT, state: VolumePopupState, cx: &
     );
     let Ok(handle) = opened else {
         eprintln!("volume popup: failed to open window");
-        return;
+        return None;
     };
     let hwnd = handle
         .update(cx, |_, window, _| {
@@ -105,16 +121,11 @@ fn show(anchor: windows::Win32::Foundation::RECT, state: VolumePopupState, cx: &
         .flatten();
     let Some(hwnd) = hwnd else {
         eprintln!("volume popup: no Win32 handle");
-        return;
+        return None;
     };
     crate::volume_popup::attach(hwnd);
     POPUP.with(|popup| *popup.borrow_mut() = Some((handle, hwnd)));
-    crate::volume_popup::mark_open(true);
-    place(hwnd, anchor);
-    let _ = handle.update(cx, |view, window, cx| {
-        window.focus(&view.focus, cx);
-        cx.notify();
-    });
+    Some((handle, hwnd))
 }
 
 fn place(hwnd: HWND, anchor: windows::Win32::Foundation::RECT) {
@@ -204,9 +215,9 @@ impl PopupView {
                 view.close(cx);
             }
         });
-        let mut appear = Motion::decelerate(0.0, APPEAR_MS);
-        appear.retarget(1.0, Instant::now());
-        let mut view = Self {
+        // Created hidden (prewarmed); `reopen` shows it.
+        let appear = Motion::decelerate(0.0, APPEAR_MS);
+        Self {
             state,
             local_percent: None,
             dragging: false,
@@ -215,14 +226,12 @@ impl PopupView {
             wheel: 0.0,
             system: System::load(),
             appear,
-            closing: false,
+            closing: true,
             was_active: false,
             focus: cx.focus_handle(),
             timeout: None,
             _activation: activation,
-        };
-        view.arm_timeout(cx);
-        view
+        }
     }
 
     fn arm_timeout(&mut self, cx: &mut Context<Self>) {
@@ -270,33 +279,17 @@ impl PopupView {
             cx.background_executor()
                 .timer(Duration::from_millis(CLOSE_MS + 20))
                 .await;
-            let _ = view.update(cx, |view, cx| {
-                if view.closing {
-                    POPUP.with(|popup| {
-                        if let Some((_, hwnd)) = popup.borrow_mut().take() {
-                            unsafe {
-                                let _ = windows::Win32::UI::WindowsAndMessaging::ShowWindow(
-                                    hwnd,
-                                    windows::Win32::UI::WindowsAndMessaging::SW_HIDE,
-                                );
-                            }
-                        }
-                    });
-                    cx.notify();
-                }
-            });
-            // Remove after the hide so the last frame never flashes.
-            let _ = cx.update(|cx| {
-                if let Some(handle) = cx
-                    .windows()
-                    .into_iter()
-                    .find_map(|window| window.downcast::<PopupView>())
+            let _ = view.update(cx, |view, _| {
+                if view.closing
+                    && let Some((_, hwnd)) = POPUP.with(|popup| popup.borrow().clone())
                 {
-                    let _ = handle.update(cx, |view, window, _| {
-                        if view.closing {
-                            window.remove_window();
-                        }
-                    });
+                    // Hide, don't destroy: the next click reuses the window.
+                    unsafe {
+                        let _ = windows::Win32::UI::WindowsAndMessaging::ShowWindow(
+                            hwnd,
+                            windows::Win32::UI::WindowsAndMessaging::SW_HIDE,
+                        );
+                    }
                 }
             });
         })

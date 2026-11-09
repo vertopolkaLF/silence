@@ -302,7 +302,10 @@ fn handle_volume_tray_left_click(hwnd: HWND) {
         return;
     }
     let clicks = STATE.lock().unwrap().volume.clicks.clone();
-    if clicks.double == VolumeClickAction::None {
+    // The popup opens at once, like the system volume icon; a double click
+    // that follows closes it again. Only actions that change something wait
+    // to rule out a double click.
+    if clicks.double == VolumeClickAction::None || clicks.left == VolumeClickAction::Popup {
         run_volume_click_action(clicks.left);
         return;
     }
@@ -322,6 +325,9 @@ fn handle_volume_tray_double_click(hwnd: HWND) {
         return;
     }
     SUPPRESS_NEXT_VOLUME_TRAY_LBUTTON_UP.store(true, Ordering::SeqCst);
+    if STATE.lock().unwrap().volume.clicks.left == VolumeClickAction::Popup {
+        volume_popup::volume_popup_close();
+    }
     run_volume_click_action(double);
 }
 

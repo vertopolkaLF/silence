@@ -98,6 +98,8 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) {
                     crate::volume_osd::attach(HWND(raw.hwnd.get() as *mut _))?;
                     Ok(())
                 })??;
+                // The slider popup's window too, so the first click is instant.
+                super::volume_popup::handle(crate::volume_popup::PopupCommand::Prewarm, cx);
                 *app_commands.borrow_mut() = Some(cx.spawn(async move |cx| {
                         while let Ok(command) = receiver.recv_async().await {
                             let mut batch = vec![command];

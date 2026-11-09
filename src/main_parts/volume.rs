@@ -511,6 +511,15 @@ fn show_volume_osd(content: volume_osd::VolumeOsdContent) {
     volume_osd::volume_osd_show(content, &style);
 }
 
+/// Start the OSD thread (and the popup window on it) and the wallpaper blur
+/// now, so the first volume change or click shows them without a delay.
+pub(crate) fn prewarm_volume_ui() {
+    crate::gpui_overlay::mica::prewarm();
+    if let Err(err) = volume_osd::volume_osd_init() {
+        eprintln!("failed to start volume OSD: {err:?}");
+    }
+}
+
 static OSD_POSITIONING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// "Move OSD" belongs to the settings window; end it if that window closed.
@@ -571,6 +580,10 @@ pub(crate) fn preview_volume_osd() {
 /// "while muted" mode) appears without waiting for the next volume change.
 pub(crate) fn apply_volume_osd_config(config: &Config) {
     let style = volume_osd_style(&config.volume);
+    if config.modules.volume {
+        // Turning the module on warms the OSD and popup like a fresh start.
+        let _ = volume_osd::volume_osd_init();
+    }
     if !config.modules.volume || !style.enabled {
         volume_osd::volume_osd_hide();
         return;

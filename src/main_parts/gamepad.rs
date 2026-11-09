@@ -236,7 +236,7 @@ fn run_background_app() -> Result<()> {
     // Seed the default microphone so the first real switch shows the OSD.
     on_capture_endpoints_changed();
     if volume_module_enabled() {
-        crate::gpui_overlay::mica::prewarm();
+        prewarm_volume_ui();
     }
     add_tray_icon(hwnd)?;
     add_volume_tray_icon(hwnd);
