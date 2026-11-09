@@ -113,70 +113,18 @@ fn skin_card(
 ) -> Stateful<Div> {
     let p = style::palette(cx);
     let id = SharedString::from(format!("volume-skin-{label}"));
-    let (pointer, hover, _) = controls::hover_tween(id.clone(), window, cx);
     let active = crate::settings_ui::anim::tween(
         window,
         cx,
-        (ElementId::from(id.clone()), "selected"),
+        (ElementId::from(id.clone()), "ink"),
         selected as u8 as f32,
         UI,
     );
-    let focus = window
-        .use_keyed_state((ElementId::from(id.clone()), "focus"), cx, |_, cx| {
-            cx.focus_handle()
-        })
-        .read(cx)
-        .clone();
-    let ink = lerp(p.muted, p.accent, active.max(hover * 0.35)).hsla();
+    let ink = lerp(p.muted, p.accent, active).hsla();
     let preview = skin_preview(skin, 0.66, false, ink, p.danger.hsla());
-    controls::track_pointer(
-        div()
-            .id(id)
-            .track_focus(&focus)
-            .tab_index(0)
-            .focus_visible(move |style| controls::focus_outline(style, p.focus.hsla()))
-            .flex_1()
-            .min_w_0()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap(px(8.))
-            .px(px(8.))
-            .py(px(12.))
-            .rounded(px(12.))
-            .border_1()
-            .border_color(lerp(p.border, p.accent, active).hsla())
-            .bg(lerp(p.surface_2, p.surface_hover, hover).hsla())
-            .cursor_pointer()
-            .child(
-                div()
-                    .h(px(56.))
-                    .w_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .overflow_hidden()
-                    .child(preview),
-            )
-            .child(
-                div()
-                    .text_size(px(13.))
-                    .line_height(relative(1.2))
-                    .font_weight(FontWeight(600.))
-                    .text_color(lerp(p.muted, p.text, active.max(hover)).hsla())
-                    .child(label),
-            ),
-        pointer,
-    )
-    .on_key_down(cx.listener(move |app, event: &KeyDownEvent, _, cx| {
-        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
-            app.update_config(cx, |config| config.volume.tray_icon.skin = skin);
-            cx.stop_propagation();
-        }
-    }))
-    .on_click(cx.listener(move |app, _, _, cx| {
+    form::choice_card(id, label, selected, preview, window, cx, move |app, cx| {
         app.update_config(cx, |config| config.volume.tray_icon.skin = skin);
-    }))
+    })
 }
 
 /// Sample glyph for a skin card.

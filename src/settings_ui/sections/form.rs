@@ -157,3 +157,81 @@ pub(crate) fn collapse(
         })
         .child(inner)
 }
+
+/// Full-width choice card: preview above a label, cards share the row.
+/// Used for tray icon styles on both the microphone and volume pages.
+pub(crate) fn choice_card(
+    id: SharedString,
+    label: &'static str,
+    selected: bool,
+    preview: AnyElement,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+    on_select: impl Fn(&mut SettingsApp, &mut Context<SettingsApp>) + 'static,
+) -> Stateful<Div> {
+    use crate::settings_ui::color::lerp;
+    let p = style::palette(cx);
+    let (pointer, hover, _) = controls::hover_tween(id.clone(), window, cx);
+    let active = anim::tween(
+        window,
+        cx,
+        (ElementId::from(id.clone()), "selected"),
+        selected as u8 as f32,
+        anim::UI,
+    );
+    let focus = window
+        .use_keyed_state((ElementId::from(id.clone()), "focus"), cx, |_, cx| {
+            cx.focus_handle()
+        })
+        .read(cx)
+        .clone();
+    let on_select = std::rc::Rc::new(on_select);
+    let key_select = on_select.clone();
+    controls::track_pointer(
+        div()
+            .id(id)
+            .track_focus(&focus)
+            .tab_index(0)
+            .focus_visible(move |style| controls::focus_outline(style, p.focus.hsla()))
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap(px(8.))
+            .px(px(8.))
+            .py(px(12.))
+            .rounded(px(12.))
+            .border_1()
+            .border_color(lerp(p.border, p.accent, active).hsla())
+            .bg(lerp(p.surface_2, p.surface_hover, hover).hsla())
+            .cursor_pointer()
+            .child(
+                div()
+                    .h(px(56.))
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .overflow_hidden()
+                    .child(preview),
+            )
+            .child(
+                div()
+                    .text_size(px(13.))
+                    .line_height(relative(1.2))
+                    .font_weight(FontWeight(600.))
+                    .whitespace_nowrap()
+                    .text_color(lerp(p.muted, p.text, active.max(hover)).hsla())
+                    .child(label),
+            ),
+        pointer,
+    )
+    .on_key_down(cx.listener(move |app, event: &KeyDownEvent, _, cx| {
+        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+            key_select(app, cx);
+            cx.stop_propagation();
+        }
+    }))
+    .on_click(cx.listener(move |app, _, _, cx| on_select(app, cx)))
+}

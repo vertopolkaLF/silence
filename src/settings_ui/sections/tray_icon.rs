@@ -55,7 +55,7 @@ pub(crate) fn render(
         anim::UI,
     );
 
-    let mut variants = div().flex().gap(px(12.));
+    let mut variants = div().w_full().flex().gap(px(10.));
     for (value, label) in [
         ("Logo", "Logo"),
         ("StatusMic", "Mic status"),
@@ -78,14 +78,14 @@ pub(crate) fn render(
                 .bg(p.success.hsla())
                 .into_any_element(),
         };
-        variants = variants.child(tile(
+        variants = variants.child(super::form::choice_card(
             format!("tray-variant-{value}").into(),
             label,
             config.variant == value,
             preview,
             window,
             cx,
-            move |app, _, cx| {
+            move |app, cx| {
                 if value != "StatusMic" && app.open_select.as_deref() == Some("tray-status-color") {
                     app.open_select = None;
                 }
