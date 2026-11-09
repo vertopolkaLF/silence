@@ -201,7 +201,11 @@ fn run_background_app() -> Result<()> {
     register_class(instance.into())?;
     let hwnd = create_message_window(instance.into())?;
     let muted = indicator_mute_state().unwrap_or(false);
-    let mic_in_use = current_mic_in_use().unwrap_or(false);
+    let mic_in_use = if microphone_module_enabled() {
+        current_mic_in_use().unwrap_or(false)
+    } else {
+        false
+    };
     let overlay_config = STATE.lock().unwrap().overlay.clone();
     {
         let mut state = STATE.lock().unwrap();

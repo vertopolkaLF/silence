@@ -1,4 +1,10 @@
 fn add_tray_icon(hwnd: HWND) -> Result<()> {
+    if !microphone_module_enabled() {
+        unsafe {
+            let _ = KillTimer(hwnd, ID_TRAY_ADD_RETRY_TIMER);
+        }
+        return Ok(());
+    }
     if TRAY_ICON_ADDED.load(Ordering::Relaxed) {
         return Ok(());
     }
@@ -541,17 +547,19 @@ fn refresh_tray_tip() {
 }
 
 fn remove_tray_icon() {
-    let state = STATE.lock().unwrap();
-    if state.hwnd.0.is_null() {
+    let hwnd = STATE.lock().unwrap().hwnd;
+    if hwnd.0.is_null() {
         return;
     }
     let nid = NOTIFYICONDATAW {
         cbSize: size_of::<NOTIFYICONDATAW>() as u32,
-        hWnd: state.hwnd,
+        hWnd: hwnd,
         uID: ID_TRAY,
         ..Default::default()
     };
     unsafe {
+        let _ = KillTimer(hwnd, ID_TRAY_ADD_RETRY_TIMER);
+        let _ = KillTimer(hwnd, ID_TRAY_CLICK_TIMER);
         let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
     }
     TRAY_ICON_ADDED.store(false, Ordering::Relaxed);
@@ -687,7 +695,19 @@ unsafe extern "system" fn main_wnd_proc(
             refresh_mute_state();
             LRESULT(0)
         }
+        WM_OUTPUT_VOLUME_CHANGED => {
+            handle_output_volume_message(wparam, lparam);
+            LRESULT(0)
+        }
+        WM_OUTPUT_DEVICE_CHANGED => {
+            handle_output_device_changed();
+            LRESULT(0)
+        }
         WM_OVERLAY_POSITIONING => {
+            if !microphone_module_enabled() {
+                native_overlay::hide();
+                return LRESULT(0);
+            }
             let active = wparam.0 != 0;
             if let Some((x, y)) = native_overlay::set_positioning(active) {
                 save_overlay_position(x, y);

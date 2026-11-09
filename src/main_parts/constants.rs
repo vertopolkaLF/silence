@@ -13,6 +13,12 @@ const WM_MUTE_FAILED: u32 = WM_APP + 12;
 const WM_OVERLAY_ACTION: u32 = WM_APP + 13;
 /// `config.json` was saved by another silence! process; reload it now.
 const WM_CONFIG_CHANGED: u32 = WM_APP + 14;
+/// Default console render endpoint volume or mute changed.
+/// `wparam`: `(generation & 0x3FFF_FFFF) << 2`, bit 0 = muted, bit 1 = own change.
+/// `lparam`: master volume as `f32` bits (`0.0..=1.0`).
+const WM_OUTPUT_VOLUME_CHANGED: u32 = WM_APP + 15;
+/// Default console render device changed, or the render endpoint must be rebound.
+const WM_OUTPUT_DEVICE_CHANGED: u32 = WM_APP + 16;
 const ID_TRAY: u32 = 1;
 const ID_STATE_TIMER: usize = 10;
 const ID_OVERLAY_HIDE_TIMER: usize = 11;
@@ -52,6 +58,8 @@ const MAX_GAMEPAD_COMBO_INPUTS: usize = 2;
 
 pub(crate) const HOTKEY_TARGET_ALL_MICROPHONES: &str = "__all_microphones__";
 pub(crate) const OVERLAY_DISPLAY_PRIMARY: &str = "Primary";
+/// Volume OSD follows the monitor under the cursor.
+pub(crate) const VOLUME_OSD_DISPLAY_CURSOR: &str = "cursor";
 pub(crate) const AUDIO_DEVICE_NAME_PRETTY: &str = "PrettyName";
 pub(crate) const AUDIO_DEVICE_NAME_SYSTEM: &str = "SystemName";
 pub(crate) const AUDIO_DEVICE_NAME_BOTH: &str = "Both";

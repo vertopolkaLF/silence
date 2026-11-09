@@ -103,6 +103,8 @@ pub(crate) fn rebind_settings_audio_notifications() {
             }
         }
     });
+    // Keep the settings-process callback attached. Do not publish tray/OSD events here.
+    let _ = rebind_output_volume_for_message();
 }
 
 pub(crate) fn set_settings_mica_enabled(enabled: bool) {
@@ -185,6 +187,11 @@ unsafe extern "system" fn settings_window_proc(
             settings_ui::live::push(settings_ui::live::LiveEvent::EndpointsChanged);
             return LRESULT(0);
         }
+        WM_OUTPUT_DEVICE_CHANGED => {
+            let _ = rebind_output_volume_for_message();
+            return LRESULT(0);
+        }
+        WM_OUTPUT_VOLUME_CHANGED => return LRESULT(0),
         WM_CONFIG_CHANGED => {
             settings_ui::live::push(settings_ui::live::LiveEvent::ConfigChanged);
             return LRESULT(0);
@@ -515,28 +522,42 @@ fn post_audio_window_message(hwnd: HWND, message: u32) {
 
 fn ensure_audio_notification_registration() {
     let hwnd = STATE.lock().unwrap().hwnd;
-    ensure_audio_notification_registration_for(hwnd);
+    let outcome = ensure_audio_notification_registration_for(hwnd);
+    if !hwnd.0.is_null() {
+        publish_render_bind(outcome, false);
+    }
 }
 
-fn ensure_audio_notification_registration_for(hwnd: HWND) {
+fn ensure_audio_notification_registration_for(hwnd: HWND) -> RenderVolumeBind {
     if hwnd.0.is_null() {
-        return;
+        return RenderVolumeBind::Unavailable;
     }
 
-    AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
+    let ready = AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
         let mut registration = registration.borrow_mut();
         if let Some(registration) = registration.as_mut() {
             if let Err(err) = registration.rebind_indicator_capture_volume() {
                 eprintln!("failed to rebind indicator capture mute notifications: {err:?}");
             }
-            return;
+            return true;
         }
 
         match AudioNotificationRegistration::new(hwnd) {
-            Ok(value) => *registration = Some(value),
-            Err(err) => eprintln!("failed to initialize audio notifications: {err:?}"),
+            Ok(value) => {
+                *registration = Some(value);
+                true
+            }
+            Err(err) => {
+                eprintln!("failed to initialize audio notifications: {err:?}");
+                false
+            }
         }
     });
+    if ready {
+        rebind_output_volume_callback(false)
+    } else {
+        RenderVolumeBind::Unavailable
+    }
 }
 
 fn shutdown_audio_notification_registration() {

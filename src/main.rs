@@ -36,8 +36,8 @@ use windows::{
             FunctionDiscovery::{PKEY_Device_DeviceDesc, PKEY_Device_FriendlyName},
         },
         Foundation::{
-            BOOL, CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS,
-            GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
+            BOOL, CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_NOT_FOUND,
+            ERROR_SUCCESS, GetLastError, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
         },
         Graphics::{
             Dwm::{
@@ -52,8 +52,8 @@ use windows::{
             },
         },
         Media::Audio::{
-            AUDIO_VOLUME_NOTIFICATION_DATA, AudioSessionStateActive, DEVICE_STATE,
-            DEVICE_STATE_ACTIVE, EDataFlow, ERole,
+            AUDIO_VOLUME_NOTIFICATION_DATA, AUDCLNT_E_DEVICE_INVALIDATED, AudioSessionStateActive,
+            DEVICE_STATE, DEVICE_STATE_ACTIVE, EDataFlow, ERole,
             Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback},
             IAudioSessionControl, IAudioSessionControl2, IAudioSessionManager2, IMMDevice,
             IMMDeviceEnumerator, IMMNotificationClient, MMDeviceEnumerator, eCapture,
@@ -75,8 +75,8 @@ use windows::{
             },
             SystemInformation::GetTickCount,
             Threading::{
-                CreateMutexW, OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
-                QueryFullProcessImageNameW,
+                CreateMutexW, GetCurrentThreadId, OpenProcess, PROCESS_NAME_FORMAT,
+                PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
             },
             Variant::VT_LPWSTR,
         },
@@ -137,5 +137,6 @@ include!("main_parts/hotkeys_mute.rs");
 include!("main_parts/updates_overlay.rs");
 include!("main_parts/mute_feedback.rs");
 include!("main_parts/audio.rs");
+include!("main_parts/volume.rs");
 include!("main_parts/runtime_config.rs");
 include!("main_parts/input_utils.rs");

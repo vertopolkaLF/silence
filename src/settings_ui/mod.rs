@@ -131,6 +131,7 @@ impl SettingsApp {
         crate::normalize_hotkeys(&mut config.hotkeys);
         crate::normalize_overlay_config(&mut config.overlay);
         crate::normalize_tray_icon_config(&mut config.tray_icon);
+        crate::normalize_volume_config(&mut config.volume);
         let _ = crate::save_config(&config);
         if config.startup.launch_on_startup != startup_was_enabled {
             let _ = crate::sync_startup_registration(config.startup.launch_on_startup);

@@ -485,20 +485,16 @@ fn set_output_volume_from_hotkey(target: Option<&str>) -> Result<()> {
 
 fn change_output_volume_from_hotkey(target: Option<&str>, direction: i32) -> Result<()> {
     let amount = i32::from(hotkey_volume_target_percent(target, 10));
-    let volume = output_volume()?;
-    let current = unsafe { volume.GetMasterVolumeLevelScalar()? };
+    let current = with_output_volume(|volume| {
+        unsafe { volume.GetMasterVolumeLevelScalar() }.context("read output volume")
+    })?;
     let current_percent = (current * 100.0).round() as i32;
     let next = (current_percent + amount * direction).clamp(0, 100) as u8;
     set_output_volume_percent(next)
 }
 
 fn set_output_volume_percent(percent: u8) -> Result<()> {
-    let volume = output_volume()?;
-    let scalar = f32::from(percent.min(100)) / 100.0;
-    unsafe {
-        volume.SetMasterVolumeLevelScalar(scalar, null())?;
-    }
-    Ok(())
+    set_output_volume(f32::from(percent.min(100)) / 100.0)
 }
 
 fn play_mute_sound(muted: bool) {
@@ -1122,6 +1118,17 @@ unsafe fn endpoint_device_id(device: &IMMDevice) -> Result<String> {
     let text = unsafe { pwstr_to_string(id) };
     unsafe { CoTaskMemFree(Some(id.0 as *const c_void)) };
     Ok(text)
+}
+
+fn endpoint_friendly_name(device: &IMMDevice) -> String {
+    unsafe {
+        device
+            .OpenPropertyStore(STGM_READ)
+            .ok()
+            .and_then(|store| endpoint_property_string(&store, &PKEY_Device_FriendlyName))
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| "Speaker".to_string())
+    }
 }
 
 fn endpoint_device_display_names(

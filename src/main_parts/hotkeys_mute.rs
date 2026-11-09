@@ -334,6 +334,9 @@ enum HotkeyRequest {
         target: Option<String>,
         direction: i32,
     },
+    ToggleOutputMute,
+    NextOutputDevice,
+    PreviousOutputDevice,
     OpenSettings,
 }
 
@@ -389,7 +392,42 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
             target: hotkey.target.clone(),
             direction: -1,
         },
+        HotkeyAction::ToggleOutputMute => HotkeyRequest::ToggleOutputMute,
+        HotkeyAction::NextOutputDevice => HotkeyRequest::NextOutputDevice,
+        HotkeyAction::PreviousOutputDevice => HotkeyRequest::PreviousOutputDevice,
         HotkeyAction::OpenSettings => HotkeyRequest::OpenSettings,
+    }
+}
+
+fn hotkey_request_allowed(action: &HotkeyRequest) -> bool {
+    match action {
+        // Key-up must restore a hold that started before the module was turned off.
+        HotkeyRequest::ReleaseHold { .. } => true,
+        HotkeyRequest::ToggleMute { .. } => module_enabled(HotkeyAction::ToggleMute.module()),
+        HotkeyRequest::SetMute { .. } => module_enabled(HotkeyAction::Mute.module()),
+        HotkeyRequest::StartHold { .. } | HotkeyRequest::StartHoldToggle { .. } => {
+            module_enabled(HotkeyAction::HoldToMute.module())
+        }
+        HotkeyRequest::SetDefaultInput { .. } => {
+            module_enabled(HotkeyAction::SetDefaultInputDevice.module())
+        }
+        HotkeyRequest::ToggleDefaultInput { .. } => {
+            module_enabled(HotkeyAction::ToggleDefaultInputDevice.module())
+        }
+        HotkeyRequest::SetDefaultOutput { .. } => {
+            module_enabled(HotkeyAction::SetDefaultOutputDevice.module())
+        }
+        HotkeyRequest::ToggleDefaultOutput { .. } => {
+            module_enabled(HotkeyAction::ToggleDefaultOutputDevice.module())
+        }
+        HotkeyRequest::SetVolume { .. } => module_enabled(HotkeyAction::SetVolume.module()),
+        HotkeyRequest::ChangeVolume { .. } => module_enabled(HotkeyAction::IncreaseVolume.module()),
+        HotkeyRequest::ToggleOutputMute => module_enabled(HotkeyAction::ToggleOutputMute.module()),
+        HotkeyRequest::NextOutputDevice => module_enabled(HotkeyAction::NextOutputDevice.module()),
+        HotkeyRequest::PreviousOutputDevice => {
+            module_enabled(HotkeyAction::PreviousOutputDevice.module())
+        }
+        HotkeyRequest::OpenSettings => module_enabled(HotkeyAction::OpenSettings.module()),
     }
 }
 
@@ -425,6 +463,9 @@ pub(crate) fn run_overlay_action(binding: OverlayActionBinding) {
 }
 
 fn run_hotkey_action(action: HotkeyRequest) {
+    if !hotkey_request_allowed(&action) {
+        return;
+    }
     match action {
         HotkeyRequest::ToggleMute { target } => toggle_mute_target(target.as_deref()),
         HotkeyRequest::SetMute { target, muted } => set_mute_target(target.as_deref(), muted),
@@ -467,15 +508,49 @@ fn run_hotkey_action(action: HotkeyRequest) {
                 eprintln!("failed to change output volume from hotkey: {err:?}");
             }
         }
+        HotkeyRequest::ToggleOutputMute => {
+            if let Err(err) = toggle_output_mute() {
+                eprintln!("failed to toggle output mute from hotkey: {err:?}");
+            }
+        }
+        HotkeyRequest::NextOutputDevice => {
+            if let Err(err) = cycle_output_device(true) {
+                eprintln!("failed to switch to the next output device from hotkey: {err:?}");
+            }
+        }
+        HotkeyRequest::PreviousOutputDevice => {
+            if let Err(err) = cycle_output_device(false) {
+                eprintln!("failed to switch to the previous output device from hotkey: {err:?}");
+            }
+        }
         HotkeyRequest::OpenSettings => open_settings_window(),
     }
 }
 
+fn release_all_hold_hotkeys() {
+    let ids: Vec<String> = STATE
+        .lock()
+        .unwrap()
+        .active_hold_hotkeys
+        .keys()
+        .cloned()
+        .collect();
+    for id in ids {
+        release_hold_hotkey(&id);
+    }
+}
+
 fn toggle_mute() {
+    if !microphone_module_enabled() {
+        return;
+    }
     toggle_mute_target(None);
 }
 
 fn toggle_mute_target(device_id: Option<&str>) {
+    if !microphone_module_enabled() {
+        return;
+    }
     match set_mute_to_inverse(device_id) {
         Ok(target_muted) => {
             play_mute_sound(target_muted);
@@ -487,6 +562,9 @@ fn toggle_mute_target(device_id: Option<&str>) {
 }
 
 fn set_mute_target(device_id: Option<&str>, muted: bool) {
+    if !microphone_module_enabled() {
+        return;
+    }
     match set_mute(device_id, muted) {
         Ok(target_muted) => {
             play_mute_sound(target_muted);
@@ -498,6 +576,9 @@ fn set_mute_target(device_id: Option<&str>, muted: bool) {
 }
 
 fn apply_startup_auto_mute() {
+    if !microphone_module_enabled() {
+        return;
+    }
     let settings = STATE.lock().unwrap().auto_mute.clone();
     if !settings.mute_on_startup {
         return;

@@ -1052,11 +1052,14 @@ pub(crate) fn action_options() -> Vec<SelectOption> {
         crate::HotkeyAction::HoldToToggle,
         crate::HotkeyAction::SetDefaultOutputDevice,
         crate::HotkeyAction::ToggleDefaultOutputDevice,
+        crate::HotkeyAction::NextOutputDevice,
+        crate::HotkeyAction::PreviousOutputDevice,
         crate::HotkeyAction::SetDefaultInputDevice,
         crate::HotkeyAction::ToggleDefaultInputDevice,
         crate::HotkeyAction::IncreaseVolume,
         crate::HotkeyAction::DecreaseVolume,
         crate::HotkeyAction::SetVolume,
+        crate::HotkeyAction::ToggleOutputMute,
         crate::HotkeyAction::OpenSettings,
     ];
 
@@ -1089,11 +1092,20 @@ pub(crate) fn action_options() -> Vec<SelectOption> {
                 crate::HotkeyAction::ToggleDefaultOutputDevice => {
                     option.group("Devices").icon("volume-loud-linear")
                 }
+                crate::HotkeyAction::NextOutputDevice => {
+                    option.group("Devices").icon("volume-loud-linear")
+                }
+                crate::HotkeyAction::PreviousOutputDevice => {
+                    option.group("Devices").icon("volume-loud-linear")
+                }
                 crate::HotkeyAction::SetVolume => option.group("Volume").icon("volume-loud-linear"),
                 crate::HotkeyAction::IncreaseVolume => {
                     option.group("Volume").icon("volume-loud-linear")
                 }
                 crate::HotkeyAction::DecreaseVolume => {
+                    option.group("Volume").icon("volume-loud-linear")
+                }
+                crate::HotkeyAction::ToggleOutputMute => {
                     option.group("Volume").icon("volume-loud-linear")
                 }
                 crate::HotkeyAction::OpenSettings => option.group("System").icon("settings-linear"),
