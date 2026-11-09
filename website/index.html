@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>silence! — Windows mic mute app</title>
+    <title>silence! — free Windows mic mute app with a global hotkey</title>
     <meta name="description" content="Free Windows mic mute app. Mute your microphone in every app with a global hotkey, overlay, sounds, gamepad, and hold-to-mute.">
     <meta name="robots" content="index, follow">
     <meta name="author" content="vertopolkaLF">
@@ -15,14 +15,16 @@
     <meta property="og:type" content="website">
     <meta property="og:locale" content="en_US">
     <meta property="og:site_name" content="silence!">
-    <meta property="og:title" content="silence! — Windows mic mute app">
+    <meta property="og:title" content="silence! — free Windows mic mute app with a global hotkey">
     <meta property="og:description" content="Free Windows mic mute app. Mute your microphone in every app with a global hotkey, overlay, sounds, gamepad, and hold-to-mute.">
     <meta property="og:url" content="https://silencemute.fun/">
     <meta property="og:image" content="https://silencemute.fun/ogimage.png">
+    <meta property="og:image:width" content="2160">
+    <meta property="og:image:height" content="1214">
     <meta property="og:image:alt" content="silence! social preview image">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="silence! — Windows mic mute app">
+    <meta name="twitter:title" content="silence! — free Windows mic mute app with a global hotkey">
     <meta name="twitter:description" content="Free Windows mic mute app. Mute your microphone in every app with a global hotkey, overlay, sounds, gamepad, and hold-to-mute.">
     <meta name="twitter:image" content="https://silencemute.fun/ogimage.png">
     <meta name="twitter:image:alt" content="silence! social preview image">
@@ -44,6 +46,9 @@
             "url": "https://silencemute.fun/",
             "downloadUrl": "https://github.com/vertopolkaLF/silence/releases",
             "image": "https://silencemute.fun/app.png",
+            "screenshot": "https://silencemute.fun/screenshots/1.png",
+            "license": "https://www.apache.org/licenses/LICENSE-2.0",
+            "isAccessibleForFree": true,
             "author": {
                 "@type": "Person",
                 "name": "vertopolkaLF",
@@ -67,7 +72,7 @@
                     "name": "How do I mute my mic on Windows?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Windows 11's Win + Alt + K only mutes supported call apps. To mute your microphone in every app, mute the recording device in Settings > System > Sound, use a hardware mute key, or a global hotkey mic mute app like silence!. Full walkthrough: https://silencemute.fun/mic-mute/"
+                        "text": "<p>Windows 11's Win + Alt + K only mutes supported call apps. To mute the microphone in every app, mute the device in Settings, use a hardware key, or a global hotkey.</p><p>The full walkthrough is in the <a href=\"https://silencemute.fun/mic-mute/\">how to mute your mic on Windows</a> guide.</p>"
                     }
                 },
                 {
@@ -75,39 +80,7 @@
                     "name": "Why use silence! if my mic already has a physical mute button?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of emergency with less hand movement. The overlay and sounds also help you notice when you're still muted."
-                    }
-                },
-                {
-                    "@type": "Question",
-                    "name": "How is this different from Windows 11's Win + Alt + K mute shortcut?",
-                    "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": "silence! mutes the selected microphone device directly, so it still works when Windows says there are no supported apps using the mic. It is also available on Windows 10, which does not have that shortcut."
-                    }
-                },
-                {
-                    "@type": "Question",
-                    "name": "How is it better than muting in Discord, Teams, or another app?",
-                    "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": "You do not need to configure the same shortcut in every app, because silence! works at the microphone device level. You can use one set of hotkeys, see the mute state in the overlay or tray, and keep the same behavior across calls, games, browsers, and recording tools."
-                    }
-                },
-                {
-                    "@type": "Question",
-                    "name": "Why this app was made in the first place?",
-                    "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": "I care a lot about control and efficiency while using my PC, and I wanted a shortcut to mute my microphone. Reaching for a Stream Deck during gaming was awkward, and many other options were unreliable, blocked in games, or just not good. I got tired of that and decided to build my own app for something as simple as muting the mic."
-                    }
-                },
-                {
-                    "@type": "Question",
-                    "name": "What changed in silence! v2?",
-                    "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": "v2 is a rebuild focused on more control and cleaner settings: multiple hotkey actions, gamepad support, default input and output device switching, hold actions, auto-mute, custom overlay and tray icon styles, import/export, v1 settings import, and an in-app updater."
+                        "text": "<p>It's faster to mute with one mouse button click or keyboard shortcut. With silence! you can mute during games and in case of \"emergency\" with less hand movement.</p><p>The overlay and sounds also help you notice when you're still muted, so you avoid those \"how long was I muted?\" moments.</p>"
                     }
                 },
                 {
@@ -115,7 +88,23 @@
                     "name": "Can I request a feature?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Yes. Many updates came directly from community feedback, including gamepad hotkeys, richer overlay controls, tray icon styles, auto-mute, custom sounds, and Hold-to-Mute. You can suggest a feature or report a bug on the project's GitHub issues page."
+                        "text": "<p>Please do! A lot of features in the updates came from the community, including gamepad hotkeys, richer overlay controls, tray icon styles, auto-mute, custom sounds, and Hold-to-Mute.</p><p>You can suggest a feature or report a bug on <a href=\"https://github.com/vertopolkaLF/silence/issues\" target=\"_blank\" rel=\"noopener noreferrer\">GitHub</a>.</p>"
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How is this different from Windows 11's Win + Alt + K mute shortcut?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "<p>silence! mutes the selected microphone device directly, so it keeps working even when Windows says there are no supported apps using the mic.</p><p>It is also a more reliable way to mute the mic, and it works on Windows 10 too. See <a href=\"https://silencemute.fun/mic-mute/#win-alt-k\">why Win + Alt + K fails</a> and the other mic mute methods.</p>"
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "How is it better than muting in Discord, Teams, or another app?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "<p>You don't need to configure the same shortcut in every app, because silence! works at the microphone device level. One set of hotkeys can cover calls, games, browsers, recording tools, and whatever else is currently trying to hear you breathe.</p>"
                     }
                 },
                 {
@@ -123,7 +112,7 @@
                     "name": "Can silence! mute only one app instead of muting me everywhere?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "No. silence! is designed as a system-level mic mute, so muting it in silence! mutes that microphone for every app using the device."
+                        "text": "<p>No. silence! is designed as a system-level mic mute, so if you mute with silence!, your microphone is muted for every app using that device.</p>"
                     }
                 },
                 {
@@ -131,7 +120,7 @@
                     "name": "Does it warn me if I start talking while muted?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "No. silence! focuses on reliable microphone control first, not voice activity detection. It handles the mute state itself plus overlay and sound feedback."
+                        "text": "<p>No, and probably never will. The goal with silence! is to make mic control reliable first, and everything else comes after that.</p><p>If the app had to keep access to the microphone while other apps did not, that could make mute behavior less trustworthy. When the mic is muted, silence! also does not have microphone access.</p>"
                     }
                 },
                 {
@@ -139,7 +128,7 @@
                     "name": "Can I 100% trust that my mic is muted?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Nothing deserves 100% blind trust, but silence! uses the Windows-level mute state for the microphone device. You can verify it in Windows microphone properties, and some microphones with hardware mute indicators will reflect that state too. Keep in mind that some apps can still try to force an unmute."
+                        "text": "<p>You should never trust anything 100%, but I'm pretty confident in it. silence! uses low-level hotkey detection and mutes the mic in a <i>Windows way&trade;</i>.</p><p>When you mute your mic with silence!, you can confirm it in Windows microphone properties, and some microphones with physical indicators will reflect that state too. Keep in mind that some apps can still force an unmute.</p>"
                     }
                 },
                 {
@@ -147,7 +136,23 @@
                     "name": "Why this app is so good?",
                     "acceptedAnswer": {
                         "@type": "Answer",
-                        "text": "Short answer: because I use it myself. Long answer: I care about control, reliability, and polish, so the app is built around the workflows I actually need every day: fast mute control, clear feedback, and settings that apply immediately."
+                        "text": "<p>Short answer: because I use it myself.</p><p>Long answer: I care about control, reliability, and polish, so the app is built around the workflows I actually need every day: fast mute control, clear feedback, and settings that apply immediately.</p>"
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "Why this app was made in the first place?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "<p>I'm a bit addicted to control and efficiency while using my PC, and I wanted a shortcut to mute my mic. Reaching for a Stream Deck during gaming was awkward.</p><p>I tried a lot of alternatives. Some relied on AHK and got blocked in games, and some were just bad. I got tired of that and decided to build my own app for something as simple as muting the mic.</p>"
+                    }
+                },
+                {
+                    "@type": "Question",
+                    "name": "What changed in silence! v2?",
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": "<p>v2 is a rebuild focused on more control and cleaner settings: multiple hotkey actions, gamepad support, default input and output device switching, hold actions, auto-mute, custom overlay and tray icon styles, import/export, v1 settings import, and an in-app updater.</p><p>Settings apply immediately, because Save buttons for this kind of utility are ceremonial nonsense.</p>"
                     }
                 }
             ]
