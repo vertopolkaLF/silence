@@ -354,6 +354,12 @@ const SOUND_THEMES: &[SoundTheme] = &[
 fn main() -> Result<()> {
     set_dpi_awareness();
 
+    // Hidden dev entry. Must run before the single-instance mutex so a running
+    // tray app is left alone.
+    if std::env::args().any(|arg| arg == "--volume-osd-demo") {
+        return volume_osd::run_demo();
+    }
+
     if let Some(action) = notification_action_from_args(std::env::args().skip(1)) {
         if dispatch_notification_action(action) {
             return Ok(());
