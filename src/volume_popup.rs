@@ -22,9 +22,9 @@ use windows::Win32::{
     },
 };
 
-/// Card size in logical pixels, without the shadow gutter.
-pub(crate) const CARD_W: f32 = 300.0;
-pub(crate) const CARD_H: f32 = 98.0;
+/// Card width in logical pixels, without the shadow gutter. The height
+/// depends on how many apps are playing (see the GPUI view).
+pub(crate) const CARD_W: f32 = 360.0;
 /// Transparent margin around the card for its shadow.
 pub(crate) const GUTTER: f32 = 18.0;
 /// Space between the card and the taskbar.
@@ -129,9 +129,39 @@ pub(crate) fn attach(hwnd: HWND) {
     }
 }
 
+/// The anchor the popup was last opened from.
+pub(crate) fn last_anchor() -> RECT {
+    *ANCHOR.lock().unwrap()
+}
+
+/// Monitor rectangle and the card's own rectangle (physical pixels, screen
+/// coordinates, without the shadow gutter) for a card `card_h` tall.
+pub(crate) fn card_screen_rect(anchor: RECT, card_h: f32) -> (RECT, RECT) {
+    let (x, y, width, height) = placement(anchor, card_h);
+    let monitor = unsafe { MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST) };
+    let mut info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    let _ = unsafe { GetMonitorInfoW(monitor, &mut info) };
+    let mut dpi_x = 96u32;
+    let mut dpi_y = 96u32;
+    let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
+    let gutter = (GUTTER * dpi_x.max(96) as f32 / 96.0).round() as i32;
+    (
+        info.rcMonitor,
+        RECT {
+            left: x + gutter,
+            top: y + gutter,
+            right: x + width - gutter,
+            bottom: y + height - gutter,
+        },
+    )
+}
+
 /// Window rectangle (physical pixels) for the popup next to `anchor`, on the
 /// anchor's monitor, sitting on the taskbar edge the icon lives on.
-pub(crate) fn placement(anchor: RECT) -> (i32, i32, i32, i32) {
+pub(crate) fn placement(anchor: RECT, card_h: f32) -> (i32, i32, i32, i32) {
     let monitor = unsafe { MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST) };
     let mut info = MONITORINFO {
         cbSize: size_of::<MONITORINFO>() as u32,
@@ -144,7 +174,7 @@ pub(crate) fn placement(anchor: RECT) -> (i32, i32, i32, i32) {
     let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
     let scale = dpi_x.max(96) as f32 / 96.0;
     let width = ((CARD_W + GUTTER * 2.0) * scale).round() as i32;
-    let height = ((CARD_H + GUTTER * 2.0) * scale).round() as i32;
+    let height = ((card_h + GUTTER * 2.0) * scale).round() as i32;
     let gutter = (GUTTER * scale).round() as i32;
     let gap = (TASKBAR_GAP * scale).round() as i32;
     let center_x = (anchor.left + anchor.right) / 2;
