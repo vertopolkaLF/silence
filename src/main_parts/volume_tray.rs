@@ -362,6 +362,11 @@ fn show_volume_popup() {
     if volume_popup::volume_popup_just_closed() {
         return;
     }
+    volume_popup::volume_popup_show(volume_tray_anchor(), popup_state(&output_volume_state()));
+}
+
+/// Screen rectangle of the volume tray icon, or a spot under the cursor.
+fn volume_tray_anchor() -> RECT {
     let hwnd = STATE.lock().unwrap().hwnd;
     use windows::Win32::UI::Shell::{NOTIFYICONIDENTIFIER, Shell_NotifyIconGetRect};
     let identifier = NOTIFYICONIDENTIFIER {
@@ -370,16 +375,163 @@ fn show_volume_popup() {
         uID: ID_VOLUME_TRAY,
         ..Default::default()
     };
-    let anchor = unsafe { Shell_NotifyIconGetRect(&identifier) }
+    unsafe { Shell_NotifyIconGetRect(&identifier) }
         .ok()
         .filter(|rect| rect.right > rect.left && rect.bottom > rect.top)
-        .unwrap_or_else(volume_popup::cursor_anchor);
-    volume_popup::volume_popup_show(anchor, popup_state(&output_volume_state()));
+        .unwrap_or_else(volume_popup::cursor_anchor)
 }
 
+/// Opens the classic mixer above the tray icon, as wide as its tiles.
 fn open_volume_mixer() {
+    let anchor = volume_tray_anchor();
+    if let Some(mixer) = volume_mixer::find() {
+        volume_mixer::fit(mixer, anchor);
+        unsafe {
+            let _ = ShowWindow(mixer, SW_RESTORE);
+            let _ = SetForegroundWindow(mixer);
+        }
+        return;
+    }
     if let Err(err) = Command::new("sndvol.exe").spawn() {
         eprintln!("failed to open volume mixer: {err:?}");
+        return;
+    }
+    std::thread::spawn(move || volume_mixer::fit_when_ready(anchor));
+}
+
+mod volume_mixer {
+    use std::time::{Duration, Instant};
+    use windows::Win32::{
+        Foundation::{BOOL, HWND, LPARAM, RECT},
+        Graphics::{
+            Dwm::{DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute},
+            Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromRect},
+        },
+        UI::{
+            HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
+            WindowsAndMessaging::{
+                EnumWindows, FindWindowExW, GetClassNameW, GetClientRect, GetWindowRect,
+                SWP_NOACTIVATE, SWP_NOZORDER, SetWindowPos,
+            },
+        },
+    };
+    use windows::core::w;
+
+    /// Gap between the mixer and the taskbar, in logical pixels.
+    const GAP: f32 = 12.0;
+
+    /// The mixer's top-level dialog: the only `#32770` holding a `TileListView`.
+    pub(super) fn find() -> Option<HWND> {
+        unsafe extern "system" fn visit(hwnd: HWND, found: LPARAM) -> BOOL {
+            let mut class = [0u16; 16];
+            let len = unsafe { GetClassNameW(hwnd, &mut class) } as usize;
+            if String::from_utf16_lossy(&class[..len]) == "#32770" && tiles(hwnd).is_some() {
+                unsafe { *(found.0 as *mut isize) = hwnd.0 as isize };
+                return BOOL(0);
+            }
+            BOOL(1)
+        }
+        let mut found = 0isize;
+        let _ = unsafe { EnumWindows(Some(visit), LPARAM(&mut found as *mut isize as isize)) };
+        (found != 0).then_some(HWND(found as *mut _))
+    }
+
+    /// The scrolling tile list and the strip inside it that holds every tile.
+    fn tiles(mixer: HWND) -> Option<(HWND, HWND)> {
+        unsafe {
+            let list = FindWindowExW(mixer, None, w!("TileListView"), None).ok()?;
+            let sled = FindWindowExW(list, None, w!("TileSled Window"), None).ok()?;
+            Some((list, sled))
+        }
+    }
+
+    /// Width change that makes the tile list show every tile without scrolling.
+    fn missing_width(mixer: HWND) -> Option<i32> {
+        let (list, sled) = tiles(mixer)?;
+        let mut client = RECT::default();
+        let mut strip = RECT::default();
+        unsafe {
+            GetClientRect(list, &mut client).ok()?;
+            GetWindowRect(sled, &mut strip).ok()?;
+        }
+        let strip_w = strip.right - strip.left;
+        (strip_w > 0).then(|| strip_w - (client.right - client.left))
+    }
+
+    /// Sizes the mixer to its tiles and sets it on the taskbar edge by `anchor`.
+    pub(super) fn fit(mixer: HWND, anchor: RECT) {
+        let mut window = RECT::default();
+        if unsafe { GetWindowRect(mixer, &mut window) }.is_err() {
+            return;
+        }
+        // Visible frame, without the invisible resize borders.
+        let mut frame = window;
+        let _ = unsafe {
+            DwmGetWindowAttribute(
+                mixer,
+                DWMWA_EXTENDED_FRAME_BOUNDS,
+                (&mut frame as *mut RECT).cast(),
+                size_of::<RECT>() as u32,
+            )
+        };
+        let (left, top) = (frame.left - window.left, frame.top - window.top);
+        let (right, bottom) = (window.right - frame.right, window.bottom - frame.bottom);
+
+        let monitor = unsafe { MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST) };
+        let mut info = MONITORINFO {
+            cbSize: size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        let _ = unsafe { GetMonitorInfoW(monitor, &mut info) };
+        let work = info.rcWork;
+        let (mut dpi, mut dpi_y) = (96u32, 96u32);
+        let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut dpi_y) };
+        let gap = (GAP * dpi.max(96) as f32 / 96.0).round() as i32;
+
+        let max_w = (work.right - work.left) - gap * 2;
+        let visible_w =
+            ((frame.right - frame.left) + missing_width(mixer).unwrap_or(0)).min(max_w);
+        let visible_h = (frame.bottom - frame.top).min((work.bottom - work.top) - gap * 2);
+        let center = (anchor.left + anchor.right) / 2;
+        let x = (center - visible_w / 2).clamp(work.left + gap, work.right - gap - visible_w);
+        let y = if anchor.bottom <= work.top + 1 {
+            work.top + gap
+        } else if anchor.top >= work.bottom - 1 {
+            work.bottom - gap - visible_h
+        } else {
+            ((anchor.top + anchor.bottom) / 2 - visible_h / 2)
+                .clamp(work.top + gap, work.bottom - gap - visible_h)
+        };
+        let _ = unsafe {
+            SetWindowPos(
+                mixer,
+                None,
+                x - left,
+                y - top,
+                visible_w + left + right,
+                visible_h + top + bottom,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+        };
+    }
+
+    /// Waits for a freshly started mixer, then keeps it fitted while its
+    /// tiles are still being added.
+    pub(super) fn fit_when_ready(anchor: RECT) {
+        let started = Instant::now();
+        let mut fitted_at: Option<Instant> = None;
+        while started.elapsed() < Duration::from_secs(5) {
+            if let Some(mixer) = find() {
+                if fitted_at.is_none() || missing_width(mixer).is_some_and(|missing| missing != 0) {
+                    fit(mixer, anchor);
+                    fitted_at.get_or_insert_with(Instant::now);
+                }
+                if fitted_at.is_some_and(|at| at.elapsed() > Duration::from_millis(1500)) {
+                    return;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(8));
+        }
     }
 }
 
