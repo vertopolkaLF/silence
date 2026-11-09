@@ -3883,6 +3883,7 @@ dependencies = [
  "gilrs",
  "gpui",
  "gpui_windows",
+ "image",
  "once_cell",
  "raw-window-handle",
  "reqwest",

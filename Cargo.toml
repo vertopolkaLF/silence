@@ -16,6 +16,8 @@ raw-window-handle = { version = "0.6", features = ["std"] }
 gilrs = "0.11.1"
 once_cell = "1.21"
 resvg = "0.47"
+# Already built for GPUI; decodes the wallpaper for the OSD's fake Mica.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "bmp", "webp"] }
 rodio = "0.22.2"
 rfd = "0.15"
 serde = { version = "1.0", features = ["derive"] }

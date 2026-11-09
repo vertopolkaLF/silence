@@ -728,6 +728,7 @@ unsafe extern "system" fn main_wnd_proc(
         WM_AUDIO_ENDPOINT_CHANGED => {
             ensure_audio_notification_registration();
             refresh_mute_state();
+            on_capture_endpoints_changed();
             LRESULT(0)
         }
         WM_OUTPUT_VOLUME_CHANGED => {

@@ -17,7 +17,7 @@ use gpui::{
     App, AssetSource, Bounds, BoxShadow, Context, FontWeight, IntoElement, Render, Rgba,
     SharedString, Task, TextRun, Window, WindowBackgroundAppearance, WindowBounds, WindowKind,
     WindowOptions, WindowingRequest, div, font, linear_color_stop, linear_gradient, point,
-    prelude::*, px, rgb, size, svg,
+    ObjectFit, img, prelude::*, px, rgb, size, svg,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{
@@ -191,6 +191,8 @@ struct VolumeChrome {
     /// Draw the speaker/device glyph from Segoe Fluent Icons (the system
     /// volume flyout's own glyphs) instead of the Solar SVGs.
     fluent: bool,
+    /// Fake Mica: blurred wallpaper under a translucent `surface`.
+    mica: bool,
 }
 
 struct ChromeLayer {
@@ -766,6 +768,19 @@ impl Render for VolumeView {
         let percent = self.content.percent();
         let label = percent.to_string();
 
+        // Sample the wallpaper where the card settles, not mid-slide.
+        let mica = if chrome.mica {
+            let final_w = (self.width.to * window_scale).round() as i32;
+            let final_h = (self.height.to * window_scale).round() as i32;
+            crate::volume_osd::card_rect(final_w, final_h)
+                .and_then(|(monitor, rect)| super::mica::crop(monitor, rect))
+        } else {
+            None
+        };
+        if chrome.mica && mica.is_none() && super::mica::pending() {
+            // Still blurring in the background; repaint once it is ready.
+            window.request_animation_frame();
+        }
         let mut card = div()
             .absolute()
             .left(px(gutter))
@@ -773,8 +788,34 @@ impl Render for VolumeView {
             .w(px(width))
             .h(px(height))
             .rounded(px(radius))
-            .opacity(alpha)
-            .bg(surface);
+            .opacity(alpha);
+        card = match &mica {
+            Some(wallpaper) => {
+                let mut tint = surface;
+                tint.a = if self.system.light { 0.62 } else { 0.72 };
+                card.child(
+                    img(wallpaper.clone())
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .w(px(width))
+                        .h(px(height))
+                        .rounded(px(radius))
+                        .object_fit(ObjectFit::Fill),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .w(px(width))
+                        .h(px(height))
+                        .rounded(px(radius))
+                        .bg(tint),
+                )
+            }
+            None => card.bg(surface),
+        };
         card = match shadow {
             Some(shadow) => card.shadow(vec![shadow]),
             None => card.shadow_md(),
@@ -1126,6 +1167,7 @@ fn content_glyph(content: &VolumeOsdContent) -> &'static str {
         VolumeOsdContent::Device { kind, .. } => match kind {
             DeviceKind::Headphones => "device-headphones",
             DeviceKind::Display => "device-monitor",
+            DeviceKind::Microphone => "device-microphone",
             DeviceKind::Speakers | DeviceKind::Other => "device-speakers",
         },
     }
@@ -1146,6 +1188,7 @@ fn fluent_glyph(content: &VolumeOsdContent) -> &'static str {
         VolumeOsdContent::Device { kind, .. } => match kind {
             DeviceKind::Headphones => "fluent:E7F6",
             DeviceKind::Display => "fluent:E7F4",
+            DeviceKind::Microphone => "fluent:E720",
             DeviceKind::Speakers | DeviceKind::Other => "fluent:E7F5",
         },
     }
@@ -1214,6 +1257,7 @@ pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
         "device-speakers" => include_str!("../../assets/icons/volume/speaker-bold.svg"),
         "device-headphones" => include_str!("../../assets/icons/volume/headphones-round-bold.svg"),
         "device-monitor" => include_str!("../../assets/icons/volume/monitor-bold.svg"),
+        "device-microphone" => include_str!("../../assets/icons/microphone-3-bold.svg"),
         // Pulldown-screen glyph. Display endpoints use the monitor; this stays
         // in the binary because the task asked for the Solar display icon.
         "device-screen" => include_str!("../../assets/icons/volume/display-bold.svg"),
@@ -1227,6 +1271,7 @@ fn chrome_for(theme: &str, system: System, muted: bool) -> VolumeChrome {
     if theme != "Windows" {
         // Other themes start from the previous neutral base, not the
         // flyout-specific metrics; they keep the Fluent glyphs.
+        chrome.mica = false;
         chrome.height = 49.0;
         chrome.pad_x = 16.0;
         chrome.gap = 12.0;
@@ -1294,6 +1339,7 @@ fn windows_chrome(system: System) -> VolumeChrome {
         bar_height: 4.0,
         ink: foreground,
         fluent: true,
+        mica: true,
     }
 }
 

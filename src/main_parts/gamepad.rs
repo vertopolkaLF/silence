@@ -233,6 +233,11 @@ fn run_background_app() -> Result<()> {
         ensure_gamepad_monitors(true);
     }
     ensure_audio_notification_registration();
+    // Seed the default microphone so the first real switch shows the OSD.
+    on_capture_endpoints_changed();
+    if volume_module_enabled() {
+        crate::gpui_overlay::mica::prewarm();
+    }
     add_tray_icon(hwnd)?;
     add_volume_tray_icon(hwnd);
     if !STATE.lock().unwrap().welcome_completed {

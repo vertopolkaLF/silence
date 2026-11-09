@@ -147,6 +147,8 @@ pub enum DeviceKind {
     Headphones,
     /// Monitors and other video-output endpoints.
     Display,
+    /// Default input device change.
+    Microphone,
     Other,
 }
 
@@ -343,6 +345,30 @@ pub(crate) fn set_geometry(
     osd.inset_y = inset_y.max(0);
     osd.slide = slide.clamp(0.0, 1.0);
     osd.apply_layout();
+}
+
+/// Screen rectangles (physical pixels) of the monitor and of a card of this
+/// size once it has slid in, for sampling the wallpaper under it.
+pub(crate) fn card_rect(width: i32, height: i32) -> Option<(RECT, RECT)> {
+    let guard = OSD.lock().unwrap();
+    let osd = guard.as_ref()?;
+    let monitor = selected_monitor(&osd.display);
+    let rect = monitor.rect;
+    let width = width.max(1);
+    let height = height.max(1);
+    let screen_w = (rect.right - rect.left).max(width);
+    let screen_h = (rect.bottom - rect.top).max(height);
+    let x = rect.left + percent_to_axis(osd.position_x, screen_w, width);
+    let y = rect.top + percent_to_axis(osd.position_y, screen_h, height);
+    Some((
+        rect,
+        RECT {
+            left: x,
+            top: y,
+            right: x + width,
+            bottom: y + height,
+        },
+    ))
 }
 
 pub(crate) fn present(visible: bool) {

@@ -395,6 +395,45 @@ pub fn on_output_device_changed(state: &OutputVolumeState) {
     cancel_volume_change_sound();
 }
 
+static LAST_DEFAULT_CAPTURE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// The default microphone changed: show the device OSD with its name, like
+/// an output switch. The first call only records the current default.
+pub(crate) fn on_capture_endpoints_changed() {
+    let Some(device) = capture_devices()
+        .ok()
+        .and_then(|devices| devices.into_iter().find(|device| device.is_default))
+    else {
+        return;
+    };
+    let changed = {
+        let mut last = LAST_DEFAULT_CAPTURE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let changed = last.as_deref().is_some_and(|id| id != device.id);
+        *last = Some(device.id.clone());
+        changed
+    };
+    if !changed {
+        return;
+    }
+    let (show, mode) = {
+        let app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        (
+            app.volume.osd.show_on_device_change,
+            app.advanced.audio_device_name_display.clone(),
+        )
+    };
+    if show {
+        show_volume_osd(volume_osd::VolumeOsdContent::Device {
+            name: device.display_name(&mode),
+            kind: volume_osd::DeviceKind::Microphone,
+            percent: 0,
+            muted: false,
+        });
+    }
+}
+
 /// Device name as the user chose to see names (Pretty / System / Both).
 fn output_display_name(state: &OutputVolumeState) -> String {
     let mode = STATE

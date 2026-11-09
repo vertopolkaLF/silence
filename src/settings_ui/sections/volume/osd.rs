@@ -151,8 +151,8 @@ pub(crate) fn render(
                 .child(field("Visibility", visibility))
                 .child(duration)
                 .child(super::super::general::card_row(
-                    "Show when the output device changes",
-                    Some("Names the new device, then shows its volume."),
+                    "Show when the default device changes",
+                    Some("Speakers, headphones or microphone: shows the new device's name."),
                     on_device,
                     true,
                     cx,
