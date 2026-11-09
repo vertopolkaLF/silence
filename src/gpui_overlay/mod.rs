@@ -4,6 +4,7 @@
 mod clip;
 mod details;
 pub(crate) mod fonts;
+pub(crate) mod backdrop;
 pub(crate) mod mica;
 mod motion;
 mod sticker;

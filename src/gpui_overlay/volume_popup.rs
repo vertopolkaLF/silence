@@ -177,6 +177,16 @@ fn create(cx: &mut App) -> Option<(WindowHandle<PopupView>, HWND)> {
         return None;
     };
     crate::volume_popup::attach(hwnd);
+    let _ = handle.update(cx, |view, _, _| {
+        view.backdrop = match super::backdrop::Backdrop::new(hwnd, luminosity(view.system.light)) {
+            Ok(backdrop) => Some(backdrop),
+            Err(error) => {
+                // Windows 10: the wallpaper-crop fallback stays in use.
+                eprintln!("volume popup: no Mica backdrop: {error:#}");
+                None
+            }
+        };
+    });
     POPUP.with(|popup| *popup.borrow_mut() = Some((handle, hwnd)));
     Some((handle, hwnd))
 }
@@ -195,10 +205,17 @@ fn place(hwnd: HWND, anchor: RECT, card_h: f32, activate: bool) {
     }
 }
 
+/// Lightness the Mica wallpaper is blended to (candle-tray's tuning).
+fn luminosity(light: bool) -> u8 {
+    if light { 245 } else { 52 }
+}
+
 struct Colors {
     surface: Rgba,
-    /// Over the blurred wallpaper.
+    /// Over the fake (wallpaper-crop) Mica.
     mica_tint: Rgba,
+    /// Over the real Mica backdrop: WinUI's tint at half opacity.
+    glass_tint: Rgba,
     border: Rgba,
     divider: Rgba,
     text: Rgba,
@@ -224,6 +241,7 @@ impl Colors {
             Self {
                 surface: rgb(0xF3F3F3),
                 mica_tint: rgba(0xF3F3_F3A6),
+                glass_tint: rgba(0xF3F3_F380),
                 border: rgba(0x0000_0018),
                 divider: rgba(0x0000_0014),
                 text: rgb(0x1B1B1B),
@@ -239,6 +257,7 @@ impl Colors {
             Self {
                 surface: rgb(0x2C2C2C),
                 mica_tint: rgba(0x2020_20BA),
+                glass_tint: rgba(0x2020_2080),
                 border: rgba(0xFFFF_FF1A),
                 divider: rgba(0xFFFF_FF14),
                 text: rgb(0xFFFFFF),
@@ -289,6 +308,8 @@ struct PopupView {
     timeout: Option<Task<()>>,
     poll: Option<Task<()>>,
     shrink: Option<Task<()>>,
+    /// Real Mica under the window; `None` before Windows 11.
+    backdrop: Option<super::backdrop::Backdrop>,
     _activation: gpui::Subscription,
 }
 
@@ -323,6 +344,7 @@ impl PopupView {
             timeout: None,
             poll: None,
             shrink: None,
+            backdrop: None,
             _activation: activation,
         }
     }
@@ -893,13 +915,31 @@ impl Render for PopupView {
             window.request_animation_frame();
         }
 
-        // Fake Mica: the blurred wallpaper under where the card settles.
-        let mica = {
+        // Real Mica: the glass follows the card's bounds and fade.
+        let glass = match &mut self.backdrop {
+            Some(backdrop) if backdrop.usable() => {
+                let scale = window.scale_factor();
+                let viewport_h = window.viewport_size().height.as_f32();
+                let top = viewport_h - GUTTER - height + 8.0 * (1.0 - t);
+                backdrop.set_luminosity(luminosity(self.system.light));
+                backdrop.update(
+                    [GUTTER * scale, top * scale, CARD_W * scale, height * scale],
+                    RADIUS * scale,
+                    t,
+                );
+                backdrop.usable()
+            }
+            _ => false,
+        };
+        // Fallback: the blurred wallpaper under where the card settles.
+        let mica = if glass {
+            None
+        } else {
             let (monitor, card) =
                 crate::volume_popup::card_screen_rect(crate::volume_popup::last_anchor(), self.card_h.to);
             super::mica::crop(monitor, card)
         };
-        if mica.is_none() && super::mica::pending() {
+        if !glass && mica.is_none() && super::mica::pending() {
             window.request_animation_frame();
         }
 
@@ -956,6 +996,7 @@ impl Render for PopupView {
                         .rounded(px(RADIUS))
                         .bg(colors.mica_tint),
                 ),
+            None if glass => card.bg(colors.glass_tint),
             None => card.bg(colors.surface),
         };
         let content = div()
