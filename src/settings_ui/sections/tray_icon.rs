@@ -47,13 +47,6 @@ pub(crate) fn render(
     let tone = if muted { p.danger } else { p.success };
     let status_open = config.variant == "StatusMic";
     let expanded = app.sections.tray_icon.icons_expanded;
-    let status = anim::tween(
-        window,
-        cx,
-        "tray-status-reveal",
-        status_open as u8 as f32,
-        anim::UI,
-    );
     let extra = anim::tween(
         window,
         cx,
