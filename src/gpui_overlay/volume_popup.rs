@@ -79,6 +79,8 @@ struct Layout {
     labeled: bool,
     /// Device name as a header above the device row.
     header: bool,
+    /// Device row under the app list instead of above it.
+    device_at_bottom: bool,
 }
 
 impl Layout {
@@ -87,6 +89,7 @@ impl Layout {
         Self {
             labeled: config.layout == crate::VolumePopupLayout::Labeled,
             header: config.device_header,
+            device_at_bottom: config.device_at_bottom,
         }
     }
 
@@ -113,19 +116,32 @@ impl Layout {
         (PAD_LEFT - (last_row_h - BUTTON) / 2.0).max(0.0)
     }
 
+    /// Last row on the card: the device, or the last app when the device is on top.
+    fn last_row_h(self, apps: usize) -> f32 {
+        if apps == 0 || self.device_at_bottom {
+            self.device_row_h()
+        } else {
+            self.app_row_h()
+        }
+    }
+
     /// Everything but the app rows, divider included.
     fn fixed_h(self) -> f32 {
-        PAD_Y + self.pad_bottom(self.app_row_h()) + self.header_h() + self.device_row_h() + DIVIDER_H
+        PAD_Y
+            + self.pad_bottom(self.last_row_h(1))
+            + self.header_h()
+            + self.device_row_h()
+            + DIVIDER_H
     }
 
     fn card_height(self, apps: usize) -> f32 {
         let apps = apps.min(self.max_visible_apps());
-        let (list, last_row_h) = if apps == 0 {
-            (0.0, self.device_row_h())
+        let list = if apps == 0 {
+            0.0
         } else {
-            (DIVIDER_H + apps as f32 * self.app_row_h(), self.app_row_h())
+            DIVIDER_H + apps as f32 * self.app_row_h()
         };
-        PAD_Y + self.pad_bottom(last_row_h) + self.header_h() + self.device_row_h() + list
+        PAD_Y + self.pad_bottom(self.last_row_h(apps)) + self.header_h() + self.device_row_h() + list
     }
 
     /// As many app rows as fit the screen; more only scroll.
@@ -484,11 +500,7 @@ impl PopupView {
         self.system = System::load();
         // Settings can change while the popup is hidden; size for them
         // before it is placed.
-        let layout = Layout::load();
-        if layout != self.layout {
-            self.layout = layout;
-            self.resize(cx);
-        }
+        self.apply_layout(cx);
         if self.closing {
             self.closing = false;
             self.appear.retarget(1.0, Instant::now());
@@ -512,8 +524,17 @@ impl PopupView {
         }));
     }
 
+    fn apply_layout(&mut self, cx: &mut Context<Self>) {
+        let layout = Layout::load();
+        if layout != self.layout {
+            self.layout = layout;
+            self.resize(cx);
+        }
+    }
+
     /// Reads the app sessions (and new icons) off the UI thread.
     fn refresh_apps(&mut self, cx: &mut Context<Self>) {
+        self.apply_layout(cx);
         let icon_px = (APP_ICON * 2.0) as u32;
         let known: Vec<_> = self.icons.keys().cloned().collect();
         cx.spawn(async move |view, cx| {
@@ -654,6 +675,7 @@ impl PopupView {
             self.local_percent = None;
         }
         self.state = state;
+        self.apply_layout(cx);
         cx.notify();
     }
 
@@ -1179,6 +1201,15 @@ impl Render for NameTooltip {
     }
 }
 
+fn popup_divider(colors: &Colors) -> gpui::Div {
+    div()
+        .h(px(DIVIDER_H))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .child(div().w_full().h(px(1.)).bg(colors.divider))
+}
+
 /// A Fluent glyph centered in a `box_size` square.
 fn glyph_box(glyph: char, glyph_size: f32, box_size: f32, color: Rgba) -> gpui::Div {
     div()
@@ -1298,44 +1329,41 @@ impl Render for PopupView {
             None => card.bg(colors.surface),
         };
         let device_row = self.device_row(&colors, window, cx);
-        let content = div()
+        let apps_first = self.layout.device_at_bottom && !self.apps.is_empty();
+        let mut content = div()
             .relative()
             .size_full()
             .overflow_hidden()
             .pt(px(PAD_Y))
+            .pb(px(self.layout.pad_bottom(self.layout.last_row_h(self.apps.len()))))
             .flex()
-            .flex_col()
-            .when(self.layout.header, |d| {
-                d.child(
-                    // Starts at the icons' left edge.
-                    div()
-                        .h(px(HEADER_H))
-                        .flex_shrink_0()
-                        .pl(px(PAD_LEFT + (BUTTON - APP_ICON) / 2.0))
-                        .pr(px(PAD_RIGHT))
-                        .flex()
-                        .items_center()
-                        .text_size(px(13.))
-                        .font_weight(FontWeight(600.))
-                        .text_color(colors.text)
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .text_ellipsis()
-                        .child(self.device_name()),
-                )
-            })
-            .child(device_row)
-            .when(!self.apps.is_empty(), |d| {
-                d.child(
-                    div()
-                        .h(px(DIVIDER_H))
-                        .flex_shrink_0()
-                        .flex()
-                        .items_center()
-                        .child(div().w_full().h(px(1.)).bg(colors.divider)),
-                )
-                .child(list)
-            });
+            .flex_col();
+        if apps_first {
+            content = content.child(list).child(popup_divider(&colors));
+        }
+        if self.layout.header {
+            content = content.child(
+                // Starts at the icons' left edge.
+                div()
+                    .h(px(HEADER_H))
+                    .flex_shrink_0()
+                    .pl(px(PAD_LEFT + (BUTTON - APP_ICON) / 2.0))
+                    .pr(px(PAD_RIGHT))
+                    .flex()
+                    .items_center()
+                    .text_size(px(13.))
+                    .font_weight(FontWeight(600.))
+                    .text_color(colors.text)
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .child(self.device_name()),
+            );
+        }
+        content = content.child(device_row);
+        if !self.apps.is_empty() && !apps_first {
+            content = content.child(popup_divider(&colors)).child(list);
+        }
         // Hairline drawn over the background, not around it: a real border
         // would leave the wallpaper inset by a pixel with seams at the corners.
         let card = card.child(content).child(

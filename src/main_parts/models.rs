@@ -2006,6 +2006,9 @@ pub struct VolumePopupConfig {
     /// Device name as a small header above the device slider.
     #[serde(default = "default_volume_popup_device_header")]
     pub device_header: bool,
+    /// Device slider under the app list instead of above it.
+    #[serde(default)]
+    pub device_at_bottom: bool,
 }
 
 fn default_volume_popup_device_header() -> bool {
@@ -2017,6 +2020,7 @@ impl Default for VolumePopupConfig {
         Self {
             layout: VolumePopupLayout::default(),
             device_header: default_volume_popup_device_header(),
+            device_at_bottom: false,
         }
     }
 }

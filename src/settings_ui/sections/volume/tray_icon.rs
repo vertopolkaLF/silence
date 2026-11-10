@@ -175,6 +175,15 @@ fn tray_popup_panel(
             app.update_config(cx, |config| config.volume.popup.device_header = checked);
         },
     );
+    let device_at_bottom = controls::toggle(
+        "volume-popup-device-bottom",
+        popup.device_at_bottom,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            app.update_config(cx, |config| config.volume.popup.device_at_bottom = checked);
+        },
+    );
     form::panel(18., true, cx)
         .mt(px(18.))
         .child(form::section_heading("Slider popup"))
@@ -183,6 +192,13 @@ fn tray_popup_panel(
             "Device name header",
             Some("Shows the output device's name above its slider."),
             header,
+            false,
+            cx,
+        ))
+        .child(super::super::general::card_row(
+            "Device at the bottom",
+            Some("Puts the output slider under the app list."),
+            device_at_bottom,
             true,
             cx,
         ))

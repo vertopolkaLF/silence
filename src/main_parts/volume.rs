@@ -601,6 +601,9 @@ pub(crate) fn apply_volume_osd_config(config: &Config) {
         // Turning the module on warms the OSD and popup like a fresh start.
         let _ = volume_osd::volume_osd_init();
     }
+    if volume_popup::volume_popup_open() {
+        volume_popup::volume_popup_update(popup_state(&output_volume_state()));
+    }
     if !config.modules.volume || !style.enabled {
         volume_osd::volume_osd_hide();
         return;
