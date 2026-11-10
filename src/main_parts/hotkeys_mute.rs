@@ -146,7 +146,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         }
     }
 
-    if swallow_volume_media_key(vk, kb.flags.0, is_down, is_up, hotkey_claimed) {
+    if swallow_volume_media_key(vk, is_down, is_up, hotkey_claimed) {
         return LRESULT(1);
     }
 

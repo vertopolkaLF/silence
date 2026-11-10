@@ -477,6 +477,24 @@ pub(crate) fn present(visible: bool) {
     }
 }
 
+/// `true` while a fullscreen app (a game, a fullscreen video) covers the
+/// monitor the OSD shows on.
+pub(crate) fn over_fullscreen() -> bool {
+    let center = {
+        let guard = OSD.lock().unwrap();
+        let Some(osd) = guard.as_ref() else {
+            return false;
+        };
+        let rect = selected_monitor(&osd.display).rect;
+        POINT {
+            x: rect.left + (rect.right - rect.left) / 2,
+            y: rect.top + (rect.bottom - rect.top) / 2,
+        }
+    };
+    // The lock is released first: the query makes cross-process calls.
+    crate::wheel_volume::fullscreen_blocks_wheel(center)
+}
+
 pub(crate) fn monitor_scale() -> f32 {
     OSD.lock()
         .unwrap()

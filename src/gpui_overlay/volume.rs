@@ -271,6 +271,10 @@ struct VolumeView {
     background_set: bool,
     /// Real acrylic under the window; `None` where it is unavailable.
     backdrop: Option<super::backdrop::Backdrop>,
+    /// A fullscreen app owns the OSD's monitor. Windows scans such an app out
+    /// on its own hardware plane: the acrylic brush cannot sample it and the
+    /// glass shows a square corner there, so the card is painted solid.
+    over_fullscreen: bool,
     last_scale: f32,
     hide_wait: Option<Task<()>>,
     ambient_frame: Option<Task<()>>,
@@ -313,6 +317,7 @@ impl VolumeView {
             fallback_armed: false,
             background_set: false,
             backdrop: None,
+            over_fullscreen: false,
             last_scale: 0.0,
             hide_wait: None,
             ambient_frame: None,
@@ -349,6 +354,10 @@ impl VolumeView {
         self.sync_glyph(now);
         self.sync_level(now);
         self.place();
+        if appearing {
+            // After `place`, so the check looks at the monitor the OSD is on.
+            self.over_fullscreen = crate::volume_osd::over_fullscreen();
+        }
         if !self.style.enabled {
             self.hide_wait = None;
             self.begin_exit(now);
@@ -845,6 +854,10 @@ impl Render for VolumeView {
         // Real acrylic: the glass follows the card's bounds, fade and theme
         // crossfade; GPUI only lays a thin tint over it.
         let glass = match &mut self.backdrop {
+            Some(backdrop) if backdrop.usable() && self.over_fullscreen => {
+                backdrop.set_opacity(0.0);
+                false
+            }
             Some(backdrop) if backdrop.usable() => {
                 backdrop.set_luminosity(glass_luminosity(self.system.light));
                 backdrop.update(
@@ -869,7 +882,8 @@ impl Render for VolumeView {
             surface.a -= glass_share * (1.0 - glass_tint(self.system.light));
         }
         // Fallback: sample the wallpaper where the card settles, not mid-slide.
-        let mica = if chrome.mica && !glass {
+        // Over a fullscreen app the wallpaper is not what is behind the card.
+        let mica = if chrome.mica && !glass && !self.over_fullscreen {
             let final_w = (self.width.to * window_scale).round() as i32;
             let final_h = (self.height.to * window_scale).round() as i32;
             crate::volume_osd::card_rect(final_w, final_h)

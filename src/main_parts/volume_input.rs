@@ -237,7 +237,6 @@ fn handle_volume_wheel_message() {
 /// wins: the key is not swallowed, so existing hotkey behavior stays intact.
 fn swallow_volume_media_key(
     vk: u32,
-    flags: u32,
     is_down: bool,
     is_up: bool,
     hotkey_claimed: bool,
@@ -252,11 +251,10 @@ fn swallow_volume_media_key(
     {
         return false;
     }
-    // `LLKHF_INJECTED` and lower-IL injected keys are ignored so another tool's
-    // synthesized volume key cannot loop with this hook.
-    if flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED) != 0 {
-        return false;
-    }
+    // Injected volume keys are taken too. Vendor software (G HUB, Stream Deck,
+    // key remappers) synthesizes them, and letting those through shows the
+    // Windows flyout next to ours. silence! never sends volume keys itself, so
+    // this cannot loop.
     if is_down {
         let hwnd = tray_hwnd();
         if !hwnd.0.is_null() {
