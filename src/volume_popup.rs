@@ -50,6 +50,7 @@ pub(crate) enum PopupCommand {
 
 static OPEN: AtomicBool = AtomicBool::new(false);
 static CLOSED_AT_MS: AtomicU64 = AtomicU64::new(0);
+static CLOSED_BY_PRESS: AtomicBool = AtomicBool::new(false);
 static ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
 static ANCHOR: Lazy<Mutex<RECT>> = Lazy::new(|| Mutex::new(RECT::default()));
 
@@ -64,12 +65,21 @@ pub fn volume_popup_open() -> bool {
     OPEN.load(Ordering::Acquire)
 }
 
-/// A click on the tray icon while the popup is open first deactivates (and
-/// closes) the popup. Without this, that same click would reopen it.
+/// Pressing the tray icon while the popup is open deactivates (and closes)
+/// the popup before the click arrives. Call this on button down: it notes
+/// whether this press is the one that closed it, so the click that follows
+/// does not reopen it. Tied to the press, not to a time window, so the very
+/// next click opens the popup again.
+pub fn volume_popup_note_press() {
+    // The popup's thread may or may not have seen the deactivation yet.
+    let closed = volume_popup_open()
+        || now_ms().saturating_sub(CLOSED_AT_MS.load(Ordering::Acquire)) < 150;
+    CLOSED_BY_PRESS.store(closed, Ordering::Release);
+}
+
+/// Whether the current press already closed the popup. Reads once.
 pub fn volume_popup_just_closed() -> bool {
-    // The tray waits up to the double-click time before acting on a click.
-    now_ms().saturating_sub(CLOSED_AT_MS.load(Ordering::Acquire))
-        < 250 + u64::from(unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetDoubleClickTime() })
+    CLOSED_BY_PRESS.swap(false, Ordering::AcqRel)
 }
 
 pub(crate) fn mark_open(open: bool) {

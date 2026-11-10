@@ -288,8 +288,13 @@ pub(crate) fn map_volume_tray_skin(skin: VolumeTraySkin) -> volume_tray_icons::V
 
 fn handle_volume_tray_message(hwnd: HWND, event: u32) {
     match event {
+        WM_LBUTTONDOWN | WM_MBUTTONDOWN => volume_popup::volume_popup_note_press(),
         WM_LBUTTONUP => handle_volume_tray_left_click(hwnd),
-        WM_LBUTTONDBLCLK => handle_volume_tray_double_click(hwnd),
+        // The second press of a fast pair arrives as this, not as a down.
+        WM_LBUTTONDBLCLK => {
+            volume_popup::volume_popup_note_press();
+            handle_volume_tray_double_click(hwnd);
+        }
         WM_MBUTTONUP => {
             let action = STATE.lock().unwrap().volume.clicks.middle;
             run_volume_click_action(action);

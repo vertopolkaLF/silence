@@ -62,11 +62,8 @@ const APPEAR_MS: u64 = 160;
 const CLOSE_MS: u64 = 130;
 const RESIZE_MS: u64 = 200;
 const POLL: Duration = Duration::from_millis(500);
-/// Rows fade up one after another as the popup opens.
-const STAGGER_DELAY_MS: f32 = 40.0;
-const STAGGER_STEP_MS: f32 = 18.0;
-const STAGGER_MS: f32 = 200.0;
-const STAGGER_RISE: f32 = 6.0;
+/// Thumb at rest: a bare accent dot. The ring grows around it on hover.
+const THUMB_DOT: f32 = 12.0;
 /// Slider level glide on wheel, keys and outside changes.
 const LEVEL: Transition = Transition::new(140, Easing::Bezier(0.33, 1., 0.68, 1.));
 /// Hover backgrounds and the thumb's inner dot.
@@ -344,7 +341,7 @@ impl Colors {
                 divider: rgba(0x0000_0014),
                 text: rgb(0x1B1B1B),
                 secondary: rgb(0x5F5F5F),
-                rail: rgba(0x0000_0072),
+                rail: rgba(0x0000_0026),
                 fill: accent,
                 thumb_outer: rgb(0xFFFFFF),
                 thumb_border: rgba(0x0000_0026),
@@ -360,7 +357,7 @@ impl Colors {
                 divider: rgba(0xFFFF_FF14),
                 text: rgb(0xFFFFFF),
                 secondary: rgb(0xC5C5C5),
-                rail: rgba(0xFFFF_FF8B),
+                rail: rgba(0xFFFF_FF2E),
                 fill: accent,
                 thumb_outer: rgb(0x454545),
                 thumb_border: rgba(0xFFFF_FF17),
@@ -418,8 +415,6 @@ struct PopupView {
     /// Card height the window is currently sized for.
     window_card_h: f32,
     closing: bool,
-    /// When the popup last opened, for the rows' staggered entrance.
-    opened_at: Instant,
     was_active: bool,
     focus: FocusHandle,
     timeout: Option<Task<()>>,
@@ -458,7 +453,6 @@ impl PopupView {
             card_h: Motion::new(height, RESIZE_MS),
             window_card_h: height,
             closing: true,
-            opened_at: Instant::now(),
             was_active: false,
             focus: cx.focus_handle(),
             timeout: None,
@@ -491,7 +485,6 @@ impl PopupView {
         }
         if self.closing {
             self.closing = false;
-            self.opened_at = Instant::now();
             self.appear.retarget(1.0, Instant::now());
         }
         self.was_active = false;
@@ -611,14 +604,6 @@ impl PopupView {
 
     fn live_apps(&self) -> usize {
         self.apps.iter().filter(|row| !row.leaving).count()
-    }
-
-    /// Entrance progress (0..1) of the `index`th row since the popup opened.
-    fn stagger(&self, index: usize, now: Instant) -> f32 {
-        let elapsed = now.saturating_duration_since(self.opened_at).as_secs_f32() * 1000.0;
-        let delay = STAGGER_DELAY_MS + index.min(12) as f32 * STAGGER_STEP_MS;
-        let t = ((elapsed - delay) / STAGGER_MS).clamp(0.0, 1.0);
-        1.0 - (1.0 - t).powi(3)
     }
 
     /// Animates the card to fit the rows. The window grows at once and
@@ -815,6 +800,13 @@ impl PopupView {
             (12.0, HOVER)
         };
         let inner = anim::tween(window, cx, target.key("thumb"), inner, transition);
+        // Only the device thumb keeps its ring; app thumbs rest as a dot so
+        // a long list reads as levels, not as a column of knobs.
+        let ringed = dragging
+            || target == Target::Device
+            || self.hovered_slider.as_ref() == Some(&target);
+        let ring = anim::tween(window, cx, target.key("ring"), ringed as u8 as f32, HOVER);
+        let outer = THUMB_DOT + (THUMB - THUMB_DOT) * ring;
         let hover_target = target.clone();
         div()
             .id(id)
@@ -863,17 +855,29 @@ impl PopupView {
             .child(
                 div()
                     .absolute()
-                    .left(px(thumb_x))
-                    .top(px(SLIDER_H / 2.0 - THUMB / 2.0))
-                    .size(px(THUMB))
+                    .left(px(thumb_x + (THUMB - outer) / 2.0))
+                    .top(px(SLIDER_H / 2.0 - outer / 2.0))
+                    .size(px(outer))
                     .rounded_full()
-                    .bg(colors.thumb_outer)
+                    .bg(Rgba {
+                        a: colors.thumb_outer.a * ring,
+                        ..colors.thumb_outer
+                    })
                     .border_1()
-                    .border_color(colors.thumb_border)
+                    .border_color(Rgba {
+                        a: colors.thumb_border.a * ring,
+                        ..colors.thumb_border
+                    })
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(div().size(px(inner)).rounded_full().bg(fill)),
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .size(px(inner))
+                            .rounded_full()
+                            .bg(fill),
+                    ),
             )
     }
 
@@ -915,9 +919,10 @@ impl PopupView {
     fn number_text(percent: u8, muted: bool, strong: bool, colors: &Colors) -> gpui::Div {
         div()
             .flex_shrink_0()
-            .text_size(px(if strong { 14. } else { 13. }))
+            .text_size(px(if strong { 14. } else { 12. }))
             .font_weight(FontWeight(if strong { 600. } else { 400. }))
-            .text_color(if muted { colors.secondary } else { colors.text })
+            // App numbers stay quiet; only the device level is loud.
+            .text_color(if muted || !strong { colors.secondary } else { colors.text })
             .child(percent.to_string())
     }
 
@@ -1115,7 +1120,7 @@ impl PopupView {
             button,
             div()
                 .text_size(px(12.))
-                .text_color(colors.secondary)
+                .text_color(if muted { colors.secondary } else { colors.text })
                 .child(row.app.name.clone()),
             slider,
             percent,
@@ -1191,9 +1196,7 @@ impl Render for PopupView {
         self.apps
             .retain(|row| !(row.leaving && !row.presence.active(now)));
         let rows_moving = self.apps.iter().any(|row| row.presence.active(now));
-        let last_row = self.apps.len() + 2;
-        let staggering = !self.closing && self.stagger(last_row, now) < 1.0;
-        if self.appear.active(now) || self.card_h.active(now) || rows_moving || staggering {
+        if self.appear.active(now) || self.card_h.active(now) || rows_moving {
             window.request_animation_frame();
         }
 
@@ -1234,11 +1237,9 @@ impl Render for PopupView {
             .h(px(list_h.max(0.)))
             .overflow_y_scroll();
         let row_h = self.layout.app_row_h();
-        let first_app = 1 + usize::from(self.layout.header);
         for index in 0..self.apps.len() {
             let row = &self.apps[index];
             let presence = row.presence.value(now).clamp(0.0, 1.0);
-            let enter = self.stagger(first_app + index, now);
             let element = self.app_row(row, &colors, window, cx);
             list = list.child(
                 // Grows/collapses so the rows below slide along with the card.
@@ -1246,8 +1247,8 @@ impl Render for PopupView {
                     .flex_shrink_0()
                     .h(px(row_h * presence))
                     .overflow_hidden()
-                    .opacity(presence * presence * enter)
-                    .child(element.relative().top(px(STAGGER_RISE * (1.0 - enter)))),
+                    .opacity(presence * presence)
+                    .child(element),
             );
         }
 
@@ -1290,13 +1291,7 @@ impl Render for PopupView {
             None if glass => card.bg(colors.glass_tint),
             None => card.bg(colors.surface),
         };
-        let header_enter = self.stagger(0, now);
-        let device_enter = self.stagger(usize::from(self.layout.header), now);
-        let device_row = self
-            .device_row(&colors, window, cx)
-            .relative()
-            .top(px(STAGGER_RISE * (1.0 - device_enter)))
-            .opacity(device_enter);
+        let device_row = self.device_row(&colors, window, cx);
         let content = div()
             .relative()
             .size_full()
@@ -1308,9 +1303,6 @@ impl Render for PopupView {
                 d.child(
                     // Starts at the icons' left edge.
                     div()
-                        .relative()
-                        .top(px(STAGGER_RISE * (1.0 - header_enter)))
-                        .opacity(header_enter)
                         .h(px(HEADER_H))
                         .flex_shrink_0()
                         .pl(px(PAD_LEFT + (BUTTON - APP_ICON) / 2.0))
