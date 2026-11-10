@@ -614,10 +614,19 @@ pub fn sound_themes() -> &'static [SoundTheme] {
     SOUND_THEMES
 }
 
-pub fn sound_theme_label(theme_id: &str) -> &'static str {
+pub fn volume_tick_sounds() -> &'static [SoundTheme] {
+    VOLUME_TICK_SOUNDS
+}
+
+fn builtin_sound_theme(theme_id: &str) -> Option<&'static SoundTheme> {
     SOUND_THEMES
         .iter()
+        .chain(VOLUME_TICK_SOUNDS.iter())
         .find(|theme| theme.id == theme_id)
+}
+
+pub fn sound_theme_label(theme_id: &str) -> &'static str {
+    builtin_sound_theme(theme_id)
         .map(|theme| theme.label)
         .unwrap_or(SOUND_THEMES[0].label)
 }
@@ -625,12 +634,7 @@ pub fn sound_theme_label(theme_id: &str) -> &'static str {
 pub fn sound_selection_label<'a>(selection: &str, settings: &'a SoundSettings) -> &'a str {
     custom_sound_from_selection(selection, settings)
         .map(|sound| sound.original_file_name.as_str())
-        .or_else(|| {
-            SOUND_THEMES
-                .iter()
-                .find(|theme| theme.id == selection)
-                .map(|theme| theme.label)
-        })
+        .or_else(|| builtin_sound_theme(selection).map(|theme| theme.label))
         .unwrap_or(SOUND_THEMES[0].label)
 }
 
@@ -785,6 +789,9 @@ fn play_theme_sound(theme: &str, muted: bool, volume: u8) -> Result<()> {
 }
 
 fn sound_file_name(theme: &str, muted: bool) -> String {
+    if VOLUME_TICK_SOUNDS.iter().any(|known| known.id == theme) {
+        return format!("{theme}.wav");
+    }
     let theme = if SOUND_THEMES.iter().any(|known| known.id == theme) {
         theme
     } else {
@@ -830,6 +837,24 @@ fn sound_asset_bytes(file: &str) -> Option<&'static [u8]> {
         "scifi_unmute.mp3" => include_bytes!("../../assets/sounds/scifi_unmute.mp3"),
         "vibrant_mute.mp3" => include_bytes!("../../assets/sounds/vibrant_mute.mp3"),
         "vibrant_unmute.mp3" => include_bytes!("../../assets/sounds/vibrant_unmute.mp3"),
+        "square.wav" => include_bytes!("../../assets/sounds/square.wav"),
+        "twang.wav" => include_bytes!("../../assets/sounds/twang.wav"),
+        "dual.wav" => include_bytes!("../../assets/sounds/dual.wav"),
+        "ding.wav" => include_bytes!("../../assets/sounds/ding.wav"),
+        "sparkle.wav" => include_bytes!("../../assets/sounds/sparkle.wav"),
+        "crystal.wav" => include_bytes!("../../assets/sounds/crystal.wav"),
+        "warm.wav" => include_bytes!("../../assets/sounds/warm.wav"),
+        "ping.wav" => include_bytes!("../../assets/sounds/ping.wav"),
+        "pure.wav" => include_bytes!("../../assets/sounds/pure.wav"),
+        "soft.wav" => include_bytes!("../../assets/sounds/soft.wav"),
+        "tick.wav" => include_bytes!("../../assets/sounds/tick.wav"),
+        "click.wav" => include_bytes!("../../assets/sounds/click.wav"),
+        "beep.wav" => include_bytes!("../../assets/sounds/beep.wav"),
+        "blip.wav" => include_bytes!("../../assets/sounds/blip.wav"),
+        "chime.wav" => include_bytes!("../../assets/sounds/chime.wav"),
+        "glass.wav" => include_bytes!("../../assets/sounds/glass.wav"),
+        "tap.wav" => include_bytes!("../../assets/sounds/tap.wav"),
+        "wood.wav" => include_bytes!("../../assets/sounds/wood.wav"),
         _ => return None,
     })
 }

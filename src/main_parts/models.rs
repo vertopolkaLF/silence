@@ -1635,6 +1635,8 @@ fn default_sound_theme() -> String {
 fn default_volume_sound_settings() -> SoundSettings {
     SoundSettings {
         enabled: false,
+        mute_theme: "soft".to_string(),
+        unmute_theme: "soft".to_string(),
         ..SoundSettings::default()
     }
 }

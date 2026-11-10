@@ -187,8 +187,11 @@ pub(crate) fn volume_options(label: String) -> RangeOptions {
     }
 }
 
-pub(crate) fn sound_options(custom_sounds: &[crate::CustomSound]) -> Vec<SelectOption> {
-    custom_sounds
+pub(crate) fn sound_options(
+    custom_sounds: &[crate::CustomSound],
+    volume_tick: bool,
+) -> Vec<SelectOption> {
+    let mut options: Vec<SelectOption> = custom_sounds
         .iter()
         .map(|sound| {
             SelectOption::new(
@@ -198,12 +201,24 @@ pub(crate) fn sound_options(custom_sounds: &[crate::CustomSound]) -> Vec<SelectO
             .group("Custom Sounds")
             .icon("volume-loud-linear")
         })
-        .chain(crate::sound_themes().iter().map(|theme| {
+        .collect();
+    if volume_tick {
+        options.extend(crate::volume_tick_sounds().iter().map(|theme| {
             SelectOption::new(theme.id, theme.label)
-                .group("Built-in Sounds")
+                .group("Ticks")
                 .icon("volume-loud-linear")
-        }))
-        .collect()
+        }));
+    }
+    options.extend(crate::sound_themes().iter().map(|theme| {
+        SelectOption::new(theme.id, theme.label)
+            .group(if volume_tick {
+                "Mute sounds"
+            } else {
+                "Built-in Sounds"
+            })
+            .icon("volume-loud-linear")
+    }));
+    options
 }
 
 /// Shared mute/unmute selector, with optional inherited Hold to Mute value,
@@ -279,7 +294,7 @@ pub(crate) fn sound_picker(
             crate::sound_selection_label(&base, &label_settings)
         )
     };
-    let mut options = sound_options(&library);
+    let mut options = sound_options(&library, volume_tick);
     if inherited {
         options.insert(
             0,
@@ -527,10 +542,10 @@ fn remove_sound(app: &mut SettingsApp, id: &str, cx: &mut Context<SettingsApp>) 
             .custom_sounds
             .retain(|sound| sound.id != id);
         if config.volume.sound.mute_theme == removed {
-            config.volume.sound.mute_theme = "8bit".into();
+            config.volume.sound.mute_theme = "soft".into();
         }
         if config.volume.sound.unmute_theme == removed {
-            config.volume.sound.unmute_theme = "8bit".into();
+            config.volume.sound.unmute_theme = "soft".into();
         }
     });
 }

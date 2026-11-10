@@ -1329,7 +1329,7 @@ impl Render for PopupView {
             None => card.bg(colors.surface),
         };
         let device_row = self.device_row(&colors, window, cx);
-        let apps_first = self.layout.device_at_bottom && !self.apps.is_empty();
+        let mut list = (!self.apps.is_empty()).then_some(list);
         let mut content = div()
             .relative()
             .size_full()
@@ -1338,8 +1338,10 @@ impl Render for PopupView {
             .pb(px(self.layout.pad_bottom(self.layout.last_row_h(self.apps.len()))))
             .flex()
             .flex_col();
-        if apps_first {
-            content = content.child(list).child(popup_divider(&colors));
+        if self.layout.device_at_bottom {
+            if let Some(list) = list.take() {
+                content = content.child(list).child(popup_divider(&colors));
+            }
         }
         if self.layout.header {
             content = content.child(
@@ -1361,7 +1363,7 @@ impl Render for PopupView {
             );
         }
         content = content.child(device_row);
-        if !self.apps.is_empty() && !apps_first {
+        if let Some(list) = list {
             content = content.child(popup_divider(&colors)).child(list);
         }
         // Hairline drawn over the background, not around it: a real border

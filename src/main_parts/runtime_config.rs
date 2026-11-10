@@ -1003,6 +1003,8 @@ fn normalize_volume_config(volume: &mut VolumeConfig) {
         *radius = (*radius).min(32);
     }
     migrate_custom_sound_settings(&mut volume.sound);
+    volume.sound.mute_theme = remap_volume_tick_id(&volume.sound.mute_theme).to_string();
+    volume.sound.unmute_theme = remap_volume_tick_id(&volume.sound.unmute_theme).to_string();
     volume.sound.volume = volume.sound.volume.min(100);
 
     let mut seen = HashSet::new();
@@ -1012,6 +1014,22 @@ fn normalize_volume_config(volume: &mut VolumeConfig) {
         .map(|id| id.trim().to_string())
         .filter(|id| !id.is_empty() && seen.insert(id.clone()))
         .collect();
+}
+
+fn remap_volume_tick_id(id: &str) -> &str {
+    match id {
+        "win31" => "square",
+        "win95" => "twang",
+        "win98" => "dual",
+        "win2000" => "ding",
+        "winxp" => "sparkle",
+        "winvista" => "crystal",
+        "win7" => "warm",
+        "win8" => "ping",
+        "win10" => "pure",
+        "win11" => "soft",
+        other => other,
+    }
 }
 
 fn normalize_hex_color(value: &str) -> Option<String> {

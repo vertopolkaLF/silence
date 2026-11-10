@@ -375,6 +375,82 @@ const SOUND_THEMES: &[SoundTheme] = &[
     },
 ];
 
+/// Short ticks for Volume → Sounds.
+const VOLUME_TICK_SOUNDS: &[SoundTheme] = &[
+    SoundTheme {
+        id: "square",
+        label: "Square",
+    },
+    SoundTheme {
+        id: "twang",
+        label: "Twang",
+    },
+    SoundTheme {
+        id: "dual",
+        label: "Double",
+    },
+    SoundTheme {
+        id: "ding",
+        label: "Ding",
+    },
+    SoundTheme {
+        id: "sparkle",
+        label: "Sparkle",
+    },
+    SoundTheme {
+        id: "crystal",
+        label: "Crystal",
+    },
+    SoundTheme {
+        id: "warm",
+        label: "Warm",
+    },
+    SoundTheme {
+        id: "ping",
+        label: "Ping",
+    },
+    SoundTheme {
+        id: "pure",
+        label: "Pure",
+    },
+    SoundTheme {
+        id: "soft",
+        label: "Soft",
+    },
+    SoundTheme {
+        id: "tick",
+        label: "Tick",
+    },
+    SoundTheme {
+        id: "click",
+        label: "Click",
+    },
+    SoundTheme {
+        id: "beep",
+        label: "Beep",
+    },
+    SoundTheme {
+        id: "blip",
+        label: "Blip",
+    },
+    SoundTheme {
+        id: "chime",
+        label: "Chime",
+    },
+    SoundTheme {
+        id: "glass",
+        label: "Glass",
+    },
+    SoundTheme {
+        id: "tap",
+        label: "Tap",
+    },
+    SoundTheme {
+        id: "wood",
+        label: "Wood",
+    },
+];
+
 fn main() -> Result<()> {
     set_dpi_awareness();
 
