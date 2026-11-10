@@ -3,8 +3,9 @@
 //! Solar Bold only ships three speaker glyphs (no waves, one wave, two waves)
 //! plus a crossed speaker. Level 0 uses the bare speaker, 1–33 the single wave,
 //! and both mid and high (34–100) use `volume-loud-bold`, the fullest glyph.
-//! Cute Sticker's die-cut peel does not fit a meter, so that theme is the same
-//! pastel family drawn as a compact card.
+//! Only the Cute themes draw these; the rest use the Fluent font's glyphs.
+//! Cute Sticker's peel does not fit a meter, so that theme is a die-cut paper
+//! pill with a badge around the icon, in the mic sticker's pastel ink.
 
 use super::{
     details, fonts,
@@ -17,7 +18,7 @@ use gpui::{
     App, AssetSource, Bounds, BoxShadow, Context, FontWeight, IntoElement, Render, Rgba,
     SharedString, Task, TextRun, Window, WindowBackgroundAppearance, WindowBounds, WindowKind,
     WindowOptions, WindowingRequest, div, font, linear_color_stop, linear_gradient, point,
-    ObjectFit, img, prelude::*, px, rgb, size, svg,
+    ObjectFit, Transformation, img, prelude::*, px, radians, rgb, size, svg,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{
@@ -225,7 +226,35 @@ struct VolumeChrome {
     outline: Option<Rgba>,
     /// Whole-card opacity (Custom theme's "Opacity").
     opacity: f32,
+    /// Corner radius of the meter; `None` draws a capsule.
+    bar_radius: Option<f32>,
+    /// Die-cut sticker: a paper badge bulges around the icon and sparkles
+    /// hang over the edge.
+    sticker: bool,
+    /// Rotation of an SVG glyph, in radians.
+    icon_tilt: f32,
 }
+
+impl VolumeChrome {
+    /// Left inset of the icon. A boxed icon sits as far from the left edge
+    /// as from the top and bottom ones.
+    fn lead(&self) -> f32 {
+        match self.icon_box {
+            Some(icon_box) => ((self.height - icon_box.size) / 2.0).max(0.0),
+            None => self.pad_x,
+        }
+    }
+
+    /// Right inset of a device name. Text needs more air than the icon, and
+    /// has to clear the curve of a rounded end.
+    fn text_pad(&self) -> f32 {
+        let clearance = if self.icon_box.is_some() { 8.0 } else { 4.0 };
+        (self.lead() + clearance).max(self.radius.min(self.height / 2.0) * 0.8)
+    }
+}
+
+/// White rim of the Cute Sticker badge around its icon disc.
+const STICKER_RIM: f32 = 8.0;
 
 struct ChromeLayer {
     key: (String, bool),
@@ -677,6 +706,8 @@ impl Render for VolumeView {
             .map(|caption| measure_text(&caption.text, &chrome, scale, window))
             .unwrap_or(0.0);
         let pad = chrome.pad_x * scale;
+        let lead = chrome.lead() * scale;
+        let text_pad = chrome.text_pad() * scale;
         let gap = chrome.gap * scale;
         let icon_slot = chrome
             .icon_box
@@ -685,28 +716,35 @@ impl Render for VolumeView {
             * scale;
         let bar_w = chrome.bar_width * scale;
         let bar_h = chrome.bar_height * scale;
+        let bar_r = chrome
+            .bar_radius
+            .map(|corner| corner * scale)
+            .unwrap_or(bar_h / 2.0)
+            .min(bar_h / 2.0);
         // A device switch shows only the glyph and the device name.
         let device_mode = matches!(self.content, VolumeOsdContent::Device { .. });
         let (number_lead, number_trail) = if chrome.number_slot.is_some() {
             (0.0, 0.0)
         } else {
-            (gap * NUMBER_GAP, pad)
+            // The slot already centers the number, so it needs a little less
+            // than a device name does.
+            (gap * NUMBER_GAP, (text_pad - 4.0 * scale).max(pad))
         };
         let number_w = chrome
             .number_slot
             .map(|slot| slot * scale)
             .unwrap_or(number_lead + percent_slot + number_trail);
         let base = if device_mode {
-            pad * 2.0 + icon_slot
+            lead + icon_slot + text_pad
         } else {
-            pad + icon_slot + gap + bar_w + number_w
+            lead + icon_slot + gap + bar_w + number_w
         };
         let extra = if name_width > 0.0 {
             gap + name_width
         } else {
             0.0
         };
-        let target_w = (base + extra).max(icon_slot + pad * 2.0);
+        let target_w = (base + extra).max(icon_slot + lead * 2.0);
         let target_h = (chrome.height * scale).max(1.0);
         let target_r = chrome.radius * scale;
         if self.needs_measure && target_w >= 8.0 {
@@ -938,6 +976,90 @@ impl Render for VolumeView {
             Some(shadow) => card.shadow(vec![shadow]),
             None => card.shadow_md(),
         };
+        // Cute Sticker's die-cut contour: the pill plus a round badge bulging
+        // around the icon and two sparkles hanging over the edge.
+        let sticker_weight = detail_layers
+            .iter()
+            .filter(|(layer, _)| layer.sticker)
+            .map(|(_, weight)| *weight)
+            .sum::<f32>()
+            .min(1.0);
+        let badge = icon_slot + STICKER_RIM * 2.0 * scale;
+        let badge_x = lead + (icon_slot - badge) / 2.0;
+        let badge_y = (height - badge) / 2.0;
+        // (left, top, size, tilt): one over the top right edge, a smaller one
+        // on the badge's lower left.
+        let stars = [
+            (width - 34.0 * scale, -11.0 * scale, 22.0 * scale, 0.21),
+            (
+                badge_x + badge * 0.14 - 7.0 * scale,
+                badge_y + badge * 0.86 - 7.0 * scale,
+                14.0 * scale,
+                -0.3,
+            ),
+        ];
+        let star = |id: &'static str, (left, top, size, tilt): (f32, f32, f32, f32), drop: f32| {
+            svg()
+                .path(id)
+                .absolute()
+                .left(px(left))
+                .top(px(top + drop))
+                .size(px(size))
+                .with_transformation(Transformation::rotate(radians(tilt)))
+        };
+        if sticker_weight > 0.01 {
+            // Every shadow first, then the paper: no piece shades another.
+            if let Shadow::Drop(color, y, blur) = chrome.shadow {
+                card = card.child(
+                    div()
+                        .absolute()
+                        .left(px(badge_x))
+                        .top(px(badge_y))
+                        .size(px(badge))
+                        .rounded(px(badge / 2.0))
+                        .shadow(vec![paint_shadow((0.0, y), blur, color, scale)])
+                        .opacity(sticker_weight),
+                );
+                let mut soft = color;
+                soft.a *= 0.6;
+                for sparkle in stars {
+                    card = card.child(
+                        star("sticker-star-paper", sparkle, y * scale)
+                            .text_color(soft)
+                            .opacity(sticker_weight),
+                    );
+                }
+            }
+            card = card
+                .child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .w(px(width))
+                        .h(px(height))
+                        .rounded(px(radius))
+                        .bg(rgb(0xffffff))
+                        .opacity(sticker_weight),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .left(px(badge_x))
+                        .top(px(badge_y))
+                        .size(px(badge))
+                        .rounded(px(badge / 2.0))
+                        .bg(rgb(0xffffff))
+                        .opacity(sticker_weight),
+                );
+            for sparkle in stars {
+                card = card.child(
+                    star("sticker-star-paper", sparkle, 0.0)
+                        .text_color(rgb(0xffffff))
+                        .opacity(sticker_weight),
+                );
+            }
+        }
         let mut contents = div()
             .relative()
             .size_full()
@@ -983,17 +1105,19 @@ impl Render for VolumeView {
                     .radius
                     .map(|corner| corner * scale)
                     .unwrap_or_else(|| (radius * box_size / height.max(1.0)).min(box_size / 2.0));
-                icon = icon.child(
-                    div()
-                        .absolute()
-                        .left(px((icon_slot - box_size) / 2.0))
-                        .top(px((icon_slot - box_size) / 2.0))
-                        .w(px(box_size))
-                        .h(px(box_size))
-                        .rounded(px(corner.min(box_size / 2.0)))
-                        .bg(icon_box.fill)
-                        .opacity(*weight),
-                );
+                let mut holder = div()
+                    .absolute()
+                    .left(px((icon_slot - box_size) / 2.0))
+                    .top(px((icon_slot - box_size) / 2.0))
+                    .w(px(box_size))
+                    .h(px(box_size))
+                    .rounded(px(corner.min(box_size / 2.0)))
+                    .bg(icon_box.fill)
+                    .opacity(*weight);
+                if let Some((color, line)) = icon_box.border {
+                    holder = border_width(holder, (line * scale).max(1.0)).border_color(color);
+                }
+                icon = icon.child(holder);
             }
         }
         for (path, color, opacity) in &glyphs {
@@ -1019,11 +1143,18 @@ impl Render for VolumeView {
                                 .child(glyph.to_string())
                                 .into_any_element()
                         }
-                        None => svg()
-                            .path(path.clone())
-                            .size(px(chrome.icon_size * scale))
-                            .text_color(rgb(*color))
-                            .into_any_element(),
+                        None => {
+                            let mut glyph = svg()
+                                .path(path.clone())
+                                .size(px(chrome.icon_size * scale))
+                                .text_color(rgb(*color));
+                            if chrome.icon_tilt != 0.0 {
+                                glyph = glyph.with_transformation(Transformation::rotate(
+                                    radians(chrome.icon_tilt),
+                                ));
+                            }
+                            glyph.into_any_element()
+                        }
                     }),
             );
         }
@@ -1031,9 +1162,9 @@ impl Render for VolumeView {
             .flex()
             .items_center()
             .size_full()
-            .pl(px(pad))
+            .pl(px(lead))
             // With the meter shown, the number's area carries the right edge.
-            .when(device_mode, |row| row.pr(px(pad)))
+            .when(device_mode, |row| row.pr(px(text_pad)))
             .child(icon);
         if name_slot > 0.5 {
             let mut name = div()
@@ -1067,16 +1198,16 @@ impl Render for VolumeView {
                     div()
                         .w(px(bar_w))
                         .h(px(bar_h.max(1.0)))
-                        .rounded(px(bar_h / 2.0))
+                        .rounded(px(bar_r))
                         .bg(track)
                         // GPUI clips to the rectangle, not the radius: round the
-                        // fill itself so its start and end are capsules too.
+                        // fill itself so its start and end match the rail's.
                         .when(level > 0.0, |rail| {
                             rail.child(
                                 div()
                                     .h(px(bar_h.max(1.0)))
-                                    .w(px((bar_w * level).max(bar_h)))
-                                    .rounded(px(bar_h / 2.0))
+                                    .w(px((bar_w * level).max(bar_r * 2.0).max(1.0)))
+                                    .rounded(px(bar_r))
                                     .bg(fill),
                             )
                         }),
@@ -1102,6 +1233,15 @@ impl Render for VolumeView {
         }
         contents = contents.child(row);
         card = card.child(contents);
+        if sticker_weight > 0.01 {
+            for sparkle in stars {
+                card = card.child(
+                    star("sticker-star-ink", sparkle, 0.0)
+                        .text_color(fill)
+                        .opacity(sticker_weight),
+                );
+            }
+        }
         if let Some(color) = chrome.outline {
             let line = 1.0 / window_scale;
             card = card.child(
@@ -1266,7 +1406,7 @@ fn detail_look(chrome: &VolumeChrome) -> Look {
         detail: chrome.detail,
         height: chrome.height,
         radius: chrome.radius,
-        pad_icon: chrome.pad_x,
+        pad_icon: chrome.lead(),
         pad: chrome.pad_x,
         gap: chrome.gap,
         icon_size: slot,
@@ -1415,6 +1555,13 @@ pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
         // Pulldown-screen glyph. Display endpoints use the monitor; this stays
         // in the binary because the task asked for the Solar display icon.
         "device-screen" => include_str!("../../assets/icons/volume/display-bold.svg"),
+        // Cute Sticker's sparkle: the cut paper edge and the ink inside it.
+        "sticker-star-paper" => {
+            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 5Q13.75 10.25 19 12Q13.75 13.75 12 19Q10.25 13.75 5 12Q10.25 10.25 12 5Z" fill="#000" stroke="#000" stroke-width="7" stroke-linejoin="round"/></svg>"##
+        }
+        "sticker-star-ink" => {
+            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 5Q13.75 10.25 19 12Q13.75 13.75 12 19Q10.25 13.75 5 12Q10.25 10.25 12 5Z" fill="#000" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>"##
+        }
         _ => return None,
     })
 }
@@ -1507,6 +1654,9 @@ fn windows_chrome(system: System) -> VolumeChrome {
         number_slot: Some(40.0),
         outline: Some(color_alpha(0x000000, if system.light { 0.10 } else { 0.20 })),
         opacity: 1.0,
+        bar_radius: None,
+        sticker: false,
+        icon_tilt: 0.0,
     }
 }
 
@@ -1521,13 +1671,13 @@ fn material_you(chrome: &mut VolumeChrome, system: System, muted: bool) {
     };
     chrome.entrance = Entrance::Fade;
     chrome.height = 56.0;
-    chrome.radius = 18.0;
+    chrome.radius = 28.0;
     chrome.pad_x = 12.0;
-    chrome.icon_size = 18.0;
+    chrome.icon_size = 20.0;
     chrome.icon_color = on_container;
     chrome.icon_box = Some(IconBox {
-        size: 36.0,
-        radius: Some(18.0),
+        size: 40.0,
+        radius: Some(20.0),
         fill: color_alpha(container, 1.0),
         border: None,
     });
@@ -1551,13 +1701,15 @@ fn cute(chrome: &mut VolumeChrome, muted: bool) {
     let bubble = if muted { 0xffd3e5 } else { 0xc8f4e3 };
     chrome.entrance = Entrance::Fade;
     chrome.height = 52.0;
-    chrome.radius = 18.0;
+    chrome.radius = 26.0;
     chrome.pad_x = 12.0;
-    chrome.icon_size = 18.0;
+    chrome.icon_size = 20.0;
     chrome.icon_color = signal;
+    // Solar's filled glyphs suit the bubble better than Fluent's thin lines.
+    chrome.fluent = false;
     chrome.icon_box = Some(IconBox {
-        size: 32.0,
-        radius: Some(16.0),
+        size: 36.0,
+        radius: Some(18.0),
         fill: color_alpha(bubble, 1.0),
         border: None,
     });
@@ -1570,25 +1722,49 @@ fn cute(chrome: &mut VolumeChrome, muted: bool) {
     chrome.gutter = 8.0;
     chrome.font = "Nunito".into();
     chrome.weight = 700;
+    chrome.text_size = 15.0;
     chrome.bar_width = 72.0;
+    chrome.bar_height = 6.0;
     chrome.ink = signal;
 }
 
+/// The mic overlay's sticker family as a meter: white die-cut paper with no
+/// outline, a round badge bulging around a pastel icon disc, a fat bar and
+/// two sparkles over the edge. The soft shadow is the paper's own.
 fn cute_sticker(chrome: &mut VolumeChrome, muted: bool) {
     cute(chrome, muted);
-    let ink = if muted { 0xf49ac2 } else { 0x73cbb1 };
+    // The mic sticker's pastel ink, and a deeper shade that small text can
+    // carry on white.
+    let (ink, deep) = if muted {
+        (0xf49ac2, 0xde5c98)
+    } else {
+        (0x73cbb1, 0x35a586)
+    };
+    chrome.entrance = Entrance::Nudge;
+    chrome.sticker = true;
+    chrome.height = 46.0;
+    chrome.radius = 23.0;
+    chrome.gap = 14.0;
+    chrome.icon_size = 22.0;
+    chrome.icon_tilt = -0.14;
+    chrome.icon_color = 0xffffff;
+    chrome.icon_box = Some(IconBox {
+        size: 40.0,
+        radius: Some(20.0),
+        fill: color_alpha(ink, 1.0),
+        border: None,
+    });
     chrome.surface = color_alpha(0xffffff, 1.0);
-    chrome.foreground = ink;
-    chrome.icon_color = ink;
+    chrome.foreground = deep;
+    chrome.track = color_alpha(ink, 0.26);
     chrome.fill = color_alpha(ink, 1.0);
-    chrome.icon_box = None;
-    chrome.border = Some((color_alpha(ink, 1.0), 3.0));
-    chrome.shadow = Shadow::Hard(color_alpha(0xf3c6db, 1.0), 3.0, 4.0);
-    chrome.gutter = 8.0;
-    chrome.radius = 16.0;
-    chrome.height = 54.0;
-    chrome.weight = 800;
-    chrome.text_size = 15.0;
+    chrome.border = None;
+    chrome.shadow = Shadow::Drop(color_alpha(0x68475a, 0.30), 3.0, 6.0);
+    chrome.gutter = 22.0;
+    chrome.weight = 900;
+    chrome.text_size = 16.0;
+    chrome.bar_width = 78.0;
+    chrome.bar_height = 10.0;
     chrome.ink = ink;
 }
 
@@ -1642,6 +1818,7 @@ fn brutalism(chrome: &mut VolumeChrome, muted: bool) {
     chrome.text_size = 14.0;
     chrome.bar_width = 70.0;
     chrome.bar_height = 6.0;
+    chrome.bar_radius = Some(0.0);
     chrome.ink = 0x000000;
 }
 
@@ -1655,6 +1832,7 @@ fn terminal(chrome: &mut VolumeChrome, muted: bool) {
     chrome.border = Some((color_alpha(signal, 0.35), 1.0));
     chrome.shadow = Shadow::Hard(color_alpha(0x06100b, 1.0), 3.0, 3.0);
     chrome.gutter = 6.0;
+    chrome.bar_radius = Some(1.0);
     chrome.animates = true;
 }
 
@@ -1668,6 +1846,7 @@ fn blueprint(chrome: &mut VolumeChrome, muted: bool) {
     chrome.border = Some((color_alpha(0xa7d6ff, 0.65), 1.0));
     chrome.shadow = Shadow::Hard(color_alpha(0x082244, 0.9), 4.0, 4.0);
     chrome.gutter = 8.0;
+    chrome.bar_radius = Some(0.0);
     chrome.ink = 0xa7d6ff;
 }
 
@@ -1694,6 +1873,7 @@ fn arcade(chrome: &mut VolumeChrome, muted: bool) {
     chrome.border = Some((color_alpha(0xb997ed, 1.0), 2.0));
     chrome.shadow = Shadow::Hard(color_alpha(0x170e2c, 1.0), 5.0, 5.0);
     chrome.gutter = 8.0;
+    chrome.bar_radius = Some(0.0);
 }
 
 fn paper(chrome: &mut VolumeChrome, muted: bool) {
@@ -1701,6 +1881,8 @@ fn paper(chrome: &mut VolumeChrome, muted: bool) {
     instrument(chrome, 0xfffdf5, 0x343b48, signal, Detail::Paper, muted);
     chrome.height = 52.0;
     chrome.radius = 2.0;
+    // Clear of the red margin line at 10.
+    chrome.pad_x = 20.0;
     chrome.font = "Nunito".into();
     chrome.weight = 700;
     chrome.shadow = Shadow::Hard(color_alpha(0xd6d0be, 1.0), 2.0, 3.0);
@@ -1732,7 +1914,7 @@ fn porcelain(chrome: &mut VolumeChrome, muted: bool) {
     let signal = if muted { 0x9d3b43 } else { 0x315cad };
     instrument(chrome, 0xf5f6f9, 0x283d69, signal, Detail::Porcelain, muted);
     chrome.height = 58.0;
-    chrome.radius = 22.0;
+    chrome.radius = 29.0;
     chrome.pad_x = 12.0;
     chrome.icon_box = Some(IconBox {
         size: 36.0,
