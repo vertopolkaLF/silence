@@ -419,6 +419,7 @@ pub(crate) fn set_geometry(
     inset_x: i32,
     inset_y: i32,
     slide: f32,
+    slide_travel: Option<i32>,
 ) {
     let mut guard = OSD.lock().unwrap();
     let Some(osd) = guard.as_mut() else {
@@ -431,6 +432,7 @@ pub(crate) fn set_geometry(
     osd.inset_x = inset_x.max(0);
     osd.inset_y = inset_y.max(0);
     osd.slide = slide.clamp(0.0, 1.0);
+    osd.slide_travel = slide_travel;
     osd.apply_layout();
 }
 
@@ -497,6 +499,7 @@ fn prepare(sender: Sender<Command>) -> Result<()> {
         inset_x: 0,
         inset_y: 0,
         slide: 1.0,
+        slide_travel: None,
         presented: false,
         awaiting_first_paint: true,
         last_surface: None,
@@ -632,6 +635,8 @@ struct NativeOsd {
     inset_x: i32,
     inset_y: i32,
     slide: f32,
+    /// Slide this many pixels instead of all the way from beyond the edge.
+    slide_travel: Option<i32>,
     presented: bool,
     awaiting_first_paint: bool,
     last_surface: Option<(i32, i32, i32, i32)>,
@@ -675,10 +680,12 @@ impl NativeOsd {
         }
         let surface_top = card_y - self.inset_y;
         let surface_bottom = surface_top + self.surface_height;
-        let distance = if surface_top - rect.top < rect.bottom - surface_bottom {
-            rect.top - surface_bottom
-        } else {
-            rect.bottom - surface_top
+        let from_top = surface_top - rect.top < rect.bottom - surface_bottom;
+        let distance = match (self.slide_travel, from_top) {
+            (Some(travel), true) => -travel,
+            (Some(travel), false) => travel,
+            (None, true) => rect.top - surface_bottom,
+            (None, false) => rect.bottom - surface_top,
         };
         (distance as f32 * self.slide).round() as i32
     }

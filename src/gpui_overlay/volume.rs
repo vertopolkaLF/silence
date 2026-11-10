@@ -175,8 +175,15 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Entrance {
     Fade,
+    /// Travels in from beyond the nearest top or bottom screen edge.
     Slide,
+    /// Fades in while settling the last few pixels, coming from the side of
+    /// the nearest top or bottom screen edge.
+    Nudge,
 }
+
+/// How far a `Nudge` entrance travels.
+const NUDGE_DISTANCE: f32 = 10.0;
 
 #[derive(Clone)]
 struct VolumeChrome {
@@ -414,7 +421,7 @@ impl VolumeView {
             return;
         }
         self.visibility.retarget(1.0, now);
-        if self.entrance() == Entrance::Slide {
+        if self.entrance() != Entrance::Fade {
             self.slide.retarget(0.0, now);
         } else {
             self.slide = Motion::new(0.0, SLIDE_MS);
@@ -427,7 +434,7 @@ impl VolumeView {
             return;
         }
         self.visibility.retarget(0.0, now);
-        if self.entrance() == Entrance::Slide {
+        if self.entrance() != Entrance::Fade {
             self.slide.retarget(1.0, now);
         }
     }
@@ -713,7 +720,7 @@ impl Render for VolumeView {
             .radius
             .value(now)
             .clamp(0.0, width.min(height) / 2.0);
-        let slide_theme = chrome.entrance == Entrance::Slide;
+        let slide_theme = chrome.entrance != Entrance::Fade;
         let slide = if !self.surface_ready {
             1.0
         } else if slide_theme {
@@ -769,6 +776,9 @@ impl Render for VolumeView {
             (gutter * window_scale).round() as i32,
             (gutter * window_scale).round() as i32,
             slide,
+            // Until the first paint lands the window waits fully off screen.
+            (chrome.entrance == Entrance::Nudge && self.surface_ready)
+                .then(|| (NUDGE_DISTANCE * scale * window_scale).round() as i32),
         );
         crate::volume_osd::present(should_present);
 
@@ -842,6 +852,15 @@ impl Render for VolumeView {
                     radius * window_scale,
                     alpha * chrome.opacity * glass_share,
                 );
+                // GPUI shadows are filled and would darken the glass, so the
+                // backdrop casts this one from under it.
+                match chrome.shadow {
+                    Shadow::Drop(color, y, blur) if chrome.mica => {
+                        let physical = scale * window_scale;
+                        backdrop.set_shadow(y * physical, blur / 2.0 * physical, color.a);
+                    }
+                    _ => backdrop.set_shadow(0.0, 0.0, 0.0),
+                }
                 backdrop.usable()
             }
             _ => false,
@@ -898,7 +917,7 @@ impl Render for VolumeView {
             None => card.bg(surface),
         };
         // GPUI shadows are filled, not hollow: under a translucent card one
-        // would darken the glass, so the acrylic card goes without.
+        // would darken the glass, so the backdrop draws the acrylic card's.
         let on_glass = glass && chrome.mica;
         card = match shadow {
             _ if on_glass => card,
@@ -1442,7 +1461,7 @@ fn windows_chrome(system: System) -> VolumeChrome {
         (0x2c2c2c, 0xffffff, color_alpha(0xffffff, 0.54), color_alpha(0xffffff, 0.08))
     };
     VolumeChrome {
-        entrance: Entrance::Slide,
+        entrance: Entrance::Nudge,
         detail: Detail::None,
         animates: false,
         halo_pulse: false,
@@ -1458,7 +1477,9 @@ fn windows_chrome(system: System) -> VolumeChrome {
         track,
         fill: color_alpha(system.accent(), 1.0),
         border: Some((stroke, 1.0)),
-        shadow: Shadow::Drop(color_alpha(0x000000, if system.light { 0.16 } else { 0.36 }), 4.0, 12.0),
+        // Measured on the flyout: nothing above, ~10% at the sides, ~21%
+        // right under the card, gone about 20px below it.
+        shadow: Shadow::Drop(color_alpha(0x000000, if system.light { 0.12 } else { 0.21 }), 10.0, 8.0),
         gutter: 22.0,
         font: "Segoe UI Variable Text".into(),
         weight: 400,

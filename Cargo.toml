@@ -61,6 +61,7 @@ windows = { version = "0.58", features = [
     "Win32_UI_WindowsAndMessaging",
     # Real Mica under the volume popup (Windows.UI.Composition).
     "Foundation",
+    "Foundation_Collections",
     "Foundation_Numerics",
     "Graphics_Effects",
     "System",
