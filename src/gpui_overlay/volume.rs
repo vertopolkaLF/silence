@@ -89,13 +89,26 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) {
             let result = opened.and_then(|handle| {
                 // Attach on the App. Spawn stays outside this closure: `cx` in
                 // here would be Context, whose spawn takes a weak entity.
-                handle.update(cx, |_view, window, _| -> Result<()> {
+                handle.update(cx, |view, window, _| -> Result<()> {
                     let RawWindowHandle::Win32(raw) =
                         HasWindowHandle::window_handle(window)?.as_raw()
                     else {
                         anyhow::bail!("volume OSD requires a Windows window");
                     };
-                    crate::volume_osd::attach(HWND(raw.hwnd.get() as *mut _))?;
+                    let hwnd = HWND(raw.hwnd.get() as *mut _);
+                    crate::volume_osd::attach(hwnd)?;
+                    view.backdrop = match super::backdrop::Backdrop::new(
+                        hwnd,
+                        glass_luminosity(view.system.light),
+                        super::backdrop::Material::Acrylic,
+                    ) {
+                        Ok(backdrop) => Some(backdrop),
+                        Err(error) => {
+                            // The blurred-wallpaper fallback stays in use.
+                            eprintln!("volume OSD: no acrylic backdrop: {error:#}");
+                            None
+                        }
+                    };
                     Ok(())
                 })??;
                 // The slider popup's window too, so the first click is instant.
@@ -195,8 +208,14 @@ struct VolumeChrome {
     /// Draw the speaker/device glyph from Segoe Fluent Icons (the system
     /// volume flyout's own glyphs) instead of the Solar SVGs.
     fluent: bool,
-    /// Fake Mica: blurred wallpaper under a translucent `surface`.
+    /// Glass card: real acrylic under a thin `surface` tint, or the blurred
+    /// wallpaper where the system has no backdrop brush.
     mica: bool,
+    /// Width of the number's area from the bar's end to the card's edge; the
+    /// number is centered in it. `None` sizes it from the text and `pad_x`.
+    number_slot: Option<f32>,
+    /// One physical pixel hairline just outside the card.
+    outline: Option<Rgba>,
     /// Whole-card opacity (Custom theme's "Opacity").
     opacity: f32,
 }
@@ -243,6 +262,8 @@ struct VolumeView {
     surface_ready: bool,
     fallback_armed: bool,
     background_set: bool,
+    /// Real acrylic under the window; `None` where it is unavailable.
+    backdrop: Option<super::backdrop::Backdrop>,
     last_scale: f32,
     hide_wait: Option<Task<()>>,
     ambient_frame: Option<Task<()>>,
@@ -273,8 +294,8 @@ impl VolumeView {
             needs_measure: true,
             measured: false,
             level_ready: false,
-            width: Motion::new(194.0, SIZE_MS),
-            height: Motion::new(49.0, SIZE_MS),
+            width: Motion::new(192.0, SIZE_MS),
+            height: Motion::new(48.0, SIZE_MS),
             radius: Motion::new(8.0, SIZE_MS),
             level: Motion::new(0.0, LEVEL_MS),
             visibility: Motion::new(0.0, FADE_MS),
@@ -284,6 +305,7 @@ impl VolumeView {
             surface_ready: false,
             fallback_armed: false,
             background_set: false,
+            backdrop: None,
             last_scale: 0.0,
             hide_wait: None,
             ambient_frame: None,
@@ -649,10 +671,19 @@ impl Render for VolumeView {
         let bar_h = chrome.bar_height * scale;
         // A device switch shows only the glyph and the device name.
         let device_mode = matches!(self.content, VolumeOsdContent::Device { .. });
+        let (number_lead, number_trail) = if chrome.number_slot.is_some() {
+            (0.0, 0.0)
+        } else {
+            (gap * NUMBER_GAP, pad)
+        };
+        let number_w = chrome
+            .number_slot
+            .map(|slot| slot * scale)
+            .unwrap_or(number_lead + percent_slot + number_trail);
         let base = if device_mode {
             pad * 2.0 + icon_slot
         } else {
-            pad * 2.0 + icon_slot + gap + bar_w + gap * NUMBER_GAP + percent_slot
+            pad + icon_slot + gap + bar_w + number_w
         };
         let extra = if name_width > 0.0 {
             gap + name_width
@@ -728,7 +759,8 @@ impl Render for VolumeView {
             }));
         }
 
-        let gutter = chrome.gutter * scale;
+        // Whole physical pixels, so the card's edges and hairline stay crisp.
+        let gutter = (chrome.gutter * scale * window_scale).round() / window_scale;
         crate::volume_osd::set_geometry(
             (width * window_scale).round() as i32,
             (height * window_scale).round() as i32,
@@ -752,7 +784,16 @@ impl Render for VolumeView {
             }
             weights
         };
-        let surface = mix_rgba(weights.iter().map(|(chrome, weight)| (chrome.surface, *weight)));
+        let mut surface = mix_rgba(weights.iter().map(|(chrome, weight)| (chrome.surface, *weight)));
+        let glass_share = {
+            let total: f32 = weights.iter().map(|(_, weight)| *weight).sum();
+            let glass: f32 = weights
+                .iter()
+                .filter(|(chrome, _)| chrome.mica)
+                .map(|(_, weight)| *weight)
+                .sum();
+            if total > 0.001 { glass / total } else { 0.0 }
+        };
         let track = mix_rgba(weights.iter().map(|(chrome, weight)| (chrome.track, *weight)));
         let fill = mix_rgba(weights.iter().map(|(chrome, weight)| (chrome.fill, *weight)));
         let foreground = mix_rgb(weights.iter().map(|(chrome, weight)| (chrome.foreground, *weight)));
@@ -791,8 +832,25 @@ impl Render for VolumeView {
         let percent = self.content.percent();
         let label = percent.to_string();
 
-        // Sample the wallpaper where the card settles, not mid-slide.
-        let mica = if chrome.mica {
+        // Real acrylic: the glass follows the card's bounds, fade and theme
+        // crossfade; GPUI only lays a thin tint over it.
+        let glass = match &mut self.backdrop {
+            Some(backdrop) if backdrop.usable() => {
+                backdrop.set_luminosity(glass_luminosity(self.system.light));
+                backdrop.update(
+                    [gutter, gutter, width, height].map(|v| (v * window_scale).round()),
+                    radius * window_scale,
+                    alpha * chrome.opacity * glass_share,
+                );
+                backdrop.usable()
+            }
+            _ => false,
+        };
+        if glass {
+            surface.a -= glass_share * (1.0 - glass_tint(self.system.light));
+        }
+        // Fallback: sample the wallpaper where the card settles, not mid-slide.
+        let mica = if chrome.mica && !glass {
             let final_w = (self.width.to * window_scale).round() as i32;
             let final_h = (self.height.to * window_scale).round() as i32;
             crate::volume_osd::card_rect(final_w, final_h)
@@ -800,7 +858,7 @@ impl Render for VolumeView {
         } else {
             None
         };
-        if chrome.mica && mica.is_none() && super::mica::pending() {
+        if chrome.mica && !glass && mica.is_none() && super::mica::pending() {
             // Still blurring in the background; repaint once it is ready.
             window.request_animation_frame();
         }
@@ -839,7 +897,11 @@ impl Render for VolumeView {
             }
             None => card.bg(surface),
         };
+        // GPUI shadows are filled, not hollow: under a translucent card one
+        // would darken the glass, so the acrylic card goes without.
+        let on_glass = glass && chrome.mica;
         card = match shadow {
+            _ if on_glass => card,
             Some(shadow) => card.shadow(vec![shadow]),
             None => card.shadow_md(),
         };
@@ -937,7 +999,8 @@ impl Render for VolumeView {
             .items_center()
             .size_full()
             .pl(px(pad))
-            .pr(px(pad))
+            // With the meter shown, the number's area carries the right edge.
+            .when(device_mode, |row| row.pr(px(pad)))
             .child(icon);
         if name_slot > 0.5 {
             let mut name = div()
@@ -988,8 +1051,9 @@ impl Render for VolumeView {
             );
             row = row.child(
                 div()
-                    .pl(px(gap * NUMBER_GAP))
-                    .w(px(percent_slot + gap * NUMBER_GAP))
+                    .pl(px(number_lead))
+                    .pr(px(number_trail))
+                    .w(px(number_w))
                     .flex_shrink_0()
                     .flex()
                     .justify_center()
@@ -1005,7 +1069,23 @@ impl Render for VolumeView {
         }
         contents = contents.child(row);
         card = card.child(contents);
-        if let Some((color, border)) = chrome.border {
+        if let Some(color) = chrome.outline {
+            let line = 1.0 / window_scale;
+            card = card.child(
+                border_width(
+                    div()
+                        .absolute()
+                        .left(px(-line))
+                        .top(px(-line))
+                        .w(px(width + line * 2.0))
+                        .h(px(height + line * 2.0))
+                        .rounded(px(radius + line)),
+                    line,
+                )
+                .border_color(color),
+            );
+        }
+        if let Some((color, border)) = chrome.border.filter(|_| !on_glass) {
             card = card.child(
                 border_width(
                     div()
@@ -1032,6 +1112,17 @@ fn paint_shadow(offset: (f32, f32), blur: f32, color: Rgba, scale: f32) -> BoxSh
         spread_radius: px(0.0),
         inset: false,
     }
+}
+
+/// Lightness the acrylic backdrop is blended to: WinUI's default acrylic
+/// luminosity colors.
+fn glass_luminosity(light: bool) -> u8 {
+    if light { 243 } else { 44 }
+}
+
+/// Opacity of the `surface` tint over real acrylic.
+fn glass_tint(light: bool) -> f32 {
+    if light { 0.3 } else { 0.15 }
 }
 
 fn border_width<E: Styled>(mut element: E, width: f32) -> E {
@@ -1302,6 +1393,8 @@ fn chrome_for(theme: &str, system: System, muted: bool, style: &VolumeOsdStyle) 
         // Other themes start from the previous neutral base, not the
         // flyout-specific metrics; they keep the Fluent glyphs.
         chrome.mica = false;
+        chrome.number_slot = None;
+        chrome.outline = None;
         chrome.height = 49.0;
         chrome.pad_x = 16.0;
         chrome.gap = 12.0;
@@ -1339,8 +1432,9 @@ fn chrome_for(theme: &str, system: System, muted: bool, style: &VolumeOsdStyle) 
     chrome
 }
 
-/// Measured against the Windows 11 volume flyout: 192x44, Fluent glyph,
-/// 102x4 rail, bare number in Segoe UI Variable, subtle 1px stroke.
+/// Measured against the Windows 11 volume flyout: 192x48 acrylic card,
+/// Fluent glyph, 110x4 rail, bare number centered in the 40px after it, in
+/// Segoe UI Variable, dark hairline around the card.
 fn windows_chrome(system: System) -> VolumeChrome {
     let (surface, foreground, track, stroke) = if system.light {
         (0xf9f9f9, 0x1b1b1b, color_alpha(0x000000, 0.45), color_alpha(0x000000, 0.07))
@@ -1352,7 +1446,7 @@ fn windows_chrome(system: System) -> VolumeChrome {
         detail: Detail::None,
         animates: false,
         halo_pulse: false,
-        height: 44.0,
+        height: 48.0,
         radius: 8.0,
         pad_x: 12.0,
         gap: 14.0,
@@ -1370,11 +1464,13 @@ fn windows_chrome(system: System) -> VolumeChrome {
         weight: 400,
         text_size: 14.0,
         sheen: 0.0,
-        bar_width: 102.0,
+        bar_width: 110.0,
         bar_height: 4.0,
         ink: foreground,
         fluent: true,
         mica: true,
+        number_slot: Some(40.0),
+        outline: Some(color_alpha(0x000000, if system.light { 0.10 } else { 0.20 })),
         opacity: 1.0,
     }
 }

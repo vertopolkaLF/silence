@@ -1,10 +1,11 @@
-//! Real Mica under a GPUI popup.
+//! Real Mica or Acrylic under a GPUI popup.
 //!
 //! GPUI presents through a topmost DirectComposition target on its HWND.
 //! Windows allows a second, non-topmost target on the same HWND, so a rounded
 //! SpriteVisual there sits under GPUI's swap chain. Its brush is the
-//! compositor's blurred-wallpaper brush (the source DWM's Mica uses), blended
-//! to the theme's lightness; GPUI paints Mica's tint on top.
+//! compositor's blurred-wallpaper brush (the source DWM's Mica uses) or its
+//! host backdrop brush (whatever is behind the window, as Acrylic uses),
+//! blended to the theme's lightness; GPUI paints the material's tint on top.
 //!
 //! Ported from candle-tray's popup backdrop.
 
@@ -21,7 +22,7 @@ use windows::{
     UI::{
         Color,
         Composition::{
-            CompositionColorBrush, CompositionEffectSourceParameter,
+            CompositionBrush, CompositionColorBrush, CompositionEffectSourceParameter,
             CompositionRoundedRectangleGeometry, Compositor, Desktop::DesktopWindowTarget,
             SpriteVisual,
         },
@@ -71,6 +72,15 @@ impl Drop for QueueOwner {
     }
 }
 
+/// What shows through the glass.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Material {
+    /// The blurred desktop wallpaper.
+    Mica,
+    /// Whatever is on screen behind the window, blurred.
+    Acrylic,
+}
+
 pub(crate) struct Backdrop {
     // Keep the lower target and its compositor alive as long as the window.
     target: DesktopWindowTarget,
@@ -86,8 +96,8 @@ pub(crate) struct Backdrop {
 }
 
 impl Backdrop {
-    /// `None` where the system has no blurred-wallpaper brush (Windows 10).
-    pub(crate) fn new(hwnd: HWND, luminosity: u8) -> Result<Self> {
+    /// Fails where the system has no such brush (Mica on Windows 10).
+    pub(crate) fn new(hwnd: HWND, luminosity: u8, material: Material) -> Result<Self> {
         let level = luminosity;
         // Lets brushes reach the desktop; not a window-wide material.
         let enabled = 1i32;
@@ -108,9 +118,16 @@ impl Backdrop {
         let target = unsafe { interop.CreateDesktopWindowTarget(hwnd, false) }
             .context("attaching backdrop below GPUI")?;
 
-        let wallpaper = compositor
-            .TryCreateBlurredWallpaperBackdropBrush()
-            .context("creating blurred wallpaper brush")?;
+        let wallpaper: CompositionBrush = match material {
+            Material::Mica => compositor
+                .TryCreateBlurredWallpaperBackdropBrush()
+                .context("creating blurred wallpaper brush")?
+                .cast()?,
+            Material::Acrylic => compositor
+                .CreateHostBackdropBrush()
+                .context("creating host backdrop brush")?
+                .cast()?,
+        };
         let wallpaper_name = HSTRING::from("wallpaper");
         let luminosity_name = HSTRING::from("luminosity");
         let effect = luminosity_blend(

@@ -264,7 +264,11 @@ fn create(cx: &mut App) -> Option<(WindowHandle<PopupView>, HWND)> {
     };
     crate::volume_popup::attach(hwnd);
     let _ = handle.update(cx, |view, _, _| {
-        view.backdrop = match super::backdrop::Backdrop::new(hwnd, luminosity(view.system.light)) {
+        view.backdrop = match super::backdrop::Backdrop::new(
+            hwnd,
+            luminosity(view.system.light),
+            super::backdrop::Material::Mica,
+        ) {
             Ok(backdrop) => Some(backdrop),
             Err(error) => {
                 // Windows 10: the wallpaper-crop fallback stays in use.
