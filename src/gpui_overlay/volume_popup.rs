@@ -107,19 +107,25 @@ impl Layout {
         if self.header { HEADER_H } else { 0.0 }
     }
 
+    /// Space under the last row: its button sits as far from the card's
+    /// bottom edge as every button does from the left edge.
+    fn pad_bottom(self, last_row_h: f32) -> f32 {
+        (PAD_LEFT - (last_row_h - BUTTON) / 2.0).max(0.0)
+    }
+
     /// Everything but the app rows, divider included.
     fn fixed_h(self) -> f32 {
-        PAD_Y * 2.0 + self.header_h() + self.device_row_h() + DIVIDER_H
+        PAD_Y + self.pad_bottom(self.app_row_h()) + self.header_h() + self.device_row_h() + DIVIDER_H
     }
 
     fn card_height(self, apps: usize) -> f32 {
         let apps = apps.min(self.max_visible_apps());
-        let list = if apps == 0 {
-            0.0
+        let (list, last_row_h) = if apps == 0 {
+            (0.0, self.device_row_h())
         } else {
-            DIVIDER_H + apps as f32 * self.app_row_h()
+            (DIVIDER_H + apps as f32 * self.app_row_h(), self.app_row_h())
         };
-        PAD_Y * 2.0 + self.header_h() + self.device_row_h() + list
+        PAD_Y + self.pad_bottom(last_row_h) + self.header_h() + self.device_row_h() + list
     }
 
     /// As many app rows as fit the screen; more only scroll.
