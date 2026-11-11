@@ -498,6 +498,7 @@ fn volume_osd_style(config: &VolumeConfig) -> volume_osd::VolumeOsdStyle {
         enabled: osd.enabled,
         scale: osd.scale.clamp(10, 400) as f32 / 100.0,
         corner_radius: osd.corner_radii.get(&osd.theme).map(|radius| f32::from(*radius)),
+        show_media: config.music.enabled && config.music.on_volume_change,
         custom: volume_osd::CustomLook {
             font: osd.text_font.clone(),
             weight: osd.text_font_weight,
@@ -582,6 +583,64 @@ pub(crate) fn save_moved_volume_osd() {
 }
 
 /// Settings changed something about the OSD: show it now with the current level.
+/// The music widget, from the media session watcher's thread. Each kind of
+/// event has its own switch on the Music page.
+pub(crate) fn show_music_osd(
+    track: std::sync::Arc<media_session::NowPlaying>,
+    action: volume_osd::MediaAction,
+) {
+    let style = {
+        let app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let music = &app.volume.music;
+        let wanted = match action {
+            volume_osd::MediaAction::Play | volume_osd::MediaAction::Pause => music.on_play_pause,
+            volume_osd::MediaAction::Next | volume_osd::MediaAction::Previous => music.on_skip,
+            volume_osd::MediaAction::UpNext => music.up_next,
+        };
+        if !app.modules.volume || !music.enabled || !wanted {
+            return;
+        }
+        music_osd_style(&app.volume)
+    };
+    if let Err(err) = volume_osd::volume_osd_init() {
+        eprintln!("failed to start volume OSD: {err:?}");
+        return;
+    }
+    volume_osd::volume_osd_show(volume_osd::VolumeOsdContent::Media { track, action }, &style);
+}
+
+/// The volume OSD's look and place, with the Music page's own duration. The
+/// widget shows even while the volume OSD itself is switched off.
+fn music_osd_style(config: &VolumeConfig) -> volume_osd::VolumeOsdStyle {
+    let mut style = volume_osd_style(config);
+    style.enabled = true;
+    style.while_muted = false;
+    style.duration_ms = config.music.duration_ms;
+    style
+}
+
+/// Settings changed something on the Music page: show the current track.
+pub(crate) fn preview_music_osd() {
+    let style = {
+        let app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !app.modules.volume || !app.volume.music.enabled {
+            return;
+        }
+        music_osd_style(&app.volume)
+    };
+    let Some((track, playing)) = media_session::latest() else {
+        return;
+    };
+    let action = if playing {
+        volume_osd::MediaAction::Play
+    } else {
+        volume_osd::MediaAction::Pause
+    };
+    if volume_osd::volume_osd_init().is_ok() {
+        volume_osd::volume_osd_show(volume_osd::VolumeOsdContent::Media { track, action }, &style);
+    }
+}
+
 pub(crate) fn preview_volume_osd() {
     let state = output_volume_state();
     if state.device_id.is_empty() {

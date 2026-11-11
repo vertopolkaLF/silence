@@ -635,7 +635,11 @@ unsafe extern "system" fn main_wnd_proc(
             LRESULT(0)
         }
         WM_VOLUME_OSD_PREVIEW => {
-            preview_volume_osd();
+            if wparam.0 == 1 {
+                preview_music_osd();
+            } else {
+                preview_volume_osd();
+            }
             LRESULT(0)
         }
         WM_VOLUME_OSD_POSITIONING => {

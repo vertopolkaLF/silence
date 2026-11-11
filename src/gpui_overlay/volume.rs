@@ -6,16 +6,23 @@
 //! Only the Cute themes draw these; the rest use the Fluent font's glyphs.
 //! Cute Sticker's peel does not fit a meter, so that theme is a die-cut paper
 //! pill with a badge around the icon, in the mic sticker's pastel ink.
+//!
+//! While something plays, a now-playing strip (cover, title, artist) can sit
+//! above the meter inside the same card. The music widget (a media key, or
+//! the playlist moving on) is its own layout, like a device switch: cover,
+//! title and artist, and the action's glyph where the meter would be. Both
+//! take every color, font and corner from the theme's chrome, so no theme
+//! needs its own media layout.
 
 use super::{
     details, fonts,
     motion::Motion,
     theme::{Detail, IconBox, Look, Shadow, System, color_alpha, from_hsl, hsl},
 };
-use crate::volume_osd::{Command, DeviceKind, VolumeOsdContent, VolumeOsdStyle};
+use crate::volume_osd::{Command, DeviceKind, MediaAction, VolumeOsdContent, VolumeOsdStyle};
 use anyhow::Result;
 use gpui::{
-    App, AssetSource, Bounds, BoxShadow, Context, FontWeight, IntoElement, Render, Rgba,
+    App, AssetSource, Bounds, BoxShadow, Context, Div, FontWeight, Image, IntoElement, Render, Rgba,
     SharedString, Task, TextRun, Window, WindowBackgroundAppearance, WindowBounds, WindowKind,
     WindowOptions, WindowingRequest, div, font, linear_color_stop, linear_gradient, point,
     ObjectFit, Transformation, img, prelude::*, px, radians, rgb, size, svg,
@@ -25,6 +32,7 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     rc::Rc,
+    sync::Arc,
     time::{Duration, Instant},
 };
 use windows::Win32::Foundation::HWND;
@@ -39,6 +47,14 @@ const CROSSFADE_MS: u64 = 200;
 const SIZE_MS: u64 = 240;
 const FADE_MS: u64 = 180;
 const SLIDE_MS: u64 = 280;
+/// Album art edge in the strip above the meter, before the size scale.
+const COVER: f32 = 44.0;
+/// Album art edge in the music widget: room for "Up next" over two lines.
+const WIDGET_COVER: f32 = 52.0;
+/// Title and artist get this much room before they are cut.
+const MEDIA_TEXT_MAX: f32 = 220.0;
+/// Space between the title and the artist line.
+const MEDIA_LINE_GAP: f32 = 2.0;
 /// Ambient themes tick at ~30 fps, same as the mic overlay.
 const AMBIENT_FRAME: Duration = Duration::from_millis(33);
 
@@ -69,10 +85,10 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) -> Result<()> {
                     window_bounds: Some(WindowBounds::Windowed(Bounds::new(
                         point(px(80.), px(80.)),
                         // GPUI never grows a non-resizable window past its
-                        // initial size: leave room for long device names at
-                        // the 400% size scale. The native surface is resized
-                        // to the card every layout.
-                        size(px(2000.), px(400.)),
+                        // initial size: leave room for long device names and
+                        // the now-playing strip at the 400% size scale. The
+                        // native surface is resized to the card every layout.
+                        size(px(2000.), px(900.)),
                     ))),
                     titlebar: None,
                     inactive_frame_interval: None,
@@ -278,6 +294,20 @@ struct Caption {
     opacity: Motion,
 }
 
+/// One track in the now-playing strip. A track change crossfades two of these.
+#[derive(Clone)]
+struct MediaLayer {
+    key: String,
+    title: SharedString,
+    artist: SharedString,
+    cover: Option<Arc<Image>>,
+    /// "Up next" over the title.
+    eyebrow: bool,
+    /// Widest of the fitted lines, in window pixels.
+    text_width: f32,
+    opacity: Motion,
+}
+
 struct VolumeView {
     system: System,
     content: VolumeOsdContent,
@@ -287,6 +317,13 @@ struct VolumeView {
     layers: Vec<ChromeLayer>,
     glyphs: Vec<Glyph>,
     captions: Vec<Caption>,
+    media: Vec<MediaLayer>,
+    /// Re-read the playing track and re-fit its text on the next frame.
+    media_dirty: bool,
+    /// Height of the now-playing strip above the meter row.
+    media_height: Motion,
+    /// The card is appearing from nothing: take the new size without growing.
+    snap_layout: bool,
     loaded_fonts: Vec<SharedString>,
     needs_measure: bool,
     measured: bool,
@@ -335,6 +372,10 @@ impl VolumeView {
             }],
             glyphs: Vec::new(),
             captions: Vec::new(),
+            media: Vec::new(),
+            media_dirty: true,
+            media_height: Motion::new(0.0, SIZE_MS),
+            snap_layout: false,
             loaded_fonts: Vec::new(),
             needs_measure: true,
             measured: false,
@@ -366,6 +407,10 @@ impl VolumeView {
             Command::Hide => self.hide(cx),
             Command::SurfaceReady => self.on_surface_ready(cx),
             Command::Positioning(active) => self.set_positioning(active, cx),
+            Command::Media => {
+                self.media_dirty = true;
+                cx.notify();
+            }
             Command::Popup(_) | Command::Shutdown => {}
         }
     }
@@ -375,7 +420,12 @@ impl VolumeView {
         let appearing = !self.want_visible;
         if appearing {
             self.system = System::load();
+            // Fully faded out: nothing on screen to grow from.
+            if self.visibility.value(now) < 0.01 {
+                self.snap_layout = true;
+            }
         }
+        self.media_dirty = true;
         let next_name = device_caption(&content);
         if self.device_name != next_name || self.style.theme != style.theme {
             self.caption_dirty = true;
@@ -409,6 +459,7 @@ impl VolumeView {
         let now = Instant::now();
         self.system = System::load();
         self.caption_dirty = true;
+        self.media_dirty = true;
         self.needs_measure = true;
         self.style = style;
         self.sync_chrome(now);
@@ -646,6 +697,46 @@ impl VolumeView {
             .retain(|caption| caption.opacity.to > 0.0 || caption.opacity.active(now));
     }
 
+    /// Crossfade the strip to `next`, or fade it out. A re-fit of the same
+    /// track (new theme font, art arriving late) updates it in place.
+    fn sync_media(&mut self, next: Option<MediaLayer>, now: Instant, snap: bool) {
+        let key = next.as_ref().map(|layer| layer.key.clone());
+        let mut matched = false;
+        for layer in &mut self.media {
+            let current = key.as_ref() == Some(&layer.key);
+            if snap {
+                layer.opacity = Motion::new(if current { 1.0 } else { 0.0 }, FADE_MS);
+            } else {
+                layer.opacity.retarget(if current { 1.0 } else { 0.0 }, now);
+            }
+            if current && let Some(next) = next.as_ref() {
+                layer.title = next.title.clone();
+                layer.artist = next.artist.clone();
+                layer.text_width = next.text_width;
+                layer.cover = next.cover.clone();
+                matched = true;
+            }
+        }
+        if let Some(mut next) = next.filter(|_| !matched) {
+            next.opacity = if snap {
+                Motion::new(1.0, FADE_MS)
+            } else if self.media.is_empty() {
+                // A strip that grows in fades in with the growth.
+                let mut opacity = Motion::new(0.0, SIZE_MS);
+                opacity.retarget(1.0, now);
+                opacity
+            } else {
+                // A track change crossfades over the old one.
+                let mut opacity = Motion::new(0.0, FADE_MS);
+                opacity.retarget(1.0, now);
+                opacity
+            };
+            self.media.push(next);
+        }
+        self.media
+            .retain(|layer| layer.opacity.to > 0.0 || layer.opacity.active(now));
+    }
+
     fn ensure_fonts(&mut self, cx: &mut Context<Self>) {
         let families: Vec<SharedString> = self
             .layers
@@ -689,6 +780,59 @@ impl Render for VolumeView {
             .retain(|caption| caption.opacity.to > 0.0 || caption.opacity.active(now));
         self.ensure_fonts(cx);
 
+        self.media
+            .retain(|layer| layer.opacity.to > 0.0 || layer.opacity.active(now));
+        // Fonts and scale fit the track's text as much as a device name's.
+        self.media_dirty |= self.caption_dirty;
+        let snap = std::mem::take(&mut self.snap_layout);
+        if self.media_dirty {
+            self.media_dirty = false;
+            let chrome = self.incoming().chrome.clone();
+            let source = match &self.content {
+                VolumeOsdContent::Media { track, action } => {
+                    Some((track.clone(), *action == MediaAction::UpNext))
+                }
+                VolumeOsdContent::Level { .. } if self.style.show_media => {
+                    crate::media_session::playing_now().map(|track| (track, false))
+                }
+                _ => None,
+            };
+            let measure_window = &*window;
+            let next = source.map(|(playing, eyebrow)| {
+                let max = MEDIA_TEXT_MAX * scale;
+                let (title_weight, title_size) = title_type(&chrome, scale);
+                let (artist_weight, artist_size) = artist_type(&chrome, scale);
+                let measure_title = |text: &str| {
+                    measure_styled(text, &chrome.font, title_weight, title_size, measure_window)
+                };
+                let measure_artist = |text: &str| {
+                    measure_styled(text, &chrome.font, artist_weight, artist_size, measure_window)
+                };
+                let title = fit_text(&playing.title, max, measure_title);
+                let artist = fit_text(&playing.artist, max, measure_artist);
+                let (eyebrow_weight, eyebrow_size) = eyebrow_type(&chrome, scale);
+                let eyebrow_width = if eyebrow {
+                    measure_styled(UP_NEXT, &chrome.font, eyebrow_weight, eyebrow_size, measure_window)
+                } else {
+                    0.0
+                };
+                let text_width = measure_title(&title)
+                    .max(measure_artist(&artist))
+                    .max(eyebrow_width);
+                MediaLayer {
+                    key: format!("{}\u{1}{}\u{1}{eyebrow}", playing.title, playing.artist),
+                    title: title.into(),
+                    artist: artist.into(),
+                    cover: playing.cover.clone(),
+                    eyebrow,
+                    text_width,
+                    opacity: Motion::new(0.0, FADE_MS),
+                }
+            });
+            self.sync_media(next, now, snap);
+            self.needs_measure = true;
+        }
+
         if self.caption_dirty {
             self.caption_dirty = false;
             let chrome = self.incoming().chrome.clone();
@@ -728,6 +872,8 @@ impl Render for VolumeView {
             .min(bar_h / 2.0);
         // A device switch shows only the glyph and the device name.
         let device_mode = matches!(self.content, VolumeOsdContent::Device { .. });
+        // The music widget: cover, lines, and the action's glyph at the end.
+        let media_mode = matches!(self.content, VolumeOsdContent::Media { .. });
         let (number_lead, number_trail) = if chrome.number_slot.is_some() {
             (0.0, 0.0)
         } else {
@@ -749,18 +895,43 @@ impl Render for VolumeView {
         } else {
             0.0
         };
-        let target_w = (base + extra).max(icon_slot + lead * 2.0);
-        let target_h = (chrome.height * scale).max(1.0);
+        // The strip's cover lines up with the icon below it and sits as far
+        // from the top edge as from the left one.
+        let media_inset = (chrome.lead() * scale).max(8.0 * scale);
+        let cover = COVER * scale;
+        let media_text_x = media_inset + cover + gap;
+        let widget_cover = WIDGET_COVER * scale;
+        let widget_base = media_inset + widget_cover + gap * 2.0 + icon_slot + lead;
+        let incoming_media = self.media.iter().find(|layer| layer.opacity.to > 0.5);
+        let (target_w, target_h, media_h) = if media_mode {
+            (
+                widget_base + incoming_media.map_or(0.0, |layer| layer.text_width),
+                (chrome.height * scale).max(widget_cover + media_inset * 2.0),
+                0.0,
+            )
+        } else {
+            let (media_w, media_h) = match incoming_media {
+                Some(layer) => (media_text_x + layer.text_width + text_pad, media_inset + cover),
+                None => (0.0, 0.0),
+            };
+            (
+                (base + extra).max(icon_slot + lead * 2.0).max(media_w),
+                (chrome.height * scale + media_h).max(1.0),
+                media_h,
+            )
+        };
         let target_r = chrome.radius * scale;
         if self.needs_measure && target_w >= 8.0 {
-            if self.measured {
+            if self.measured && !snap {
                 self.width.retarget(target_w, now);
                 self.height.retarget(target_h, now);
                 self.radius.retarget(target_r, now);
+                self.media_height.retarget(media_h, now);
             } else {
                 self.width = Motion::new(target_w, SIZE_MS);
                 self.height = Motion::new(target_h, SIZE_MS);
                 self.radius = Motion::new(target_r, SIZE_MS);
+                self.media_height = Motion::new(media_h, SIZE_MS);
                 self.measured = true;
             }
             self.needs_measure = false;
@@ -796,6 +967,8 @@ impl Render for VolumeView {
         let moving = self.width.active(now)
             || self.height.active(now)
             || self.radius.active(now)
+            || self.media_height.active(now)
+            || self.media.iter().any(|layer| layer.opacity.active(now))
             || self.visibility.active(now)
             || (slide_theme && self.slide.active(now))
             || self.level.active(now)
@@ -889,7 +1062,19 @@ impl Render for VolumeView {
             .filter(|(_, opacity)| *opacity > 0.01)
             .cloned()
             .collect();
-        let name_slot = (width - base).max(0.0);
+        // Room the meter row does not need. A device name takes it; with the
+        // meter shown (under a wider now-playing strip), the bar does.
+        let spare = (width - base).max(0.0);
+        let name_slot = if device_mode { spare } else { 0.0 };
+        let bar_w = if device_mode { bar_w } else { bar_w + spare };
+        let strip_h = self.media_height.value(now).clamp(0.0, height);
+        let row_h = (height - strip_h).max(1.0);
+        let media: Vec<(MediaLayer, f32)> = self
+            .media
+            .iter()
+            .map(|layer| (layer.clone(), layer.opacity.value(now)))
+            .filter(|(_, opacity)| *opacity > 0.01)
+            .collect();
         let level = self.level.value(now).clamp(0.0, 1.0);
         let percent = self.content.percent();
         let label = percent.to_string();
@@ -990,12 +1175,23 @@ impl Render for VolumeView {
             .sum::<f32>()
             .min(1.0);
         let badge = icon_slot + STICKER_RIM * 2.0 * scale;
-        let badge_x = lead + (icon_slot - badge) / 2.0;
-        let badge_y = (height - badge) / 2.0;
+        // The badge rings the glyph: at the start, or at the music widget's end.
+        let icon_x = if media_mode {
+            width - lead - icon_slot
+        } else {
+            lead
+        };
+        let badge_x = icon_x + (icon_slot - badge) / 2.0;
+        let badge_y = strip_h + (row_h - badge) / 2.0;
         // (left, top, size, tilt): one over the top right edge, a smaller one
         // on the badge's lower left.
         let stars = [
-            (width - 34.0 * scale, -11.0 * scale, 22.0 * scale, 0.21),
+            if media_mode {
+                // Over the cover's corner; the end belongs to the badge.
+                (media_inset + widget_cover * 0.62, -11.0 * scale, 22.0 * scale, 0.21)
+            } else {
+                (width - 34.0 * scale, -11.0 * scale, 22.0 * scale, 0.21)
+            },
             (
                 badge_x + badge * 0.14 - 7.0 * scale,
                 badge_y + badge * 0.86 - 7.0 * scale,
@@ -1163,80 +1359,133 @@ impl Render for VolumeView {
                     }),
             );
         }
-        let mut row = div()
-            .flex()
-            .items_center()
-            .size_full()
-            .pl(px(lead))
-            // With the meter shown, the number's area carries the right edge.
-            .when(device_mode, |row| row.pr(px(text_pad)))
-            .child(icon);
-        if name_slot > 0.5 {
-            let mut name = div()
-                .relative()
-                .h_full()
-                .w(px(name_slot))
-                .overflow_hidden();
-            for (text, opacity) in &captions {
-                name = name.child(
+        if strip_h > 0.5 && !media.is_empty() {
+            contents = contents.child(media_strip(
+                &media,
+                &chrome,
+                MediaFrame {
+                    foreground,
+                    accent: fill,
+                    track,
+                    scale,
+                    card_radius: radius,
+                    inset: media_inset,
+                    cover,
+                    text_w: (width - media_text_x - text_pad).max(0.0),
+                    gap,
+                },
+                width,
+                strip_h,
+            ));
+        }
+        if media_mode {
+            let frame = MediaFrame {
+                foreground,
+                accent: fill,
+                track,
+                scale,
+                card_radius: radius,
+                inset: media_inset.min((height - widget_cover) / 2.0).max(0.0),
+                cover: widget_cover,
+                text_w: (width - widget_base).max(0.0),
+                gap,
+            };
+            contents = contents.child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .top_0()
+                    .w(px(width))
+                    .h(px(height))
+                    .flex()
+                    .items_center()
+                    .pl(px(media_inset))
+                    .child(media_art(&media, &chrome, &frame))
+                    .child(div().flex_shrink_0().w(px(gap)))
+                    .child(media_lines(&media, &chrome, &frame).h(px(height)))
+                    .child(div().flex_shrink_0().w(px(gap)))
+                    .child(icon),
+            );
+        } else {
+            let mut row = div()
+                .absolute()
+                .left_0()
+                .top(px(strip_h))
+                .w(px(width))
+                .h(px(row_h))
+                .flex()
+                .items_center()
+                .pl(px(lead))
+                // With the meter shown, the number's area carries the right edge.
+                .when(device_mode, |row| row.pr(px(text_pad)))
+                .child(icon);
+            if name_slot > 0.5 {
+                let mut name = div()
+                    .relative()
+                    .h_full()
+                    .w(px(name_slot))
+                    .overflow_hidden();
+                for (text, opacity) in &captions {
+                    name = name.child(
+                        div()
+                            .absolute()
+                            .left(px(gap))
+                            .top_0()
+                            .h_full()
+                            .flex()
+                            .items_center()
+                            .opacity(*opacity)
+                            .whitespace_nowrap()
+                            .text_size(px(chrome.text_size * scale))
+                            .font_family(chrome.font.clone())
+                            .font_weight(FontWeight(chrome.weight as f32))
+                            .text_color(rgb(foreground))
+                            .child(text.clone()),
+                    );
+                }
+                row = row.child(name);
+            }
+            if !device_mode {
+                row = row.child(
+                    div().pl(px(gap)).flex_shrink_0().child(
+                        div()
+                            .w(px(bar_w))
+                            .h(px(bar_h.max(1.0)))
+                            .rounded(px(bar_r))
+                            .bg(track)
+                            // GPUI clips to the rectangle, not the radius: round the
+                            // fill itself so its start and end match the rail's.
+                            .when(level > 0.0, |rail| {
+                                rail.child(
+                                    div()
+                                        .h(px(bar_h.max(1.0)))
+                                        .w(px((bar_w * level).max(bar_r * 2.0).max(1.0)))
+                                        .rounded(px(bar_r))
+                                        .bg(fill),
+                                )
+                            }),
+                    ),
+                );
+                row = row.child(
                     div()
-                        .absolute()
-                        .left(px(gap))
-                        .top_0()
-                        .h_full()
+                        .pl(px(number_lead))
+                        .pr(px(number_trail))
+                        .w(px(number_w))
+                        .flex_shrink_0()
                         .flex()
+                        .justify_center()
                         .items_center()
-                        .opacity(*opacity)
+                        .line_height(px(chrome.text_size * scale))
                         .whitespace_nowrap()
                         .text_size(px(chrome.text_size * scale))
                         .font_family(chrome.font.clone())
                         .font_weight(FontWeight(chrome.weight as f32))
                         .text_color(rgb(foreground))
-                        .child(text.clone()),
+                        .child(label),
                 );
             }
-            row = row.child(name);
+            contents = contents.child(row);
         }
-        if !device_mode {
-            row = row.child(
-                div().pl(px(gap)).flex_shrink_0().child(
-                    div()
-                        .w(px(bar_w))
-                        .h(px(bar_h.max(1.0)))
-                        .rounded(px(bar_r))
-                        .bg(track)
-                        // GPUI clips to the rectangle, not the radius: round the
-                        // fill itself so its start and end match the rail's.
-                        .when(level > 0.0, |rail| {
-                            rail.child(
-                                div()
-                                    .h(px(bar_h.max(1.0)))
-                                    .w(px((bar_w * level).max(bar_r * 2.0).max(1.0)))
-                                    .rounded(px(bar_r))
-                                    .bg(fill),
-                            )
-                        }),
-                ),
-            );
-            row = row.child(
-                div()
-                    .pl(px(number_lead))
-                    .pr(px(number_trail))
-                    .w(px(number_w))
-                    .flex_shrink_0()
-                    .flex()
-                    .justify_center()
-                    .items_center()
-                    .line_height(px(chrome.text_size * scale))
-                    .whitespace_nowrap()
-                    .text_size(px(chrome.text_size * scale))
-                    .font_family(chrome.font.clone())
-                    .font_weight(FontWeight(chrome.weight as f32))
-                    .text_color(rgb(foreground))
-                    .child(label),
-            );
-        }
-        contents = contents.child(row);
         card = card.child(contents);
         if sticker_weight > 0.01 {
             for sparkle in stars {
@@ -1313,12 +1562,22 @@ fn border_width<E: Styled>(mut element: E, width: f32) -> E {
 }
 
 fn measure_text(text: &str, chrome: &VolumeChrome, scale: f32, window: &Window) -> f32 {
+    measure_styled(text, &chrome.font, chrome.weight, chrome.text_size * scale, window)
+}
+
+fn measure_styled(
+    text: &str,
+    family: &SharedString,
+    weight: u16,
+    size_px: f32,
+    window: &Window,
+) -> f32 {
     if text.is_empty() {
         return 0.0;
     }
     let text: SharedString = text.to_string().into();
-    let mut text_font = font(chrome.font.clone());
-    text_font.weight = FontWeight(chrome.weight as f32);
+    let mut text_font = font(family.clone());
+    text_font.weight = FontWeight(weight as f32);
     let run = TextRun {
         len: text.len(),
         font: text_font,
@@ -1329,16 +1588,20 @@ fn measure_text(text: &str, chrome: &VolumeChrome, scale: f32, window: &Window) 
     };
     let line = window
         .text_system()
-        .shape_line(text, px(chrome.text_size * scale), &[run], None);
+        .shape_line(text, px(size_px), &[run], None);
     f32::from(line.width)
 }
 
 fn fit_name(name: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> String {
-    let mut name: String = name.chars().take(64).collect();
-    if name.is_empty() {
-        name = "Output".to_string();
-    }
-    if max_width <= 1.0 || measure(&name) <= max_width {
+    let name: String = name.chars().take(64).collect();
+    let name = if name.is_empty() { "Output" } else { &name };
+    fit_text(name, max_width, measure)
+}
+
+/// Cut `text` with an ellipsis to fit `max_width`. Empty stays empty.
+fn fit_text(text: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> String {
+    let name: String = text.chars().take(96).collect();
+    if name.is_empty() || max_width <= 1.0 || measure(&name) <= max_width {
         return name;
     }
     let mut kept = String::new();
@@ -1356,6 +1619,236 @@ fn fit_name(name: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> String
     } else {
         format!("{kept}…")
     }
+}
+
+/// Track title: the theme's face, a step bolder than its numbers so it leads.
+/// Archivo Black ships a single weight and would only be smeared.
+fn title_type(chrome: &VolumeChrome, scale: f32) -> (u16, f32) {
+    let weight = if chrome.font.as_ref() == "Archivo Black" {
+        chrome.weight
+    } else {
+        chrome.weight.max(600)
+    };
+    (weight, chrome.text_size * scale)
+}
+
+/// Artist line: same face, lighter and a little smaller than the title.
+fn artist_type(chrome: &VolumeChrome, scale: f32) -> (u16, f32) {
+    let weight = if chrome.font.as_ref() == "Archivo Black" {
+        chrome.weight
+    } else {
+        chrome.weight.min(500)
+    };
+    (weight, (chrome.text_size - 2.0).max(10.0) * scale)
+}
+
+/// Size and colors shared by the strip and the music widget, in window pixels.
+struct MediaFrame {
+    foreground: u32,
+    /// "Up next" ink: the theme's meter fill.
+    accent: Rgba,
+    track: Rgba,
+    scale: f32,
+    card_radius: f32,
+    /// Distance from the card's edge to the cover.
+    inset: f32,
+    cover: f32,
+    /// Width for the title and artist.
+    text_w: f32,
+    gap: f32,
+}
+
+/// Name of the eyebrow over a track the playlist moved on to.
+const UP_NEXT: &str = "Up next";
+
+/// Small label over the title: same face, bold, a few points down.
+fn eyebrow_type(chrome: &VolumeChrome, scale: f32) -> (u16, f32) {
+    let weight = if chrome.font.as_ref() == "Archivo Black" {
+        chrome.weight
+    } else {
+        chrome.weight.max(700)
+    };
+    (weight, (chrome.text_size - 4.0).max(9.0) * scale)
+}
+
+/// Cover, title and artist above the meter row, in the theme's own colors.
+fn media_strip(
+    layers: &[(MediaLayer, f32)],
+    chrome: &VolumeChrome,
+    frame: MediaFrame,
+    width: f32,
+    height: f32,
+) -> impl IntoElement {
+    div()
+        .absolute()
+        .left_0()
+        .top_0()
+        .w(px(width))
+        .h(px(height))
+        .overflow_hidden()
+        .child(
+            div()
+                .absolute()
+                .left(px(frame.inset))
+                .top(px(frame.inset))
+                .child(media_art(layers, chrome, &frame)),
+        )
+        .child(
+            media_lines(layers, chrome, &frame)
+                .absolute()
+                .left(px(frame.inset + frame.cover + frame.gap))
+                .top(px(frame.inset))
+                .h(px(frame.cover)),
+        )
+}
+
+/// The covers of every visible track, stacked for the crossfade.
+fn media_art(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaFrame) -> Div {
+    let MediaFrame {
+        foreground,
+        track,
+        scale,
+        card_radius,
+        inset,
+        cover,
+        ..
+    } = *frame;
+    // Concentric with the card's corner, so a pill card gets a soft cover and
+    // a square one a square cover; never fully sharp on a rounded card.
+    let cover_radius = (card_radius - inset)
+        .max(card_radius.min(4.0 * scale))
+        .min(cover / 2.0);
+    // Heavy theme borders (Brutalism, Cute, Arcade, Neon) frame the art the
+    // same way; the rest get a hairline so dark art keeps its edge.
+    let (edge, edge_width) = match chrome.border {
+        Some((color, line)) if line >= 1.5 => (color, line * scale),
+        _ => (color_alpha(foreground, 0.12), (0.75 * scale).max(1.0)),
+    };
+    let mut stack = div().relative().flex_shrink_0().size(px(cover));
+    for (layer, opacity) in layers {
+        let art = match &layer.cover {
+            Some(image) => img(image.clone())
+                .absolute()
+                .left_0()
+                .top_0()
+                .size(px(cover))
+                .rounded(px(cover_radius))
+                .object_fit(ObjectFit::Cover)
+                .into_any_element(),
+            // No art from the player: the theme's track tone with a note.
+            None => div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .size(px(cover))
+                .rounded(px(cover_radius))
+                .bg(track)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(if chrome.fluent {
+                    div()
+                        .font_family(fluent_font())
+                        .text_size(px(cover * 0.42))
+                        .line_height(px(cover * 0.42))
+                        .text_color(rgb(chrome.ink))
+                        .child('\u{EC4F}'.to_string())
+                        .into_any_element()
+                } else {
+                    svg()
+                        .path("media-note")
+                        .size(px(cover * 0.45))
+                        .text_color(rgb(chrome.ink))
+                        .into_any_element()
+                })
+                .into_any_element(),
+        };
+        let outline = border_width(
+            div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .size(px(cover))
+                .rounded(px(cover_radius)),
+            edge_width,
+        )
+        .border_color(edge);
+        stack = stack.child(
+            div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .size(px(cover))
+                .opacity(*opacity)
+                .child(art)
+                .child(outline),
+        );
+    }
+    stack
+}
+
+/// Title, artist and the "Up next" eyebrow of every visible track, stacked
+/// for the crossfade and centered in the column's height.
+fn media_lines(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaFrame) -> Div {
+    let MediaFrame {
+        foreground,
+        accent,
+        scale,
+        text_w,
+        ..
+    } = *frame;
+    let (title_weight, title_size) = title_type(chrome, scale);
+    let (artist_weight, artist_size) = artist_type(chrome, scale);
+    let (eyebrow_weight, eyebrow_size) = eyebrow_type(chrome, scale);
+    let mut stack = div()
+        .relative()
+        .flex_shrink_0()
+        .w(px(text_w))
+        .overflow_hidden();
+    for (layer, opacity) in layers {
+        let mut lines = div()
+            .absolute()
+            .left_0()
+            .top_0()
+            .size_full()
+            .flex()
+            .flex_col()
+            .justify_center()
+            .gap(px(MEDIA_LINE_GAP * scale))
+            .whitespace_nowrap()
+            .font_family(chrome.font.clone())
+            .opacity(*opacity);
+        if layer.eyebrow {
+            lines = lines.child(
+                div()
+                    .font_weight(FontWeight(eyebrow_weight as f32))
+                    .text_size(px(eyebrow_size))
+                    .line_height(px(eyebrow_size * 1.2))
+                    .text_color(accent)
+                    .child(UP_NEXT),
+            );
+        }
+        lines = lines.child(
+            div()
+                .font_weight(FontWeight(title_weight as f32))
+                .text_size(px(title_size))
+                .line_height(px(title_size * 1.25))
+                .text_color(rgb(foreground))
+                .child(layer.title.clone()),
+        );
+        if !layer.artist.is_empty() {
+            lines = lines.child(
+                div()
+                    .font_weight(FontWeight(artist_weight as f32))
+                    .text_size(px(artist_size))
+                    .line_height(px(artist_size * 1.25))
+                    .text_color(color_alpha(foreground, 0.68))
+                    .child(layer.artist.clone()),
+            );
+        }
+        stack = stack.child(lines);
+    }
+    stack
 }
 
 fn mix_rgba(parts: impl Iterator<Item = (Rgba, f32)>) -> Rgba {
@@ -1462,6 +1955,12 @@ fn content_glyph(content: &VolumeOsdContent) -> &'static str {
             DeviceKind::Microphone => "device-microphone",
             DeviceKind::Speakers | DeviceKind::Other => "device-speakers",
         },
+        VolumeOsdContent::Media { action, .. } => match action {
+            MediaAction::Play | MediaAction::UpNext => "media-play",
+            MediaAction::Pause => "media-pause",
+            MediaAction::Next => "media-next",
+            MediaAction::Previous => "media-previous",
+        },
     }
 }
 
@@ -1482,6 +1981,12 @@ fn fluent_glyph(content: &VolumeOsdContent) -> &'static str {
             DeviceKind::Display => "fluent:E7F4",
             DeviceKind::Microphone => "fluent:E720",
             DeviceKind::Speakers | DeviceKind::Other => "fluent:E7F5",
+        },
+        VolumeOsdContent::Media { action, .. } => match action {
+            MediaAction::Play | MediaAction::UpNext => "fluent:E768",
+            MediaAction::Pause => "fluent:E769",
+            MediaAction::Next => "fluent:E893",
+            MediaAction::Previous => "fluent:E892",
         },
     }
 }
@@ -1560,6 +2065,12 @@ pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
         // Pulldown-screen glyph. Display endpoints use the monitor; this stays
         // in the binary because the task asked for the Solar display icon.
         "device-screen" => include_str!("../../assets/icons/volume/display-bold.svg"),
+        // Now-playing stand-in when the player publishes no art.
+        "media-note" => include_str!("../../assets/icons/music-note-2-bold.svg"),
+        "media-play" => include_str!("../../assets/icons/play-bold.svg"),
+        "media-pause" => include_str!("../../assets/icons/pause-bold.svg"),
+        "media-next" => include_str!("../../assets/icons/volume/skip-next-bold.svg"),
+        "media-previous" => include_str!("../../assets/icons/volume/skip-previous-bold.svg"),
         // Cute Sticker's sparkle: the cut paper edge and the ink inside it.
         "sticker-star-paper" => {
             r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 5Q13.75 10.25 19 12Q13.75 13.75 12 19Q10.25 13.75 5 12Q10.25 10.25 12 5Z" fill="#000" stroke="#000" stroke-width="7" stroke-linejoin="round"/></svg>"##

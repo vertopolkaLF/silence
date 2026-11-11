@@ -100,6 +100,15 @@ pub(crate) fn request_volume_osd_preview() {
     }
 }
 
+/// Ask the tray to show the music widget with the current track.
+pub(crate) fn request_music_osd_preview() {
+    if let Some(hwnd) = hidden_window() {
+        unsafe {
+            let _ = PostMessageW(hwnd, WM_VOLUME_OSD_PREVIEW, WPARAM(1), LPARAM(0));
+        }
+    }
+}
+
 /// Settings "Move OSD" toggle.
 pub(crate) fn request_volume_osd_positioning(active: bool) {
     if let Some(hwnd) = hidden_window() {

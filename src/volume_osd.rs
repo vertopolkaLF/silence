@@ -80,6 +80,8 @@ pub(crate) enum Command {
     Popup(crate::volume_popup::PopupCommand),
     /// "Move OSD": stay visible and draggable until turned off.
     Positioning(bool),
+    /// The playing track changed; the meter's now-playing strip re-reads it.
+    Media,
     Shutdown,
 }
 
@@ -105,6 +107,8 @@ pub struct VolumeOsdStyle {
     pub scale: f32,
     /// User corner radius for the current theme, if they set one.
     pub corner_radius: Option<f32>,
+    /// Cover, title and artist of the playing track above the meter.
+    pub show_media: bool,
     /// The Custom theme's look.
     pub custom: CustomLook,
 }
@@ -150,6 +154,7 @@ impl Default for VolumeOsdStyle {
             enabled: true,
             scale: 1.0,
             corner_radius: None,
+            show_media: false,
             custom: CustomLook::default(),
         }
     }
@@ -165,18 +170,36 @@ pub enum VolumeOsdContent {
         percent: u8,
         muted: bool,
     },
+    /// The music widget: a track and what just happened to it.
+    Media {
+        track: std::sync::Arc<crate::media_session::NowPlaying>,
+        action: MediaAction,
+    },
+}
+
+/// Why the music widget is up. Drives its status glyph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MediaAction {
+    Play,
+    Pause,
+    Next,
+    Previous,
+    /// The playlist moved on by itself.
+    UpNext,
 }
 
 impl VolumeOsdContent {
     pub fn is_muted(&self) -> bool {
         match self {
             Self::Level { muted, .. } | Self::Device { muted, .. } => *muted,
+            Self::Media { .. } => false,
         }
     }
 
     pub fn percent(&self) -> u8 {
         match self {
             Self::Level { percent, .. } | Self::Device { percent, .. } => (*percent).min(100),
+            Self::Media { .. } => 0,
         }
     }
 }
@@ -295,6 +318,12 @@ pub(crate) fn set_positioning_native(active: bool) {
             },
         );
     }
+}
+
+/// The media watcher read a different track or state. A running OSD updates
+/// its now-playing strip in place.
+pub(crate) fn media_changed() {
+    send_if_running(Command::Media);
 }
 
 /// No-op when the OSD thread was never started.

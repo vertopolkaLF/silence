@@ -996,6 +996,7 @@ fn normalize_volume_config(volume: &mut VolumeConfig) {
     volume.osd.position_x = volume.osd.position_x.clamp(0.0, 100.0);
     volume.osd.position_y = volume.osd.position_y.clamp(0.0, 100.0);
     volume.osd.duration_ms = volume.osd.duration_ms.min(60_000);
+    volume.music.duration_ms = volume.music.duration_ms.clamp(1_000, 10_000);
     volume.osd.scale = volume.osd.scale.clamp(10, 400);
     volume.osd.text_font_weight = volume.osd.text_font_weight.clamp(100, 900);
     volume.osd.background_opacity = volume.osd.background_opacity.min(100);

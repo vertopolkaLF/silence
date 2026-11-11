@@ -73,6 +73,11 @@ windows = { version = "0.58", features = [
     "Win32_System_WinRT",
     "Win32_System_WinRT_Composition",
     "Win32_System_WinRT_Graphics_Direct2D",
+    # Now playing in the volume OSD.
+    "Media",
+    "Media_Control",
+    "Storage",
+    "Storage_Streams",
 ] }
 windows-core = "0.58"
 

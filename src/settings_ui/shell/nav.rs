@@ -30,6 +30,7 @@ pub(crate) enum SettingsTab {
     About,
     VolumeWheel,
     VolumeOsd,
+    VolumeMusic,
     VolumeTray,
     VolumeMediaKeys,
 }
@@ -63,6 +64,7 @@ impl SettingsTab {
         Self::AutoMute,
         Self::VolumeWheel,
         Self::VolumeOsd,
+        Self::VolumeMusic,
         Self::VolumeTray,
         Self::VolumeMediaKeys,
         Self::General,
@@ -82,6 +84,7 @@ impl SettingsTab {
             Self::About => "About",
             Self::VolumeWheel => "Wheel & clicks",
             Self::VolumeOsd => "OSD",
+            Self::VolumeMusic => "Music",
             Self::VolumeTray => "Tray icon",
             Self::VolumeMediaKeys => "Media keys",
         }
@@ -93,7 +96,11 @@ impl SettingsTab {
             Self::Overlay | Self::TrayIcon | Self::HoldToMute | Self::AutoMute => {
                 Some(ModuleId::Microphone)
             }
-            Self::VolumeWheel | Self::VolumeOsd | Self::VolumeTray | Self::VolumeMediaKeys => {
+            Self::VolumeWheel
+            | Self::VolumeOsd
+            | Self::VolumeMusic
+            | Self::VolumeTray
+            | Self::VolumeMediaKeys => {
                 Some(ModuleId::Volume)
             }
             Self::Hotkeys | Self::Devices | Self::Sounds | Self::General | Self::About => None,
@@ -114,6 +121,7 @@ impl SettingsTab {
             Self::About => "info-circle-linear",
             Self::VolumeWheel => "mouse-linear",
             Self::VolumeOsd => "slider-minimalistic-horizontal-linear",
+            Self::VolumeMusic => "vinyl-linear",
             Self::VolumeTray => "widget-linear",
             Self::VolumeMediaKeys => "play-circle-linear",
         }
@@ -133,6 +141,7 @@ impl SettingsTab {
             Self::About => "info-circle-bold",
             Self::VolumeWheel => "mouse-bold",
             Self::VolumeOsd => "slider-minimalistic-horizontal-bold",
+            Self::VolumeMusic => "vinyl-bold",
             Self::VolumeTray => "widget-bold",
             Self::VolumeMediaKeys => "play-circle-bold",
         }
@@ -173,6 +182,7 @@ impl SettingsTab {
             Self::About => &[s!("about-overview", "About")],
             Self::VolumeWheel => &[s!("volume-wheel", "Wheel & clicks")],
             Self::VolumeOsd => &[s!("volume-osd", "OSD")],
+            Self::VolumeMusic => &[s!("volume-music", "Music")],
             Self::VolumeTray => &[s!("volume-tray-icon", "Tray icon")],
             Self::VolumeMediaKeys => &[s!("volume-media-keys", "Media keys")],
         }
@@ -202,6 +212,7 @@ pub(crate) fn module_tabs(module: ModuleId) -> &'static [SettingsTab] {
         ModuleId::Volume => &[
             SettingsTab::VolumeWheel,
             SettingsTab::VolumeOsd,
+            SettingsTab::VolumeMusic,
             SettingsTab::VolumeTray,
             SettingsTab::VolumeMediaKeys,
         ],

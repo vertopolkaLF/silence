@@ -7,6 +7,10 @@
 static TRAY_VOLUME_HOOKS: AtomicBool = AtomicBool::new(false);
 static VOLUME_MODULE_ON: AtomicBool = AtomicBool::new(false);
 static MEDIA_KEYS_INTERCEPT: AtomicBool = AtomicBool::new(false);
+/// The music widget wants play/pause/next/previous key presses.
+static MUSIC_KEYS_ON: AtomicBool = AtomicBool::new(false);
+/// Transport key currently held, so auto-repeat counts as one press.
+static MEDIA_KEY_HELD: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 static WHEEL_ZONE: AtomicU8 = AtomicU8::new(0);
 static TRAY_HWND: AtomicIsize = AtomicIsize::new(0);
 static LAST_HOOK_MILLIS: AtomicU64 = AtomicU64::new(0);
@@ -80,7 +84,7 @@ fn sync_volume_input_runtime() {
     if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
         return;
     }
-    let (hwnd, module_on, zone, intercept, volume_sound) = {
+    let (hwnd, module_on, zone, intercept, volume_sound, music) = {
         let state = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         (
             state.hwnd,
@@ -88,8 +92,18 @@ fn sync_volume_input_runtime() {
             state.volume.wheel.zone,
             state.volume.media_keys.intercept,
             volume_sound_settings(&state),
+            state.volume.music.clone(),
         )
     };
+    let music_on = module_on && music.enabled;
+    MUSIC_KEYS_ON.store(
+        music_on && (music.on_play_pause || music.on_skip),
+        Ordering::Relaxed,
+    );
+    if music_on {
+        // Up next needs the track history, not just the moments after a key.
+        media_session::start();
+    }
     let zone_code = wheel_zone_code(zone);
     let was_refreshing =
         VOLUME_MODULE_ON.load(Ordering::Relaxed) && WHEEL_ZONE.load(Ordering::Relaxed) != 0;
@@ -264,6 +278,32 @@ fn swallow_volume_media_key(
         }
     }
     true
+}
+
+/// Play/pause, next, previous and stop are never swallowed: the player still
+/// gets them. The music widget only learns that one was pressed.
+fn observe_media_transport_key(vk: u32, is_down: bool, is_up: bool) {
+    let key = match vk {
+        0xB3 => media_session::MediaKey::PlayPause,
+        0xB0 => media_session::MediaKey::Next,
+        0xB1 => media_session::MediaKey::Previous,
+        0xB2 => media_session::MediaKey::Stop,
+        _ => return,
+    };
+    if is_up {
+        let _ = MEDIA_KEY_HELD.compare_exchange(vk, 0, Ordering::Relaxed, Ordering::Relaxed);
+        return;
+    }
+    if !is_down
+        || !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed)
+        || !MUSIC_KEYS_ON.load(Ordering::Relaxed)
+    {
+        return;
+    }
+    if MEDIA_KEY_HELD.swap(vk, Ordering::Relaxed) == vk {
+        return;
+    }
+    media_session::media_key(key);
 }
 
 fn is_volume_media_vk(vk: u32) -> bool {

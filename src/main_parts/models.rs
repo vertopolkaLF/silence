@@ -1939,6 +1939,48 @@ impl Default for VolumeOsdConfig {
     }
 }
 
+/// The music widget: the playing track in the volume OSD's look.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct MusicConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// A play/pause (or stop) media key shows the track and its new state.
+    #[serde(default = "default_true")]
+    pub on_play_pause: bool,
+    /// A next/previous media key shows the track it switched to.
+    #[serde(default = "default_true")]
+    pub on_skip: bool,
+    /// The playlist moving on by itself shows the next song.
+    #[serde(default = "default_true")]
+    pub up_next: bool,
+    /// The volume OSD shows the playing track above its meter.
+    #[serde(default = "default_true")]
+    pub on_volume_change: bool,
+    #[serde(default = "default_music_duration_ms")]
+    pub duration_ms: u32,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_music_duration_ms() -> u32 {
+    3_000
+}
+
+impl Default for MusicConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            on_play_pause: true,
+            on_skip: true,
+            up_next: true,
+            on_volume_change: true,
+            duration_ms: default_music_duration_ms(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct VolumeMediaKeysConfig {
     #[serde(default = "default_volume_media_keys_intercept")]
@@ -1967,6 +2009,8 @@ pub struct VolumeConfig {
     pub osd: VolumeOsdConfig,
     #[serde(default)]
     pub media_keys: VolumeMediaKeysConfig,
+    #[serde(default)]
+    pub music: MusicConfig,
     #[serde(default = "default_volume_sound_settings")]
     pub sound: SoundSettings,
     #[serde(default)]
@@ -1984,6 +2028,7 @@ impl Default for VolumeConfig {
             tray_icon: VolumeTrayIconConfig::default(),
             osd: VolumeOsdConfig::default(),
             media_keys: VolumeMediaKeysConfig::default(),
+            music: MusicConfig::default(),
             sound: default_volume_sound_settings(),
             popup: VolumePopupConfig::default(),
             favorite_output_devices: Vec::new(),

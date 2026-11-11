@@ -126,6 +126,7 @@ use windows::{
 mod gpui_overlay;
 mod native_overlay;
 pub(crate) mod overlay_icons;
+mod media_session;
 mod volume_osd;
 mod volume_popup;
 mod volume_sessions;
