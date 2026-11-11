@@ -54,12 +54,12 @@ impl AssetSource for VolumeAssets {
     }
 }
 
-pub(crate) fn run(receiver: flume::Receiver<Command>) {
+pub(crate) fn run(receiver: flume::Receiver<Command>) -> Result<()> {
+    let startup_error = Rc::new(RefCell::new(None));
+    let app_error = startup_error.clone();
     let commands: Rc<RefCell<Option<Task<()>>>> = Rc::new(RefCell::new(None));
     let app_commands = commands.clone();
-    let platform = Rc::new(
-        gpui_windows::WindowsPlatform::new(false).expect("initialize volume OSD platform"),
-    );
+    let platform = Rc::new(gpui_windows::WindowsPlatform::new(false)?);
     gpui::Application::with_platform(platform)
         .with_quit_mode(gpui::QuitMode::Explicit)
         .with_assets(VolumeAssets)
@@ -166,11 +166,16 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) {
                 Ok(())
             });
             if let Err(error) = result {
-                eprintln!("volume OSD startup: {error:#}");
+                *app_error.borrow_mut() = Some(error);
                 cx.quit();
             }
         });
     commands.borrow_mut().take();
+    let error = startup_error.borrow_mut().take();
+    match error {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

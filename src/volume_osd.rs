@@ -21,8 +21,8 @@ use once_cell::sync::Lazy;
 use std::{
     mem::size_of,
     sync::{
-        Mutex,
-        atomic::{AtomicIsize, Ordering},
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicIsize, Ordering},
     },
     thread::{self, JoinHandle},
     time::Duration,
@@ -65,6 +65,7 @@ static ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
 struct Runtime {
     sender: Sender<Command>,
     thread: Option<JoinHandle<()>>,
+    stopping: Arc<AtomicBool>,
 }
 
 pub(crate) enum Command {
@@ -195,26 +196,47 @@ pub enum DeviceKind {
 /// Start the volume OSD thread. Later calls are free.
 pub fn volume_osd_init() -> Result<()> {
     let mut runtime = RUNTIME.lock().unwrap();
-    if runtime.is_some() {
+    if runtime.as_ref().is_some_and(|runtime| {
+        runtime.thread.as_ref().is_some_and(|thread| !thread.is_finished())
+    }) {
         return Ok(());
     }
+    // A stopped renderer must not leave a permanently dead sender behind.
+    runtime.take();
+    let stopping = Arc::new(AtomicBool::new(false));
+    let thread_stopping = stopping.clone();
     let (sender, receiver) = flume::unbounded();
     prepare(sender.clone())?;
     let thread = thread::Builder::new()
         .name("silence-gpui-volume-osd".into())
         .spawn(move || {
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                crate::gpui_overlay::volume::run(receiver);
-            }));
-            if outcome.is_err() {
-                eprintln!("volume OSD initialization panicked");
+            while !thread_stopping.load(Ordering::Acquire) {
+                let surface_receiver = receiver.clone();
+                // Fresh thread per attempt also releases COM/driver TLS after failure.
+                let result = thread::Builder::new()
+                    .name("silence-gpui-volume-surface".into())
+                    .spawn(move || crate::gpui_overlay::volume::run(surface_receiver))
+                    .context("start volume OSD surface thread")
+                    .and_then(|thread| {
+                        thread.join().unwrap_or_else(|panic| {
+                            Err(crate::gpui_overlay::surface_panic(panic))
+                        })
+                    });
+                detach();
+                match result {
+                    Ok(()) => break,
+                    Err(error) => {
+                        crate::gpui_overlay::report_failure("volume OSD", &error);
+                        thread::sleep(Duration::from_secs(1));
+                    }
+                }
             }
-            detach();
         })
         .context("start volume OSD thread")?;
     *runtime = Some(Runtime {
         sender,
         thread: Some(thread),
+        stopping,
     });
     Ok(())
 }
@@ -382,6 +404,7 @@ fn shutdown() {
         let Some(runtime) = runtime.as_mut() else {
             return;
         };
+        runtime.stopping.store(true, Ordering::Release);
         let _ = runtime.sender.send(Command::Shutdown);
         runtime.thread.take()
     };

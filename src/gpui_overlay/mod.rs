@@ -79,7 +79,7 @@ pub(super) fn start(muted: bool, settings: OverlayConfig) -> Result<()> {
         .spawn(move || {
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let checkpoint = Arc::new(Mutex::new(None));
-                loop {
+                'surfaces: loop {
                     // An enabled overlay stays warm between visibility changes.
                     // Only disabling it releases the platform/DirectX resources;
                     // rebuilding them on every show delays the first pixels.
@@ -98,7 +98,7 @@ pub(super) fn start(muted: bool, settings: OverlayConfig) -> Result<()> {
                     let surface_receiver = receiver.clone();
                     // Finish the OS thread too: COM/DirectWrite/driver TLS caches
                     // must not survive into the next theme's renderer.
-                    thread::Builder::new()
+                    let surface = thread::Builder::new()
                         .name("silence-gpui-surface".into())
                         .spawn(move || {
                             run_surface(
@@ -109,11 +109,28 @@ pub(super) fn start(muted: bool, settings: OverlayConfig) -> Result<()> {
                                 surface_receiver,
                             )
                         })
-                        .expect("start GPUI surface thread")
-                        .join()
-                        .expect("GPUI surface thread panicked");
+                        .context("start GPUI surface thread")
+                        .and_then(|thread| {
+                            thread.join().unwrap_or_else(|panic| Err(surface_panic(panic)))
+                        });
                     native_overlay::suspend_surface();
                     release_unused_heap_pages();
+                    if let Err(error) = surface {
+                        report_failure("microphone overlay", &error);
+                        // Keep the latest native state and retry on a fresh OS thread:
+                        // a failed COM/DirectX initialization must not kill the overlay.
+                        let retry_at = Instant::now() + Duration::from_secs(1);
+                        loop {
+                            match receiver.recv_timeout(retry_at.saturating_duration_since(Instant::now())) {
+                                Ok(Command::Shutdown) | Err(flume::RecvTimeoutError::Disconnected) => {
+                                    break 'surfaces;
+                                }
+                                Err(flume::RecvTimeoutError::Timeout) => break,
+                                Ok(_) => {}
+                            }
+                        }
+                        continue;
+                    }
                     if checkpoint.lock().unwrap().is_none() {
                         break;
                     }
@@ -136,13 +153,15 @@ fn run_surface(
     checkpoint: Arc<Mutex<Option<ResumeState>>>,
     sender: flume::Sender<Command>,
     receiver: flume::Receiver<Command>,
-) {
+) -> Result<()> {
+    let startup_error = Rc::new(RefCell::new(None));
+    let app_error = startup_error.clone();
     // Dropping this task cancels its pending recv before the next platform starts.
     // A detached receiver could otherwise steal commands from the new surface.
     let commands = Rc::new(RefCell::new(None));
     let app_commands = commands.clone();
     let platform = Rc::new(
-        gpui_windows::WindowsPlatform::new(false).expect("initialize GPUI Windows platform"),
+        gpui_windows::WindowsPlatform::new(false).context("initialize GPUI Windows platform")?,
     );
     gpui::Application::with_platform(platform)
         .with_quit_mode(gpui::QuitMode::Explicit)
@@ -245,11 +264,39 @@ fn run_surface(
                 Ok(())
             });
             if let Err(error) = result {
-                eprintln!("GPUI overlay startup: {error:#}");
+                *app_error.borrow_mut() = Some(error);
                 cx.quit();
             }
         });
     commands.borrow_mut().take();
+    let error = startup_error.borrow_mut().take();
+    match error {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+pub(crate) fn surface_panic(panic: Box<dyn std::any::Any + Send>) -> anyhow::Error {
+    let message = panic.downcast_ref::<String>().map(String::as_str)
+        .or_else(|| panic.downcast_ref::<&str>().copied())
+        .unwrap_or("unknown panic payload");
+    anyhow::anyhow!("renderer thread panicked: {message}")
+}
+
+/// Startup has no console. Keep renderer failures available for diagnosis.
+pub(crate) fn report_failure(component: &str, error: &anyhow::Error) {
+    use std::io::Write as _;
+    eprintln!("{component}: {error:#}");
+    if let Ok(dir) = crate::app_config_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join("overlay-errors.log"))
+        {
+            let _ = writeln!(file, "{:?} {component}: {error:#}", std::time::SystemTime::now());
+        }
+    }
 }
 
 fn required_font(look: &Look) -> Option<SharedString> {
