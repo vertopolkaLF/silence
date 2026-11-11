@@ -456,9 +456,7 @@ pub(crate) fn render(
         .snapshot
         .system_fonts
         .iter()
-        .map(|f| {
-            SelectOption::new(f.family.clone(), f.family.clone()).font_family(f.family.clone())
-        })
+        .map(|f| SelectOption::new(f.family.clone(), f.family.clone()))
         .collect::<Vec<_>>();
     if !o.text_font.is_empty()
         && !fonts
@@ -467,11 +465,14 @@ pub(crate) fn render(
     {
         fonts.insert(
             0,
-            SelectOption::new(o.text_font.clone(), o.text_font.clone())
-                .font_family(o.text_font.clone()),
+            SelectOption::new(o.text_font.clone(), o.text_font.clone()),
         );
     }
-    let mut font_options = SelectOptions::new(fonts);
+    // Hovering a font tries it on the live overlay; rendering every row in
+    // its own font froze the window with a few hundred installed families.
+    let mut font_options = SelectOptions::new(fonts).on_preview(|app, value, _, cx| {
+        app.update_config(cx, |c| c.overlay.text_font = value.to_string())
+    });
     font_options.searchable = true;
     let font_content = div()
         .flex()

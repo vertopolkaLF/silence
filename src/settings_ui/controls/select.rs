@@ -26,7 +26,6 @@ pub(crate) struct SelectOption {
     /// Embedded asset names without `icons/` and `.svg`.
     pub icon: Option<SharedString>,
     pub end_icon: Option<SharedString>,
-    pub font_family: Option<SharedString>,
 }
 
 impl SelectOption {
@@ -38,7 +37,6 @@ impl SelectOption {
             detail: None,
             icon: None,
             end_icon: None,
-            font_family: None,
         }
     }
     pub fn group(mut self, value: impl Into<SharedString>) -> Self {
@@ -57,10 +55,6 @@ impl SelectOption {
         self.end_icon = Some(value.into());
         self
     }
-    pub fn font_family(mut self, value: impl Into<SharedString>) -> Self {
-        self.font_family = Some(value.into());
-        self
-    }
 }
 
 #[derive(Clone)]
@@ -72,6 +66,10 @@ pub(crate) struct SelectOptions {
     /// Some sections override the original 44px minimum with a 48px trigger.
     pub trigger_height: Option<f32>,
     pub on_option_action: Option<Callback>,
+    /// Applies a hovered (or arrow-key highlighted) option without choosing
+    /// it. Closing the menu without a choice calls it again with the value
+    /// that was set before the menu opened.
+    pub on_preview: Option<Callback>,
 }
 
 impl SelectOptions {
@@ -83,7 +81,16 @@ impl SelectOptions {
             show_current_detail: true,
             trigger_height: None,
             on_option_action: None,
+            on_preview: None,
         }
+    }
+    pub fn on_preview(
+        mut self,
+        callback: impl Fn(&mut SettingsApp, SharedString, &mut Window, &mut Context<SettingsApp>)
+        + 'static,
+    ) -> Self {
+        self.on_preview = Some(Rc::new(callback));
+        self
     }
     pub fn on_option_action(
         mut self,
@@ -111,17 +118,69 @@ struct State {
     swapped: Option<Instant>,
     scroll_top: bool,
     scroll_bottom: bool,
+    /// The chosen value from before the first preview of this opening.
+    preview_origin: Option<SharedString>,
+    /// Last value handed to `on_preview`.
+    previewed: Option<SharedString>,
 }
 
+/// Shows `target` through `on_preview`, remembering what to restore.
+fn preview(
+    app: &mut SettingsApp,
+    state: &Entity<State>,
+    chosen: &SharedString,
+    target: SharedString,
+    callback: Option<&Callback>,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) {
+    let Some(callback) = callback else {
+        return;
+    };
+    let changed = state.update(cx, |s, _| {
+        if s.preview_origin.is_none() {
+            s.preview_origin = Some(chosen.clone());
+        }
+        let current = s.previewed.as_ref().or(s.preview_origin.as_ref());
+        if current == Some(&target) {
+            return false;
+        }
+        s.previewed = Some(target.clone());
+        true
+    });
+    if changed {
+        callback(app, target, window, cx);
+    }
+}
+
+/// A choice is about to be applied: nothing to restore.
+fn keep_preview(state: &Entity<State>, cx: &mut Context<SettingsApp>) {
+    state.update(cx, |s, _| {
+        s.preview_origin = None;
+        s.previewed = None;
+    });
+}
+
+/// Closes the menu. A preview still on screen goes back to the value that
+/// was chosen before the menu opened.
 fn close(
     app: &mut SettingsApp,
     state: &Entity<State>,
     id: &SharedString,
+    preview: Option<&Callback>,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) {
     if app.open_select.as_ref() == Some(id) {
         app.open_select = None;
+    }
+    let restore = state.update(cx, |s, _| {
+        let origin = s.preview_origin.take();
+        let previewed = s.previewed.take();
+        origin.filter(|origin| previewed.as_ref().is_some_and(|shown| shown != origin))
+    });
+    if let (Some(origin), Some(preview)) = (restore, preview) {
+        preview(app, origin, window, cx);
     }
     state.update(cx, |state, cx| {
         state.query = "".into();
@@ -157,13 +216,6 @@ fn option_copy(
                 .when(!detail || option.detail.is_none(), |this| {
                     this.relative().top(px(-1.))
                 })
-                .when_some(
-                    option
-                        .font_family
-                        .clone()
-                        .filter(|font| !font.trim().is_empty()),
-                    |this, font| this.font_family(SharedString::from(font.trim().to_string())),
-                )
                 .child(option.label.clone()),
         )
         .when(detail, |this| {
@@ -224,8 +276,13 @@ pub(crate) fn select(
             swapped: None,
             scroll_top: false,
             scroll_bottom: false,
+            preview_origin: None,
+            previewed: None,
         },
     );
+    // While a preview is applied the config holds the hovered value; the
+    // trigger and the selected row keep showing the real choice.
+    let value = state.read(cx).preview_origin.clone().unwrap_or(value);
     let current = options
         .options
         .iter()
@@ -258,6 +315,7 @@ pub(crate) fn select(
         anim::UI,
     );
     let callback: Callback = Rc::new(on_change);
+    let preview_callback = options.on_preview.clone();
     let query = state.read(cx).query.clone();
     let filtered = options
         .options
@@ -281,6 +339,8 @@ pub(crate) fn select(
     let search_id = id.clone();
     let search_callback = callback.clone();
     let search_filtered = filtered.clone();
+    let search_preview = preview_callback.clone();
+    let search_value = value.clone();
     let search = text_input(
         (ElementId::from(id.clone()), "search"),
         query,
@@ -308,14 +368,25 @@ pub(crate) fn select(
                     return;
                 }
                 let down = matches!(event, TextInputEvent::Down);
-                search_state.update(cx, |s, cx| {
+                let highlighted = search_state.update(cx, |s, cx| {
                     s.highlighted = if down {
                         (s.highlighted + 1) % search_filtered.len()
                     } else {
                         (s.highlighted + search_filtered.len() - 1) % search_filtered.len()
                     };
+                    s.center_pending = true;
                     cx.notify();
+                    s.highlighted
                 });
+                preview(
+                    app,
+                    &search_state,
+                    &search_value,
+                    search_filtered[highlighted].value.clone(),
+                    search_preview.as_ref(),
+                    window,
+                    cx,
+                );
                 cx.notify();
             }
             TextInputEvent::Enter(_) => {
@@ -325,11 +396,19 @@ pub(crate) fn select(
                         .highlighted
                         .min(search_filtered.len().saturating_sub(1)),
                 ) {
-                    close(app, &search_state, &search_id, window, cx);
+                    keep_preview(&search_state, cx);
+                    close(app, &search_state, &search_id, None, window, cx);
                     search_callback(app, option.value.clone(), window, cx);
                 }
             }
-            TextInputEvent::Escape => close(app, &search_state, &search_id, window, cx),
+            TextInputEvent::Escape => close(
+                app,
+                &search_state,
+                &search_id,
+                search_preview.as_ref(),
+                window,
+                cx,
+            ),
             _ => {}
         },
     );
@@ -515,6 +594,9 @@ pub(crate) fn select(
     let key_callback = callback.clone();
     let key_search = search.clone();
     let key_filtered = filtered.clone();
+    let key_preview = preview_callback.clone();
+    let key_value = value.clone();
+    let click_preview = preview_callback.clone();
     let trigger = track_pointer(trigger, pointer)
         .on_key_down(cx.listener(move |app, event: &KeyDownEvent, window, cx| {
             if disabled {
@@ -522,7 +604,9 @@ pub(crate) fn select(
             }
             let opened = app.open_select.as_ref() == Some(&key_id);
             match event.keystroke.key.as_str() {
-                "escape" if opened => close(app, &key_state, &key_id, window, cx),
+                "escape" if opened => {
+                    close(app, &key_state, &key_id, key_preview.as_ref(), window, cx)
+                }
                 "enter" | "space" if !opened => {
                     app.open_select = Some(key_id.clone());
                     key_state.update(cx, |s, cx| {
@@ -542,19 +626,30 @@ pub(crate) fn select(
                             .highlighted
                             .min(key_filtered.len().saturating_sub(1)),
                     ) {
-                        close(app, &key_state, &key_id, window, cx);
+                        keep_preview(&key_state, cx);
+                        close(app, &key_state, &key_id, None, window, cx);
                         key_callback(app, option.value.clone(), window, cx);
                     }
                 }
                 "up" | "down" if opened && !key_filtered.is_empty() => {
-                    key_state.update(cx, |s, cx| {
+                    let highlighted = key_state.update(cx, |s, cx| {
                         s.highlighted = if event.keystroke.key == "down" {
                             (s.highlighted + 1) % key_filtered.len()
                         } else {
                             (s.highlighted + key_filtered.len() - 1) % key_filtered.len()
                         };
                         cx.notify();
+                        s.highlighted
                     });
+                    preview(
+                        app,
+                        &key_state,
+                        &key_value,
+                        key_filtered[highlighted].value.clone(),
+                        key_preview.as_ref(),
+                        window,
+                        cx,
+                    );
                     cx.notify();
                 }
                 _ => return,
@@ -567,7 +662,7 @@ pub(crate) fn select(
                 return;
             }
             if app.open_select.as_ref() == Some(&click_id) {
-                close(app, &click_state, &click_id, window, cx);
+                close(app, &click_state, &click_id, click_preview.as_ref(), window, cx);
             } else {
                 app.open_select = Some(click_id.clone());
                 click_state.update(cx, |s, cx| {
@@ -606,12 +701,13 @@ pub(crate) fn select(
         .child(trigger);
     let dismiss_state = state.clone();
     let dismiss_id = id.clone();
+    let dismiss_preview = preview_callback.clone();
     // Outside listener does not consume the click: another select can open on the same click.
     root = root.on_mouse_down_out(cx.listener(move |app, event: &MouseDownEvent, window, cx| {
         let s = dismiss_state.read(cx);
         let bounds = s.scroll.bounds();
         if app.open_select.as_ref() == Some(&dismiss_id) && !bounds.contains(&event.position) {
-            close(app, &dismiss_state, &dismiss_id, window, cx);
+            close(app, &dismiss_state, &dismiss_id, dismiss_preview.as_ref(), window, cx);
         }
     }));
     let show_menu = open
@@ -707,6 +803,10 @@ fn menu(
         let choose_id = id.clone();
         let choose_value = option.value.clone();
         let choose_callback = callback.clone();
+        let hover_state = state.clone();
+        let hover_value = option.value.clone();
+        let hover_chosen = value.clone();
+        let hover_preview = options.on_preview.clone();
         let mut row = track_pointer(
             div()
                 .id(key.clone())
@@ -741,11 +841,27 @@ fn menu(
                             )
                         })
                         .child(option_copy(&option, true, false, p))
+                        .when(hover_preview.is_some(), |this| {
+                            this.on_hover(cx.listener(move |app, hovered: &bool, window, cx| {
+                                if *hovered && open {
+                                    preview(
+                                        app,
+                                        &hover_state,
+                                        &hover_chosen,
+                                        hover_value.clone(),
+                                        hover_preview.as_ref(),
+                                        window,
+                                        cx,
+                                    );
+                                }
+                            }))
+                        })
                         .on_click(cx.listener(move |app, _, window, cx| {
                             if !open {
                                 return;
                             }
-                            close(app, &choose_state, &choose_id, window, cx);
+                            keep_preview(&choose_state, cx);
+                            close(app, &choose_state, &choose_id, None, window, cx);
                             choose_callback(app, choose_value.clone(), window, cx);
                         })),
                 ),

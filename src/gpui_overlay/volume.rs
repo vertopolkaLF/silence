@@ -10,7 +10,8 @@
 //! While something plays, a now-playing strip (cover, title, artist) can sit
 //! above the meter inside the same card. The music widget (a media key, or
 //! the playlist moving on) is its own layout, like a device switch: cover,
-//! title and artist, and the action's glyph where the meter would be. Both
+//! title and artist, with the action as a small badge on the cover's corner
+//! in the theme's icon colors. Both
 //! take every color, font and corner from the theme's chrome, so no theme
 //! needs its own media layout.
 
@@ -49,8 +50,11 @@ const FADE_MS: u64 = 180;
 const SLIDE_MS: u64 = 280;
 /// Album art edge in the strip above the meter, before the size scale.
 const COVER: f32 = 44.0;
-/// Album art edge in the music widget: room for "Up next" over two lines.
-const WIDGET_COVER: f32 = 52.0;
+/// Album art edge in the music widget.
+const WIDGET_COVER: f32 = 44.0;
+/// Action badge on the widget's cover, and the card-colored ring around it.
+const MEDIA_BADGE: f32 = 20.0;
+const MEDIA_BADGE_RING: f32 = 2.0;
 /// Title and artist get this much room before they are cut.
 const MEDIA_TEXT_MAX: f32 = 220.0;
 /// Space between the title and the artist line.
@@ -623,7 +627,9 @@ impl VolumeView {
     }
 
     fn sync_glyph(&mut self, now: Instant) {
-        let id = if self.incoming().chrome.fluent {
+        // The music badge is too small for Fluent's hairline glyphs.
+        let media = matches!(self.content, VolumeOsdContent::Media { .. });
+        let id = if self.incoming().chrome.fluent && !media {
             fluent_glyph(&self.content)
         } else {
             content_glyph(&self.content)
@@ -901,12 +907,14 @@ impl Render for VolumeView {
         let cover = COVER * scale;
         let media_text_x = media_inset + cover + gap;
         let widget_cover = WIDGET_COVER * scale;
-        let widget_base = media_inset + widget_cover + gap * 2.0 + icon_slot + lead;
+        // Tighter than the strip: the widget is all cover and text.
+        let widget_inset = media_inset.min(10.0 * scale);
+        let widget_base = widget_inset + widget_cover + gap + text_pad;
         let incoming_media = self.media.iter().find(|layer| layer.opacity.to > 0.5);
         let (target_w, target_h, media_h) = if media_mode {
             (
                 widget_base + incoming_media.map_or(0.0, |layer| layer.text_width),
-                (chrome.height * scale).max(widget_cover + media_inset * 2.0),
+                (chrome.height * scale).max(widget_cover + widget_inset * 2.0),
                 0.0,
             )
         } else {
@@ -1174,15 +1182,18 @@ impl Render for VolumeView {
             .map(|(_, weight)| *weight)
             .sum::<f32>()
             .min(1.0);
-        let badge = icon_slot + STICKER_RIM * 2.0 * scale;
-        // The badge rings the glyph: at the start, or at the music widget's end.
-        let icon_x = if media_mode {
-            width - lead - icon_slot
+        // The music widget has no glyph to ring: its sparkles hang off the cover.
+        let (badge, badge_x, badge_y) = if media_mode {
+            (widget_cover, widget_inset, (height - widget_cover) / 2.0)
         } else {
-            lead
+            let badge = icon_slot + STICKER_RIM * 2.0 * scale;
+            (
+                badge,
+                lead + (icon_slot - badge) / 2.0,
+                strip_h + (row_h - badge) / 2.0,
+            )
         };
-        let badge_x = icon_x + (icon_slot - badge) / 2.0;
-        let badge_y = strip_h + (row_h - badge) / 2.0;
+        let paper_badge = sticker_weight * if media_mode { 0.0 } else { 1.0 };
         // (left, top, size, tilt): one over the top right edge, a smaller one
         // on the badge's lower left.
         let stars = [
@@ -1193,7 +1204,7 @@ impl Render for VolumeView {
                 (width - 34.0 * scale, -11.0 * scale, 22.0 * scale, 0.21)
             },
             (
-                badge_x + badge * 0.14 - 7.0 * scale,
+                badge_x + badge * if media_mode { 0.0 } else { 0.14 } - 7.0 * scale,
                 badge_y + badge * 0.86 - 7.0 * scale,
                 14.0 * scale,
                 -0.3,
@@ -1219,7 +1230,7 @@ impl Render for VolumeView {
                         .size(px(badge))
                         .rounded(px(badge / 2.0))
                         .shadow(vec![paint_shadow((0.0, y), blur, color, scale)])
-                        .opacity(sticker_weight),
+                        .opacity(paper_badge),
                 );
                 let mut soft = color;
                 soft.a *= 0.6;
@@ -1251,7 +1262,7 @@ impl Render for VolumeView {
                         .size(px(badge))
                         .rounded(px(badge / 2.0))
                         .bg(rgb(0xffffff))
-                        .opacity(sticker_weight),
+                        .opacity(paper_badge),
                 );
             for sparkle in stars {
                 card = card.child(
@@ -1385,11 +1396,13 @@ impl Render for VolumeView {
                 track,
                 scale,
                 card_radius: radius,
-                inset: media_inset.min((height - widget_cover) / 2.0).max(0.0),
+                inset: widget_inset.min((height - widget_cover) / 2.0).max(0.0),
                 cover: widget_cover,
                 text_w: (width - widget_base).max(0.0),
                 gap,
             };
+            let mut ring = surface;
+            ring.a = 1.0;
             contents = contents.child(
                 div()
                     .absolute()
@@ -1399,12 +1412,17 @@ impl Render for VolumeView {
                     .h(px(height))
                     .flex()
                     .items_center()
-                    .pl(px(media_inset))
-                    .child(media_art(&media, &chrome, &frame))
+                    .pl(px(widget_inset))
+                    .child(
+                        div()
+                            .relative()
+                            .flex_shrink_0()
+                            .size(px(widget_cover))
+                            .child(media_art(&media, &chrome, &frame))
+                            .child(media_badge(&glyphs, &chrome, fill, ring, widget_cover, scale)),
+                    )
                     .child(div().flex_shrink_0().w(px(gap)))
-                    .child(media_lines(&media, &chrome, &frame).h(px(height)))
-                    .child(div().flex_shrink_0().w(px(gap)))
-                    .child(icon),
+                    .child(media_lines(&media, &chrome, &frame).h(px(height))),
             );
         } else {
             let mut row = div()
@@ -1656,6 +1674,58 @@ struct MediaFrame {
     /// Width for the title and artist.
     text_w: f32,
     gap: f32,
+}
+
+/// What just happened, as a small disc on the cover's lower right corner. It
+/// wears the theme's icon container where it has one (Material You's tonal
+/// circle, Brutalism's black square tile is drawn round here), else the meter
+/// fill, and a card-colored ring cuts it out of the art.
+fn media_badge(
+    glyphs: &[(SharedString, u32, f32)],
+    chrome: &VolumeChrome,
+    fill: Rgba,
+    ring: Rgba,
+    cover: f32,
+    scale: f32,
+) -> Div {
+    let (disc, ink) = match chrome.icon_box {
+        Some(icon_box) if icon_box.fill.a > 0.9 => (icon_box.fill, rgb(chrome.icon_color)),
+        _ => {
+            let luminance = 0.2126 * fill.r + 0.7152 * fill.g + 0.0722 * fill.b;
+            let ink = if luminance > 0.55 { 0x1b1b1b } else { 0xffffff };
+            (fill, rgb(ink))
+        }
+    };
+    let size = MEDIA_BADGE * scale;
+    let outer = size + MEDIA_BADGE_RING * 2.0 * scale;
+    // A quarter of the badge hangs past the art, into the card's padding.
+    let offset = cover - outer * 0.75;
+    let mut badge = div()
+        .absolute()
+        .left(px(offset))
+        .top(px(offset))
+        .size(px(outer))
+        .rounded(px(outer / 2.0))
+        .bg(ring)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(div().size(px(size)).rounded(px(size / 2.0)).bg(disc));
+    for (path, _, opacity) in glyphs {
+        badge = badge.child(
+            div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .opacity(*opacity)
+                .child(svg().path(path.clone()).size(px(size * 0.56)).text_color(ink)),
+        );
+    }
+    badge
 }
 
 /// Name of the eyebrow over a track the playlist moved on to.

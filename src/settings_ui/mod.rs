@@ -26,9 +26,12 @@ use shell::nav::{Nav, SettingsTab};
 use std::{rc::Rc, time::Duration};
 use theme::Palette;
 
-/// Logical size of the settings window; also its minimum size.
-pub(crate) const WINDOW_WIDTH: f32 = 760.;
-pub(crate) const WINDOW_HEIGHT: f32 = 590.;
+/// Logical size the settings window opens at: 1100x900 physical at 125%.
+pub(crate) const WINDOW_WIDTH: f32 = 880.;
+pub(crate) const WINDOW_HEIGHT: f32 = 720.;
+/// Smallest logical size the settings window can be resized to.
+pub(crate) const WINDOW_MIN_WIDTH: f32 = 760.;
+pub(crate) const WINDOW_MIN_HEIGHT: f32 = 590.;
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct SettingsSnapshot {
@@ -320,7 +323,7 @@ pub(crate) fn run() -> Result<()> {
                     appears_transparent: true,
                     traffic_light_position: None,
                 }),
-                window_min_size: Some(window_size),
+                window_min_size: Some(size(px(WINDOW_MIN_WIDTH), px(WINDOW_MIN_HEIGHT))),
                 is_resizable: true,
                 focus: true,
                 show: true,

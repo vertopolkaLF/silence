@@ -262,18 +262,20 @@ fn appearance(
         .snapshot
         .system_fonts
         .iter()
-        .map(|f| SelectOption::new(f.family.clone(), f.family.clone()).font_family(f.family.clone()))
+        .map(|f| SelectOption::new(f.family.clone(), f.family.clone()))
         .collect::<Vec<_>>();
     if !osd.text_font.is_empty()
         && !fonts.iter().any(|f| f.value.eq_ignore_ascii_case(&osd.text_font))
     {
         fonts.insert(
             0,
-            SelectOption::new(osd.text_font.clone(), osd.text_font.clone())
-                .font_family(osd.text_font.clone()),
+            SelectOption::new(osd.text_font.clone(), osd.text_font.clone()),
         );
     }
-    let mut font_options = SelectOptions::new(fonts);
+    // Hovering a font tries it on the OSD, which flashes to show it.
+    let mut font_options = SelectOptions::new(fonts).on_preview(|app, value, _, cx| {
+        update_and_preview(app, cx, |osd| osd.text_font = value.to_string());
+    });
     font_options.searchable = true;
     let font = osd_select(
         "volume-osd-font",
