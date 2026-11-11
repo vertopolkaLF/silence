@@ -1,7 +1,6 @@
 //! Volume pages. Each one is its own file so the controls can land separately.
 pub(crate) mod media_keys;
 pub(crate) mod osd;
-pub(crate) mod sounds;
 pub(crate) mod tray_icon;
 pub(crate) mod wheel;
 

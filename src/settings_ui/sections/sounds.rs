@@ -1,4 +1,6 @@
 //! Sounds tab (`src/gui/sections/sounds.rs`, `assets/styles/sounds.css`).
+//! Shared by both modules: microphone mute sounds, the volume tick, and one
+//! custom-file library in `sound_settings.custom_sounds` that both pick from.
 use crate::settings_ui::{
     SettingsApp,
     anim::{self, Easing, Transition},
@@ -68,6 +70,15 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.sound_settings.enabled = checked);
         },
     );
+    let tick_enabled = controls::toggle(
+        "volume-sounds-enabled",
+        app.snapshot.config.volume.sound.enabled,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            app.update_config(cx, |config| config.volume.sound.enabled = checked);
+        },
+    );
     let volume = controls::range(
         "sounds-volume",
         f64::from(sounds.volume.min(100)),
@@ -92,6 +103,15 @@ pub(crate) fn render(
         "Unmute Sound",
         false,
         SoundContext::Sounds,
+        app,
+        window,
+        cx,
+    );
+    let tick = sound_picker(
+        "volume-sound-tick",
+        "Volume Change Sound",
+        true,
+        SoundContext::Volume,
         app,
         window,
         cx,
@@ -124,7 +144,7 @@ pub(crate) fn render(
                         .gap(px(4.))
                         .child(style::h2("Files"))
                         .child(
-                            style::p("Add custom sounds", cx)
+                            style::p("Custom sounds for both microphone and volume", cx)
                                 .text_size(px(13.))
                                 .line_height(relative(1.4)),
                         ),
@@ -134,11 +154,17 @@ pub(crate) fn render(
         .child(library);
     vec![
         panel()
-            .child(header().child(style::h1("Sounds")).child(enabled))
+            .child(header().child(style::h1("Sounds")))
+            .child(header().child(style::h2("Microphone")).child(enabled))
             .child(card(true, cx).child(volume))
             .child(card(true, cx).gap(px(22.)).child(mute).child(unmute))
-            .child(files)
             .into_any_element(),
+        panel()
+            .pt(px(18.))
+            .child(header().child(style::h2("Volume")).child(tick_enabled))
+            .child(card(true, cx).child(tick))
+            .into_any_element(),
+        panel().pt(px(18.)).child(files).into_any_element(),
     ]
 }
 
@@ -276,14 +302,7 @@ pub(crate) fn sound_picker(
     }
     .min(100);
     let has_override = override_theme.is_some();
-    let mut library = mic.custom_sounds.clone();
-    if volume_tick {
-        for sound in &volume_sound.custom_sounds {
-            if !library.iter().any(|existing| existing.id == sound.id) {
-                library.push(sound.clone());
-            }
-        }
-    }
+    let library = mic.custom_sounds.clone();
     let mut label_settings = if volume_tick { volume_sound } else { mic };
     label_settings.custom_sounds = library.clone();
     let preview_title = if inherited {
@@ -536,11 +555,6 @@ fn remove_sound(app: &mut SettingsApp, id: &str, cx: &mut Context<SettingsApp>) 
         if config.hold_to_mute.unmute_theme_override.as_deref() == Some(&removed) {
             config.hold_to_mute.unmute_theme_override = None;
         }
-        config
-            .volume
-            .sound
-            .custom_sounds
-            .retain(|sound| sound.id != id);
         if config.volume.sound.mute_theme == removed {
             config.volume.sound.mute_theme = "soft".into();
         }

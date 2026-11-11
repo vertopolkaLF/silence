@@ -136,6 +136,7 @@ impl SettingsApp {
         crate::normalize_overlay_config(&mut config.overlay);
         crate::normalize_tray_icon_config(&mut config.tray_icon);
         crate::normalize_volume_config(&mut config.volume);
+        crate::merge_volume_custom_sounds(&mut config);
         let _ = crate::save_config(&config);
         crate::apply_live_config(&config, crate::config_modified_time());
         let mica = crate::effective_settings_mica_enabled(&config);

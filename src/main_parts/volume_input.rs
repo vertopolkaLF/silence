@@ -87,7 +87,7 @@ fn sync_volume_input_runtime() {
             state.modules.volume,
             state.volume.wheel.zone,
             state.volume.media_keys.intercept,
-            state.volume.sound.clone(),
+            volume_sound_settings(&state),
         )
     };
     let zone_code = wheel_zone_code(zone);
@@ -376,7 +376,7 @@ fn play_debounced_volume_change_sound() {
         (
             state.modules.volume,
             state.output_volume.muted,
-            state.volume.sound.clone(),
+            volume_sound_settings(&state),
         )
     };
     // Scheduled only for silence!'s own writes (wheel, media keys, other

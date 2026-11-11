@@ -53,7 +53,6 @@ pub(crate) fn render(
         SettingsTab::Hotkeys => hotkeys::render(app, window, cx),
         SettingsTab::VolumeWheel => volume::wheel::render(app, window, cx),
         SettingsTab::VolumeOsd => volume::osd::render(app, window, cx),
-        SettingsTab::VolumeSounds => volume::sounds::render(app, window, cx),
         SettingsTab::VolumeTray => volume::tray_icon::render(app, window, cx),
         SettingsTab::VolumeMediaKeys => volume::media_keys::render(app, window, cx),
     };

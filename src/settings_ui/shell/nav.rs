@@ -30,7 +30,6 @@ pub(crate) enum SettingsTab {
     About,
     VolumeWheel,
     VolumeOsd,
-    VolumeSounds,
     VolumeTray,
     VolumeMediaKeys,
 }
@@ -57,14 +56,13 @@ impl SettingsTab {
     pub const ALL: &'static [Self] = &[
         Self::Hotkeys,
         Self::Devices,
-        Self::Overlay,
         Self::Sounds,
+        Self::Overlay,
         Self::TrayIcon,
         Self::HoldToMute,
         Self::AutoMute,
         Self::VolumeWheel,
         Self::VolumeOsd,
-        Self::VolumeSounds,
         Self::VolumeTray,
         Self::VolumeMediaKeys,
         Self::General,
@@ -84,7 +82,6 @@ impl SettingsTab {
             Self::About => "About",
             Self::VolumeWheel => "Wheel & clicks",
             Self::VolumeOsd => "OSD",
-            Self::VolumeSounds => "Sounds",
             Self::VolumeTray => "Tray icon",
             Self::VolumeMediaKeys => "Media keys",
         }
@@ -93,15 +90,13 @@ impl SettingsTab {
     /// Group that owns this page, if it is not a global page.
     pub fn module(self) -> Option<ModuleId> {
         match self {
-            Self::Overlay | Self::Sounds | Self::TrayIcon | Self::HoldToMute | Self::AutoMute => {
+            Self::Overlay | Self::TrayIcon | Self::HoldToMute | Self::AutoMute => {
                 Some(ModuleId::Microphone)
             }
-            Self::VolumeWheel
-            | Self::VolumeOsd
-            | Self::VolumeSounds
-            | Self::VolumeTray
-            | Self::VolumeMediaKeys => Some(ModuleId::Volume),
-            Self::Hotkeys | Self::Devices | Self::General | Self::About => None,
+            Self::VolumeWheel | Self::VolumeOsd | Self::VolumeTray | Self::VolumeMediaKeys => {
+                Some(ModuleId::Volume)
+            }
+            Self::Hotkeys | Self::Devices | Self::Sounds | Self::General | Self::About => None,
         }
     }
 
@@ -112,15 +107,13 @@ impl SettingsTab {
             Self::Devices => "headphones-round-sound-linear",
             Self::HoldToMute => "oven-mitts-linear",
             Self::Hotkeys => "keyboard-linear",
-            // Bell, not a speaker: the speaker glyph belongs to the Volume group.
-            Self::Sounds => "bell-linear",
+            Self::Sounds => "music-note-2-linear",
             Self::Overlay => "monitor-linear",
             Self::TrayIcon => "widget-linear",
             Self::AutoMute => "clock-circle-linear",
             Self::About => "info-circle-linear",
             Self::VolumeWheel => "mouse-linear",
             Self::VolumeOsd => "slider-minimalistic-horizontal-linear",
-            Self::VolumeSounds => "music-note-2-linear",
             Self::VolumeTray => "widget-linear",
             Self::VolumeMediaKeys => "play-circle-linear",
         }
@@ -133,14 +126,13 @@ impl SettingsTab {
             Self::Devices => "headphones-round-sound-bold",
             Self::HoldToMute => "oven-mitts-bold",
             Self::Hotkeys => "keyboard-bold",
-            Self::Sounds => "bell-bold",
+            Self::Sounds => "music-note-2-bold",
             Self::Overlay => "monitor-bold",
             Self::TrayIcon => "widget-bold",
             Self::AutoMute => "clock-circle-bold",
             Self::About => "info-circle-bold",
             Self::VolumeWheel => "mouse-bold",
             Self::VolumeOsd => "slider-minimalistic-horizontal-bold",
-            Self::VolumeSounds => "music-note-2-bold",
             Self::VolumeTray => "widget-bold",
             Self::VolumeMediaKeys => "play-circle-bold",
         }
@@ -163,7 +155,11 @@ impl SettingsTab {
             Self::Devices => &[s!("devices-overview", "Devices")],
             Self::HoldToMute => &[s!("hold-to-mute-overview", "Hold to Mute")],
             Self::Hotkeys => &[s!("hotkeys-overview", "Hotkeys")],
-            Self::Sounds => &[s!("sounds-overview", "Sounds")],
+            Self::Sounds => &[
+                s!("sounds-overview", "Microphone"),
+                s!("sounds-volume", "Volume"),
+                s!("sounds-files", "Files"),
+            ],
             Self::Overlay => &[
                 s!("overlay-overview", "Overlay"),
                 s!("overlay-appearance", "Appearance"),
@@ -177,7 +173,6 @@ impl SettingsTab {
             Self::About => &[s!("about-overview", "About")],
             Self::VolumeWheel => &[s!("volume-wheel", "Wheel & clicks")],
             Self::VolumeOsd => &[s!("volume-osd", "OSD")],
-            Self::VolumeSounds => &[s!("volume-sounds", "Sounds")],
             Self::VolumeTray => &[s!("volume-tray-icon", "Tray icon")],
             Self::VolumeMediaKeys => &[s!("volume-media-keys", "Media keys")],
         }
@@ -200,7 +195,6 @@ pub(crate) fn module_tabs(module: ModuleId) -> &'static [SettingsTab] {
     match module {
         ModuleId::Microphone => &[
             SettingsTab::Overlay,
-            SettingsTab::Sounds,
             SettingsTab::TrayIcon,
             SettingsTab::HoldToMute,
             SettingsTab::AutoMute,
@@ -208,7 +202,6 @@ pub(crate) fn module_tabs(module: ModuleId) -> &'static [SettingsTab] {
         ModuleId::Volume => &[
             SettingsTab::VolumeWheel,
             SettingsTab::VolumeOsd,
-            SettingsTab::VolumeSounds,
             SettingsTab::VolumeTray,
             SettingsTab::VolumeMediaKeys,
         ],

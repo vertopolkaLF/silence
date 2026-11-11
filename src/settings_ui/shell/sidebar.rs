@@ -2,7 +2,7 @@
 //! and About pinned to the bottom.
 //!
 //! Height budget for the 590px window (60px under the brand, 12px bottom):
-//! four global rows and two group headers at 42px, one open group of five
+//! five global rows and two group headers at 42px, one open group of four
 //! 32px rows, and the gaps below. Only one group is open, so both sets of
 //! children never stack.
 use super::nav::{self, SettingsTab};
@@ -44,6 +44,7 @@ pub(crate) fn render(
         .child(
             nav_item(app, SettingsTab::Devices, false, 1., window, cx).mt(px(4.)),
         )
+        .child(nav_item(app, SettingsTab::Sounds, false, 1., window, cx).mt(px(4.)))
         .child(module_group(app, ModuleId::Microphone, window, cx).mt(px(10.)))
         .child(module_group(app, ModuleId::Volume, window, cx).mt(px(6.)))
         .child(div().flex_1().min_h(px(8.)))

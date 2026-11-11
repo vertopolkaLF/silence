@@ -257,6 +257,7 @@ fn parse_config_content(content: &str) -> Result<Config> {
     normalize_overlay_config(&mut config.overlay);
     normalize_tray_icon_config(&mut config.tray_icon);
     normalize_volume_config(&mut config.volume);
+    merge_volume_custom_sounds(&mut config);
     config.advanced.audio_device_name_display =
         normalize_audio_device_name_display(&config.advanced.audio_device_name_display).to_string();
     config.auto_mute.after_inactivity_minutes =
@@ -1014,6 +1015,28 @@ fn normalize_volume_config(volume: &mut VolumeConfig) {
         .map(|id| id.trim().to_string())
         .filter(|id| !id.is_empty() && seen.insert(id.clone()))
         .collect();
+}
+
+/// Custom files live in one library, `sound_settings.custom_sounds`. Files
+/// added on the old Volume → Sounds page move there.
+pub(crate) fn merge_volume_custom_sounds(config: &mut Config) {
+    for sound in std::mem::take(&mut config.volume.sound.custom_sounds) {
+        if !config
+            .sound_settings
+            .custom_sounds
+            .iter()
+            .any(|existing| existing.id == sound.id)
+        {
+            config.sound_settings.custom_sounds.push(sound);
+        }
+    }
+}
+
+/// The volume tick resolves `custom:` ids against the shared library.
+fn volume_sound_settings(state: &AppState) -> SoundSettings {
+    let mut settings = state.volume.sound.clone();
+    settings.custom_sounds = state.sound_settings.custom_sounds.clone();
+    settings
 }
 
 fn remap_volume_tick_id(id: &str) -> &str {
