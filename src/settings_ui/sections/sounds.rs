@@ -91,7 +91,7 @@ pub(crate) fn render(
     );
     let mute = sound_picker(
         "sounds-mute",
-        "Mute Sound",
+        "Mute sound",
         true,
         SoundContext::Sounds,
         app,
@@ -100,7 +100,7 @@ pub(crate) fn render(
     );
     let unmute = sound_picker(
         "sounds-unmute",
-        "Unmute Sound",
+        "Unmute sound",
         false,
         SoundContext::Sounds,
         app,
@@ -109,7 +109,7 @@ pub(crate) fn render(
     );
     let tick = sound_picker(
         "volume-sound-tick",
-        "Volume Change Sound",
+        "Volume change sound",
         true,
         SoundContext::Volume,
         app,
@@ -141,30 +141,28 @@ pub(crate) fn render(
                     div()
                         .flex()
                         .flex_col()
-                        .gap(px(4.))
-                        .child(style::h2("Files"))
-                        .child(
-                            style::p("Custom sounds for both microphone and volume", cx)
-                                .text_size(px(13.))
-                                .line_height(relative(1.4)),
-                        ),
+                        .gap(px(2.))
+                        .child(style::section("Files"))
+                        .child(style::desc(
+                            "Custom sounds for both microphone and volume",
+                            cx,
+                        )),
                 )
                 .child(add),
         )
         .child(library);
     vec![
         panel()
-            .child(header().child(style::h1("Sounds")))
-            .child(header().child(style::h2("Microphone")).child(enabled))
-            .child(card(true, cx).child(volume))
-            .child(card(true, cx).gap(px(22.)).child(mute).child(unmute))
+            .child(super::form::page_title("Sounds", None).mb(px(0.)))
+            .child(section_row("Microphone", enabled))
+            .child(card(true, cx).child(volume).child(mute).child(unmute))
             .into_any_element(),
         panel()
-            .pt(px(18.))
-            .child(header().child(style::h2("Volume")).child(tick_enabled))
+            .pt(px(style::BLOCK_GAP))
+            .child(section_row("Volume", tick_enabled))
             .child(card(true, cx).child(tick))
             .into_any_element(),
-        panel().pt(px(18.)).child(files).into_any_element(),
+        panel().pt(px(style::BLOCK_GAP)).child(files).into_any_element(),
     ]
 }
 
@@ -177,14 +175,17 @@ pub(crate) fn panel() -> Div {
         .gap(px(18.))
 }
 
-pub(crate) fn header() -> Div {
+/// Section heading with the switch for that group of sounds.
+fn section_row(title: &'static str, toggle: impl IntoElement) -> Div {
     div()
-        .h(px(40.))
+        .min_h(px(26.))
         .flex_shrink_0()
         .flex()
         .items_center()
         .justify_between()
         .gap(px(14.))
+        .child(style::section(title))
+        .child(toggle)
 }
 
 /// `.sound-card`; the last card has no bottom padding or rule.
@@ -196,7 +197,7 @@ pub(crate) fn card(divider: bool, cx: &App) -> Div {
         .flex_col()
         .gap(px(16.))
         .when(divider, |this| {
-            this.pb(px(18.))
+            this.pb(px(style::BLOCK_GAP))
                 .border_b_1()
                 .border_color(style::palette(cx).border.hsla())
         })

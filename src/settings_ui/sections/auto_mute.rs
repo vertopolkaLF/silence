@@ -1,4 +1,8 @@
-//! Auto-Mute tab, ported from `gui/sections/auto_mute.rs` and general.css.
+//! Auto mute tab: the same toggle rows as every other page.
+use super::{
+    form,
+    general::{ROW_GAP, card_row},
+};
 use crate::settings_ui::{
     SettingsApp,
     anim::{self, UI},
@@ -139,11 +143,12 @@ pub(crate) fn render(
     let number_focus = input.read(cx).focus_handle(cx);
     let number = controls::track_pointer(
         controls::text_input_container("auto-mute-number", &input)
-            .w_full()
-            .max_w(px(560.))
-            .h(px(42.))
-            .px(px(14.))
-            .rounded(px(12.))
+            .w(px(56.))
+            .h(px(32.))
+            .px(px(10.))
+            .rounded(px(8.))
+            .text_size(px(14.))
+            .font_weight(FontWeight(600.))
             .border_1()
             .border_color(lerp(TRANSPARENT, p.focus, focus).hsla())
             .bg(lerp(p.surface_2, p.surface_color[1], hover * (1. - disabled)).hsla())
@@ -158,20 +163,16 @@ pub(crate) fn render(
             .when(!enabled, |this| this.cursor_not_allowed()),
         pointer,
     );
-    let startup = controls::checkbox(
+    let startup = controls::toggle(
         "auto-mute-startup",
         config.mute_on_startup,
-        false,
-        "Mute microphone on app launch",
         window,
         cx,
         |app, value, _, cx| app.update_config(cx, |c| c.auto_mute.mute_on_startup = value),
     );
-    let inactivity = controls::checkbox(
+    let inactivity = controls::toggle(
         "auto-mute-inactivity",
         enabled,
-        false,
-        "Mute microphone after inactivity",
         window,
         cx,
         |app, value, window, cx| {
@@ -183,88 +184,85 @@ pub(crate) fn render(
             app.update_config(cx, |c| c.auto_mute.after_inactivity_enabled = value);
         },
     );
-    let unmute = controls::checkbox(
+    let unmute = controls::toggle(
         "auto-mute-unmute",
         config.unmute_on_activity,
-        !enabled,
-        "Unmute on activity",
         window,
         cx,
         |app, value, _, cx| app.update_config(cx, |c| c.auto_mute.unmute_on_activity = value),
     );
-    let sounds = controls::checkbox(
+    let sounds = controls::toggle(
         "auto-mute-sounds",
         config.play_sounds,
-        false,
-        "Play sounds on auto-mute",
         window,
         cx,
         |app, value, _, cx| app.update_config(cx, |c| c.auto_mute.play_sounds = value),
     );
-    let subgroup = div()
+    // The minutes sit in the row, next to the switch they belong to.
+    let minutes_field = div()
         .flex()
-        .flex_col()
-        .gap(px(10.))
-        .ml(px(32.))
-        .pl(px(18.))
-        .pt(px(4.))
-        .pb(px(2.))
-        .border_l_1()
-        .border_color(p.border.hsla())
-        .relative()
-        .top(px(-2. * disabled))
-        .opacity(1. - 0.54 * disabled)
-        .child(
-            style::label("Minutes without keyboard or mouse activity").text_color(p.muted.hsla()),
-        )
+        .items_center()
+        .gap(px(7.))
+        .flex_shrink_0()
+        .opacity(1. - 0.6 * disabled)
+        .child(style::desc("after", cx))
         .child(number)
-        .child(unmute);
+        .child(style::desc("min", cx));
+    let inactivity_row = form::setting_row(
+        "Mute after inactivity",
+        Some("No keyboard or mouse input."),
+        div()
+            .flex()
+            .items_center()
+            .gap(px(14.))
+            .flex_shrink_0()
+            .child(minutes_field)
+            .child(inactivity),
+        cx,
+    );
+    // Only meaningful while the inactivity mute is on, so it opens with it.
+    let dependent = form::collapse(
+        "auto-mute-dependent",
+        enabled,
+        div().pt(px(ROW_GAP)).pl(px(22.)).child(form::setting_row(
+            "Unmute on activity",
+            None,
+            unmute,
+            cx,
+        )),
+        window,
+        cx,
+    );
     vec![
         div()
             .flex()
             .flex_col()
-            .gap(px(18.))
+            .gap(px(ROW_GAP))
             .max_w(px(720.))
-            .child(
-                div().mb(px(4.)).child(
-                    style::page_header()
-                        .h(px(40.))
-                        .child(style::h1("Auto-Mute")),
-                ),
-            )
-            .child(
-                div()
-                    .pb(px(18.))
-                    .border_b_1()
-                    .border_color(p.border.hsla())
-                    .child(startup),
-            )
+            .child(form::page_title("Auto mute", None).mb(px(style::TITLE_GAP - ROW_GAP)))
+            .child(card_row(
+                "Mute on app launch",
+                Some("silence! starts with the microphone muted."),
+                startup,
+                false,
+                cx,
+            ))
             .child(
                 div()
                     .flex()
                     .flex_col()
-                    .gap(px(14.))
-                    .pb(px(18.))
+                    .pb(px(ROW_GAP))
                     .border_b_1()
                     .border_color(p.border.hsla())
-                    .child(style::h2("Inactivity").mb(px(2.)))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(14.))
-                            .child(inactivity)
-                            .child(subgroup),
-                    ),
+                    .child(inactivity_row)
+                    .child(dependent),
             )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(14.))
-                    .child(style::h2("Options").mb(px(2.)))
-                    .child(sounds),
-            )
+            .child(form::setting_row(
+                "Play sounds on auto-mute",
+                None,
+                sounds,
+                cx,
+            ))
             .into_any_element(),
     ]
 }

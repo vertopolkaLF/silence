@@ -1,5 +1,9 @@
 //! Hold to Mute tab (`src/gui/sections/hold_to_mute.rs`, `sounds.css`).
-use super::sounds::{self, PreviewState, SoundContext};
+use super::{
+    form,
+    general::{ROW_GAP, card_row},
+    sounds::{self, PreviewState, SoundContext},
+};
 use crate::settings_ui::{
     HotkeyModalRequest, SettingsApp,
     anim::{self, Easing, Transition},
@@ -47,22 +51,18 @@ pub(crate) fn render(
             cx.notify();
         },
     );
-    let play = controls::checkbox(
+    let play = controls::toggle(
         "hold-play-sounds",
         hold.play_sounds,
-        false,
-        "Play sounds",
         window,
         cx,
         |app, checked, _, cx| {
             app.update_config(cx, |config| config.hold_to_mute.play_sounds = checked)
         },
     );
-    let overlay = controls::checkbox(
+    let overlay = controls::toggle(
         "hold-show-overlay",
         hold.show_overlay,
-        false,
-        "Show overlay",
         window,
         cx,
         |app, checked, _, cx| {
@@ -70,15 +70,20 @@ pub(crate) fn render(
         },
     );
     let options = sounds::card(true, cx)
-        .child(style::h2("Options").mb(px(2.)))
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(14.))
-                .child(play)
-                .child(overlay),
-        );
+        .gap(px(ROW_GAP))
+        .child(card_row(
+            "Show overlay",
+            Some("The overlay appears while the key is held."),
+            overlay,
+            false,
+            cx,
+        ))
+        .child(form::setting_row(
+            "Play sounds",
+            Some("Mute and unmute sounds for the held key."),
+            play,
+            cx,
+        ));
 
     let expanded = anim::tween(
         window,
@@ -147,7 +152,7 @@ pub(crate) fn render(
         );
         let mute = sounds::sound_picker(
             "hold-mute",
-            "Mute Sound",
+            "Mute sound",
             true,
             SoundContext::HoldToMute,
             app,
@@ -156,7 +161,7 @@ pub(crate) fn render(
         );
         let unmute = sounds::sound_picker(
             "hold-unmute",
-            "Unmute Sound",
+            "Unmute sound",
             false,
             SoundContext::HoldToMute,
             app,
@@ -164,8 +169,7 @@ pub(crate) fn render(
             cx,
         );
         let content = sounds::card(false, cx)
-            .gap(px(22.))
-            .child(style::h2("Sound Settings").mb(px(2.)))
+            .child(style::section("Sounds").mb(px(2.)))
             .child(
                 div()
                     .w_full()
@@ -199,11 +203,7 @@ pub(crate) fn render(
     }
     vec![
         sounds::panel()
-            .child(
-                sounds::header()
-                    .child(style::h1("Hold to Mute"))
-                    .child(configure),
-            )
+            .child(form::page_title("Hold to mute", Some(configure.into_any_element())).mb(px(0.)))
             .child(options)
             .child(collapse)
             .into_any_element(),

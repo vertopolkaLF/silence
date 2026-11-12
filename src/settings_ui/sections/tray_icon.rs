@@ -5,8 +5,9 @@ use crate::settings_ui::{
     assets::icon,
     color::{TRANSPARENT, lerp, mix_pct},
     controls::{self, SelectOption, SelectOptions},
-    style,
+    style::{self, BLOCK_GAP, CONTROL_GAP},
 };
+use super::form;
 use gpui::{prelude::*, *};
 use std::{collections::BTreeMap, time::Instant};
 
@@ -16,8 +17,6 @@ pub(crate) struct State {
     /// Row identities survive config/live refreshes; only new mounts animate.
     row_mounts: BTreeMap<String, Instant>,
 }
-
-const TILE_HEIGHT: f32 = 56. + 5. + 16.5;
 
 /// Native `title` hints from the original buttons, hosted by GPUI.
 struct Hint(SharedString);
@@ -47,38 +46,31 @@ pub(crate) fn render(
     let tone = if muted { p.danger } else { p.success };
     let status_open = config.variant == "StatusMic";
     let expanded = app.sections.tray_icon.icons_expanded;
-    let extra = anim::tween(
-        window,
-        cx,
-        "tray-extra-reveal",
-        expanded as u8 as f32,
-        anim::UI,
-    );
 
-    let mut variants = div().w_full().flex().gap(px(10.));
+    let mut variants = div().w_full().flex().gap(px(8.));
     for (value, label) in [
         ("Logo", "Logo"),
         ("StatusMic", "Mic status"),
         ("ColorDot", "Color dot"),
     ] {
         let preview = match value {
-            "Logo" => img(crate::settings_ui::assets::logo(28., window))
-                .size(px(28.))
+            "Logo" => img(crate::settings_ui::assets::logo(24., window))
+                .size(px(24.))
                 .into_any_element(),
             // The original style tile always uses Solar mic, even while muted.
             "StatusMic" => svg()
                 .path(icon("microphone-3-linear"))
-                .size(px(30.))
+                .size(px(24.))
                 .text_color(tone.hsla())
                 .into_any_element(),
             // The style tile's dot stays green; it is not the live tray icon.
             _ => div()
-                .size(px(22.))
+                .size(px(16.))
                 .rounded_full()
                 .bg(p.success.hsla())
                 .into_any_element(),
         };
-        variants = variants.child(super::form::choice_card(
+        variants = variants.child(form::choice_card(
             format!("tray-variant-{value}").into(),
             label,
             config.variant == value,
@@ -94,61 +86,26 @@ pub(crate) fn render(
         ));
     }
 
-    let mut primary = div().flex().justify_between().w_full();
-    for pair in crate::overlay_icons::featured_overlay_icon_pairs() {
-        primary = primary.child(mic_tile(pair, &config.icon_pair, muted, window, cx));
-    }
-    primary = primary.child(tile(
-        "tray-icons-expand".into(),
-        if expanded { "Collapse" } else { "Expand" },
-        false,
-        svg()
-            .path(icon("alt-arrow-down-linear"))
-            .size(px(30.))
-            .text_color(p.muted.hsla())
-            .with_transformation(Transformation::rotate(gpui::radians(
-                std::f32::consts::PI * extra,
-            )))
-            .into_any_element(),
+    let picker = form::mic_icon_picker(
+        "tray-mic",
+        "tray-mic-rest",
+        &config.icon_pair,
+        muted,
+        expanded,
         window,
         cx,
-        |app, _, cx| {
+        |app, id, cx| app.update_config(cx, |c| c.tray_icon.icon_pair = id.to_string()),
+        |app, cx| {
             app.sections.tray_icon.icons_expanded = !app.sections.tray_icon.icons_expanded;
             cx.notify();
         },
-    ));
-
-    let mut extras = div().flex().flex_col().gap(px(10.)).pt(px(2.));
-    {
-        for pairs in crate::overlay_icons::extra_overlay_icon_pairs().chunks(6) {
-            extras = extras.child(
-                div().flex().justify_between().w_full().children(
-                    pairs
-                        .iter()
-                        .map(|pair| mic_tile(pair, &config.icon_pair, muted, window, cx)),
-                ),
-            );
-        }
-    }
-    let mut status_content = div().flex().flex_col().gap(px(16.)).w_full().child(
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(10.))
-            .flex_shrink_0()
-            .child(style::label("Mic icons"))
-            .child(primary)
-            // CSS gives the closed extra wrapper a -2px margin, leaving 8px
-            // of the field's 10px gap. Clip during the 200ms grid reveal.
-            // Measured reveal: the grid's real height, not a hard-coded one.
-            .child(div().mt(px(-2.)).child(super::form::collapse(
-                "tray-extra-icons",
-                expanded,
-                extras,
-                window,
-                cx,
-            ))),
     );
+    let mut status_content = div()
+        .flex()
+        .flex_col()
+        .gap(px(CONTROL_GAP))
+        .w_full()
+        .child(picker);
     {
         let mut options = SelectOptions::new(vec![
             SelectOption::new("Colored", "Colored").icon("pallete-2-linear"),
@@ -167,19 +124,12 @@ pub(crate) fn render(
                 app.update_config(cx, |c| c.tray_icon.status_style = value.to_string())
             },
         );
-        status_content = status_content.child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(10.))
-                .flex_shrink_0()
-                .child(style::label("Mic icon color"))
-                .child(select),
-        );
+        status_content = status_content.child(form::field("Mic icon color", select));
     }
-    let status_reveal = super::form::collapse(
+    let status_reveal = form::collapse_in_gap(
         "tray-status-content",
         status_open,
+        CONTROL_GAP,
         status_content,
         window,
         cx,
@@ -215,60 +165,26 @@ pub(crate) fn render(
         .id("tray-icon-overview")
         .flex()
         .flex_col()
-        .gap(px(18.))
+        .flex_shrink_0()
         .max_w(px(720.))
+        .child(form::page_title("Tray icon", None))
         .child(
-            style::page_header()
-                .h(px(40.))
-                .mb(px(4.))
-                .child(style::h1("Tray icon")),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(18.))
-                .pb(px(18.))
-                .border_b_1()
-                .border_color(p.border.hsla())
+            form::panel(CONTROL_GAP, false, cx)
                 .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(10.))
-                        .child(style::label("Tray icon style"))
-                        .child(variants),
+                    form::group()
+                        .child(form::field("Tray icon style", variants))
+                        .child(status_reveal),
                 )
-                .child(status_reveal)
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(10.))
-                        .child(style::label("Microphone shown in tray and overlay"))
-                        .child(indicator),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .gap(px(12.))
-                        .min_h(px(44.))
-                        .child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap(px(4.))
-                                .min_w_0()
-                                .child(style::h2("Double-click the icon to open settings"))
-                                .child(style::p(
-                                    "Turn off to mute on a single click with no delay.",
-                                    cx,
-                                )),
-                        )
-                        .child(double_click),
-                ),
+                .child(form::field(
+                    "Microphone shown in tray and overlay",
+                    indicator,
+                ))
+                .child(form::setting_row(
+                    "Double-click the icon to open settings",
+                    Some("Turn off to mute on a single click with no delay."),
+                    double_click,
+                    cx,
+                )),
         );
 
     let show = controls::toggle(
@@ -346,165 +262,34 @@ pub(crate) fn render(
     );
     let mic_in_use = div()
         .id("tray-icon-mic-in-use")
-        .pt(px(18.))
+        .pt(px(BLOCK_GAP))
         .max_w(px(720.))
         .flex()
         .flex_col()
-        .gap(px(16.))
-        .child(toggle_row("Show when mic is in use by an app", show))
-        .child(toggle_row("Hide blacklisted apps from tray menu", hide))
+        .flex_shrink_0()
+        .gap(px(CONTROL_GAP))
+        .child(form::setting_row(
+            "Show when mic is in use by an app",
+            None,
+            show,
+            cx,
+        ))
+        .child(form::setting_row(
+            "Hide blacklisted apps from tray menu",
+            None,
+            hide,
+            cx,
+        ))
         .child(
             div()
                 .flex()
                 .flex_col()
-                .gap(px(14.))
+                .gap(px(16.))
+                .pt(px(4.))
                 .child(current)
                 .child(ignored),
         );
     vec![overview.into_any_element(), mic_in_use.into_any_element()]
-}
-
-fn toggle_row(title: &'static str, toggle: impl IntoElement) -> Div {
-    div()
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap(px(6.))
-        .min_h(px(44.))
-        .child(style::h2(title).min_w_0())
-        .child(toggle)
-}
-
-fn mic_tile(
-    pair: &crate::overlay_icons::OverlayIconPair,
-    selected: &str,
-    muted: bool,
-    window: &mut Window,
-    cx: &mut Context<SettingsApp>,
-) -> Stateful<Div> {
-    let asset = if muted {
-        pair.muted_asset
-    } else {
-        pair.unmuted_asset
-    };
-    let p = style::palette(cx);
-    let id = pair.id;
-    tile(
-        format!("tray-mic-{id}").into(),
-        pair.label,
-        selected == id,
-        svg()
-            .path(SharedString::from(
-                asset.trim_start_matches("/assets/").to_string(),
-            ))
-            .size(px(30.))
-            .text_color(if muted { p.danger } else { p.success }.hsla())
-            .into_any_element(),
-        window,
-        cx,
-        move |app, _, cx| app.update_config(cx, |c| c.tray_icon.icon_pair = id.to_string()),
-    )
-}
-
-/// `.overlay-icon-option` and its 56px preview; hover never changes borders.
-pub(crate) fn tile(
-    id: SharedString,
-    label: &'static str,
-    selected: bool,
-    preview: AnyElement,
-    window: &mut Window,
-    cx: &mut Context<SettingsApp>,
-    on_click: impl Fn(&mut SettingsApp, &mut Window, &mut Context<SettingsApp>) + 'static,
-) -> Stateful<Div> {
-    let p = style::palette(cx);
-    let (pointer, hover, _) = controls::hover_tween(id.clone(), window, cx);
-    let active = anim::tween(
-        window,
-        cx,
-        (ElementId::from(id.clone()), "selected"),
-        selected as u8 as f32,
-        anim::UI,
-    );
-    let lift = hover.max(active);
-    let focus = window
-        .use_keyed_state((ElementId::from(id.clone()), "focus"), cx, |_, cx| {
-            cx.focus_handle()
-        })
-        .read(cx)
-        .clone();
-    let on_click = std::rc::Rc::new(on_click);
-    let key_click = on_click.clone();
-    let mouse_focus = focus.clone();
-    let hint = match label {
-        "Expand" => "Expand icons",
-        "Collapse" => "Collapse icons",
-        label => label,
-    };
-    let mut preview_shadows = vec![BoxShadow {
-        color: p.shadow_faint.opacity(active).hsla(),
-        offset: point(px(0.), px(10.)),
-        blur_radius: px(18.),
-        spread_radius: px(0.),
-        inset: false,
-    }];
-    // `.overlay-icon-option:focus` outlines the preview, not its caption.
-    if focus.is_focused(window) {
-        preview_shadows.push(BoxShadow {
-            color: p.accent.hsla(),
-            offset: point(px(0.), px(0.)),
-            blur_radius: px(0.),
-            spread_radius: px(1.),
-            inset: false,
-        });
-    }
-    controls::track_pointer(
-        div()
-            .id(id)
-            .track_focus(&focus)
-            .tab_index(0)
-            .w(px(56.))
-            .flex_shrink_0()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap(px(5.))
-            .relative()
-            .top(px(-2. * lift))
-            .cursor_pointer()
-            .text_size(px(11.))
-            .line_height(relative(1.5))
-            .font_weight(FontWeight(400.))
-            .text_color(lerp(p.muted, p.text, lift).hsla())
-            .child(
-                div()
-                    .size(px(56.))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded(px(12.))
-                    .border_1()
-                    .border_color(lerp(TRANSPARENT, p.accent, active).hsla())
-                    .bg(p.surface_2.hsla())
-                    .overflow_hidden()
-                    .shadow(preview_shadows)
-                    .child(preview),
-            )
-            // Labels wider than the 56px tile overflow centered, as in CSS.
-            .child(div().whitespace_nowrap().child(label)),
-        pointer,
-    )
-    .tooltip(move |_, cx| cx.new(|_| Hint(hint.into())).into())
-    .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-        mouse_focus.focus(window, cx)
-    })
-    .on_key_down(cx.listener(move |app, event: &KeyDownEvent, window, cx| {
-        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
-            key_click(app, window, cx);
-            cx.stop_propagation();
-        }
-    }))
-    .on_click(cx.listener(move |app, _, window, cx| on_click(app, window, cx)))
 }
 
 fn app_row(
@@ -701,6 +486,7 @@ fn app_group(
             .border_dashed()
             .border_color(p.border_strong.hsla())
             .bg(mix_pct(p.surface_2, 76., TRANSPARENT).hsla())
+            .text_size(px(13.))
             .text_color(p.muted.hsla())
             .child(empty)
     } else {
@@ -710,7 +496,7 @@ fn app_group(
         .flex()
         .flex_col()
         .gap(px(10.))
-        .child(style::h2(title))
+        .child(style::section(title))
         .child(div().h(px(height)).flex_shrink_0().overflow_hidden().child(
             list.on_children_prepainted(move |bounds, _, cx| {
                 let height = if count == 0 {

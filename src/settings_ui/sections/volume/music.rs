@@ -1,8 +1,10 @@
 //! Volume → Music: the track in the volume OSD.
-use super::{column, heading};
+use super::super::form;
+use super::column;
 use crate::settings_ui::{
     SettingsApp,
     controls::{self, RangeOptions},
+    style::{BLOCK_GAP, CONTROL_GAP},
 };
 use gpui::{prelude::*, *};
 
@@ -87,9 +89,23 @@ pub(crate) fn render(
     );
     let row = super::super::general::card_row;
 
-    vec![column()
-        .gap(px(0.))
-        .child(heading("Music", "", Some(enabled), cx))
+    let dim = form::governed_opacity("music-governed", music.enabled, window, cx);
+    let master = form::master_switch(
+        "music-master",
+        "vinyl-bold",
+        "Show the track in the OSD",
+        music.enabled,
+        enabled,
+        window,
+        cx,
+    );
+    let governed = div()
+        .flex()
+        .flex_col()
+        .flex_shrink_0()
+        .mt(px(BLOCK_GAP))
+        .opacity(dim)
+        .child(form::section_heading("Show it when").mb(px(CONTROL_GAP)))
         .child(
             form_panel(false, cx)
                 .child(row(
@@ -114,19 +130,21 @@ pub(crate) fn render(
                     cx,
                 )),
         )
-        .child(form_panel(false, cx).mt(px(18.)).child(duration))
-        .child(
-            form_panel(true, cx).mt(px(18.)).child(row(
-                "Show the track on volume change",
-                Some("Cover, title and artist above the volume bar while something plays."),
-                on_volume,
-                true,
-                cx,
-            )),
-        )
+        .child(form_panel(false, cx).mt(px(BLOCK_GAP)).child(duration))
+        .child(form_panel(true, cx).mt(px(BLOCK_GAP)).child(row(
+            "Show the track on volume change",
+            Some("Cover, title and artist above the volume bar while something plays."),
+            on_volume,
+            true,
+            cx,
+        )));
+    vec![column()
+        .child(form::page_title("Music", None))
+        .child(master)
+        .child(governed)
         .into_any_element()]
 }
 
 fn form_panel(last: bool, cx: &mut Context<SettingsApp>) -> Div {
-    super::super::form::panel(18., last, cx)
+    form::panel(super::super::general::ROW_GAP, last, cx)
 }

@@ -11,7 +11,6 @@ use crate::settings_ui::{
     anim::UI,
     color::{TRANSPARENT, lerp},
     controls::{self, NumericInput, TextInput, TextInputEvent, TextInputOptions},
-    style,
 };
 use gpui::{prelude::*, *};
 use std::{collections::HashMap, rc::Rc};
@@ -39,23 +38,7 @@ pub(crate) fn column() -> Div {
         .max_w(px(720.))
         .flex()
         .flex_col()
-        .gap(px(18.))
-}
-
-/// Page title and optional enable switch. Like the microphone pages, no intro
-/// line: the controls speak for themselves.
-pub(crate) fn heading<T: IntoElement>(
-    title: &'static str,
-    _intro: &'static str,
-    toggle: Option<T>,
-    _cx: &App,
-) -> Div {
-    div().mb(px(4.)).child(
-        style::page_header()
-            .h(px(40.))
-            .child(style::h1(title))
-            .children(toggle),
-    )
+        .flex_shrink_0()
 }
 
 /// Compact integer field. In-range keystrokes apply immediately; blur clamps.

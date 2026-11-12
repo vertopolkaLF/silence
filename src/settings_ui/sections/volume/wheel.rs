@@ -1,9 +1,10 @@
 //! Volume → Wheel & clicks.
 use super::super::form::{self, field};
-use super::{column, heading};
+use super::column;
 use crate::settings_ui::{
     SettingsApp,
     controls::{self, SelectOption, SelectOptions},
+    style::{BLOCK_GAP, CONTROL_GAP},
 };
 use gpui::{prelude::*, *};
 
@@ -118,16 +119,15 @@ pub(crate) fn render(
         |clicks, action| clicks.middle = action,
     );
     vec![column()
-        .gap(px(0.))
-        .child(heading("Wheel & clicks", "", None::<Div>, cx))
+        .child(form::page_title("Wheel & clicks", None))
         .child(
-            form::panel(18., false, cx)
+            form::panel(CONTROL_GAP, false, cx)
                 .child(field("Scroll zone", zone))
                 .child(step),
         )
         .child(
-            form::panel(18., true, cx)
-                .mt(px(18.))
+            form::panel(CONTROL_GAP, true, cx)
+                .mt(px(BLOCK_GAP))
                 .child(form::section_heading("Clicks"))
                 .child(left)
                 .child(double)

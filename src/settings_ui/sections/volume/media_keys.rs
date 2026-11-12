@@ -1,5 +1,6 @@
 //! Volume → Media keys.
-use super::{column, heading};
+use super::super::form;
+use super::column;
 use crate::settings_ui::{SettingsApp, controls};
 use gpui::{prelude::*, *};
 
@@ -19,7 +20,7 @@ pub(crate) fn render(
         },
     );
     vec![column()
-        .child(heading("Media keys", "", None::<Div>, cx))
+        .child(form::page_title("Media keys", None))
         .child(super::super::general::card_row(
             "Use silence! for the volume keys",
             Some(

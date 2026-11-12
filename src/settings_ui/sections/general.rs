@@ -2,7 +2,6 @@
 use crate::settings_ui::{
     SettingsApp,
     anim::{self, Easing, Transition},
-    assets::icon,
     color::{gray, lerp},
     controls::{self, ButtonKind},
     style::{self, palette},
@@ -10,7 +9,6 @@ use crate::settings_ui::{
 use gpui::{
     AnyElement, BoxShadow, Context, Div, FontWeight, InteractiveElement, IntoElement,
     ParentElement, SharedString, Styled, Window, anchored, deferred, div, point, prelude::*, px,
-    relative, svg,
 };
 use std::time::{Duration, Instant};
 
@@ -61,8 +59,8 @@ pub(crate) fn render(
     let mut status = div()
         .flex()
         .flex_col()
-        .gap(px(16.))
-        .child(header("General", None, cx))
+        .gap(px(ROW_GAP))
+        .child(super::form::page_title("General", None).mb(px(style::TITLE_GAP - ROW_GAP)))
         .child(toggle_card(
             "general-startup",
             "Launch with Windows",
@@ -76,7 +74,7 @@ pub(crate) fn render(
     if crate::settings_mica_available() {
         status = status.child(toggle_card(
             "general-mica",
-            "Enable Mica background",
+            "Mica background",
             None,
             advanced.enable_mica,
             window,
@@ -112,37 +110,29 @@ pub(crate) fn render(
             },
         ));
 
-    // `.general-import-export-panel`: grid gap 16px, padding-top 4px, and the
-    // parent `.general-panel` gap of 16px above it.
-    let import_export = div()
-        .flex()
-        .flex_col()
-        .gap(px(16.))
-        .pt(px(4. + 16.))
-        .child(header("Import/Export", Some("Backup your settings"), cx))
-        .child(
-            div()
-                .flex()
-                .gap(px(12.))
-                .max_w(px(720.))
-                .child(import_export_button(
-                    "general-export",
-                    "Export",
-                    "export-linear",
-                    window,
-                    cx,
-                    |app, _, _, cx| {
-                        if crate::export_settings().is_ok() {
-                            app.reload_config(cx);
-                        }
-                    },
-                ))
-                .child(import_export_button(
-                    "general-import",
-                    "Import",
-                    "import-linear",
-                    window,
-                    cx,
+    let export = controls::button(
+        "general-export",
+        ButtonKind::Secondary,
+        None,
+        Some("Export".into()),
+        false,
+        window,
+        cx,
+        |app, _, _, cx| {
+            if crate::export_settings().is_ok() {
+                app.reload_config(cx);
+            }
+        },
+    )
+    .min_w(px(88.));
+    let import = controls::button(
+        "general-import",
+        ButtonKind::Secondary,
+        None,
+        Some("Import".into()),
+        false,
+        window,
+        cx,
                     |app, _, _, cx| {
                         match crate::import_settings() {
                             Ok(()) => {
@@ -157,21 +147,45 @@ pub(crate) fn render(
                             Err(err) => eprintln!("failed to import settings: {err:?}"),
                         }
                     },
-                )),
-        )
+    )
+    .min_w(px(88.));
+    // Backup and reset: plain rows, one button size, reset set apart as danger.
+    let import_export = div()
+        .flex()
+        .flex_col()
+        .gap(px(ROW_GAP))
+        .pt(px(style::BLOCK_GAP - ROW_GAP + 8.))
+        .child(style::section("Backup"))
+        .child(card_row(
+            "Export settings",
+            Some("Saves hotkeys, sounds and appearance to a file."),
+            export,
+            false,
+            cx,
+        ))
+        .child(card_row(
+            "Import settings",
+            Some("Replaces the current settings with a saved file."),
+            import,
+            false,
+            cx,
+        ))
         .child(action_card(
             "general-import-v1",
-            "Import from silence! v.1",
+            "Import from silence! v1",
+            Some("Converts the settings of the old version."),
             "Import",
             ConfirmAction::ImportV1,
             false,
             window,
             cx,
         ))
+        .child(style::section("Reset").mt(px(style::BLOCK_GAP - ROW_GAP)))
         .child(action_card(
             "general-reset",
-            "Reset settings",
-            "Reset settings",
+            "Reset all settings",
+            Some("Returns everything to defaults. This cannot be undone."),
+            "Reset…",
             ConfirmAction::Reset,
             true,
             window,
@@ -183,21 +197,13 @@ pub(crate) fn render(
     vec![status.into_any_element(), import_export.into_any_element()]
 }
 
-/// `.auto-mute-header`: title plus optional muted subtitle, gap 8px, 4px below.
-pub(crate) fn header(title: &'static str, subtitle: Option<&'static str>, cx: &App) -> Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(8.))
-        .mb(px(4.))
-        .child(style::h1(title))
-        .children(subtitle.map(|text| style::p(text, cx)))
-}
-
 use gpui::App;
 
-/// `.sound-card` with an `h2` title, optional description and a trailing
-/// control: gap 16px, 18px bottom padding and a bottom rule.
+/// Space above and below the rule between two setting rows.
+pub(crate) const ROW_GAP: f32 = 14.;
+
+/// A setting row with an optional rule under it. Stack these in a column
+/// whose gap is [`ROW_GAP`].
 pub(crate) fn card_row(
     title: impl Into<SharedString>,
     description: Option<&'static str>,
@@ -206,27 +212,13 @@ pub(crate) fn card_row(
     cx: &App,
 ) -> Div {
     let palette = palette(cx);
-    div()
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap(px(6.))
+    super::form::setting_row(title, description, trailing, cx)
         .max_w(px(720.))
         .when(!last, |this| {
-            this.pb(px(18.))
+            this.pb(px(ROW_GAP))
                 .border_b_1()
                 .border_color(palette.border.hsla())
         })
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(4.))
-                .min_w_0()
-                .child(style::h2(title))
-                .children(description.map(|text| style::p(text, cx))),
-        )
-        .child(trailing)
 }
 
 fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<SettingsApp>) -> Div {
@@ -273,10 +265,11 @@ fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Setti
         .flex()
         .flex_col()
         .items_start()
-        .gap(px(4.))
+        .gap(px(2.))
         .min_w_0()
-        .child(style::h2("Run as administrator"))
-        .child(style::p(ADMIN_CAPTION, cx))
+        .flex_1()
+        .child(style::label("Run as administrator"))
+        .child(style::desc(ADMIN_CAPTION, cx))
         .when(elevated, |this| {
             this.child(
                 div()
@@ -293,13 +286,13 @@ fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Setti
             )
         })
         .when(!launch, |this| {
-            this.child(style::p(
+            this.child(style::desc(
                 "Launch with Windows is off, so this only changes the current session until you turn launch on.",
                 cx,
             ))
         })
         .when(busy, |this| {
-            this.child(style::p("Waiting for Windows permission…", cx))
+            this.child(style::desc("Waiting for Windows permission…", cx))
         })
         .when_some(restart_link, |this, link| this.child(link));
     div()
@@ -308,7 +301,7 @@ fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Setti
         .justify_between()
         .gap(px(16.))
         .max_w(px(720.))
-        .pb(px(18.))
+        .pb(px(ROW_GAP))
         .border_b_1()
         .border_color(palette.border.hsla())
         .child(text)
@@ -328,7 +321,7 @@ fn admin_link(
         div()
             .id(id)
             .cursor_pointer()
-            .text_size(px(14.))
+            .text_size(px(13.))
             .font_weight(FontWeight(600.))
             .text_color(lerp(palette.accent_text, palette.accent_strong, hover).hsla())
             .child(label),
@@ -473,10 +466,12 @@ fn toggle_card(
     card_row(title, description, toggle, false, cx)
 }
 
-/// `.general-reset-card`: no bottom rule; its button turns danger-red on hover.
+/// A row whose button opens a confirmation. The last one is the reset: its
+/// button is tinted as a destructive action even before hover.
 fn action_card(
     id: &'static str,
     title: &'static str,
+    description: Option<&'static str>,
     label: &'static str,
     action: ConfirmAction,
     last: bool,
@@ -484,19 +479,31 @@ fn action_card(
     cx: &mut Context<SettingsApp>,
 ) -> Div {
     let palette = palette(cx);
+    let danger = action == ConfirmAction::Reset;
     let (pointer, hover, _) = controls::hover_tween(id, window, cx);
     let button = controls::track_pointer(
         div()
             .id(id)
             .h(px(38.))
+            .min_w(px(88.))
             .px(px(16.))
             .flex()
             .items_center()
             .justify_center()
             .flex_shrink_0()
             .rounded(px(8.))
-            .bg(lerp(palette.surface_2, palette.surface_danger_hover, hover).hsla())
-            .text_color(lerp(palette.text, palette.danger_hover, hover).hsla())
+            .bg(lerp(
+                if danger { palette.surface_danger } else { palette.surface_2 },
+                palette.surface_danger_hover,
+                hover,
+            )
+            .hsla())
+            .text_color(lerp(
+                if danger { palette.danger } else { palette.text },
+                palette.danger_hover,
+                hover,
+            )
+            .hsla())
             .text_size(px(14.))
             .font_weight(FontWeight(500.))
             .shadow(vec![BoxShadow {
@@ -515,72 +522,7 @@ fn action_card(
         app.sections.general.confirm_closing = None;
         cx.notify();
     }));
-    // `.sound-card` keeps its bottom border (sounds.css loads after general.css);
-    // only `.sound-card:last-child` drops it.
-    card_row(title, None, button, last, cx)
-}
-
-/// `.general-import-export-button`: 64px tile that lifts 1px on hover.
-fn import_export_button(
-    id: &'static str,
-    label: &'static str,
-    icon_name: &'static str,
-    window: &mut Window,
-    cx: &mut Context<SettingsApp>,
-    on_click: impl Fn(&mut SettingsApp, (), &mut Window, &mut Context<SettingsApp>) + 'static,
-) -> AnyElement {
-    let palette = palette(cx);
-    let (pointer, hover, press) = controls::hover_tween(id, window, cx);
-    let lift = hover * (1. - press);
-    let shadow = if lift > 0.01 {
-        BoxShadow {
-            color: palette.shadow_faint.hsla(),
-            offset: point(px(0.), px(1. + 3. * lift)),
-            blur_radius: px(2. + 8. * lift),
-            spread_radius: px(0.),
-            inset: false,
-        }
-    } else {
-        BoxShadow {
-            color: palette.shadow_soft.hsla(),
-            offset: point(px(0.), px(1.)),
-            blur_radius: px(2.),
-            spread_radius: px(0.),
-            inset: false,
-        }
-    };
-    controls::track_pointer(
-        div()
-            .id(id)
-            .flex_1()
-            .min_w_0()
-            .min_h(px(64.))
-            .relative()
-            .top(px(-lift))
-            .flex()
-            .items_center()
-            .justify_center()
-            .gap(px(12.))
-            .px(px(16.))
-            .rounded(px(12.))
-            .bg(lerp(palette.surface_2, palette.surface_hover, hover).hsla())
-            .text_color(palette.text.hsla())
-            .text_size(px(15.))
-            .font_weight(FontWeight(600.))
-            .line_height(relative(1.2))
-            .shadow(vec![shadow])
-            .cursor_pointer()
-            .child(
-                svg()
-                    .path(icon(icon_name))
-                    .size(px(21.))
-                    .text_color(palette.accent_text.hsla()),
-            )
-            .child(label),
-        pointer,
-    )
-    .on_click(cx.listener(move |app, _, window, cx| on_click(app, (), window, cx)))
-    .into_any_element()
+    card_row(title, description, button, last, cx)
 }
 
 fn close_confirm(app: &mut SettingsApp, cx: &mut Context<SettingsApp>) {
@@ -780,7 +722,7 @@ fn confirm_dialog(
 
     let (title, body, confirm_label) = match action {
         ConfirmAction::ImportV1 => (
-            "Import from silence! v.1?",
+            "Import from silence! v1?",
             "Current settings will be replaced by converted v1 settings from the old app data folder.",
             "Import",
         ),

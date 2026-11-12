@@ -75,8 +75,8 @@ pub(crate) fn render(
     let lists = div()
         .flex()
         .flex_col()
-        .gap(px(20.))
-        .pb(px(18.))
+        .gap(px(style::BLOCK_GAP))
+        .pb(px(style::BLOCK_GAP))
         .border_b_1()
         .border_color(app.palette.border.hsla())
         .child(device_list(
@@ -131,31 +131,20 @@ pub(crate) fn render(
             .flex_col()
             .gap(px(18.))
             .max_w(px(720.))
-            .child(super::general::header("Devices", None, cx))
+            .child(super::form::page_title("Devices", None).mb(px(0.)))
             .child(lists)
             .child(
                 div()
                     .flex()
                     .flex_col()
-                    .gap(px(20.))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(16.))
-                            .child(style::h2("Displayed audio device name"))
-                            .child(select),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .gap(px(6.))
-                            .min_h(px(44.))
-                            .child(style::h2("Ungroup devices in tray menu"))
-                            .child(toggle),
-                    ),
+                    .gap(px(style::CONTROL_GAP))
+                    .child(super::form::field("Displayed audio device name", select))
+                    .child(super::form::setting_row(
+                        "Ungroup devices in tray menu",
+                        None,
+                        toggle,
+                        cx,
+                    )),
             )
             .into_any_element(),
     ]
@@ -194,8 +183,8 @@ fn device_list(
     div()
         .flex()
         .flex_col()
-        .gap(px(16.))
-        .child(style::h2(title))
+        .gap(px(10.))
+        .child(style::section(title))
         .child(body)
 }
 
@@ -253,11 +242,6 @@ fn device_row(
         (key.clone(), "editing"),
         editing as u8 as f32,
         UI,
-    );
-    let bg = lerp(
-        lerp(p.surface_2, p.surface_color[2], active),
-        p.surface_2,
-        edit,
     );
     let name = if editing {
         let event_row = row.clone();
@@ -413,26 +397,67 @@ fn device_row(
             .child(row.name.clone())
     };
     let default_row = row.clone();
-    let default = action(
-        (key.clone(), "default"),
-        "check-mark",
-        "Set as default",
-        ActionKind::Default,
-        row.default,
-        window,
-        cx,
-        move |app, _, cx| {
-            if default_row.id.is_empty() {
-                return;
-            }
-            if default_row.input {
-                let _ = crate::set_default_capture_device(&default_row.id);
-            } else {
-                let _ = crate::set_default_render_device(&default_row.id);
-            }
-            app.refresh_devices(cx);
-        },
-    );
+    let default_id = ElementId::from((key.clone(), "default"));
+    let (default_pointer, default_hover, _) =
+        controls::hover_tween(default_id.clone(), window, cx);
+    let default = div()
+        .w(px(112.))
+        .flex()
+        .justify_end()
+        .flex_shrink_0()
+        .child(if row.default {
+            div()
+                .h(px(26.))
+                .pl(px(9.))
+                .pr(px(11.))
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .rounded_full()
+                .opacity(active)
+                .bg(p.accent_soft.hsla())
+                .text_size(px(12.5))
+                .font_weight(FontWeight(600.))
+                .text_color(p.accent_text.hsla())
+                .child(
+                    svg()
+                        .path(icon("check-mark"))
+                        .size(px(10.))
+                        .text_color(p.accent_text.hsla()),
+                )
+                .child("Default")
+                .into_any_element()
+        } else {
+            controls::track_pointer(
+                div()
+                    .id(default_id)
+                    .h(px(26.))
+                    .px(px(11.))
+                    .flex()
+                    .items_center()
+                    .rounded_full()
+                    .opacity(1. - active)
+                    .cursor_pointer()
+                    .bg(lerp(mix_pct(p.text, 6.5, TRANSPARENT), p.surface_3, default_hover).hsla())
+                    .text_size(px(12.5))
+                    .font_weight(FontWeight(600.))
+                    .text_color(lerp(p.muted, p.text, default_hover).hsla())
+                    .child("Set as default"),
+                default_pointer,
+            )
+            .on_click(cx.listener(move |app, _, _, cx| {
+                if default_row.id.is_empty() {
+                    return;
+                }
+                if default_row.input {
+                    let _ = crate::set_default_capture_device(&default_row.id);
+                } else {
+                    let _ = crate::set_default_render_device(&default_row.id);
+                }
+                app.refresh_devices(cx);
+            }))
+            .into_any_element()
+        });
     let rename_row = row.clone();
     let rename = (rename_allowed && !editing).then(|| {
         action(
@@ -522,7 +547,7 @@ fn device_row(
         .pr(px(8.))
         .py(px(8.))
         .rounded(px(12.))
-        .bg(bg.hsla())
+        .bg(p.surface_2.hsla())
         .shadow(vec![
             BoxShadow {
                 color: p.focus.opacity(edit).hsla(),
@@ -555,37 +580,17 @@ fn device_row(
                         }))
                         .size(px(20.))
                         .flex_shrink_0()
-                        .text_color(p.accent_text.hsla()),
+                        .text_color(p.muted.hsla()),
                 )
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .min_w_0()
-                        .child(name)
-                        .when(active > 0., |this| {
-                            this.child(
-                                div()
-                                    .h(px(16. * active))
-                                    .pt(px(2. * active))
-                                    .overflow_hidden()
-                                    .opacity(active)
-                                    .text_size(px(12.))
-                                    .font_weight(FontWeight(560.))
-                                    .line_height(px(14.))
-                                    .text_color(lerp(p.muted, p.accent_text, active).hsla())
-                                    .child("Default"),
-                            )
-                        }),
-                ),
+                .child(div().flex().flex_col().min_w_0().child(name)),
         )
         .child(
             div()
                 .flex()
                 .items_center()
                 .flex_shrink_0()
-                .children(favorite.map(|star| div().pr(px(6.)).child(star)))
-                .child(default)
+                .child(div().pr(px(6.)).child(default))
+                .children(favorite)
                 .when(rename_slot > 0., |this| {
                     this.child(
                         div()
@@ -605,7 +610,6 @@ enum ActionKind {
     Normal,
     /// Star toggle; `true` while the device is a favorite.
     Favorite(bool),
-    Default,
     Commit,
     Cancel,
 }
@@ -654,15 +658,7 @@ fn action(
         1.
     };
     let scale = 0.82 + 0.18 * entrance;
-    let default_active = anim::tween(
-        window,
-        cx,
-        (id.clone(), "default-active"),
-        disabled as u8 as f32,
-        UI,
-    );
     let fg = match kind {
-        ActionKind::Default => lerp(lerp(p.muted, p.text, hover), p.accent_text, default_active),
         ActionKind::Favorite(on) => {
             if on {
                 p.accent_text

@@ -29,6 +29,35 @@ pub(crate) fn h2(text: impl Into<SharedString>) -> Div {
         .child(text.into())
 }
 
+/// Section heading inside a page: Bricolage Grotesque 15px/1.3, weight 650.
+/// One step below the 24px page title, one above the 14px setting label.
+pub(crate) fn section(text: impl Into<SharedString>) -> Div {
+    div()
+        .font_family(FONT_HEADING)
+        .text_size(px(15.))
+        .line_height(relative(1.3))
+        .font_weight(FontWeight(650.))
+        .child(text.into())
+}
+
+/// Muted 13px/1.4 description under a setting label.
+pub(crate) fn desc(text: impl Into<SharedString>, cx: &App) -> Div {
+    div()
+        .text_size(px(13.))
+        .line_height(relative(1.4))
+        .text_color(palette(cx).muted.hsla())
+        .child(text.into())
+}
+
+/// Space between a page title row and the first block.
+pub(crate) const TITLE_GAP: f32 = 18.;
+/// Space between controls inside one block.
+pub(crate) const CONTROL_GAP: f32 = 12.;
+/// Space between a label and its control.
+pub(crate) const LABEL_GAP: f32 = 8.;
+/// Space on each side of the rule between two blocks.
+pub(crate) const BLOCK_GAP: f32 = 20.;
+
 /// `h3`: Bricolage Grotesque 14px/1.35, weight 600.
 pub(crate) fn h3(text: impl Into<SharedString>) -> Div {
     div()

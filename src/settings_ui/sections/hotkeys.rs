@@ -485,14 +485,10 @@ pub(crate) fn render(
         });
     }
     let p = app.palette;
-    let header = div()
-        .flex()
-        .h(px(40.))
-        .items_center()
-        .justify_between()
-        .gap(px(14.))
-        .child(style::h1("Hotkeys"))
-        .child(controls::button(
+    let header = super::form::page_title(
+        "Hotkeys",
+        Some(
+            controls::button(
             "hotkey-add",
             ButtonKind::Secondary,
             Some("plus-linear"),
@@ -506,14 +502,21 @@ pub(crate) fn render(
                 });
                 cx.notify();
             },
-        ));
+            )
+            .into_any_element(),
+        ),
+    );
+    // One list: rows of equal height separated by rules.
+    let has_hotkeys = !app.snapshot.config.hotkeys.is_empty();
     let mut table = div()
         .flex()
         .flex_col()
-        .gap(px(10.))
         .w_full()
         .min_w_0()
-        .overflow_hidden();
+        .overflow_hidden()
+        .when(has_hotkeys, |list| {
+            list.rounded(px(14.)).bg(p.surface_2.hsla())
+        });
     if app.snapshot.config.hotkeys.is_empty() {
         table = table.child(
             div()
@@ -536,7 +539,7 @@ pub(crate) fn render(
                 .child(style::p("No hotkeys configured.", cx)),
         );
     }
-    for b in app.snapshot.config.hotkeys.clone() {
+    for (index, b) in app.snapshot.config.hotkeys.clone().into_iter().enumerate() {
         let id = SharedString::from(format!("hotkey-row-{}", b.id));
         let (pointer, hover, _) = controls::hover_tween(id.clone(), window, cx);
         let edit = b.clone();
@@ -552,11 +555,7 @@ pub(crate) fn render(
                 el
             })
             .min_w_0()
-            .child(
-                style::h3(b.action.label())
-                    .text_size(px(15.))
-                    .text_ellipsis(),
-            )
+            .child(style::label(b.action.label()).text_ellipsis())
             .when(b.action.needs_target(), |el| {
                 el.child(
                     div()
@@ -587,24 +586,25 @@ pub(crate) fn render(
         );
         let shortcut = div()
             .flex()
-            .flex_col()
-            .gap(px(6.))
-            .flex_grow(1.)
-            .flex_basis(px(0.))
-            .map(|mut el| {
-                el.style().flex_grow = Some(1.1);
-                el
-            })
-            .min_w_0()
-            .child(display)
+            .items_center()
+            .justify_end()
+            .gap(px(8.))
+            .flex_shrink_0()
             .when(b.gamepad.is_none() && b.ignore_modifiers, |el| {
                 el.child(
                     div()
-                        .text_size(px(13.))
+                        .px(px(7.))
+                        .py(px(3.))
+                        .rounded(px(6.))
+                        .border_1()
+                        .border_color(p.border.hsla())
+                        .text_size(px(11.5))
+                        .font_weight(FontWeight(600.))
                         .text_color(p.muted.hsla())
-                        .child("Ignores modifiers"),
+                        .child("any modifiers"),
                 )
-            });
+            })
+            .child(display);
         // `.hotkey-row-actions .icon-button`: transparent until the button itself is hovered.
         let (ep, eh, _) = controls::hover_tween((ElementId::from(id.clone()), "edit"), window, cx);
         let edit_button = controls::track_pointer(
@@ -659,17 +659,19 @@ pub(crate) fn render(
                 sync_legacy_shortcut(c);
             })
         }));
+        if index > 0 {
+            table = table.child(style::divider(cx));
+        }
         table = table.child(controls::track_pointer(
             div()
                 .id(id)
                 .flex()
                 .items_center()
-                .gap(px(16.))
+                .gap(px(10.))
                 .min_w_0()
-                .px(px(20.))
-                .py(px(16.))
-                .rounded(px(12.))
-                .bg(p.surface_2.hsla())
+                .h(px(58.))
+                .pl(px(18.))
+                .pr(px(8.))
                 .child(title)
                 .child(shortcut)
                 .child(
@@ -686,7 +688,6 @@ pub(crate) fn render(
         div()
             .flex()
             .flex_col()
-            .gap(px(18.))
             .w_full()
             .min_w_0()
             .child(header)
@@ -1202,6 +1203,7 @@ fn key_display(
                     .relative()
                     .top(px(8. * (1. - rise)))
                     .opacity(rise)
+                    .flex_shrink_0()
                     .h(px(26.))
                     .child(
                         img(SharedString::from(format!("gamepad/{image}.png")))

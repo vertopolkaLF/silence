@@ -1,13 +1,13 @@
 //! Volume → Tray icon.
 use super::super::form::{self, field};
-use super::{column, heading};
+use super::column;
 use crate::settings_ui::{
     SettingsApp,
     anim::UI,
     assets::icon,
     color::lerp,
     controls::{self, SelectOption, SelectOptions},
-    style,
+    style::{self, BLOCK_GAP, CONTROL_GAP},
     theme::FONT_DISPLAY,
 };
 use gpui::{prelude::*, *};
@@ -34,7 +34,7 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.volume.tray_icon.enabled = checked);
         },
     );
-    let mut skins = div().w_full().flex().gap(px(10.));
+    let mut skins = div().w_full().flex().gap(px(8.));
     for (skin, label) in SKINS {
         skins = skins.child(skin_card(*skin, label, tray.skin == *skin, window, cx));
     }
@@ -111,27 +111,40 @@ pub(crate) fn render(
         .child(field("Ring starts at", ring_start).flex_1())
         .child(field("Ring direction", ring_direction).flex_1());
     let popup = tray_popup_panel(app, window, cx);
+    let dim = form::governed_opacity("volume-tray-governed", tray.enabled, window, cx);
+    let master = form::master_switch(
+        "volume-tray-master",
+        "widget-bold",
+        "Show the volume icon in the tray",
+        tray.enabled,
+        show,
+        window,
+        cx,
+    );
     vec![column()
-        .gap(px(0.))
-        .child(heading("Tray icon", "", Some(show), cx))
+        .child(form::page_title("Tray icon", None))
+        .child(master)
         .child(
-            form::panel(18., true, cx)
-                .child(field("Style", skins))
-                .child(form::collapse(
-                    "volume-tray-ring-options",
-                    tray.skin == crate::VolumeTraySkin::Rings,
-                    ring_options,
-                    window,
-                    cx,
-                ))
-                .child(field("Icon color", color_mode))
+            form::panel(CONTROL_GAP, false, cx)
+                .mt(px(BLOCK_GAP))
+                .opacity(dim)
                 .child(
-                    style::p(
-                        "Scroll over the icon to change the volume. Clicks are set on Wheel & clicks.",
-                        cx,
-                    )
-                    .text_size(px(13.)),
-                ),
+                    form::group()
+                        .child(field("Style", skins))
+                        .child(form::collapse_in_gap(
+                            "volume-tray-ring-options",
+                            tray.skin == crate::VolumeTraySkin::Rings,
+                            CONTROL_GAP,
+                            ring_options,
+                            window,
+                            cx,
+                        )),
+                )
+                .child(field("Icon color", color_mode))
+                .child(style::desc(
+                    "Scroll over the icon to change the volume. Clicks are set on Wheel & clicks.",
+                    cx,
+                )),
         )
         .child(popup)
         .into_any_element()]
@@ -184,22 +197,20 @@ fn tray_popup_panel(
             app.update_config(cx, |config| config.volume.popup.device_at_bottom = checked);
         },
     );
-    form::panel(18., true, cx)
-        .mt(px(18.))
+    form::panel(CONTROL_GAP, true, cx)
+        .mt(px(BLOCK_GAP))
         .child(form::section_heading("Slider popup"))
         .child(field("Layout", layout))
-        .child(super::super::general::card_row(
+        .child(form::setting_row(
             "Device name header",
             Some("Shows the output device's name above its slider."),
             header,
-            false,
             cx,
         ))
-        .child(super::super::general::card_row(
+        .child(form::setting_row(
             "Device at the bottom",
             Some("Puts the output slider under the app list."),
             device_at_bottom,
-            true,
             cx,
         ))
 }
@@ -248,9 +259,9 @@ fn skin_preview(
 }
 
 fn rings(ink: Hsla, level: f32) -> AnyElement {
-    let inner = 8. + 12. * level;
+    let inner = 6. + 10. * level;
     div()
-        .size(px(34.))
+        .size(px(28.))
         .rounded_full()
         .border_1()
         .border_color(ink)
@@ -271,7 +282,7 @@ fn digits(ink: Hsla, level: f32) -> AnyElement {
     let percent = (level * 100.).round() as u8;
     div()
         .font_family(FONT_DISPLAY)
-        .text_size(px(22.))
+        .text_size(px(19.))
         .line_height(relative(1.))
         .font_weight(FontWeight(650.))
         .text_color(ink)
@@ -282,12 +293,12 @@ fn digits(ink: Hsla, level: f32) -> AnyElement {
 fn bars(ink: Hsla, level: f32) -> AnyElement {
     let heights = [0.35, 0.55, 0.85, 0.62, 0.4];
     div()
-        .h(px(28.))
+        .h(px(24.))
         .flex()
         .items_end()
         .gap(px(3.))
         .children(heights.into_iter().map(|height| {
-            let height = 6. + 22. * height * (0.35 + 0.65 * level);
+            let height = 5. + 19. * height * (0.35 + 0.65 * level);
             div()
                 .w(px(4.))
                 .h(px(height))
@@ -304,7 +315,7 @@ fn speaker(ink: Hsla, muted: bool) -> AnyElement {
         } else {
             "volume-loud-linear"
         }))
-        .size(px(30.))
+        .size(px(24.))
         .text_color(ink)
         .into_any_element()
 }

@@ -1,10 +1,11 @@
 //! Volume → OSD.
 use super::super::form::{self, field, percent_slider};
 use super::super::overlay;
-use super::{column, heading};
+use super::column;
 use crate::settings_ui::{
     SettingsApp,
     controls::{self, RangeOptions, SelectOption, SelectOptions},
+    style::{BLOCK_GAP, CONTROL_GAP},
 };
 use gpui::{prelude::*, *};
 
@@ -142,39 +143,53 @@ pub(crate) fn render(
         },
     );
     let appearance = appearance(&osd, app, window, cx);
+    let dim = form::governed_opacity("volume-osd-governed", osd.enabled, window, cx);
+    let master = form::master_switch(
+        "volume-osd-master",
+        "slider-minimalistic-horizontal-bold",
+        "Show the volume OSD",
+        osd.enabled,
+        enabled,
+        window,
+        cx,
+    );
 
     vec![column()
-        .gap(px(0.))
-        .child(heading("OSD", "", Some(enabled), cx))
+        .child(form::page_title("OSD", None))
+        .child(master)
         .child(
-            form::panel(18., false, cx)
-                .child(field("Visibility", visibility))
-                .child(duration)
-                .child(super::super::general::card_row(
-                    "Show when the default device changes",
-                    Some("Speakers, headphones or microphone: shows the new device's name."),
-                    on_device,
-                    true,
-                    cx,
-                )),
+            div()
+                .flex()
+                .flex_col()
+                .flex_shrink_0()
+                .mt(px(BLOCK_GAP))
+                .opacity(dim)
+                .child(
+                    form::panel(CONTROL_GAP, false, cx)
+                        .child(field("Visibility", visibility))
+                        .child(duration)
+                        .child(form::setting_row(
+                            "Show when the default device changes",
+                            Some("Speakers, headphones or microphone: shows the new device's name."),
+                            on_device,
+                            cx,
+                        )),
+                )
+                .child(
+                    form::panel(CONTROL_GAP, false, cx)
+                        .mt(px(BLOCK_GAP))
+                        .child(field("Display", display))
+                        .child(horizontal)
+                        .child(vertical)
+                        .child(form::setting_row(
+                            "Move OSD",
+                            Some("Shows the OSD so you can drag it into place, until this is turned off."),
+                            positioning,
+                            cx,
+                        )),
+                )
+                .child(appearance),
         )
-        .child(
-            form::panel(10., false, cx)
-                .mt(px(18.))
-                .child(field("Display", display))
-                .child(div().h(px(4.)))
-                .child(horizontal)
-                .child(vertical)
-                .child(div().h(px(8.)))
-                .child(super::super::general::card_row(
-                    "Move OSD",
-                    Some("Shows the OSD so you can drag it into place, until this is turned off."),
-                    positioning,
-                    true,
-                    cx,
-                )),
-        )
-        .child(appearance)
         .into_any_element()]
 }
 
@@ -335,14 +350,17 @@ fn appearance(
         cx,
         |osd, value| osd.background_opacity = value as u8,
     );
-    let border = controls::checkbox(
-        "volume-osd-border",
-        osd.show_border,
-        false,
+    let border = form::setting_row(
         "Show border",
-        window,
+        None,
+        controls::toggle(
+            "volume-osd-border",
+            osd.show_border,
+            window,
+            cx,
+            |app, value, _, cx| update_and_preview(app, cx, |osd| osd.show_border = value),
+        ),
         cx,
-        |app, value, _, cx| update_and_preview(app, cx, |osd| osd.show_border = value),
     );
     let opacity = osd_slider(
         "volume-osd-opacity",
@@ -359,7 +377,7 @@ fn appearance(
     let custom_content = div()
         .flex()
         .flex_col()
-        .gap(px(18.))
+        .gap(px(CONTROL_GAP))
         .child(
             div()
                 .flex()
@@ -413,18 +431,29 @@ fn appearance(
         cx,
         |osd, value| osd.scale = value as u32,
     );
-    form::panel(18., true, cx)
-        .mt(px(18.))
+    form::panel(CONTROL_GAP, true, cx)
+        .mt(px(BLOCK_GAP))
         .child(form::section_heading("Appearance"))
-        .child(theme)
-        .child(form::collapse("volume-osd-custom", custom, custom_content, window, cx))
-        .child(form::collapse(
-            "volume-osd-radius-collapse",
-            supports_radius,
-            div().child(radius),
-            window,
-            cx,
-        ))
+        .child(
+            form::group()
+                .child(theme)
+                .child(form::collapse_in_gap(
+                    "volume-osd-custom",
+                    custom,
+                    CONTROL_GAP,
+                    custom_content,
+                    window,
+                    cx,
+                ))
+                .child(form::collapse_in_gap(
+                    "volume-osd-radius-collapse",
+                    supports_radius,
+                    CONTROL_GAP,
+                    div().child(radius),
+                    window,
+                    cx,
+                )),
+        )
         .child(scale)
 }
 

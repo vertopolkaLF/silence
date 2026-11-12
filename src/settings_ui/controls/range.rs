@@ -1,4 +1,4 @@
-//! Filled 48px range shell from `.ui-range-*` in `controls.css`.
+//! Filled 40px range shell from `.ui-range-*` in `controls.css`.
 use super::{SettingsApp, anim};
 use crate::settings_ui::{assets::icon, color::mix_pct, style::palette};
 use gpui::{prelude::*, *};
@@ -189,7 +189,7 @@ pub(crate) fn range(
         .id(id)
         .relative()
         .w_full()
-        .h(px(48.))
+        .h(px(40.))
         .cursor_pointer()
         .track_focus(&focus)
         .focus_visible(move |style| super::focus_outline(style, p.focus.hsla()))
@@ -271,8 +271,8 @@ pub(crate) fn range(
         .child(
             div()
                 .absolute()
-                .top(px(4.))
-                .bottom(px(4.))
+                .top_0()
+                .bottom_0()
                 .w_full()
                 .rounded(px(12.))
                 .bg(p.surface_2.hsla()),
@@ -280,8 +280,8 @@ pub(crate) fn range(
         .child(
             div()
                 .absolute()
-                .top(px(4.))
-                .bottom(px(4.))
+                .top_0()
+                .bottom_0()
                 .w(relative(progress))
                 .rounded(px(12.))
                 .bg(mix_pct(p.accent, 12., p.surface_2).hsla()),
@@ -289,7 +289,7 @@ pub(crate) fn range(
         .child(
             div()
                 .absolute()
-                .top(px(9. + (30. - 30. * scale) / 2.))
+                .top(px(5. + (30. - 30. * scale) / 2.))
                 .left(px(left + (6. - 6. * scale) / 2.))
                 .w(px(6. * scale))
                 .h(px(30. * scale))
@@ -306,8 +306,8 @@ pub(crate) fn range(
         .child(
             div()
                 .absolute()
-                .top(px(4.))
-                .bottom(px(4.))
+                .top_0()
+                .bottom_0()
                 .left(px(18.))
                 .right(px(18.))
                 .flex()
