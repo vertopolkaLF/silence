@@ -350,6 +350,8 @@ struct VolumeView {
     /// on its own hardware plane: the acrylic brush cannot sample it and the
     /// glass shows a square corner there, so the card is painted solid.
     over_fullscreen: bool,
+    /// Largest card size at this scale; see `volume_osd::set_geometry`.
+    held: (f32, f32),
     last_scale: f32,
     hide_wait: Option<Task<()>>,
     ambient_frame: Option<Task<()>>,
@@ -397,6 +399,7 @@ impl VolumeView {
             background_set: false,
             backdrop: None,
             over_fullscreen: false,
+            held: (0.0, 0.0),
             last_scale: 0.0,
             hide_wait: None,
             ambient_frame: None,
@@ -775,6 +778,7 @@ impl Render for VolumeView {
         let scale = monitor_scale / window_scale * self.style.scale.clamp(0.1, 4.0);
         if (self.last_scale - scale).abs() > 0.01 {
             self.last_scale = scale;
+            self.held = (0.0, 0.0);
             self.needs_measure = true;
             self.caption_dirty = true;
         }
@@ -1001,7 +1005,17 @@ impl Render for VolumeView {
 
         // Whole physical pixels, so the card's edges and hairline stay crisp.
         let gutter = (chrome.gutter * scale * window_scale).round() / window_scale;
-        crate::volume_osd::set_geometry(
+        // The glass theme keeps its window still, sized for the largest card
+        // seen so far, and moves the card inside it.
+        let held = (chrome.entrance == Entrance::Nudge && self.surface_ready).then(|| {
+            self.held.0 = self.held.0.max(width).max(self.width.to);
+            self.held.1 = self.held.1.max(height).max(self.height.to);
+            (
+                (self.held.0 * window_scale).ceil() as i32,
+                (self.held.1 * window_scale).ceil() as i32,
+            )
+        });
+        let origin = crate::volume_osd::set_geometry(
             (width * window_scale).round() as i32,
             (height * window_scale).round() as i32,
             ((width + gutter * 2.0) * window_scale).round() as i32,
@@ -1012,7 +1026,9 @@ impl Render for VolumeView {
             // Until the first paint lands the window waits fully off screen.
             (chrome.entrance == Entrance::Nudge && self.surface_ready)
                 .then(|| (NUDGE_DISTANCE * scale * window_scale).round() as i32),
+            held,
         );
+        let (card_x, card_y) = (origin.0 as f32 / window_scale, origin.1 as f32 / window_scale);
         crate::volume_osd::present(should_present);
 
         let weights: Vec<(VolumeChrome, f32)> = {
@@ -1097,14 +1113,16 @@ impl Render for VolumeView {
             Some(backdrop) if backdrop.usable() => {
                 backdrop.set_luminosity(glass_luminosity(self.system.light));
                 backdrop.update(
-                    [gutter, gutter, width, height].map(|v| (v * window_scale).round()),
+                    [card_x, card_y, width, height].map(|v| (v * window_scale).round()),
                     radius * window_scale,
                     alpha * chrome.opacity * glass_share,
                 );
                 // GPUI shadows are filled and would darken the glass, so the
                 // backdrop casts this one from under it.
                 match chrome.shadow {
-                    Shadow::Drop(color, y, blur) if chrome.mica => {
+                    // TEMP bisect: the silhouette layer is the suspect for
+                    // the ghost rectangle above the card.
+                    Shadow::Drop(color, y, blur) if chrome.mica && false => {
                         let physical = scale * window_scale;
                         backdrop.set_shadow(y * physical, blur / 2.0 * physical, color.a);
                     }
@@ -1133,8 +1151,8 @@ impl Render for VolumeView {
         }
         let mut card = div()
             .absolute()
-            .left(px(gutter))
-            .top(px(gutter))
+            .left(px(card_x))
+            .top(px(card_y))
             .w(px(width))
             .h(px(height))
             .rounded(px(radius))

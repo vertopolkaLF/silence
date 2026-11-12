@@ -472,10 +472,11 @@ pub(crate) fn set_geometry(
     inset_y: i32,
     slide: f32,
     slide_travel: Option<i32>,
-) {
+    held: Option<(i32, i32)>,
+) -> (i32, i32) {
     let mut guard = OSD.lock().unwrap();
     let Some(osd) = guard.as_mut() else {
-        return;
+        return (inset_x, inset_y);
     };
     osd.card_width = card_width.max(1);
     osd.card_height = card_height.max(1);
@@ -485,7 +486,9 @@ pub(crate) fn set_geometry(
     osd.inset_y = inset_y.max(0);
     osd.slide = slide.clamp(0.0, 1.0);
     osd.slide_travel = slide_travel;
+    osd.held = held.map(|(width, height)| (width.max(card_width), height.max(card_height)));
     osd.apply_layout();
+    osd.origin
 }
 
 /// Screen rectangles (physical pixels) of the monitor and of a card of this
@@ -570,6 +573,8 @@ fn prepare(sender: Sender<Command>) -> Result<()> {
         inset_y: 0,
         slide: 1.0,
         slide_travel: None,
+        held: None,
+        origin: (0, 0),
         presented: false,
         awaiting_first_paint: true,
         last_surface: None,
@@ -707,6 +712,13 @@ struct NativeOsd {
     slide: f32,
     /// Slide this many pixels instead of all the way from beyond the edge.
     slide_travel: Option<i32>,
+    /// Largest card (width, height) the window is kept sized for. With it
+    /// the window stays put and the card moves inside: DWM leaves stale
+    /// rectangles of the acrylic backdrop behind a window that moves or
+    /// resizes while it is shown.
+    held: Option<(i32, i32)>,
+    /// The card's top left corner inside the window.
+    origin: (i32, i32),
     presented: bool,
     awaiting_first_paint: bool,
     last_surface: Option<(i32, i32, i32, i32)>,
@@ -729,12 +741,35 @@ impl NativeOsd {
         let screen_h = (rect.bottom - rect.top).max(self.card_height);
         let x = rect.left + percent_to_axis(self.position_x, screen_w, self.card_width);
         let y = rect.top + percent_to_axis(self.position_y, screen_h, self.card_height);
-        let bounds = (
-            x - self.inset_x,
-            y - self.inset_y + self.slide_offset(y, &rect),
-            self.surface_width,
-            self.surface_height,
-        );
+        let slide = self.slide_offset(y, &rect);
+        let bounds = match (self.held, self.slide_travel) {
+            (Some((held_w, held_h)), Some(travel)) => {
+                // The same placement rule for the larger card always
+                // contains the current one; the slide happens inside.
+                let held_x = rect.left
+                    + percent_to_axis(self.position_x, screen_w.max(held_w), held_w);
+                let held_y = rect.top
+                    + percent_to_axis(self.position_y, screen_h.max(held_h), held_h);
+                let left = held_x - self.inset_x;
+                let top = held_y - self.inset_y - travel;
+                self.origin = (x - left, y + slide - top);
+                (
+                    left,
+                    top,
+                    held_w + self.inset_x * 2,
+                    held_h + (self.inset_y + travel) * 2,
+                )
+            }
+            _ => {
+                self.origin = (self.inset_x, self.inset_y);
+                (
+                    x - self.inset_x,
+                    y - self.inset_y + slide,
+                    self.surface_width,
+                    self.surface_height,
+                )
+            }
+        };
         if self.last_surface == Some(bounds) {
             return;
         }
@@ -878,8 +913,8 @@ fn finish_drag(hwnd: HWND) {
             return;
         };
         osd.dragging = false;
-        let card_left = window.left + osd.inset_x;
-        let card_top = window.top + osd.inset_y;
+        let card_left = window.left + osd.origin.0;
+        let card_top = window.top + osd.origin.1;
         let center = POINT {
             x: card_left + osd.card_width / 2,
             y: card_top + osd.card_height / 2,
