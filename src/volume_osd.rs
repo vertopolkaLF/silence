@@ -921,6 +921,13 @@ fn finish_drag(hwnd: HWND) {
     }
 }
 
+/// The OSD's window while it is on screen. The mic overlay stacks itself
+/// right under it, so the two always keep the same order.
+pub(crate) fn visible_hwnd() -> Option<HWND> {
+    let hwnd = OSD.lock().unwrap().as_ref().map(|osd| osd.hwnd)?;
+    (!hwnd.0.is_null() && unsafe { IsWindowVisible(hwnd).as_bool() }).then_some(hwnd)
+}
+
 fn restore_topmost(hwnd: HWND) {
     unsafe {
         let _ = SetWindowPos(
@@ -967,7 +974,18 @@ unsafe extern "system" fn volume_wnd_proc(
                 .and_then(|osd| osd.last_surface);
             if let Some((x, y, width, height)) = bounds {
                 unsafe {
-                    let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
+                    // Position only. Stacking belongs to `restore_topmost`:
+                    // raising here on every animation frame would hop over
+                    // the mic overlay and back.
+                    let _ = SetWindowPos(
+                        hwnd,
+                        None,
+                        x,
+                        y,
+                        width,
+                        height,
+                        SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER,
+                    );
                 }
             }
             LRESULT(0)
@@ -1020,7 +1038,9 @@ unsafe extern "system" fn volume_wnd_proc(
             unsafe { forward_window_message(hwnd, msg, wparam, lparam) }
         }
         WM_TIMER if wparam.0 == ID_TOPMOST_TIMER => {
-            if unsafe { IsWindowVisible(hwnd).as_bool() } {
+            if unsafe { IsWindowVisible(hwnd).as_bool() }
+                && crate::native_overlay::covered_by_foreign_window(hwnd)
+            {
                 restore_topmost(hwnd);
             }
             LRESULT(0)

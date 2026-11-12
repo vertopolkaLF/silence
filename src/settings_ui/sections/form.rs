@@ -421,8 +421,8 @@ fn icon_tile(
             .track_focus(&focus)
             .tab_index(0)
             .focus_visible(move |style| controls::focus_outline(style, p.focus.hsla()))
-            .size(px(56.))
-            .flex_shrink_0()
+            .w_full()
+            .aspect_ratio(1.)
             .flex()
             .items_center()
             .justify_center()
@@ -478,7 +478,14 @@ pub(crate) fn mic_icon_picker(
         .find(|pair| pair.id == selected)
         .map(|pair| pair.label)
         .unwrap_or("");
-    let grid = || div().flex().flex_wrap().gap(px(8.));
+    // Fixed column count: tiles stretch with the window instead of wrapping
+    // a lone tile onto its own row.
+    let grid = || {
+        div()
+            .grid()
+            .grid_cols(MIC_ICONS_COLLAPSED as u16)
+            .gap(px(8.))
+    };
     let mut primary = grid();
     let mut rest = grid();
     for (index, pair) in pairs.into_iter().enumerate() {

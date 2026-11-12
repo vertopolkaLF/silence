@@ -11,6 +11,7 @@ use std::{
 };
 use windows::Win32::{
     Foundation::{BOOL, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
+    System::Threading::GetCurrentProcessId,
     Graphics::{
         Dwm::{
             DWM_SYSTEMBACKDROP_TYPE, DWM_WINDOW_CORNER_PREFERENCE, DWMNCRP_DISABLED, DWMSBT_NONE,
@@ -384,14 +385,46 @@ unsafe fn forward_window_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: L
     }
 }
 
+/// True when a visible window of another process sits above `hwnd`.
+///
+/// The overlays reassert topmost on a timer. Doing that unconditionally made
+/// the mic overlay and the volume OSD leapfrog each other every second, and
+/// DWM draws stale rectangles where two composition windows swap order over
+/// an acrylic backdrop. Our own windows above us are fine where they are.
+pub(crate) fn covered_by_foreign_window(hwnd: HWND) -> bool {
+    let own = unsafe { GetCurrentProcessId() };
+    let mut above = unsafe { GetWindow(hwnd, GW_HWNDPREV) };
+    // Bounded: the z-order can change under the walk.
+    for _ in 0..512 {
+        let Ok(window) = above else {
+            return false;
+        };
+        if window.0.is_null() {
+            return false;
+        }
+        let mut process = 0u32;
+        unsafe { GetWindowThreadProcessId(window, Some(&mut process)) };
+        if process != own && unsafe { IsWindowVisible(window).as_bool() } {
+            return true;
+        }
+        above = unsafe { GetWindow(window, GW_HWNDPREV) };
+    }
+    false
+}
+
+
 fn restore_topmost(hwnd: HWND) {
     // Z-order maintenance must run on the window thread, outside OVERLAY's lock:
     // SetWindowPos synchronously dispatches window messages back into this wndproc.
     // Reassert even when WS_EX_TOPMOST is set: another topmost window can cover us.
+    // Right under the volume OSD while it is up, never above it: DWM leaves
+    // stale rectangles on the OSD's acrylic when this window sits over it or
+    // the two swap places.
+    let after = crate::volume_osd::visible_hwnd().unwrap_or(HWND_TOPMOST);
     unsafe {
         let _ = SetWindowPos(
             hwnd,
-            HWND_TOPMOST,
+            after,
             0,
             0,
             0,
@@ -720,7 +753,16 @@ unsafe extern "system" fn overlay_wnd_proc(
                 .and_then(|overlay| overlay.last_surface);
             if let Some((x, y, width, height)) = bounds {
                 unsafe {
-                    let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
+                    // Position only; stacking belongs to `restore_topmost`.
+                    let _ = SetWindowPos(
+                        hwnd,
+                        None,
+                        x,
+                        y,
+                        width,
+                        height,
+                        SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER,
+                    );
                 }
             }
             LRESULT(0)
@@ -796,7 +838,7 @@ unsafe extern "system" fn overlay_wnd_proc(
         WM_TIMER if wparam.0 == ID_TOPMOST_TIMER => {
             // A timer message may already be queued when the surface is hidden.
             // Never show it again or wake the GPUI renderer from this maintenance path.
-            if unsafe { IsWindowVisible(hwnd).as_bool() } {
+            if unsafe { IsWindowVisible(hwnd).as_bool() } && covered_by_foreign_window(hwnd) {
                 restore_topmost(hwnd);
             }
             LRESULT(0)
