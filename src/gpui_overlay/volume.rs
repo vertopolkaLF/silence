@@ -59,6 +59,16 @@ const MEDIA_BADGE_RING: f32 = 2.0;
 const MEDIA_TEXT_MAX: f32 = 220.0;
 /// Space between the title and the artist line.
 const MEDIA_LINE_GAP: f32 = 2.0;
+/// A track change: the old lines leave to the left while the new ones come
+/// in from the right, and the covers shrink to half and grow from half.
+const TRACK_MS: u64 = 320;
+const TRACK_SHIFT: f32 = 18.0;
+/// "Up next" holds the whole text column for a beat, then swipes up and the
+/// track comes up under it.
+const UP_NEXT_HOLD_MS: f32 = 800.0;
+const UP_NEXT_SWIPE_MS: f32 = 380.0;
+/// How fast the chevrons behind "Up next" drift forward, px per second.
+const UP_NEXT_DRIFT: f32 = 36.0;
 /// Ambient themes tick at ~30 fps, same as the mic overlay.
 const AMBIENT_FRAME: Duration = Duration::from_millis(33);
 
@@ -305,11 +315,57 @@ struct MediaLayer {
     title: SharedString,
     artist: SharedString,
     cover: Option<Arc<Image>>,
-    /// "Up next" over the title.
+    /// The playlist moved on: "Up next" plays before the track's lines.
     eyebrow: bool,
+    /// Replaced another track (or is being replaced): swipe, not just fade.
+    swipe: bool,
+    /// When the "Up next" intro started.
+    intro: Option<Instant>,
     /// Widest of the fitted lines, in window pixels.
     text_width: f32,
     opacity: Motion,
+}
+
+impl MediaLayer {
+    fn intro_active(&self, now: Instant) -> bool {
+        self.intro.is_some_and(|start| {
+            now.saturating_duration_since(start).as_secs_f32() * 1000.0
+                < UP_NEXT_HOLD_MS + UP_NEXT_SWIPE_MS
+        })
+    }
+
+    /// Milliseconds since the "Up next" intro started.
+    fn intro_elapsed(&self, now: Instant) -> f32 {
+        self.intro
+            .map(|start| now.saturating_duration_since(start).as_secs_f32() * 1000.0)
+            .unwrap_or(f32::MAX)
+    }
+
+    /// Progress of the "Up next" swipe: 0 while it holds, 1 once the track's
+    /// lines are up. Tracks without the intro are always at 1.
+    fn intro_progress(&self, now: Instant) -> f32 {
+        if self.intro.is_none() {
+            return 1.0;
+        }
+        let t = ((self.intro_elapsed(now) - UP_NEXT_HOLD_MS) / UP_NEXT_SWIPE_MS).clamp(0.0, 1.0);
+        // Ease in and out: the label lifts off, then the track settles.
+        if t < 0.5 {
+            4.0 * t * t * t
+        } else {
+            1.0 - (-2.0 * t + 2.0).powi(3) / 2.0
+        }
+    }
+
+    /// Cover scale and sideways share of `TRACK_SHIFT` for a track swiping in
+    /// (from the right) or out (to the left) at `opacity`.
+    fn swipe(&self, opacity: f32) -> (f32, f32) {
+        if !self.swipe {
+            return (1.0, 0.0);
+        }
+        let away = 1.0 - opacity.clamp(0.0, 1.0);
+        let direction = if self.opacity.to > 0.5 { 1.0 } else { -1.0 };
+        (1.0 - 0.5 * away, direction * away)
+    }
 }
 
 struct VolumeView {
@@ -570,7 +626,15 @@ impl VolumeView {
             self.begin_exit(now);
             return;
         }
-        let wait = self.style.duration_ms as u64;
+        // The "Up next" intro plays first; the track still gets its full time.
+        let intro = match self.content {
+            VolumeOsdContent::Media {
+                action: MediaAction::UpNext,
+                ..
+            } => (UP_NEXT_HOLD_MS + UP_NEXT_SWIPE_MS) as u64,
+            _ => 0,
+        };
+        let wait = self.style.duration_ms as u64 + intro;
         self.hide_wait = Some(cx.spawn(async move |view, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(wait))
@@ -710,11 +774,19 @@ impl VolumeView {
     /// track (new theme font, art arriving late) updates it in place.
     fn sync_media(&mut self, next: Option<MediaLayer>, now: Instant, snap: bool) {
         let key = next.as_ref().map(|layer| layer.key.clone());
+        // A different track takes over from one already on screen.
+        let replacing = !snap
+            && key.is_some()
+            && !self.media.is_empty()
+            && !self.media.iter().any(|layer| key.as_ref() == Some(&layer.key));
         let mut matched = false;
         for layer in &mut self.media {
             let current = key.as_ref() == Some(&layer.key);
             if snap {
                 layer.opacity = Motion::new(if current { 1.0 } else { 0.0 }, FADE_MS);
+            } else if replacing {
+                layer.swipe = true;
+                layer.opacity.retarget_with_duration(0.0, now, TRACK_MS);
             } else {
                 layer.opacity.retarget(if current { 1.0 } else { 0.0 }, now);
             }
@@ -735,11 +807,15 @@ impl VolumeView {
                 opacity.retarget(1.0, now);
                 opacity
             } else {
-                // A track change crossfades over the old one.
-                let mut opacity = Motion::new(0.0, FADE_MS);
+                // A track change swipes in over the old one.
+                next.swipe = true;
+                let mut opacity = Motion::new(0.0, TRACK_MS);
                 opacity.retarget(1.0, now);
                 opacity
             };
+            if next.eyebrow {
+                next.intro = Some(now);
+            }
             self.media.push(next);
         }
         self.media
@@ -820,9 +896,9 @@ impl Render for VolumeView {
                 };
                 let title = fit_text(&playing.title, max, measure_title);
                 let artist = fit_text(&playing.artist, max, measure_artist);
-                let (eyebrow_weight, eyebrow_size) = eyebrow_type(&chrome, scale);
+                let (intro_weight, intro_size) = intro_type(&chrome, scale);
                 let eyebrow_width = if eyebrow {
-                    measure_styled(UP_NEXT, &chrome.font, eyebrow_weight, eyebrow_size, measure_window)
+                    measure_styled(UP_NEXT, &chrome.font, intro_weight, intro_size, measure_window)
                 } else {
                     0.0
                 };
@@ -835,6 +911,8 @@ impl Render for VolumeView {
                     artist: artist.into(),
                     cover: playing.cover.clone(),
                     eyebrow,
+                    swipe: false,
+                    intro: None,
                     text_width,
                     opacity: Motion::new(0.0, FADE_MS),
                 }
@@ -980,7 +1058,10 @@ impl Render for VolumeView {
             || self.height.active(now)
             || self.radius.active(now)
             || self.media_height.active(now)
-            || self.media.iter().any(|layer| layer.opacity.active(now))
+            || self
+                .media
+                .iter()
+                .any(|layer| layer.opacity.active(now) || layer.intro_active(now))
             || self.visibility.active(now)
             || (slide_theme && self.slide.active(now))
             || self.level.active(now)
@@ -1470,7 +1551,7 @@ impl Render for VolumeView {
                             .child(media_badge(&glyphs, &chrome, fill, ring, widget_cover, scale)),
                     )
                     .child(div().flex_shrink_0().w(px(gap)))
-                    .child(media_lines(&media, &chrome, &frame).h(px(height))),
+                    .child(media_lines(&media, &chrome, &frame, height, now).h(px(height))),
             );
         } else {
             let mut row = div()
@@ -1774,7 +1855,13 @@ fn media_badge(
                 .items_center()
                 .justify_center()
                 .opacity(*opacity)
-                .child(svg().path(path.clone()).size(px(size * 0.56)).text_color(ink)),
+                // Actions swap like covers: shrink to half, grow from half.
+                .child(
+                    svg()
+                        .path(path.clone())
+                        .size(px(size * 0.56 * (0.5 + 0.5 * opacity.clamp(0.0, 1.0))))
+                        .text_color(ink),
+                ),
         );
     }
     badge
@@ -1783,14 +1870,14 @@ fn media_badge(
 /// Name of the eyebrow over a track the playlist moved on to.
 const UP_NEXT: &str = "Up next";
 
-/// Small label over the title: same face, bold, a few points down.
-fn eyebrow_type(chrome: &VolumeChrome, scale: f32) -> (u16, f32) {
+/// The "Up next" intro label: same face, bold, a step over the title.
+fn intro_type(chrome: &VolumeChrome, scale: f32) -> (u16, f32) {
     let weight = if chrome.font.as_ref() == "Archivo Black" {
         chrome.weight
     } else {
         chrome.weight.max(700)
     };
-    (weight, (chrome.text_size - 4.0).max(9.0) * scale)
+    (weight, (chrome.text_size + 2.0) * scale)
 }
 
 /// Cover, title and artist above the meter row, in the theme's own colors.
@@ -1816,7 +1903,7 @@ fn media_strip(
                 .child(media_art(layers, chrome, &frame)),
         )
         .child(
-            media_lines(layers, chrome, &frame)
+            media_lines(layers, chrome, &frame, frame.cover, Instant::now())
                 .absolute()
                 .left(px(frame.inset + frame.cover + frame.gap))
                 .top(px(frame.inset))
@@ -1848,13 +1935,18 @@ fn media_art(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaF
     };
     let mut stack = div().relative().flex_shrink_0().size(px(cover));
     for (layer, opacity) in layers {
+        // A track change shrinks the old cover to half and grows the new one
+        // from half, around the cover's center.
+        let (zoom, _) = layer.swipe(*opacity);
+        let edge_len = cover * zoom;
+        let corner = cover_radius * zoom;
         let art = match &layer.cover {
             Some(image) => img(image.clone())
                 .absolute()
                 .left_0()
                 .top_0()
-                .size(px(cover))
-                .rounded(px(cover_radius))
+                .size(px(edge_len))
+                .rounded(px(corner))
                 .object_fit(ObjectFit::Cover)
                 .into_any_element(),
             // No art from the player: the theme's track tone with a note.
@@ -1862,8 +1954,8 @@ fn media_art(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaF
                 .absolute()
                 .left_0()
                 .top_0()
-                .size(px(cover))
-                .rounded(px(cover_radius))
+                .size(px(edge_len))
+                .rounded(px(corner))
                 .bg(track)
                 .flex()
                 .items_center()
@@ -1871,15 +1963,15 @@ fn media_art(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaF
                 .child(if chrome.fluent {
                     div()
                         .font_family(fluent_font())
-                        .text_size(px(cover * 0.42))
-                        .line_height(px(cover * 0.42))
+                        .text_size(px(edge_len * 0.42))
+                        .line_height(px(edge_len * 0.42))
                         .text_color(rgb(chrome.ink))
                         .child('\u{EC4F}'.to_string())
                         .into_any_element()
                 } else {
                     svg()
                         .path("media-note")
-                        .size(px(cover * 0.45))
+                        .size(px(edge_len * 0.45))
                         .text_color(rgb(chrome.ink))
                         .into_any_element()
                 })
@@ -1890,17 +1982,17 @@ fn media_art(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaF
                 .absolute()
                 .left_0()
                 .top_0()
-                .size(px(cover))
-                .rounded(px(cover_radius)),
+                .size(px(edge_len))
+                .rounded(px(corner)),
             edge_width,
         )
         .border_color(edge);
         stack = stack.child(
             div()
                 .absolute()
-                .left_0()
-                .top_0()
-                .size(px(cover))
+                .left(px((cover - edge_len) / 2.0))
+                .top(px((cover - edge_len) / 2.0))
+                .size(px(edge_len))
                 .opacity(*opacity)
                 .child(art)
                 .child(outline),
@@ -1911,7 +2003,13 @@ fn media_art(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaF
 
 /// Title, artist and the "Up next" eyebrow of every visible track, stacked
 /// for the crossfade and centered in the column's height.
-fn media_lines(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaFrame) -> Div {
+fn media_lines(
+    layers: &[(MediaLayer, f32)],
+    chrome: &VolumeChrome,
+    frame: &MediaFrame,
+    height: f32,
+    now: Instant,
+) -> Div {
     let MediaFrame {
         foreground,
         accent,
@@ -1921,35 +2019,46 @@ fn media_lines(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &Medi
     } = *frame;
     let (title_weight, title_size) = title_type(chrome, scale);
     let (artist_weight, artist_size) = artist_type(chrome, scale);
-    let (eyebrow_weight, eyebrow_size) = eyebrow_type(chrome, scale);
+    let (intro_weight, intro_size) = intro_type(chrome, scale);
     let mut stack = div()
         .relative()
         .flex_shrink_0()
         .w(px(text_w))
         .overflow_hidden();
     for (layer, opacity) in layers {
+        // Track change: in from the right, out to the left.
+        let (_, shift) = layer.swipe(*opacity);
+        let dx = shift * TRACK_SHIFT * scale;
+        // "Up next" first fills the column, then lifts away while the track
+        // rises in under it.
+        let lift = layer.intro_progress(now);
+        if lift < 1.0 {
+            stack = stack.child(up_next_panel(
+                chrome,
+                accent,
+                (intro_weight, intro_size),
+                text_w,
+                height,
+                layer.intro_elapsed(now),
+                dx,
+                -lift * height,
+                *opacity * (1.0 - lift),
+                scale,
+            ));
+        }
         let mut lines = div()
             .absolute()
-            .left_0()
-            .top_0()
-            .size_full()
+            .left(px(dx))
+            .top(px((1.0 - lift) * height * 0.6))
+            .w(px(text_w))
+            .h(px(height))
             .flex()
             .flex_col()
             .justify_center()
             .gap(px(MEDIA_LINE_GAP * scale))
             .whitespace_nowrap()
             .font_family(chrome.font.clone())
-            .opacity(*opacity);
-        if layer.eyebrow {
-            lines = lines.child(
-                div()
-                    .font_weight(FontWeight(eyebrow_weight as f32))
-                    .text_size(px(eyebrow_size))
-                    .line_height(px(eyebrow_size * 1.2))
-                    .text_color(accent)
-                    .child(UP_NEXT),
-            );
-        }
+            .opacity(*opacity * lift);
         lines = lines.child(
             div()
                 .font_weight(FontWeight(title_weight as f32))
@@ -1971,6 +2080,71 @@ fn media_lines(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &Medi
         stack = stack.child(lines);
     }
     stack
+}
+
+/// The "Up next" intro: the label over a row of faint double chevrons that
+/// keep drifting forward, the way the playlist just moved.
+#[allow(clippy::too_many_arguments)]
+fn up_next_panel(
+    chrome: &VolumeChrome,
+    accent: Rgba,
+    (weight, size): (u16, f32),
+    width: f32,
+    height: f32,
+    elapsed_ms: f32,
+    dx: f32,
+    dy: f32,
+    opacity: f32,
+    scale: f32,
+) -> Div {
+    let chevron = (height * 0.62).max(12.0 * scale);
+    let spacing = chevron * 0.8;
+    let drift = (elapsed_ms / 1000.0 * UP_NEXT_DRIFT * scale) % spacing;
+    let mut tint = accent;
+    tint.a *= 0.16;
+    let mut chevrons = div()
+        .absolute()
+        .left_0()
+        .top_0()
+        .w(px(width))
+        .h(px(height))
+        .overflow_hidden();
+    let count = (width / spacing).ceil() as usize + 2;
+    for index in 0..count {
+        chevrons = chevrons.child(
+            svg()
+                .path("media-up-next")
+                .absolute()
+                .left(px(drift + (index as f32 - 1.0) * spacing))
+                .top(px((height - chevron) / 2.0))
+                .size(px(chevron))
+                .text_color(tint),
+        );
+    }
+    div()
+        .absolute()
+        .left(px(dx))
+        .top(px(dy))
+        .w(px(width))
+        .h(px(height))
+        .opacity(opacity)
+        .child(chevrons)
+        .child(
+            div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .size_full()
+                .flex()
+                .items_center()
+                .whitespace_nowrap()
+                .font_family(chrome.font.clone())
+                .font_weight(FontWeight(weight as f32))
+                .text_size(px(size))
+                .line_height(px(size * 1.2))
+                .text_color(accent)
+                .child(UP_NEXT),
+        )
 }
 
 fn mix_rgba(parts: impl Iterator<Item = (Rgba, f32)>) -> Rgba {
@@ -2193,6 +2367,8 @@ pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
         "media-pause" => include_str!("../../assets/icons/pause-bold.svg"),
         "media-next" => include_str!("../../assets/icons/volume/skip-next-bold.svg"),
         "media-previous" => include_str!("../../assets/icons/volume/skip-previous-bold.svg"),
+        // Drifting behind the "Up next" intro.
+        "media-up-next" => include_str!("../../assets/icons/volume/double-alt-arrow-right-bold.svg"),
         // Cute Sticker's sparkle: the cut paper edge and the ink inside it.
         "sticker-star-paper" => {
             r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 5Q13.75 10.25 19 12Q13.75 13.75 12 19Q10.25 13.75 5 12Q10.25 10.25 12 5Z" fill="#000" stroke="#000" stroke-width="7" stroke-linejoin="round"/></svg>"##
