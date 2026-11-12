@@ -1117,17 +1117,6 @@ impl Render for VolumeView {
                     radius * window_scale,
                     alpha * chrome.opacity * glass_share,
                 );
-                // GPUI shadows are filled and would darken the glass, so the
-                // backdrop casts this one from under it.
-                match chrome.shadow {
-                    // TEMP bisect: the silhouette layer is the suspect for
-                    // the ghost rectangle above the card.
-                    Shadow::Drop(color, y, blur) if chrome.mica && false => {
-                        let physical = scale * window_scale;
-                        backdrop.set_shadow(y * physical, blur / 2.0 * physical, color.a);
-                    }
-                    _ => backdrop.set_shadow(0.0, 0.0, 0.0),
-                }
                 backdrop.usable()
             }
             _ => false,
@@ -1185,9 +1174,50 @@ impl Render for VolumeView {
             None => card.bg(surface),
         };
         // GPUI shadows are filled, not hollow: under a translucent card one
-        // would darken the glass, so the backdrop draws the acrylic card's.
+        // would darken the glass. The acrylic card's is painted only outside
+        // the card's rectangle, in four strips around it. (A shadow layer
+        // under the glass in the backdrop left a ghost rectangle on screen.)
         let on_glass = glass && chrome.mica;
+        let mut outer_shadow = Vec::new();
         card = match shadow {
+            Some(shadow) if on_glass => {
+                let viewport = window.viewport_size();
+                let (view_w, view_h) = (viewport.width.as_f32(), viewport.height.as_f32());
+                let (right, bottom) = (card_x + width, card_y + height);
+                // (left, top, width, height) of each strip, in window pixels.
+                let strips = [
+                    (0.0, 0.0, view_w, card_y),
+                    (0.0, bottom, view_w, view_h - bottom),
+                    (0.0, card_y, card_x, height),
+                    (right, card_y, view_w - right, height),
+                ];
+                for (left, top, strip_w, strip_h) in strips {
+                    if strip_w <= 0.0 || strip_h <= 0.0 {
+                        continue;
+                    }
+                    outer_shadow.push(
+                        div()
+                            .absolute()
+                            .left(px(left))
+                            .top(px(top))
+                            .w(px(strip_w))
+                            .h(px(strip_h))
+                            .overflow_hidden()
+                            .opacity(alpha * chrome.opacity)
+                            .child(
+                                div()
+                                    .absolute()
+                                    .left(px(card_x - left))
+                                    .top(px(card_y - top))
+                                    .w(px(width))
+                                    .h(px(height))
+                                    .rounded(px(radius))
+                                    .shadow(vec![shadow.clone()]),
+                            ),
+                    );
+                }
+                card
+            }
             _ if on_glass => card,
             Some(shadow) => card.shadow(vec![shadow]),
             None => card.shadow_md(),
@@ -1563,7 +1593,11 @@ impl Render for VolumeView {
                 .border_color(color),
             );
         }
-        div().relative().size_full().child(card)
+        div()
+            .relative()
+            .size_full()
+            .children(outer_shadow)
+            .child(card)
     }
 }
 

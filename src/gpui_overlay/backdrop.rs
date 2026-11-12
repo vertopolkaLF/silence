@@ -23,8 +23,8 @@ use windows::{
         Color,
         Composition::{
             CompositionBrush, CompositionColorBrush, CompositionEffectSourceParameter,
-            CompositionDropShadowSourcePolicy, CompositionRoundedRectangleGeometry, Compositor,
-            Desktop::DesktopWindowTarget, DropShadow, LayerVisual, ShapeVisual, SpriteVisual,
+            CompositionRoundedRectangleGeometry, Compositor, Desktop::DesktopWindowTarget,
+            SpriteVisual,
         },
     },
     Win32::{
@@ -88,12 +88,6 @@ pub(crate) struct Backdrop {
     visual: SpriteVisual,
     geometry: CompositionRoundedRectangleGeometry,
     luminosity: CompositionColorBrush,
-    /// The glass's silhouette under the glass itself; only its drop shadow
-    /// shows, so the shadow never darkens the material.
-    shadow_layer: LayerVisual,
-    shadow_shape: ShapeVisual,
-    shadow: DropShadow,
-    shadow_last: Option<[f32; 3]>,
     _queue: QueueOwner,
     opacity: f32,
     level: u8,
@@ -155,25 +149,9 @@ impl Backdrop {
         visual.SetClip(&clip)?;
         visual.SetOpacity(0.0)?;
 
-        // A layer flattens the silhouette so the shadow takes its rounded
-        // shape. Hidden until `set_shadow` asks for one.
-        let shadow = compositor.CreateDropShadow()?;
-        shadow.SetColor(Color { A: 255, R: 0, G: 0, B: 0 })?;
-        shadow.SetSourcePolicy(CompositionDropShadowSourcePolicy::InheritFromVisualContent)?;
-        let silhouette = compositor.CreateSpriteShapeWithGeometry(&geometry)?;
-        silhouette.SetFillBrush(&luminosity)?;
-        let shadow_shape = compositor.CreateShapeVisual()?;
-        shadow_shape.Shapes()?.Append(&silhouette)?;
-        let shadow_layer = compositor.CreateLayerVisual()?;
-        shadow_layer.Children()?.InsertAtTop(&shadow_shape)?;
-        shadow_layer.SetShadow(&shadow)?;
-        shadow_layer.SetOpacity(0.0)?;
-        shadow_layer.SetIsVisible(false)?;
-
-        let root = compositor.CreateContainerVisual()?;
-        root.Children()?.InsertAtTop(&shadow_layer)?;
-        root.Children()?.InsertAtTop(&visual)?;
-        target.SetRoot(&root)?;
+        // Only the glass lives here. A shadow layer under it (a LayerVisual
+        // with a DropShadow) made DWM draw a ghost rectangle above the card.
+        target.SetRoot(&visual)?;
 
         Ok(Self {
             target,
@@ -181,10 +159,6 @@ impl Backdrop {
             visual,
             geometry,
             luminosity,
-            shadow_layer,
-            shadow_shape,
-            shadow,
-            shadow_last: None,
             _queue: queue,
             opacity: 0.0,
             level,
@@ -222,15 +196,7 @@ impl Backdrop {
                 self.geometry.SetSize(size)?;
                 self.geometry.SetCornerRadius(Vector2 { X: radius, Y: radius })?;
                 self.visual.SetSize(size)?;
-                self.visual.SetOffset(Vector3 { X: x, Y: y, Z: 0.0 })?;
-                self.shadow_shape.SetSize(size)?;
-                self.shadow_shape.SetOffset(Vector3 { X: x, Y: y, Z: 0.0 })?;
-                // A layer clips its shadow to its own bounds: give it the
-                // glass plus the same margin on every side.
-                self.shadow_layer.SetSize(Vector2 {
-                    X: width + x.max(0.0) * 2.0,
-                    Y: height + y.max(0.0) * 2.0,
-                })
+                self.visual.SetOffset(Vector3 { X: x, Y: y, Z: 0.0 })
             })();
             if result.is_err() {
                 self.fail();
@@ -247,41 +213,9 @@ impl Backdrop {
             return;
         }
         self.opacity = opacity;
-        if self.visual.SetOpacity(opacity).is_err()
-            || self.shadow_layer.SetOpacity(opacity).is_err()
-        {
+        if self.visual.SetOpacity(opacity).is_err() {
             self.fail();
         }
-    }
-
-    /// Drop shadow around the glass: `offset_y` and the blur's standard
-    /// `deviation` in physical pixels, black at `opacity`. Zero opacity
-    /// removes it.
-    pub(crate) fn set_shadow(&mut self, offset_y: f32, deviation: f32, opacity: f32) {
-        let opacity = opacity.clamp(0.0, 1.0);
-        let shadow = [offset_y, deviation, opacity];
-        if self.failed || self.shadow_last == Some(shadow) {
-            return;
-        }
-        let result = (|| -> windows::core::Result<()> {
-            self.shadow.SetOffset(Vector3 { X: 0.0, Y: offset_y, Z: 0.0 })?;
-            // Composition's blur radius is three standard deviations.
-            self.shadow.SetBlurRadius(deviation.max(0.0) * 3.0)?;
-            // A layer's shadow ignores `DropShadow::Opacity`; the color's
-            // alpha does the job.
-            self.shadow.SetColor(Color {
-                A: (opacity * 255.0).round() as u8,
-                R: 0,
-                G: 0,
-                B: 0,
-            })?;
-            self.shadow_layer.SetIsVisible(opacity > 0.0)
-        })();
-        if result.is_err() {
-            self.fail();
-            return;
-        }
-        self.shadow_last = Some(shadow);
     }
 
     fn fail(&mut self) {

@@ -713,9 +713,8 @@ struct NativeOsd {
     /// Slide this many pixels instead of all the way from beyond the edge.
     slide_travel: Option<i32>,
     /// Largest card (width, height) the window is kept sized for. With it
-    /// the window stays put and the card moves inside: DWM leaves stale
-    /// rectangles of the acrylic backdrop behind a window that moves or
-    /// resizes while it is shown.
+    /// the window stays put and the card moves inside, like the slider
+    /// popup, instead of moving or resizing every animation frame.
     held: Option<(i32, i32)>,
     /// The card's top left corner inside the window.
     origin: (i32, i32),
