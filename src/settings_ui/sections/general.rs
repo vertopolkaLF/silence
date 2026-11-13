@@ -93,17 +93,6 @@ pub(crate) fn render(
                     config.advanced.set_mic_volume_to_zero_on_mute = checked
                 })
             },
-        ))
-        .row(toggle_card(
-            "general-auto-updates",
-            "Disable auto-updates",
-            Some("Update checks still run, but Windows update notifications stay quiet"),
-            advanced.disable_auto_updates,
-            window,
-            cx,
-            |app, checked, _, cx| {
-                app.update_config(cx, |config| config.advanced.disable_auto_updates = checked)
-            },
         ));
     let status = div()
         .flex()
