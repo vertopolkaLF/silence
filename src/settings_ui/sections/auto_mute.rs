@@ -1,8 +1,5 @@
 //! Auto mute tab: the same toggle rows as every other page.
-use super::{
-    form,
-    general::{ROW_GAP, card_row},
-};
+use super::form;
 use crate::settings_ui::{
     SettingsApp,
     anim::{self, UI},
@@ -151,7 +148,7 @@ pub(crate) fn render(
             .font_weight(FontWeight(600.))
             .border_1()
             .border_color(lerp(TRANSPARENT, p.focus, focus).hsla())
-            .bg(lerp(p.surface_2, p.surface_color[1], hover * (1. - disabled)).hsla())
+            .bg(lerp(p.surface_3, p.surface_hover, hover * (1. - disabled)).hsla())
             .text_color(p.text.hsla())
             // The padded shell is part of the input's click target too.
             .when(enabled, |this| {
@@ -220,49 +217,37 @@ pub(crate) fn render(
             .child(inactivity),
         cx,
     );
-    // Only meaningful while the inactivity mute is on, so it opens with it.
-    let dependent = form::collapse(
-        "auto-mute-dependent",
-        enabled,
-        div().pt(px(ROW_GAP)).pl(px(22.)).child(form::setting_row(
-            "Unmute on activity",
-            None,
-            unmute,
-            cx,
-        )),
-        window,
-        cx,
-    );
     vec![
         div()
             .flex()
             .flex_col()
-            .gap(px(ROW_GAP))
             .max_w(px(720.))
-            .child(form::page_title("Auto mute", None).mb(px(style::TITLE_GAP - ROW_GAP)))
-            .child(card_row(
-                "Mute on app launch",
-                Some("silence! starts with the microphone muted."),
-                startup,
-                false,
-                cx,
-            ))
+            .child(form::page_title("Auto mute", None))
             .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .pb(px(ROW_GAP))
-                    .border_b_1()
-                    .border_color(p.border.hsla())
-                    .child(inactivity_row)
-                    .child(dependent),
+                form::card(cx)
+                    .row(form::setting_row(
+                        "Mute on app launch",
+                        Some("silence! starts with the microphone muted."),
+                        startup,
+                        cx,
+                    ))
+                    .row(inactivity_row)
+                    // Only meaningful while the inactivity mute is on, so it
+                    // opens with it, indented under its parent.
+                    .reveal(
+                        "auto-mute-dependent",
+                        enabled,
+                        form::setting_row("Unmute on activity", None, unmute, cx).pl(px(40.)),
+                        window,
+                        cx,
+                    )
+                    .row(form::setting_row(
+                        "Play sounds on auto-mute",
+                        None,
+                        sounds,
+                        cx,
+                    )),
             )
-            .child(form::setting_row(
-                "Play sounds on auto-mute",
-                None,
-                sounds,
-                cx,
-            ))
             .into_any_element(),
     ]
 }

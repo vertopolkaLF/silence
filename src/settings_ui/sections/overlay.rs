@@ -8,9 +8,9 @@ use crate::settings_ui::{
         self, ButtonKind, RangeOptions, SelectOption, SelectOptions, TextInputEvent,
         TextInputOptions,
     },
-    style::{self, BLOCK_GAP, CONTROL_GAP},
+    style,
 };
-use super::form::{self, collapse_in_gap, field, percent_slider};
+use super::form::{self, SECTION_GAP, TILE_GAP, card_field, collapse_in_gap, field, percent_slider};
 use gpui::{prelude::*, *};
 use std::time::{Duration, Instant};
 
@@ -25,19 +25,6 @@ pub(crate) struct State {
     focus_pending: bool,
 }
 
-fn panel(gap: f32, last: bool, cx: &App) -> Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(gap))
-        .max_w(px(720.))
-        .flex_shrink_0()
-        .when(!last, |d| {
-            d.pb(px(BLOCK_GAP))
-                .border_b_1()
-                .border_color(style::palette(cx).border.hsla())
-        })
-}
 fn slider(
     id: &'static str,
     label: &'static str,
@@ -81,20 +68,17 @@ fn choose(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     change: impl Fn(&mut crate::OverlayConfig, String) + 'static,
-) -> Div {
-    field(
-        label,
-        controls::select(
-            id,
-            value,
-            options,
-            app,
-            window,
-            cx,
-            move |app, value, _, cx| {
-                app.update_config(cx, |c| change(&mut c.overlay, value.to_string()))
-            },
-        ),
+) -> Stateful<Div> {
+    controls::select(
+        id,
+        value,
+        options.row(label),
+        app,
+        window,
+        cx,
+        move |app, value, _, cx| {
+            app.update_config(cx, |c| change(&mut c.overlay, value.to_string()))
+        },
     )
 }
 fn options(values: &[(&str, &str, &str)]) -> SelectOptions {
@@ -106,7 +90,7 @@ fn options(values: &[(&str, &str, &str)]) -> SelectOptions {
     )
 }
 
-/// Monitor rows shared with the volume OSD. The OSD prepends "under cursor".
+/// Monitor options shared with the volume OSD. The OSD prepends "under cursor".
 pub(crate) fn display_options(displays: &[crate::OverlayDisplay]) -> Vec<SelectOption> {
     displays
         .iter()
@@ -158,6 +142,54 @@ pub(crate) fn render(
         },
     );
     let dim = form::governed_opacity("overlay-governed", o.enabled, window, cx);
+    let visibility = choose(
+        "overlay-visibility",
+        "Visibility",
+        o.visibility.clone(),
+        options(&[
+            ("Always", "Always visible", "widget-linear"),
+            ("WhenMuted", "Visible when muted", "mic-off"),
+            ("WhenUnmuted", "Visible when unmuted", "mic"),
+            ("WhenMicInUse", "Visible while mic is used", "record-bold"),
+            ("AfterToggle", "Show after toggle", "clock-circle-linear"),
+        ]),
+        app,
+        window,
+        cx,
+        |o, v| o.visibility = v,
+    );
+    let display = choose(
+        "overlay-display",
+        "Display",
+        o.display.clone(),
+        displays,
+        app,
+        window,
+        cx,
+        |o, v| o.display = v,
+    );
+    let position_x = percent_slider(
+        "overlay-x",
+        "Horizontal position",
+        o.position_x,
+        "%",
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |config| config.overlay.position_x = value);
+        },
+    );
+    let position_y = percent_slider(
+        "overlay-y",
+        "Vertical position",
+        o.position_y,
+        "%",
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |config| config.overlay.position_y = value);
+        },
+    );
     let overview = div()
         .flex()
         .flex_col()
@@ -174,75 +206,39 @@ pub(crate) fn render(
             cx,
         ))
         .child(
-            panel(CONTROL_GAP, false, cx)
-                .mt(px(BLOCK_GAP))
+            div()
+                .flex()
+                .flex_col()
+                .flex_shrink_0()
+                .gap(px(SECTION_GAP))
+                .mt(px(SECTION_GAP))
                 .opacity(dim)
-                .child(form::group().child(choose(
-                    "overlay-visibility",
-                    "Visibility",
-                    o.visibility.clone(),
-                    options(&[
-                        ("Always", "Always visible", "widget-linear"),
-                        ("WhenMuted", "Visible when muted", "mic-off"),
-                        ("WhenUnmuted", "Visible when unmuted", "mic"),
-                        ("WhenMicInUse", "Visible while mic is used", "record-bold"),
-                        ("AfterToggle", "Show after toggle", "clock-circle-linear"),
-                    ]),
-                    app,
-                    window,
-                    cx,
-                    |o, v| o.visibility = v,
-                ))
-                .child(collapse_in_gap(
-                    "overlay-duration-collapse",
-                    o.visibility == "AfterToggle",
-                    CONTROL_GAP,
-                    div().child(duration),
-                    window,
-                    cx,
-                )))
-                .child(choose(
-                    "overlay-display",
-                    "Display",
-                    o.display.clone(),
-                    displays,
-                    app,
-                    window,
-                    cx,
-                    |o, v| o.display = v,
-                ))
                 .child(
-                    percent_slider(
-                        "overlay-x",
-                        "Horizontal position",
-                        o.position_x,
-                        "%",
-                        window,
-                        cx,
-                        |app, value, _, cx| {
-                            app.update_config(cx, |config| config.overlay.position_x = value);
-                        },
+                    form::block().child(form::section_heading("When to show", cx)).child(
+                        form::group()
+                            .child(form::card(cx).row(visibility))
+                            .child(collapse_in_gap(
+                                "overlay-duration-collapse",
+                                o.visibility == "AfterToggle",
+                                TILE_GAP,
+                                div().child(duration),
+                                window,
+                                cx,
+                            )),
                     ),
                 )
                 .child(
-                    percent_slider(
-                        "overlay-y",
-                        "Vertical position",
-                        o.position_y,
-                        "%",
-                        window,
-                        cx,
-                        |app, value, _, cx| {
-                            app.update_config(cx, |config| config.overlay.position_y = value);
-                        },
-                    ),
-                )
-                .child(form::setting_row(
-                    "Move overlay",
-                    Some("Shows the overlay until this is turned off."),
-                    positioning,
-                    cx,
-                )),
+                    form::block()
+                        .child(form::section_heading("Position", cx))
+                        .child(form::card(cx).row(display).row(form::setting_row(
+                            "Move overlay",
+                            Some("Shows the overlay until this is turned off."),
+                            positioning,
+                            cx,
+                        )))
+                        .child(position_x)
+                        .child(position_y),
+                ),
         );
     let mut variants = div().w_full().flex().gap(px(8.));
     for (value, label) in [
@@ -348,7 +344,7 @@ pub(crate) fn render(
                     spread_radius: px(1.),
                     inset: false,
                 }])
-                .bg(lerp(p.surface_2, p.surface_3, hover).hsla())
+                .bg(lerp(p.surface_3, p.surface_hover, hover).hsla())
                 // The input sits in a `<label>` (global.css: 14px / 600).
                 .text_size(px(14.))
                 .font_weight(FontWeight(600.))
@@ -402,97 +398,85 @@ pub(crate) fn render(
         app.update_config(cx, |c| c.overlay.text_font = value.to_string())
     });
     font_options.searchable = true;
-    let font_content = div()
-        .flex()
-        .flex_wrap()
-        .items_end()
-        .gap(px(14.))
-        .child(
-            choose(
-                "overlay-font",
-                "Font",
-                o.text_font.clone(),
-                font_options,
-                app,
-                window,
-                cx,
-                |o, v| o.text_font = v,
-            )
-            .flex_basis(px(280.))
-            .flex_grow(1.),
-        )
-        .child(
-            div()
-                .flex_basis(px(220.))
-                .flex_grow(1.)
-                .min_w_0()
-                .child(slider(
-                    "overlay-weight",
-                    "Font weight",
-                    o.text_font_weight as f64,
-                    100.,
-                    900.,
-                    100.,
-                    "",
-                    window,
-                    cx,
-                    |o, v| o.text_font_weight = v as u16,
-                )),
-        );
+    let font = choose(
+        "overlay-font",
+        "Font",
+        o.text_font.clone(),
+        font_options,
+        app,
+        window,
+        cx,
+        |o, v| o.text_font = v,
+    );
+    let weight = slider(
+        "overlay-weight",
+        "Font weight",
+        o.text_font_weight as f64,
+        100.,
+        900.,
+        100.,
+        "",
+        window,
+        cx,
+        |o, v| o.text_font_weight = v as u16,
+    );
     let mut icon_style = options(&[
         ("Colored", "Colored", "pallete-2-linear"),
         ("Monochrome", "Monochrome", "ic-baseline-contrast"),
         ("SystemColor", "System color", "widget-linear"),
     ]);
     icon_style.disabled = !has_icon;
-    // The font block comes first, so its gap goes below it.
-    let custom_content = div()
-        .flex()
-        .flex_col()
-        .gap(px(CONTROL_GAP))
+    let icon_style = choose(
+        "overlay-icon-style",
+        "Icon style",
+        o.icon_style.clone(),
+        icon_style,
+        app,
+        window,
+        cx,
+        |o, v| o.icon_style = v,
+    );
+    let background = choose(
+        "overlay-background",
+        "Background",
+        o.background_style.clone(),
+        options(&[
+            ("Dark", "Dark", "moon-linear"),
+            ("Light", "Light", "sun-2-linear"),
+        ]),
+        app,
+        window,
+        cx,
+        |o, v| o.background_style = v,
+    );
+    let border = form::setting_row(
+        "Show border",
+        None,
+        controls::toggle("overlay-border", o.show_border, window, cx, |app, v, _, cx| {
+            app.update_config(cx, |c| c.overlay.show_border = v)
+        }),
+        cx,
+    );
+    // The Custom theme's knobs: choices on one card, then its sliders. The
+    // font row and the weight slider exist only while the overlay has text.
+    let custom_content = form::block()
         .child(
             form::group()
-                .child(form::collapse(
-                    "overlay-font-collapse",
+                .child(
+                    form::card(cx)
+                        .row(icon_style)
+                        .row(background)
+                        .row(border)
+                        .reveal("overlay-font-collapse", has_text, font, window, cx),
+                )
+                .child(collapse_in_gap(
+                    "overlay-weight-collapse",
                     has_text,
-                    div().pb(px(CONTROL_GAP)).child(font_content),
+                    TILE_GAP,
+                    div().child(weight),
                     window,
                     cx,
-                ))
-                .child(
-            div()
-                .flex()
-                .gap(px(14.))
-                .child(
-                    choose(
-                        "overlay-icon-style",
-                        "Icon style",
-                        o.icon_style.clone(),
-                        icon_style,
-                        app,
-                        window,
-                        cx,
-                        |o, v| o.icon_style = v,
-                    )
-                    .flex_1(),
-                )
-                .child(
-                    choose(
-                        "overlay-background",
-                        "Background",
-                        o.background_style.clone(),
-                        options(&[
-                            ("Dark", "Dark", "moon-linear"),
-                            ("Light", "Light", "sun-2-linear"),
-                        ]),
-                        app,
-                        window,
-                        cx,
-                        |o, v| o.background_style = v,
-                    )
-                    .flex_1(),
-                ),
-                ),
+                )),
         )
         .child(slider(
             "overlay-bg-opacity",
@@ -505,14 +489,6 @@ pub(crate) fn render(
             window,
             cx,
             |o, v| o.background_opacity = v as u8,
-        ))
-        .child(form::setting_row(
-            "Show border",
-            None,
-            controls::toggle("overlay-border", o.show_border, window, cx, |app, v, _, cx| {
-                app.update_config(cx, |c| c.overlay.show_border = v)
-            }),
-            cx,
         ))
         .child(slider(
             "overlay-opacity",
@@ -540,26 +516,29 @@ pub(crate) fn render(
             o.corner_radii.insert(o.theme.clone(), v as u8);
         },
     );
-    let appearance = panel(CONTROL_GAP, false, cx)
-        .mt(px(BLOCK_GAP))
+    let appearance = form::block()
+        .mt(px(SECTION_GAP))
         .opacity(dim)
-        .child(form::section_heading("Appearance"))
-        .child(super::themes::theme_link(
-            "overlay-theme",
-            super::themes::Target::Microphone,
-            &o.theme,
-            window,
-            cx,
-        ))
-        .child(field("Overlay style", variants))
-        .child(labels)
+        .child(form::section_heading("Appearance", cx))
         .child(
             form::group()
-                .child(icons)
+                .child(
+                    form::card(cx)
+                        .row(super::themes::theme_link(
+                            "overlay-theme",
+                            super::themes::Target::Microphone,
+                            &o.theme,
+                            window,
+                            cx,
+                        ))
+                        .row(card_field("Overlay style", variants))
+                        .row(form::row_box().child(labels))
+                        .row(form::row_box().child(icons)),
+                )
                 .child(collapse_in_gap(
                     "overlay-custom-collapse",
                     custom,
-                    CONTROL_GAP,
+                    TILE_GAP,
                     custom_content,
                     window,
                     cx,
@@ -567,7 +546,7 @@ pub(crate) fn render(
                 .child(collapse_in_gap(
                     "overlay-radius-collapse",
                     crate::gpui_overlay::theme::supports_corner_radius(&o.theme),
-                    CONTROL_GAP,
+                    TILE_GAP,
                     div().child(radius),
                     window,
                     cx,
@@ -1072,21 +1051,17 @@ fn behaviour(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settin
     let p = app.palette;
     let pass_through = o.behaviour == "PassThrough";
     let dim = form::governed_opacity("overlay-governed", o.enabled, window, cx);
-    let mut rows = div().flex().flex_col().gap(px(10.));
+    let mut rows = form::card(cx);
     let entries = overlay_action_entries(&o);
     let action_count = entries.len();
     if entries.is_empty() {
-        rows = rows.child(
+        rows = rows.row(
             div()
                 .flex()
                 .items_center()
                 .justify_center()
                 .gap(px(12.))
-                .py(px(32.))
-                .border_1()
-                .border_dashed()
-                .border_color(p.border.hsla())
-                .rounded(px(12.))
+                .py(px(28.))
                 .child(
                     svg()
                         .path(icon("widget-linear"))
@@ -1159,16 +1134,15 @@ fn behaviour(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settin
                 }),
             );
         }
-        rows = rows.child(controls::track_pointer(
+        rows = rows.row(controls::track_pointer(
             div()
                 .id(SharedString::from(format!("overlay-action-{}", slot.id())))
                 .flex()
                 .items_center()
                 .gap(px(12.))
-                .px(px(20.))
-                .py(px(16.))
-                .rounded(px(12.))
-                .bg(p.surface_2.hsla())
+                .h(px(form::ROW_HEIGHT))
+                .pl(px(form::ROW_PAD))
+                .pr(px(8.))
                 .child(
                     div()
                         .flex_1()
@@ -1250,6 +1224,7 @@ fn behaviour(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settin
         .flex()
         .items_start()
         .gap(px(10.))
+        .px(px(form::ROW_PAD))
         .child(
             svg()
                 .path(icon("info-circle-linear"))
@@ -1267,51 +1242,51 @@ fn behaviour(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settin
     let actions = div()
         .flex()
         .flex_col()
-        .gap(px(10.))
+        .gap(px(TILE_GAP))
         .child(rows)
         .child(div().flex().child(add));
-    panel(CONTROL_GAP, true, cx)
-        .mt(px(BLOCK_GAP))
+    form::block()
+        .mt(px(SECTION_GAP))
         .child(
             div()
                 .flex()
                 .flex_col()
                 .flex_shrink_0()
-                .gap(px(CONTROL_GAP))
+                .gap(px(TILE_GAP))
                 .opacity(dim)
-                .child(form::section_heading("Behaviour"))
-                .child(form::group().child(field(
-                    "Click mode",
-                    controls::segmented_toggle(
-                        "overlay-click-mode",
-                        o.behaviour.clone(),
-                        vec![
-                            controls::SegmentedToggleOption::new("PassThrough", "Pass-through"),
-                            controls::SegmentedToggleOption::new("Button", "Button"),
-                        ],
-                        window,
-                        cx,
-                        |app, v, _, cx| {
-                            app.update_config(cx, |c| c.overlay.behaviour = v.to_string())
-                        },
-                    ),
-                ))
-                .child(collapse_in_gap(
-                    "overlay-pass-hint",
-                    pass_through,
-                    CONTROL_GAP,
-                    hint,
-                    window,
-                    cx,
-                ))
-                .child(collapse_in_gap(
-                    "overlay-action-list",
-                    !pass_through,
-                    CONTROL_GAP,
-                    actions,
-                    window,
-                    cx,
-                ))),
+                .child(form::section_heading("Clicks on the overlay", cx))
+                .child(
+                    form::group()
+                        .child(controls::segmented_toggle(
+                            "overlay-click-mode",
+                            o.behaviour.clone(),
+                            vec![
+                                controls::SegmentedToggleOption::new("PassThrough", "Pass-through"),
+                                controls::SegmentedToggleOption::new("Button", "Button"),
+                            ],
+                            window,
+                            cx,
+                            |app, v, _, cx| {
+                                app.update_config(cx, |c| c.overlay.behaviour = v.to_string())
+                            },
+                        ))
+                        .child(collapse_in_gap(
+                            "overlay-pass-hint",
+                            pass_through,
+                            TILE_GAP + 2.,
+                            hint,
+                            window,
+                            cx,
+                        ))
+                        .child(collapse_in_gap(
+                            "overlay-action-list",
+                            !pass_through,
+                            TILE_GAP,
+                            actions,
+                            window,
+                            cx,
+                        )),
+                ),
         )
         .children(editor(app, window, cx))
 }

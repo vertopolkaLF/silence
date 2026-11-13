@@ -9,6 +9,7 @@ use crate::settings_ui::{
     controls::{self, ButtonKind, RangeOptions, SelectOption, SelectOptions},
     style,
 };
+use super::form;
 use gpui::{prelude::*, *};
 use std::time::{Duration, Instant};
 
@@ -130,19 +131,20 @@ pub(crate) fn render(
     let files = div()
         .flex()
         .flex_col()
-        .gap(px(14.))
+        .gap(px(12.))
         .child(
             div()
                 .flex()
                 .items_center()
                 .justify_between()
                 .gap(px(6.))
+                .pl(px(form::ROW_PAD))
                 .child(
                     div()
                         .flex()
                         .flex_col()
                         .gap(px(2.))
-                        .child(style::section("Files"))
+                        .child(style::group("Files", cx))
                         .child(style::desc(
                             "Custom sounds for both microphone and volume",
                             cx,
@@ -152,55 +154,41 @@ pub(crate) fn render(
         )
         .child(library);
     vec![
-        panel()
-            .child(super::form::page_title("Sounds", None).mb(px(0.)))
-            .child(section_row("Microphone", enabled))
-            .child(card(true, cx).child(volume).child(mute).child(unmute))
+        form::block()
+            .child(form::page_title("Sounds", None).mb(px(style::TITLE_GAP - form::TILE_GAP)))
+            .child(form::section_heading("Microphone", cx))
+            .child(
+                form::card(cx)
+                    .row(form::setting_row(
+                        "Play mute and unmute sounds",
+                        None,
+                        enabled,
+                        cx,
+                    ))
+                    .row(mute)
+                    .row(unmute),
+            )
+            .child(volume)
             .into_any_element(),
-        panel()
-            .pt(px(style::BLOCK_GAP))
-            .child(section_row("Volume", tick_enabled))
-            .child(card(true, cx).child(tick))
+        form::block()
+            .pt(px(form::SECTION_GAP))
+            .child(form::section_heading("Volume", cx))
+            .child(
+                form::card(cx)
+                    .row(form::setting_row(
+                        "Play a sound when the volume changes",
+                        None,
+                        tick_enabled,
+                        cx,
+                    ))
+                    .row(tick),
+            )
             .into_any_element(),
-        panel().pt(px(style::BLOCK_GAP)).child(files).into_any_element(),
+        form::block()
+            .pt(px(form::SECTION_GAP))
+            .child(files)
+            .into_any_element(),
     ]
-}
-
-pub(crate) fn panel() -> Div {
-    div()
-        .w_full()
-        .max_w(px(720.))
-        .flex()
-        .flex_col()
-        .gap(px(18.))
-}
-
-/// Section heading with the switch for that group of sounds.
-fn section_row(title: &'static str, toggle: impl IntoElement) -> Div {
-    div()
-        .min_h(px(26.))
-        .flex_shrink_0()
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap(px(14.))
-        .child(style::section(title))
-        .child(toggle)
-}
-
-/// `.sound-card`; the last card has no bottom padding or rule.
-pub(crate) fn card(divider: bool, cx: &App) -> Div {
-    div()
-        .w_full()
-        .flex_shrink_0()
-        .flex()
-        .flex_col()
-        .gap(px(16.))
-        .when(divider, |this| {
-            this.pb(px(style::BLOCK_GAP))
-                .border_b_1()
-                .border_color(style::palette(cx).border.hsla())
-        })
 }
 
 pub(crate) fn volume_options(label: String) -> RangeOptions {
@@ -329,7 +317,7 @@ pub(crate) fn sound_picker(
             .map(|option| option.end_icon("play-bold"))
             .collect();
     }
-    let mut options = SelectOptions::new(options);
+    let mut options = SelectOptions::new(options).row(title);
     options.disabled = inherited && !hold.play_sounds;
     if !inherited {
         options = options.on_option_action(move |app, value, _, cx| {
@@ -369,22 +357,26 @@ pub(crate) fn sound_picker(
         muted,
         playback_volume,
         context,
-        44.,
+        38.,
         app,
         window,
         cx,
     );
+    // A card row: the select is the row, its buttons sit at the row's end.
     let mut row = div()
+        .w_full()
+        .flex_shrink_0()
         .flex()
-        .items_stretch()
+        .items_center()
         .gap(px(6.))
+        .pr(px(10.))
         .child(div().flex_1().min_w_0().child(select))
         .child(preview);
     if inherited {
         row = row.child(
             controls::button(
                 format!("{id}-reset"),
-                ButtonKind::Secondary,
+                ButtonKind::Tonal,
                 None,
                 Some("Reset".into()),
                 !has_override,
@@ -400,18 +392,10 @@ pub(crate) fn sound_picker(
                     });
                 },
             )
-            .h(px(44.))
             .px(px(14.)),
         );
     }
-    div()
-        .w_full()
-        .flex_shrink_0()
-        .flex()
-        .flex_col()
-        .gap(px(10.))
-        .child(style::label(title))
-        .child(row)
+    row
 }
 
 fn preview_key(selection: &str, muted: bool) -> String {
@@ -451,7 +435,7 @@ fn preview_button(
     .child(
         svg()
             .path(icon(if playing { "pause-bold" } else { "play-bold" }))
-            .size(px(if size == 44. { 19. } else { 15. }))
+            .size(px(if size == 38. { 17. } else { 15. }))
             .text_color(p.muted.hsla()),
     )
 }
@@ -592,7 +576,13 @@ fn library(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settings
     state.library_initialized = true;
     let rows = state.library.clone();
     let count = rows.len();
-    let mut library = div().w_full().flex().flex_col();
+    // One card, like the hotkey list; with no files there is no card at all.
+    let mut library = div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .rounded(px(14.))
+        .when(count > 0, |this| this.bg(app.palette.surface_2.hsla()));
     for (index, row) in rows.into_iter().enumerate() {
         let id = format!("sounds-file-{}", row.sound.id);
         let progress = anim::tween_from(
@@ -644,15 +634,17 @@ fn library(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settings
         library = library.child(
             div()
                 .w_full()
-                .h(px(72. * progress))
+                .h(px(form::ROW_HEIGHT * progress))
                 .flex_shrink_0()
                 .overflow_hidden()
                 .opacity(progress)
                 .child(
                     div()
                         .w_full()
-                        .h(px(72.))
+                        .h(px(form::ROW_HEIGHT))
                         .py(px(10.))
+                        .pl(px(form::ROW_PAD))
+                        .pr(px(10.))
                         .flex()
                         .items_center()
                         .justify_between()

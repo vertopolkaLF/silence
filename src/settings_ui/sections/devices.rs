@@ -5,7 +5,7 @@ use crate::settings_ui::{
     assets::icon,
     color::{TRANSPARENT, lerp, mix_pct},
     controls::{self, SelectOption, SelectOptions, TextInput, TextInputEvent, TextInputOptions},
-    style::{self, palette},
+    style::palette,
 };
 use gpui::{prelude::*, *};
 use std::{collections::HashMap, rc::Rc};
@@ -75,10 +75,7 @@ pub(crate) fn render(
     let lists = div()
         .flex()
         .flex_col()
-        .gap(px(style::BLOCK_GAP))
-        .pb(px(style::BLOCK_GAP))
-        .border_b_1()
-        .border_color(app.palette.border.hsla())
+        .gap(px(super::form::SECTION_GAP))
         .child(device_list(
             "Output",
             "No active output devices found",
@@ -103,7 +100,8 @@ pub(crate) fn render(
             .icon("microphone-3-linear"),
         SelectOption::new(crate::AUDIO_DEVICE_NAME_SYSTEM, "System Name").icon("widget-linear"),
         SelectOption::new(crate::AUDIO_DEVICE_NAME_BOTH, "Both").icon("volume-loud-linear"),
-    ]);
+    ])
+    .row("Displayed device name");
     options.show_current_detail = false;
     let select = controls::select(
         "devices-name-display",
@@ -138,28 +136,29 @@ pub(crate) fn render(
         div()
             .flex()
             .flex_col()
-            .gap(px(18.))
             .max_w(px(720.))
-            .child(super::form::page_title("Devices", None).mb(px(0.)))
+            .child(super::form::page_title("Devices", None))
             .child(lists)
             .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(style::CONTROL_GAP))
-                    .child(super::form::field("Displayed audio device name", select))
-                    .child(super::form::setting_row(
-                        "Ungroup devices in tray menu",
-                        None,
-                        toggle,
-                        cx,
-                    ))
-                    .child(super::form::setting_row(
-                        "Keep Bluetooth headphones in high quality",
-                        Some("Turns off hands-free mode, so calls can't drop sound to mono. The headset's own mic stops working"),
-                        handsfree,
-                        cx,
-                    )),
+                super::form::block()
+                    .mt(px(super::form::SECTION_GAP))
+                    .child(super::form::section_heading("Options", cx))
+                    .child(
+                        super::form::card(cx)
+                            .row(select)
+                            .row(super::form::setting_row(
+                                "Ungroup devices in tray menu",
+                                None,
+                                toggle,
+                                cx,
+                            ))
+                            .row(super::form::setting_row(
+                                "Keep Bluetooth headphones in high quality",
+                                Some("Turns off hands-free mode, so calls can't drop sound to mono. The headset's own mic stops working"),
+                                handsfree,
+                                cx,
+                            )),
+                    ),
             )
             .into_any_element(),
     ]
@@ -180,7 +179,7 @@ fn device_list(
             .min_h(px(44.))
             .flex()
             .items_center()
-            .px(px(14.))
+            .px(px(super::form::ROW_PAD))
             .rounded(px(12.))
             .border_1()
             .border_dashed()
@@ -198,8 +197,8 @@ fn device_list(
     div()
         .flex()
         .flex_col()
-        .gap(px(10.))
-        .child(style::group(title, cx))
+        .gap(px(super::form::TILE_GAP))
+        .child(super::form::section_heading(title, cx))
         .child(body)
 }
 
@@ -558,7 +557,7 @@ fn device_row(
         .items_center()
         .gap(px(12.))
         .min_h(px(52.))
-        .pl(px(14.))
+        .pl(px(super::form::ROW_PAD))
         .pr(px(8.))
         .py(px(8.))
         .rounded(px(12.))

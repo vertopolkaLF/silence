@@ -18,7 +18,111 @@ pub(crate) fn page_title(title: &'static str, trailing: Option<AnyElement>) -> D
         .children(trailing)
 }
 
-/// One setting: label, optional description, control on the right.
+/// Space between two tiles (cards, sliders) of one section.
+pub(crate) const TILE_GAP: f32 = 8.;
+/// Space between two sections of a page.
+pub(crate) const SECTION_GAP: f32 = 28.;
+/// Horizontal padding of a card row. The slider's label sits at the same
+/// inset, so every text on a page shares one left edge.
+pub(crate) const ROW_PAD: f32 = 18.;
+/// Height of a one-line card row, the same as a hotkey row.
+pub(crate) const ROW_HEIGHT: f32 = 58.;
+
+/// One section of a page: an optional heading, then cards and sliders.
+pub(crate) fn block() -> Div {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(TILE_GAP))
+        .w_full()
+        .max_w(px(720.))
+        .flex_shrink_0()
+}
+
+/// Rows on one surface with rules between them, like the hotkey list.
+pub(crate) struct Card {
+    body: Div,
+    rows: usize,
+    rule: Hsla,
+}
+
+pub(crate) fn card(cx: &App) -> Card {
+    let p = style::palette(cx);
+    Card {
+        body: div()
+            .flex()
+            .flex_col()
+            .w_full()
+            .min_w_0()
+            .flex_shrink_0()
+            .rounded(px(14.))
+            .bg(p.surface_2.hsla()),
+        rows: 0,
+        rule: p.border.hsla(),
+    }
+}
+
+impl Card {
+    fn rule(&self) -> Div {
+        div().w_full().h(px(1.)).flex_shrink_0().bg(self.rule)
+    }
+
+    pub(crate) fn row(mut self, child: impl IntoElement) -> Self {
+        if self.rows > 0 {
+            let rule = self.rule();
+            self.body = self.body.child(rule);
+        }
+        self.body = self.body.child(child);
+        self.rows += 1;
+        self
+    }
+
+    /// A row that slides open under the rows above it. Its rule is part of
+    /// the animated height, so a closed row leaves nothing behind. It cannot
+    /// be the first row of a card.
+    pub(crate) fn reveal(
+        mut self,
+        id: &'static str,
+        open: bool,
+        child: impl IntoElement,
+        window: &mut Window,
+        cx: &mut Context<SettingsApp>,
+    ) -> Self {
+        let content = div().child(self.rule()).child(child);
+        self.body = self.body.child(collapse(id, open, content, window, cx));
+        self.rows += 1;
+        self
+    }
+
+}
+
+impl IntoElement for Card {
+    type Element = Div;
+
+    fn into_element(self) -> Div {
+        self.body
+    }
+}
+
+/// Muted note under a card, on the rows' text edge.
+pub(crate) fn footnote(text: &'static str, cx: &App) -> Div {
+    style::desc(text, cx)
+        .flex_shrink_0()
+        .px(px(ROW_PAD))
+        .pt(px(2.))
+}
+
+/// Padding of a card row around free-form content (pickers, option cards).
+pub(crate) fn row_box() -> Div {
+    div()
+        .flex()
+        .flex_col()
+        .flex_shrink_0()
+        .px(px(ROW_PAD))
+        .py(px(14.))
+}
+
+/// One setting in a card: label, optional description, control on the right.
 pub(crate) fn setting_row(
     title: impl Into<SharedString>,
     description: Option<&'static str>,
@@ -30,7 +134,9 @@ pub(crate) fn setting_row(
         .items_center()
         .justify_between()
         .gap(px(16.))
-        .min_h(px(32.))
+        .min_h(px(ROW_HEIGHT))
+        .px(px(ROW_PAD))
+        .py(px(10.))
         .flex_shrink_0()
         .child(
             div()
@@ -113,7 +219,7 @@ pub(crate) fn governed_opacity(
     0.45 + 0.55 * t
 }
 
-/// Label stacked above a control.
+/// Label stacked above a control, outside a card (side panels).
 pub(crate) fn field(label: &'static str, control: impl IntoElement) -> Div {
     div()
         .flex()
@@ -125,24 +231,21 @@ pub(crate) fn field(label: &'static str, control: impl IntoElement) -> Div {
         .child(control)
 }
 
-/// Page block separated from the next one by a rule, like the overlay page.
-pub(crate) fn panel(gap: f32, last: bool, cx: &App) -> Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(gap))
-        .max_w(px(720.))
-        .flex_shrink_0()
-        .when(!last, |d| {
-            d.pb(px(style::BLOCK_GAP))
-                .border_b_1()
-                .border_color(style::palette(cx).border.hsla())
-        })
+/// Label stacked above free-form content inside a card row.
+pub(crate) fn card_field(label: &'static str, control: impl IntoElement) -> Div {
+    row_box()
+        .gap(px(style::LABEL_GAP + 2.))
+        .min_w_0()
+        .child(style::label(label))
+        .child(control)
 }
 
-/// Sub-section title inside a page ("Appearance", "Clicks").
-pub(crate) fn section_heading(label: &'static str) -> Div {
-    style::section(label).flex_shrink_0().mb(px(2.))
+/// Section title above its cards ("Appearance", "Clicks").
+pub(crate) fn section_heading(label: &'static str, cx: &App) -> Div {
+    style::group(label, cx)
+        .flex_shrink_0()
+        .pl(px(ROW_PAD))
+        .mb(px(2.))
 }
 
 /// Integer slider with a suffix ("2%", "1500 ms").
@@ -326,8 +429,9 @@ pub(crate) fn choice_card(
             .rounded(px(12.))
             .border_1()
             .border_color(lerp(TRANSPARENT, p.accent, active).hsla())
+            // One step above the card these sit on.
             .bg(lerp(
-                lerp(p.surface_2, p.surface_hover, hover),
+                lerp(p.surface_3, p.surface_hover, hover),
                 p.accent_soft,
                 active,
             )
@@ -429,8 +533,9 @@ fn icon_tile(
             .rounded(px(12.))
             .border_1()
             .border_color(lerp(TRANSPARENT, p.accent, active).hsla())
+            // One step above the card these sit on.
             .bg(lerp(
-                lerp(p.surface_2, p.surface_hover, hover),
+                lerp(p.surface_3, p.surface_hover, hover),
                 p.accent_soft,
                 active,
             )

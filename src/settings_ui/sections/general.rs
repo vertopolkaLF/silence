@@ -6,9 +6,10 @@ use crate::settings_ui::{
     controls::{self, ButtonKind},
     style::{self, palette},
 };
+use super::form;
 use gpui::{
     AnyElement, BoxShadow, Context, Div, FontWeight, InteractiveElement, IntoElement,
-    ParentElement, SharedString, Styled, Window, anchored, deferred, div, point, prelude::*, px,
+    ParentElement, Styled, Window, anchored, deferred, div, point, prelude::*, px,
 };
 use std::time::{Duration, Instant};
 
@@ -55,12 +56,8 @@ pub(crate) fn render(
     let advanced = app.snapshot.config.advanced.clone();
     let launch_on_startup = app.snapshot.config.startup.launch_on_startup;
 
-    let mut status = div()
-        .flex()
-        .flex_col()
-        .gap(px(ROW_GAP))
-        .child(super::form::page_title("General", None).mb(px(style::TITLE_GAP - ROW_GAP)))
-        .child(toggle_card(
+    let mut system = form::card(cx)
+        .row(toggle_card(
             "general-startup",
             "Launch with Windows",
             None,
@@ -69,9 +66,9 @@ pub(crate) fn render(
             cx,
             |app, checked, _, cx| commit_launch(app, checked, cx),
         ))
-        .child(admin_card(app, window, cx));
+        .row(admin_card(app, window, cx));
     if crate::settings_mica_available() {
-        status = status.child(toggle_card(
+        system = system.row(toggle_card(
             "general-mica",
             "Mica background",
             None,
@@ -83,8 +80,8 @@ pub(crate) fn render(
             },
         ));
     }
-    status = status
-        .child(toggle_card(
+    let system = system
+        .row(toggle_card(
             "general-volume-zero",
             "Set microphone volume to 0 when muting",
             Some("Turn on if some apps still hear you while muted"),
@@ -97,7 +94,7 @@ pub(crate) fn render(
                 })
             },
         ))
-        .child(toggle_card(
+        .row(toggle_card(
             "general-auto-updates",
             "Disable auto-updates",
             Some("Update checks still run, but Windows update notifications stay quiet"),
@@ -108,10 +105,16 @@ pub(crate) fn render(
                 app.update_config(cx, |config| config.advanced.disable_auto_updates = checked)
             },
         ));
+    let status = div()
+        .flex()
+        .flex_col()
+        .max_w(px(720.))
+        .child(form::page_title("General", None))
+        .child(system);
 
     let export = controls::button(
         "general-export",
-        ButtonKind::Secondary,
+        ButtonKind::Tonal,
         None,
         Some("Export".into()),
         false,
@@ -126,7 +129,7 @@ pub(crate) fn render(
     .min_w(px(88.));
     let import = controls::button(
         "general-import",
-        ButtonKind::Secondary,
+        ButtonKind::Tonal,
         None,
         Some("Import".into()),
         false,
@@ -148,66 +151,49 @@ pub(crate) fn render(
                     },
     )
     .min_w(px(88.));
-    // Backup and reset: plain rows, one button size, reset set apart as danger.
+    // Backup and reset: two cards, one button size, reset set apart as danger.
     let import_export = div()
         .flex()
         .flex_col()
-        .gap(px(ROW_GAP))
-        .pt(px(style::GROUP_GAP - ROW_GAP))
-        .child(style::group("Backup", cx))
-        .child(card_row(
-            "Export settings",
-            Some("Saves hotkeys, sounds and appearance to a file."),
-            export,
-            false,
-            cx,
-        ))
-        .child(card_row(
-            "Import settings",
-            Some("Replaces the current settings with a saved file."),
-            import,
-            false,
-            cx,
-        ))
-        .child(style::group("Reset", cx).mt(px(style::GROUP_GAP - ROW_GAP)))
-        .child(action_card(
-            "general-reset",
-            "Reset all settings",
-            Some("Returns everything to defaults. This cannot be undone."),
-            "Reset…",
-            ConfirmAction::Reset,
-            true,
-            window,
-            cx,
-        ));
+        .max_w(px(720.))
+        .gap(px(form::SECTION_GAP))
+        .pt(px(form::SECTION_GAP))
+        .child(
+            form::block()
+                .child(form::section_heading("Backup", cx))
+                .child(
+                    form::card(cx)
+                        .row(form::setting_row(
+                            "Export settings",
+                            Some("Saves hotkeys, sounds and appearance to a file."),
+                            export,
+                            cx,
+                        ))
+                        .row(form::setting_row(
+                            "Import settings",
+                            Some("Replaces the current settings with a saved file."),
+                            import,
+                            cx,
+                        )),
+                ),
+        )
+        .child(
+            form::block()
+                .child(form::section_heading("Reset", cx))
+                .child(form::card(cx).row(action_card(
+                    "general-reset",
+                    "Reset all settings",
+                    Some("Returns everything to defaults. This cannot be undone."),
+                    "Reset…",
+                    ConfirmAction::Reset,
+                    window,
+                    cx,
+                ))),
+        );
 
     let import_export = import_export.children(confirm_dialog(app, window, cx));
     let status = status.children(admin_dialog(app, window, cx));
     vec![status.into_any_element(), import_export.into_any_element()]
-}
-
-use gpui::App;
-
-/// Space above and below the rule between two setting rows.
-pub(crate) const ROW_GAP: f32 = 14.;
-
-/// A setting row with an optional rule under it. Stack these in a column
-/// whose gap is [`ROW_GAP`].
-pub(crate) fn card_row(
-    title: impl Into<SharedString>,
-    description: Option<&'static str>,
-    trailing: impl IntoElement,
-    last: bool,
-    cx: &App,
-) -> Div {
-    let palette = palette(cx);
-    super::form::setting_row(title, description, trailing, cx)
-        .max_w(px(720.))
-        .when(!last, |this| {
-            this.pb(px(ROW_GAP))
-                .border_b_1()
-                .border_color(palette.border.hsla())
-        })
 }
 
 fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<SettingsApp>) -> Div {
@@ -289,10 +275,8 @@ fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Setti
         .items_start()
         .justify_between()
         .gap(px(16.))
-        .max_w(px(720.))
-        .pb(px(ROW_GAP))
-        .border_b_1()
-        .border_color(palette.border.hsla())
+        .px(px(form::ROW_PAD))
+        .py(px(14.))
         .child(text)
         .child(toggle)
 }
@@ -452,18 +436,17 @@ fn toggle_card(
     on_change: impl Fn(&mut SettingsApp, bool, &mut Window, &mut Context<SettingsApp>) + 'static,
 ) -> Div {
     let toggle = controls::toggle(id, checked, window, cx, on_change);
-    card_row(title, description, toggle, false, cx)
+    form::setting_row(title, description, toggle, cx)
 }
 
-/// A row whose button opens a confirmation. The last one is the reset: its
-/// button is tinted as a destructive action even before hover.
+/// A row whose button opens a confirmation. The reset's button is tinted as
+/// a destructive action even before hover.
 fn action_card(
     id: &'static str,
     title: &'static str,
     description: Option<&'static str>,
     label: &'static str,
     action: ConfirmAction,
-    last: bool,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> Div {
@@ -482,7 +465,7 @@ fn action_card(
             .flex_shrink_0()
             .rounded(px(8.))
             .bg(lerp(
-                if danger { palette.surface_danger } else { palette.surface_2 },
+                if danger { palette.surface_danger } else { palette.surface_3 },
                 palette.surface_danger_hover,
                 hover,
             )
@@ -511,7 +494,7 @@ fn action_card(
         app.sections.general.confirm_closing = None;
         cx.notify();
     }));
-    card_row(title, description, button, last, cx)
+    form::setting_row(title, description, button, cx)
 }
 
 fn close_confirm(app: &mut SettingsApp, cx: &mut Context<SettingsApp>) {

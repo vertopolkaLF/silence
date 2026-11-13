@@ -1,11 +1,10 @@
 //! Volume → OSD.
-use super::super::form::{self, field, percent_slider};
+use super::super::form::{self, SECTION_GAP, percent_slider};
 use super::super::overlay;
 use super::column;
 use crate::settings_ui::{
     SettingsApp,
     controls::{self, RangeOptions, SelectOption, SelectOptions},
-    style::{BLOCK_GAP, CONTROL_GAP},
 };
 use gpui::{prelude::*, *};
 
@@ -44,7 +43,8 @@ pub(crate) fn render(
             SelectOption::new("OnChangeAndWhileMuted", "On change, and while muted")
                 .detail("Stays on screen until you unmute")
                 .icon("volume-cross-linear"),
-        ]),
+        ])
+        .row("Visibility"),
         app,
         window,
         cx,
@@ -110,7 +110,7 @@ pub(crate) fn render(
     let display = controls::select(
         "volume-osd-display",
         osd.display.clone(),
-        SelectOptions::new(displays),
+        SelectOptions::new(displays).row("Display"),
         app,
         window,
         cx,
@@ -173,37 +173,43 @@ pub(crate) fn render(
                 .flex()
                 .flex_col()
                 .flex_shrink_0()
-                .mt(px(BLOCK_GAP))
+                .gap(px(SECTION_GAP))
+                .mt(px(SECTION_GAP))
                 .opacity(dim)
                 .child(
-                    form::panel(CONTROL_GAP, false, cx)
-                        .child(field("Visibility", visibility))
-                        .child(duration)
-                        .child(form::setting_row(
-                            "Show when the default device changes",
-                            Some("Speakers, headphones or microphone: shows the new device's name."),
-                            on_device,
-                            cx,
-                        ))
-                        .child(form::setting_row(
-                            "Show Caps, Num and Scroll Lock",
-                            Some("Shows whether the key just turned on or off."),
-                            on_lock_keys,
-                            cx,
-                        )),
+                    form::block()
+                        .child(form::section_heading("When to show", cx))
+                        .child(
+                            form::card(cx)
+                                .row(visibility)
+                                .row(form::setting_row(
+                                    "Show when the default device changes",
+                                    Some("Speakers, headphones or microphone: shows the new device's name."),
+                                    on_device,
+                                    cx,
+                                ))
+                                .row(form::setting_row(
+                                    "Show Caps, Num and Scroll Lock",
+                                    Some("Shows whether the key just turned on or off."),
+                                    on_lock_keys,
+                                    cx,
+                                )),
+                        )
+                        .child(duration),
                 )
                 .child(
-                    form::panel(CONTROL_GAP, false, cx)
-                        .mt(px(BLOCK_GAP))
-                        .child(field("Display", display))
+                    form::block()
+                        .child(form::section_heading("Position", cx))
+                        .child(
+                            form::card(cx).row(display).row(form::setting_row(
+                                "Move OSD",
+                                Some("Shows the OSD so you can drag it into place, until this is turned off."),
+                                positioning,
+                                cx,
+                            )),
+                        )
                         .child(horizontal)
-                        .child(vertical)
-                        .child(form::setting_row(
-                            "Move OSD",
-                            Some("Shows the OSD so you can drag it into place, until this is turned off."),
-                            positioning,
-                            cx,
-                        )),
+                        .child(vertical),
                 )
                 .child(appearance),
         )
@@ -250,15 +256,20 @@ fn osd_select(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     write: impl Fn(&mut crate::VolumeOsdConfig, String) + 'static,
-) -> Div {
+) -> Stateful<Div> {
     let write = std::rc::Rc::new(write);
-    field(
-        label,
-        controls::select(id, value, options, app, window, cx, move |app, value, _, cx| {
+    controls::select(
+        id,
+        value,
+        options.row(label),
+        app,
+        window,
+        cx,
+        move |app, value, _, cx| {
             let value = value.to_string();
             let write = write.clone();
             update_and_preview(app, cx, move |osd| write(osd, value));
-        }),
+        },
     )
 }
 
@@ -388,28 +399,17 @@ fn appearance(
         cx,
         |osd, value| osd.content_opacity = value as u8,
     );
-    let custom_content = div()
-        .flex()
-        .flex_col()
-        .gap(px(CONTROL_GAP))
+    // The Custom theme's knobs: choices on one card, then its sliders.
+    let custom_content = form::block()
         .child(
-            div()
-                .flex()
-                .flex_wrap()
-                .items_end()
-                .gap(px(14.))
-                .child(font.flex_basis(px(280.)).flex_grow(1.))
-                .child(div().flex_basis(px(220.)).flex_grow(1.).min_w_0().child(weight)),
+            form::card(cx)
+                .row(font)
+                .row(icon_style)
+                .row(background)
+                .row(border),
         )
-        .child(
-            div()
-                .flex()
-                .gap(px(14.))
-                .child(icon_style.flex_1())
-                .child(background.flex_1()),
-        )
+        .child(weight)
         .child(background_opacity)
-        .child(border)
         .child(opacity);
     let supports_radius = crate::gpui_overlay::theme::supports_corner_radius(
         crate::gpui_overlay::volume::normalize_theme(&osd.theme),
@@ -445,16 +445,15 @@ fn appearance(
         cx,
         |osd, value| osd.scale = value as u32,
     );
-    form::panel(CONTROL_GAP, true, cx)
-        .mt(px(BLOCK_GAP))
-        .child(form::section_heading("Appearance"))
+    form::block()
+        .child(form::section_heading("Appearance", cx))
         .child(
             form::group()
-                .child(theme)
+                .child(form::card(cx).row(theme))
                 .child(form::collapse_in_gap(
                     "volume-osd-custom",
                     custom,
-                    CONTROL_GAP,
+                    form::TILE_GAP,
                     custom_content,
                     window,
                     cx,
@@ -462,7 +461,7 @@ fn appearance(
                 .child(form::collapse_in_gap(
                     "volume-osd-radius-collapse",
                     supports_radius,
-                    CONTROL_GAP,
+                    form::TILE_GAP,
                     div().child(radius),
                     window,
                     cx,

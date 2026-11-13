@@ -1,10 +1,9 @@
 //! Volume → Wheel & clicks.
-use super::super::form::{self, field};
+use super::super::form::{self, SECTION_GAP};
 use super::column;
 use crate::settings_ui::{
     SettingsApp,
     controls::{self, SelectOption, SelectOptions},
-    style::{BLOCK_GAP, CONTROL_GAP},
 };
 use gpui::{prelude::*, *};
 
@@ -61,7 +60,7 @@ pub(crate) fn render(
     let wheel = app.snapshot.config.volume.wheel.clone();
     let clicks = app.snapshot.config.volume.clicks.clone();
     let zone_id = zone_key(wheel.zone);
-    let mut zone_options = SelectOptions::new(
+    let zone_options = SelectOptions::new(
         ZONES
             .iter()
             .map(|(_, key, label, detail, icon)| {
@@ -69,7 +68,7 @@ pub(crate) fn render(
             })
             .collect(),
     );
-    zone_options.show_current_detail = true;
+    let zone_options = zone_options.row("Scroll zone");
     let zone = controls::select(
         "volume-wheel-zone",
         zone_id,
@@ -121,17 +120,15 @@ pub(crate) fn render(
     vec![column()
         .child(form::page_title("Wheel & clicks", None))
         .child(
-            form::panel(CONTROL_GAP, false, cx)
-                .child(field("Scroll zone", zone))
+            form::block()
+                .child(form::card(cx).row(zone))
                 .child(step),
         )
         .child(
-            form::panel(CONTROL_GAP, true, cx)
-                .mt(px(BLOCK_GAP))
-                .child(form::section_heading("Clicks"))
-                .child(left)
-                .child(double)
-                .child(middle),
+            form::block()
+                .mt(px(SECTION_GAP))
+                .child(form::section_heading("Clicks", cx))
+                .child(form::card(cx).row(left).row(double).row(middle)),
         )
         .into_any_element()]
 }
@@ -144,26 +141,24 @@ fn click_select(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     write: impl Fn(&mut crate::VolumeClicksConfig, crate::VolumeClickAction) + 'static,
-) -> Div {
-    field(
-        label,
-        controls::select(
-            id,
-            click_key(action),
-            SelectOptions::new(
-                CLICKS
-                    .iter()
-                    .map(|(key, label, icon)| SelectOption::new(*key, *label).icon(*icon))
-                    .collect(),
-            ),
-            app,
-            window,
-            cx,
-            move |app, value, _, cx| {
-                let action = click_from_key(value.as_ref());
-                app.update_config(cx, |config| write(&mut config.volume.clicks, action));
-            },
-        ),
+) -> Stateful<Div> {
+    controls::select(
+        id,
+        click_key(action),
+        SelectOptions::new(
+            CLICKS
+                .iter()
+                .map(|(key, label, icon)| SelectOption::new(*key, *label).icon(*icon))
+                .collect(),
+        )
+        .row(label),
+        app,
+        window,
+        cx,
+        move |app, value, _, cx| {
+            let action = click_from_key(value.as_ref());
+            app.update_config(cx, |config| write(&mut config.volume.clicks, action));
+        },
     )
 }
 

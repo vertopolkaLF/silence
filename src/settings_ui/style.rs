@@ -46,10 +46,6 @@ pub(crate) fn group(text: impl Into<SharedString>, cx: &App) -> Div {
     section(text).text_color(palette(cx).muted.hsla())
 }
 
-/// Space above a [`group`] heading, measured from the rule of the row above.
-/// Larger than the row gap so the heading sits with the rows it names.
-pub(crate) const GROUP_GAP: f32 = 32.;
-
 /// Muted 13px/1.4 description under a setting label.
 pub(crate) fn desc(text: impl Into<SharedString>, cx: &App) -> Div {
     div()
@@ -61,8 +57,6 @@ pub(crate) fn desc(text: impl Into<SharedString>, cx: &App) -> Div {
 
 /// Space between a page title row and the first block.
 pub(crate) const TITLE_GAP: f32 = 18.;
-/// Space between controls inside one block.
-pub(crate) const CONTROL_GAP: f32 = 12.;
 /// Space between a label and its control.
 pub(crate) const LABEL_GAP: f32 = 8.;
 /// Space on each side of the rule between two blocks.

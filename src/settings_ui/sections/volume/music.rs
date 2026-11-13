@@ -4,7 +4,6 @@ use super::column;
 use crate::settings_ui::{
     SettingsApp,
     controls::{self, RangeOptions},
-    style::{BLOCK_GAP, CONTROL_GAP},
 };
 use gpui::{prelude::*, *};
 
@@ -87,8 +86,6 @@ pub(crate) fn render(
             update_and_preview(app, cx, |music| music.duration_ms = ms.clamp(1_000, 10_000));
         },
     );
-    let row = super::super::general::card_row;
-
     let dim = form::governed_opacity("music-governed", music.enabled, window, cx);
     let master = form::master_switch(
         "music-master",
@@ -103,48 +100,48 @@ pub(crate) fn render(
         .flex()
         .flex_col()
         .flex_shrink_0()
-        .mt(px(BLOCK_GAP))
+        .gap(px(form::SECTION_GAP))
+        .mt(px(form::SECTION_GAP))
         .opacity(dim)
-        .child(form::section_heading("Show it when").mb(px(CONTROL_GAP)))
         .child(
-            form_panel(false, cx)
-                .child(row(
-                    "Play and pause",
-                    Some("A media key that plays or pauses shows the track."),
-                    play_pause,
-                    false,
-                    cx,
-                ))
-                .child(row(
-                    "Next and previous",
-                    Some("A media key that skips shows the track it switched to."),
-                    skip,
-                    false,
-                    cx,
-                ))
-                .child(row(
-                    "Up next",
-                    Some("Shows the next song when the playlist moves on by itself."),
-                    up_next,
-                    true,
-                    cx,
-                )),
+            form::block()
+                .child(form::section_heading("Show it when", cx))
+                .child(
+                    form::card(cx)
+                        .row(form::setting_row(
+                            "Play and pause",
+                            Some("A media key that plays or pauses shows the track."),
+                            play_pause,
+                            cx,
+                        ))
+                        .row(form::setting_row(
+                            "Next and previous",
+                            Some("A media key that skips shows the track it switched to."),
+                            skip,
+                            cx,
+                        ))
+                        .row(form::setting_row(
+                            "Up next",
+                            Some("Shows the next song when the playlist moves on by itself."),
+                            up_next,
+                            cx,
+                        )),
+                )
+                .child(duration),
         )
-        .child(form_panel(false, cx).mt(px(BLOCK_GAP)).child(duration))
-        .child(form_panel(true, cx).mt(px(BLOCK_GAP)).child(row(
-            "Show the track on volume change",
-            Some("Cover, title and artist above the volume bar while something plays."),
-            on_volume,
-            true,
-            cx,
-        )));
+        .child(
+            form::block()
+                .child(form::section_heading("With the volume", cx))
+                .child(form::card(cx).row(form::setting_row(
+                    "Show the track on volume change",
+                    Some("Cover, title and artist above the volume bar while something plays."),
+                    on_volume,
+                    cx,
+                ))),
+        );
     vec![column()
         .child(form::page_title("Music", None))
         .child(master)
         .child(governed)
         .into_any_element()]
-}
-
-fn form_panel(last: bool, cx: &mut Context<SettingsApp>) -> Div {
-    form::panel(super::super::general::ROW_GAP, last, cx)
 }

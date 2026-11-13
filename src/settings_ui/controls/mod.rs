@@ -262,6 +262,8 @@ pub(crate) fn checkbox(
 pub(crate) enum ButtonKind {
     /// `.secondary`: surface-2 button that brightens on hover.
     Secondary,
+    /// [`ButtonKind::Secondary`] for a card row: one step above the card.
+    Tonal,
     /// `.save`: accent-filled primary button.
     Primary,
     /// `.icon-button`: 38x38 square with a muted icon.
@@ -294,6 +296,12 @@ pub(crate) fn button(
         ),
         ButtonKind::Secondary => (
             lerp(palette.surface_2, palette.surface_hover, hover),
+            palette.text,
+            500.,
+            Some(1.),
+        ),
+        ButtonKind::Tonal => (
+            lerp(palette.surface_3, palette.surface_hover, hover),
             palette.text,
             500.,
             Some(1.),

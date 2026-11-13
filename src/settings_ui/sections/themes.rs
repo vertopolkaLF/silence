@@ -61,7 +61,7 @@ fn theme_label(id: &str) -> &'static str {
         .map_or("Custom", |(_, label)| label)
 }
 
-/// "Theme" row for the Overlay and OSD pages: the current theme and a way
+/// "Theme" card row for the Overlay and OSD pages: the current theme and a way
 /// to the gallery, already showing that overlay.
 pub(crate) fn theme_link(
     id: &'static str,
@@ -74,7 +74,7 @@ pub(crate) fn theme_link(
     let (icon_name, detail) = theme_meta(current);
     let browse = controls::button(
         id,
-        controls::ButtonKind::Secondary,
+        controls::ButtonKind::Tonal,
         Some("pallete-2-linear"),
         Some("Browse themes".into()),
         false,
@@ -92,6 +92,9 @@ pub(crate) fn theme_link(
         .items_center()
         .gap(px(12.))
         .flex_shrink_0()
+        .min_h(px(super::form::ROW_HEIGHT))
+        .px(px(super::form::ROW_PAD))
+        .py(px(10.))
         .child(
             div()
                 .size(px(36.))
@@ -100,7 +103,7 @@ pub(crate) fn theme_link(
                 .items_center()
                 .justify_center()
                 .rounded(px(10.))
-                .bg(p.surface_2.hsla())
+                .bg(p.surface_3.hsla())
                 .child(
                     svg()
                         .path(icon(icon_name))

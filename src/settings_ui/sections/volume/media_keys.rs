@@ -21,14 +21,13 @@ pub(crate) fn render(
     );
     vec![column()
         .child(form::page_title("Media keys", None))
-        .child(super::super::general::card_row(
+        .child(form::card(cx).row(form::setting_row(
             "Use silence! for the volume keys",
             Some(
                 "Volume up, down and mute show silence!'s OSD instead of the Windows flyout and step like the wheel. Apps running as administrator keep the Windows flyout unless silence! runs as administrator too.",
             ),
             toggle,
-            true,
             cx,
-        ))
+        )))
         .into_any_element()]
 }

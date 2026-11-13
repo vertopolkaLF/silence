@@ -1,7 +1,6 @@
 //! Hold to Mute tab (`src/gui/sections/hold_to_mute.rs`, `sounds.css`).
 use super::{
     form,
-    general::{ROW_GAP, card_row},
     sounds::{self, PreviewState, SoundContext},
 };
 use crate::settings_ui::{
@@ -9,7 +8,6 @@ use crate::settings_ui::{
     anim::{self, Easing, Transition},
     controls::{self, ButtonKind},
     shell::nav::SettingsTab,
-    style,
 };
 use gpui::{prelude::*, *};
 
@@ -69,16 +67,14 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.hold_to_mute.show_overlay = checked)
         },
     );
-    let options = sounds::card(true, cx)
-        .gap(px(ROW_GAP))
-        .child(card_row(
+    let options = form::card(cx)
+        .row(form::setting_row(
             "Show overlay",
             Some("The overlay appears while the key is held."),
             overlay,
-            false,
             cx,
         ))
-        .child(form::setting_row(
+        .row(form::setting_row(
             "Play sounds",
             Some("Mute and unmute sounds for the held key."),
             play,
@@ -168,8 +164,12 @@ pub(crate) fn render(
             window,
             cx,
         );
-        let content = sounds::card(false, cx)
-            .child(style::section("Sounds").mb(px(2.)))
+        // The gap above is inside the measured height, so the closed block
+        // leaves no hole under the card.
+        let content = form::block()
+            .pt(px(form::SECTION_GAP))
+            .child(form::section_heading("Sounds", cx))
+            .child(form::card(cx).row(mute).row(unmute))
             .child(
                 div()
                     .w_full()
@@ -178,9 +178,7 @@ pub(crate) fn render(
                     .gap(px(8.))
                     .child(div().flex_1().min_w_0().child(range))
                     .child(reset),
-            )
-            .child(mute)
-            .child(unmute);
+            );
         let app_entity = cx.weak_entity();
         collapse = collapse.child(
             div()
@@ -202,8 +200,12 @@ pub(crate) fn render(
         );
     }
     vec![
-        sounds::panel()
-            .child(form::page_title("Hold to mute", Some(configure.into_any_element())).mb(px(0.)))
+        div()
+            .w_full()
+            .max_w(px(720.))
+            .flex()
+            .flex_col()
+            .child(form::page_title("Hold to mute", Some(configure.into_any_element())))
             .child(options)
             .child(collapse)
             .into_any_element(),

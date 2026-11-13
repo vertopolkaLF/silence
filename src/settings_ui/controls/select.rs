@@ -70,6 +70,9 @@ pub(crate) struct SelectOptions {
     /// it. Closing the menu without a choice calls it again with the value
     /// that was set before the menu opened.
     pub on_preview: Option<Callback>,
+    /// Card-row form: this label on the left with the current option's detail
+    /// under it, the value on the right, no surface of its own.
+    pub row_label: Option<SharedString>,
 }
 
 impl SelectOptions {
@@ -82,7 +85,12 @@ impl SelectOptions {
             trigger_height: None,
             on_option_action: None,
             on_preview: None,
+            row_label: None,
         }
+    }
+    pub fn row(mut self, label: impl Into<SharedString>) -> Self {
+        self.row_label = Some(label.into());
+        self
     }
     pub fn on_preview(
         mut self,
@@ -413,6 +421,7 @@ pub(crate) fn select(
         },
     );
     let (pointer, hover, _) = hover_tween(id.clone(), window, cx);
+    let row = options.row_label.is_some();
     let mut trigger = div()
         .id((ElementId::from(id.clone()), "trigger"))
         .relative()
@@ -424,21 +433,25 @@ pub(crate) fn select(
         .gap(px(14.))
         .pt(px(10.))
         .pb(px(10.))
-        .pl(px(14.))
-        .pr(px(12.))
         .border_1()
         .border_color(TRANSPARENT.hsla())
-        .rounded(px(12.))
-        .bg(lerp(
-            p.surface_2,
-            p.surface_3,
-            if options.disabled {
-                0.
+        .map(|this| {
+            if row {
+                // The card is the surface; the value and chevron answer the pointer.
+                this.min_h(px(58.)).pl(px(17.)).pr(px(15.)).rounded(px(14.))
             } else {
-                hover.max(visibility)
-            },
-        )
-        .hsla())
+                this.pl(px(14.)).pr(px(12.)).rounded(px(12.)).bg(lerp(
+                    p.surface_2,
+                    p.surface_3,
+                    if options.disabled {
+                        0.
+                    } else {
+                        hover.max(visibility)
+                    },
+                )
+                .hsla())
+            }
+        })
         .text_color(p.text.hsla())
         .track_focus(&state.read(cx).focus)
         .focus_visible(move |style| super::focus_outline(style, p.focus.hsla()))
@@ -447,7 +460,7 @@ pub(crate) fn select(
         })
         .when(!options.disabled, |this| this.cursor_pointer())
         .when(options.disabled, |this| this.cursor_not_allowed())
-        .when(!options.disabled, |this| {
+        .when(!options.disabled && !row, |this| {
             this.shadow(vec![
                 BoxShadow {
                     color: p.highlight_line.opacity(visibility).hsla(),
@@ -472,14 +485,109 @@ pub(crate) fn select(
                 },
             ])
         });
+    if let Some(label) = options.row_label.clone() {
+        let detail = current
+            .as_ref()
+            .filter(|_| options.show_current_detail)
+            .and_then(|o| o.detail.clone());
+        trigger = trigger.child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .min_w_0()
+                .flex_1()
+                .child(
+                    div()
+                        .text_size(px(14.))
+                        .line_height(relative(1.35))
+                        .font_weight(FontWeight(600.))
+                        .child(label),
+                )
+                .when_some(detail, |this, detail| {
+                    this.child(
+                        div()
+                            .text_size(px(13.))
+                            .line_height(relative(1.4))
+                            .text_color(p.muted.hsla())
+                            .child(detail),
+                    )
+                }),
+        );
+    }
     if options.searchable && open {
         trigger = trigger.child(
             div()
-                .flex_1()
                 .min_w_0()
+                .map(|this| if row { this.w(px(220.)) } else { this.flex_1() })
                 .text_size(px(14.))
                 .font_weight(FontWeight(560.))
                 .child(search.clone()),
+        );
+    } else if row {
+        let s = state.read(cx);
+        let elapsed = s.swapped.map(|t| t.elapsed().as_secs_f32());
+        let entering = elapsed
+            .map(|t| anim::Easing::Ease.apply(((t - 0.055) / 0.24).clamp(0., 1.)))
+            .unwrap_or(1.);
+        let exiting = elapsed
+            .map(|t| anim::Easing::Ease.apply((t / 0.22).clamp(0., 1.)))
+            .unwrap_or(1.);
+        if elapsed.is_some_and(|t| t < 0.31) {
+            window.request_animation_frame();
+        }
+        let ink = lerp(p.muted, p.text, 0.55 + 0.45 * hover.max(visibility)).hsla();
+        let value = move |option: &SelectOption, alpha: f32| {
+            div()
+                .flex()
+                .items_center()
+                .justify_end()
+                .gap(px(8.))
+                .min_w_0()
+                .opacity(alpha)
+                .when_some(option.icon.clone(), |this, name| {
+                    this.child(
+                        svg()
+                            .path(icon(&name))
+                            .size(px(17.))
+                            .flex_shrink_0()
+                            .text_color(p.accent_text.hsla()),
+                    )
+                })
+                .child(
+                    div()
+                        .min_w_0()
+                        .text_size(px(14.))
+                        .font_weight(FontWeight(520.))
+                        .line_height(relative(1.3))
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .text_color(ink)
+                        .child(option.label.clone()),
+                )
+        };
+        let previous = s.previous.clone().filter(|_| exiting < 1.);
+        trigger = trigger.child(
+            div()
+                .relative()
+                .flex_shrink_0()
+                .max_w(relative(0.62))
+                .min_w_0()
+                .when_some(previous, |this, old| {
+                    this.child(
+                        value(&old, 1. - exiting)
+                            .absolute()
+                            .right_0()
+                            .top(px(-12. * exiting)),
+                    )
+                })
+                .when_some(current.clone(), |this, current| {
+                    this.child(
+                        value(&current, entering)
+                            .relative()
+                            .top(px(12. * (1. - entering))),
+                    )
+                }),
         );
     } else {
         let s = state.read(cx);
@@ -574,7 +682,14 @@ pub(crate) fn select(
             .path(icon("alt-arrow-down-linear"))
             .size(px(17.))
             .flex_shrink_0()
-            .text_color(lerp(p.faint, p.accent_text, visibility).hsla())
+            .text_color(
+                lerp(
+                    lerp(p.faint, p.muted, if row { hover } else { 0. }),
+                    p.accent_text,
+                    visibility,
+                )
+                .hsla(),
+            )
             .with_transformation(Transformation::rotate(gpui::Radians(
                 std::f32::consts::PI * visibility,
             ))),

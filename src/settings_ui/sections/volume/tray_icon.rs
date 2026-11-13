@@ -1,5 +1,5 @@
 //! Volume → Tray icon.
-use super::super::form::{self, field};
+use super::super::form::{self, card_field};
 use super::column;
 use crate::settings_ui::{
     SettingsApp,
@@ -7,7 +7,7 @@ use crate::settings_ui::{
     assets::icon,
     color::lerp,
     controls::{self, SelectOption, SelectOptions},
-    style::{self, BLOCK_GAP, CONTROL_GAP},
+    style,
     theme::FONT_DISPLAY,
 };
 use gpui::{prelude::*, *};
@@ -51,7 +51,8 @@ pub(crate) fn render(
             SelectOption::new("Colored", "Colored").icon("pallete-2-linear"),
             SelectOption::new("Monochrome", "Monochrome").icon("ic-baseline-contrast"),
             SelectOption::new("SystemColor", "System color").icon("widget-linear"),
-        ]),
+        ])
+        .row("Icon color"),
         app,
         window,
         cx,
@@ -73,7 +74,8 @@ pub(crate) fn render(
         SelectOptions::new(vec![
             SelectOption::new("Top", "Top"),
             SelectOption::new("Bottom", "Bottom"),
-        ]),
+        ])
+        .row("Ring starts at"),
         app,
         window,
         cx,
@@ -96,7 +98,8 @@ pub(crate) fn render(
         SelectOptions::new(vec![
             SelectOption::new("Clockwise", "Clockwise"),
             SelectOption::new("Counterclockwise", "Counterclockwise"),
-        ]),
+        ])
+        .row("Ring direction"),
         app,
         window,
         cx,
@@ -105,11 +108,7 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.volume.tray_icon.ring_clockwise = clockwise);
         },
     );
-    let ring_options = div()
-        .flex()
-        .gap(px(14.))
-        .child(field("Ring starts at", ring_start).flex_1())
-        .child(field("Ring direction", ring_direction).flex_1());
+    let rings = tray.skin == crate::VolumeTraySkin::Rings;
     let popup = tray_popup_panel(app, window, cx);
     let dim = form::governed_opacity("volume-tray-governed", tray.enabled, window, cx);
     let master = form::master_switch(
@@ -125,23 +124,23 @@ pub(crate) fn render(
         .child(form::page_title("Tray icon", None))
         .child(master)
         .child(
-            form::panel(CONTROL_GAP, false, cx)
-                .mt(px(BLOCK_GAP))
+            form::block()
+                .mt(px(form::SECTION_GAP))
                 .opacity(dim)
                 .child(
-                    form::group()
-                        .child(field("Style", skins))
-                        .child(form::collapse_in_gap(
-                            "volume-tray-ring-options",
-                            tray.skin == crate::VolumeTraySkin::Rings,
-                            CONTROL_GAP,
-                            ring_options,
+                    form::card(cx)
+                        .row(card_field("Style", skins))
+                        .reveal("volume-tray-ring-start", rings, ring_start, window, cx)
+                        .reveal(
+                            "volume-tray-ring-direction",
+                            rings,
+                            ring_direction,
                             window,
                             cx,
-                        )),
+                        )
+                        .row(color_mode),
                 )
-                .child(field("Icon color", color_mode))
-                .child(style::desc(
+                .child(form::footnote(
                     "Scroll over the icon to change the volume. Clicks are set on Wheel & clicks.",
                     cx,
                 )),
@@ -166,7 +165,8 @@ fn tray_popup_panel(
         SelectOptions::new(vec![
             SelectOption::new("Compact", "Compact: names on hover"),
             SelectOption::new("Labeled", "App names above sliders"),
-        ]),
+        ])
+        .row("Layout"),
         app,
         window,
         cx,
@@ -197,22 +197,25 @@ fn tray_popup_panel(
             app.update_config(cx, |config| config.volume.popup.device_at_bottom = checked);
         },
     );
-    form::panel(CONTROL_GAP, true, cx)
-        .mt(px(BLOCK_GAP))
-        .child(form::section_heading("Slider popup"))
-        .child(field("Layout", layout))
-        .child(form::setting_row(
-            "Device name header",
-            Some("Shows the output device's name above its slider."),
-            header,
-            cx,
-        ))
-        .child(form::setting_row(
-            "Device at the bottom",
-            Some("Puts the output slider under the app list."),
-            device_at_bottom,
-            cx,
-        ))
+    form::block()
+        .mt(px(form::SECTION_GAP))
+        .child(form::section_heading("Slider popup", cx))
+        .child(
+            form::card(cx)
+                .row(layout)
+                .row(form::setting_row(
+                    "Device name header",
+                    Some("Shows the output device's name above its slider."),
+                    header,
+                    cx,
+                ))
+                .row(form::setting_row(
+                    "Device at the bottom",
+                    Some("Puts the output slider under the app list."),
+                    device_at_bottom,
+                    cx,
+                )),
+        )
 }
 
 fn skin_card(

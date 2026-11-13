@@ -5,7 +5,7 @@ use crate::settings_ui::{
     assets::icon,
     color::{TRANSPARENT, lerp, mix_pct},
     controls::{self, SelectOption, SelectOptions},
-    style::{self, BLOCK_GAP, CONTROL_GAP},
+    style,
 };
 use super::form;
 use gpui::{prelude::*, *};
@@ -100,18 +100,14 @@ pub(crate) fn render(
             cx.notify();
         },
     );
-    let mut status_content = div()
-        .flex()
-        .flex_col()
-        .gap(px(CONTROL_GAP))
-        .w_full()
-        .child(picker);
-    {
+    // Mic status only: the icon pack and its color open under the style row.
+    let status_content = {
         let mut options = SelectOptions::new(vec![
             SelectOption::new("Colored", "Colored").icon("pallete-2-linear"),
             SelectOption::new("Monochrome", "Monochrome").icon("ic-baseline-contrast"),
             SelectOption::new("SystemColor", "System color").icon("widget-linear"),
-        ]);
+        ])
+        .row("Mic icon color");
         options.disabled = !status_open;
         let select = controls::select(
             "tray-status-color",
@@ -124,16 +120,14 @@ pub(crate) fn render(
                 app.update_config(cx, |c| c.tray_icon.status_style = value.to_string())
             },
         );
-        status_content = status_content.child(form::field("Mic icon color", select));
-    }
-    let status_reveal = form::collapse_in_gap(
-        "tray-status-content",
-        status_open,
-        CONTROL_GAP,
-        status_content,
-        window,
-        cx,
-    );
+        div()
+            .flex()
+            .flex_col()
+            .w_full()
+            .child(form::row_box().child(picker))
+            .child(style::divider(cx))
+            .child(select)
+    };
     let indicator = controls::select(
         "tray-indicator-device",
         app.snapshot.config.advanced.indicator_device.clone(),
@@ -142,7 +136,8 @@ pub(crate) fn render(
             &app.snapshot.config.hotkeys,
             &app.snapshot.config.advanced.indicator_device,
             &app.snapshot.config.advanced.audio_device_name_display,
-        )),
+        ))
+        .row("Microphone to show"),
         app,
         window,
         cx,
@@ -169,20 +164,21 @@ pub(crate) fn render(
         .max_w(px(720.))
         .child(form::page_title("Tray icon", None))
         .child(
-            form::panel(CONTROL_GAP, false, cx)
+            form::block()
                 .child(
-                    form::group()
-                        .child(form::field("Tray icon style", variants))
-                        .child(status_reveal),
+                    form::card(cx)
+                        .row(form::card_field("Tray icon style", variants))
+                        .reveal("tray-status-content", status_open, status_content, window, cx)
+                        .row(indicator)
+                        .row(form::setting_row(
+                            "Double-click the icon to open settings",
+                            Some("Turn off to mute on a single click with no delay."),
+                            double_click,
+                            cx,
+                        )),
                 )
-                .child(form::field(
-                    "Microphone shown in tray and overlay",
-                    indicator,
-                ))
-                .child(form::setting_row(
-                    "Double-click the icon to open settings",
-                    Some("Turn off to mute on a single click with no delay."),
-                    double_click,
+                .child(form::footnote(
+                    "The chosen microphone is the one the tray icon and the overlay show.",
                     cx,
                 )),
         );
@@ -262,30 +258,34 @@ pub(crate) fn render(
     );
     let mic_in_use = div()
         .id("tray-icon-mic-in-use")
-        .pt(px(BLOCK_GAP))
+        .pt(px(form::SECTION_GAP))
         .max_w(px(720.))
         .flex()
         .flex_col()
         .flex_shrink_0()
-        .gap(px(CONTROL_GAP))
-        .child(form::setting_row(
-            "Show when mic is in use by an app",
-            None,
-            show,
-            cx,
-        ))
-        .child(form::setting_row(
-            "Hide blacklisted apps from tray menu",
-            None,
-            hide,
-            cx,
-        ))
+        .gap(px(form::TILE_GAP))
+        .child(form::section_heading("Mic in use", cx))
+        .child(
+            form::card(cx)
+                .row(form::setting_row(
+                    "Show when mic is in use by an app",
+                    None,
+                    show,
+                    cx,
+                ))
+                .row(form::setting_row(
+                    "Hide blacklisted apps from tray menu",
+                    None,
+                    hide,
+                    cx,
+                )),
+        )
         .child(
             div()
                 .flex()
                 .flex_col()
-                .gap(px(16.))
-                .pt(px(4.))
+                .gap(px(20.))
+                .pt(px(12.))
                 .child(current)
                 .child(ignored),
         );
@@ -379,7 +379,7 @@ fn app_row(
         .justify_between()
         .gap(px(12.))
         .py(px(8.))
-        .pl(px(14.))
+        .pl(px(form::ROW_PAD))
         .pr(px(8.))
         .rounded(px(12.))
         .bg(lerp(p.surface_2, mix_pct(p.accent, 10., p.surface_2), active).hsla())
@@ -480,7 +480,7 @@ fn app_group(
             .flex_shrink_0()
             .flex()
             .items_center()
-            .px(px(14.))
+            .px(px(form::ROW_PAD))
             .rounded(px(12.))
             .border_1()
             .border_dashed()
@@ -495,8 +495,8 @@ fn app_group(
     div()
         .flex()
         .flex_col()
-        .gap(px(10.))
-        .child(style::section(title))
+        .gap(px(form::TILE_GAP))
+        .child(form::section_heading(title, cx))
         .child(div().h(px(height)).flex_shrink_0().overflow_hidden().child(
             list.on_children_prepainted(move |bounds, _, cx| {
                 let height = if count == 0 {
