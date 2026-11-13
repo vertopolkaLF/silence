@@ -1873,6 +1873,9 @@ pub struct VolumeOsdConfig {
     pub visibility: VolumeOsdVisibility,
     #[serde(default = "default_volume_osd_show_on_device_change")]
     pub show_on_device_change: bool,
+    /// Caps, Num and Scroll Lock toggles show in the OSD.
+    #[serde(default = "default_true")]
+    pub show_on_lock_keys: bool,
     /// Size scale in percent, like the mic overlay's.
     #[serde(default = "default_volume_osd_scale")]
     pub scale: u32,
@@ -1926,6 +1929,7 @@ impl Default for VolumeOsdConfig {
             duration_ms: default_volume_osd_duration_ms(),
             visibility: VolumeOsdVisibility::default(),
             show_on_device_change: default_volume_osd_show_on_device_change(),
+            show_on_lock_keys: true,
             scale: default_volume_osd_scale(),
             corner_radii: Default::default(),
             text_font: default_overlay_text_font(),

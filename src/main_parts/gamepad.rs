@@ -229,6 +229,7 @@ fn run_background_app() -> Result<()> {
     mark_tray_input_hooks_ready();
     install_keyboard_hook(instance.into())?;
     install_mouse_hook(instance.into())?;
+    prime_lock_keys();
     if gamepad_monitoring_needed(true) {
         ensure_gamepad_monitors(true);
     }

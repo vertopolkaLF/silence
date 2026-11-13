@@ -45,6 +45,7 @@ pub(crate) fn render(
             nav_item(app, SettingsTab::Devices, false, 1., window, cx).mt(px(4.)),
         )
         .child(nav_item(app, SettingsTab::Sounds, false, 1., window, cx).mt(px(4.)))
+        .child(nav_item(app, SettingsTab::Themes, false, 1., window, cx).mt(px(4.)))
         .child(module_group(app, ModuleId::Microphone, window, cx).mt(px(10.)))
         .child(module_group(app, ModuleId::Volume, window, cx).mt(px(6.)))
         .child(div().flex_1().min_h(px(8.)))

@@ -24,6 +24,7 @@ pub(crate) enum SettingsTab {
     Devices,
     HoldToMute,
     Sounds,
+    Themes,
     Overlay,
     TrayIcon,
     AutoMute,
@@ -58,6 +59,7 @@ impl SettingsTab {
         Self::Hotkeys,
         Self::Devices,
         Self::Sounds,
+        Self::Themes,
         Self::Overlay,
         Self::TrayIcon,
         Self::HoldToMute,
@@ -78,6 +80,7 @@ impl SettingsTab {
             Self::HoldToMute => "Hold to mute",
             Self::Hotkeys => "Hotkeys",
             Self::Sounds => "Sounds",
+            Self::Themes => "Themes",
             Self::Overlay => "Overlay",
             Self::TrayIcon => "Tray icon",
             Self::AutoMute => "Auto mute",
@@ -103,7 +106,12 @@ impl SettingsTab {
             | Self::VolumeMediaKeys => {
                 Some(ModuleId::Volume)
             }
-            Self::Hotkeys | Self::Devices | Self::Sounds | Self::General | Self::About => None,
+            Self::Hotkeys
+            | Self::Devices
+            | Self::Sounds
+            | Self::Themes
+            | Self::General
+            | Self::About => None,
         }
     }
 
@@ -115,6 +123,7 @@ impl SettingsTab {
             Self::HoldToMute => "oven-mitts-linear",
             Self::Hotkeys => "keyboard-linear",
             Self::Sounds => "music-note-2-linear",
+            Self::Themes => "pallete-2-linear",
             Self::Overlay => "monitor-linear",
             Self::TrayIcon => "widget-linear",
             Self::AutoMute => "clock-circle-linear",
@@ -135,6 +144,7 @@ impl SettingsTab {
             Self::HoldToMute => "oven-mitts-bold",
             Self::Hotkeys => "keyboard-bold",
             Self::Sounds => "music-note-2-bold",
+            Self::Themes => "pallete-2-bold",
             Self::Overlay => "monitor-bold",
             Self::TrayIcon => "widget-bold",
             Self::AutoMute => "clock-circle-bold",
@@ -162,6 +172,7 @@ impl SettingsTab {
                 s!("general-import-export", "Import/Export"),
             ],
             Self::Devices => &[s!("devices-overview", "Devices")],
+            Self::Themes => &[s!("themes-gallery", "Themes")],
             Self::HoldToMute => &[s!("hold-to-mute-overview", "Hold to Mute")],
             Self::Hotkeys => &[s!("hotkeys-overview", "Hotkeys")],
             Self::Sounds => &[

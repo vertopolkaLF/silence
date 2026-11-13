@@ -22,6 +22,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     let vk = normalized_keyboard_vk(kb.vkCode, kb.scanCode, kb.flags.0);
     let is_down = event == WM_KEYDOWN || event == 0x0104;
     let is_up = event == WM_KEYUP || event == 0x0105;
+    note_lock_key(kb.vkCode, is_down, is_up);
 
     // The settings recorder pauses hotkeys (`hotkeys_paused`) and the welcome
     // flow has not finished yet. Both must still receive volume keys, so do
@@ -154,6 +155,40 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
 }
 
+/// Lock keys and Shift currently held, so auto-repeat does not re-post.
+static LOCK_KEYS_HELD: AtomicU8 = AtomicU8::new(0);
+
+/// Ask the tray to re-read the lock states. Only a hint: the key may be
+/// remapped or swallowed, so the tray shows the OSD only when a state really
+/// changed. Shift counts because Windows can turn Caps Lock off with it.
+/// Runs before hotkey handling, which may return early, and never swallows.
+fn note_lock_key(vk: u32, is_down: bool, is_up: bool) {
+    let bit = match volume_osd::LockKey::from_vk(vk) {
+        Some(key) => 1u8 << key as u8,
+        None if matches!(vk, 0x10 | 0xA0 | 0xA1) => 1u8 << 3,
+        None => return,
+    };
+    if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
+        return;
+    }
+    let post = if is_down {
+        LOCK_KEYS_HELD.fetch_or(bit, Ordering::Relaxed) & bit == 0
+    } else if is_up {
+        LOCK_KEYS_HELD.fetch_and(!bit, Ordering::Relaxed) & bit != 0
+    } else {
+        false
+    };
+    if !post {
+        return;
+    }
+    let hwnd = tray_hwnd();
+    if !hwnd.0.is_null() {
+        unsafe {
+            let _ = PostMessageW(hwnd, WM_LOCK_KEY, WPARAM(vk as usize), LPARAM(is_down as isize));
+        }
+    }
+}
+
 fn normalized_keyboard_vk(vk: u32, scan_code: u32, flags: u32) -> u32 {
     if flags & LLKHF_EXTENDED != 0 {
         return vk;
@@ -189,6 +224,9 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
 
     let event = wparam.0 as u32;
     let mouse = unsafe { *(lparam.0 as *const MSLLHOOKSTRUCT) };
+    if swallow_volume_osd_click(event, &mouse) {
+        return LRESULT(1);
+    }
     let Some(button) = mouse_button_from_event(event, mouse.mouseData) else {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     };

@@ -7,6 +7,7 @@ pub(crate) mod fonts;
 pub(crate) mod backdrop;
 pub(crate) mod mica;
 mod motion;
+pub(crate) mod preview;
 mod sticker;
 pub(crate) mod theme;
 pub(crate) mod volume;
@@ -458,124 +459,141 @@ impl OverlayView {
         opacity: f32,
         window: &Window,
     ) -> gpui::Div {
-        if look.icon_path.starts_with("cute-sticker/") {
-            return sticker::render(
-                look,
-                self.width.value(Instant::now()),
-                height,
-                scale,
-                0.,
-                opacity,
-            );
-        }
-        let icon_only = look.has_icon && !look.has_text;
-        let terminal = matches!(look.detail, theme::Detail::Terminal);
-        let padding = if terminal {
-            0.
-        } else if look.has_text {
-            if look.has_icon {
-                look.pad_icon * scale
-            } else {
-                look.pad * scale
-            }
-        } else {
-            0.
-        };
-        div()
-            .absolute()
-            .left(px(padding))
-            .when(icon_only || terminal, |row| {
-                row.w(px(self.width.value(Instant::now()))).justify_center()
-            })
-            .top_0()
-            .h(px(height))
-            .flex()
-            .items_center()
-            .gap(px(look.gap * scale))
-            .opacity(opacity * look.content_opacity)
-            .when(look.has_icon, |row| {
-                let glyph = svg()
-                    .path(look.icon_path.clone())
-                    .size(px(look.icon_size * scale))
-                    .text_color(rgb(look.icon));
-                let holder = div().flex_shrink_0().flex().items_center().justify_center();
-                row.child(match &look.icon_box {
-                    Some(icon_box) => {
-                        let size = icon_box.size * scale;
-                        let corner = match icon_box.radius {
-                            Some(corner) => corner * scale,
-                            // Concentric with the card around it.
-                            None => (radius * size / height.max(1.)).clamp(0., 16. * scale),
-                        };
-                        let mut holder = holder
-                            .size(px(size))
-                            .rounded(px(corner.min(size / 2.)))
-                            .bg(icon_box.fill);
-                        if let Some((color, width)) = icon_box.border {
-                            holder = border_width(holder, width * scale).border_color(color);
-                        }
-                        holder.child(glyph)
-                    }
-                    None => holder.size(px(look.icon_size * scale)).child(glyph),
-                })
-            })
-            .when(look.has_text, |row| {
-                row.child(
-                    div()
-                        .relative()
-                        .top(px(text_center_offset(look, scale, window)))
-                        .whitespace_nowrap()
-                        .text_size(px(look.text_size * scale))
-                        .line_height(px(look.text_size * scale * 20. / 14.))
-                        .font_family(look.font.clone())
-                        .font_weight(FontWeight(look.weight as f32))
-                        .text_color(rgb(look.foreground))
-                        .when(terminal, |text| {
-                            // Include the cursor in the flex item's width so the
-                            // complete icon + label + cursor group is centered.
-                            text.w(px(terminal_text_width(look, scale, window)))
-                                .flex_shrink_0()
-                        })
-                        .child(look.label.clone())
-                        .when(terminal, |text| {
-                            // The cursor follows the shaped label, not the card edge.
-                            // Keep its slot while hidden so blinking never resizes the card.
-                            let label_width = f32::from(shape_label(look, scale, window).width);
-                            let visible = self.detail_epoch.elapsed().as_millis() % 1000 < 500;
-                            text.child(
-                                div()
-                                    .absolute()
-                                    .left(px(label_width))
-                                    .top_0()
-                                    .opacity(if visible { 1. } else { 0. })
-                                    .child("_"),
-                            )
-                        }),
-                )
-            })
-    }
-
-    /// State-tinted wash behind the icon side; it fades with its content layer.
-    fn glow(&self, look: &Look, opacity: f32, radius: f32) -> Option<gpui::Div> {
-        if !look.has_icon || !look.has_text || look.glow == 0. || look.surface.a == 0. {
-            return None;
-        }
-        let alpha = look.glow * look.surface.a;
-        Some(
-            div()
-                .absolute()
-                .left_0()
-                .top_0()
-                .size_full()
-                .rounded(px(radius))
-                .opacity(opacity)
-                .bg(linear_gradient(
-                    90.,
-                    linear_color_stop(color_alpha(look.icon, alpha), 0.),
-                    linear_color_stop(color_alpha(look.icon, 0.), 0.7),
-                )),
+        content_row(
+            look,
+            self.width.value(Instant::now()),
+            scale,
+            height,
+            radius,
+            opacity,
+            self.detail_epoch.elapsed().as_millis() % 1000 < 500,
+            window,
         )
     }
+}
+
+/// Icon and label row of one content layer, shared with the settings preview.
+#[allow(clippy::too_many_arguments)]
+fn content_row(
+    look: &Look,
+    width: f32,
+    scale: f32,
+    height: f32,
+    radius: f32,
+    opacity: f32,
+    cursor_visible: bool,
+    window: &Window,
+) -> gpui::Div {
+    if look.icon_path.starts_with("cute-sticker/") {
+        return sticker::render(look, width, height, scale, 0., opacity);
+    }
+    let icon_only = look.has_icon && !look.has_text;
+    let terminal = matches!(look.detail, theme::Detail::Terminal);
+    let padding = if terminal {
+        0.
+    } else if look.has_text {
+        if look.has_icon {
+            look.pad_icon * scale
+        } else {
+            look.pad * scale
+        }
+    } else {
+        0.
+    };
+    div()
+        .absolute()
+        .left(px(padding))
+        .when(icon_only || terminal, |row| {
+            row.w(px(width)).justify_center()
+        })
+        .top_0()
+        .h(px(height))
+        .flex()
+        .items_center()
+        .gap(px(look.gap * scale))
+        .opacity(opacity * look.content_opacity)
+        .when(look.has_icon, |row| {
+            let glyph = svg()
+                .path(look.icon_path.clone())
+                .size(px(look.icon_size * scale))
+                .text_color(rgb(look.icon));
+            let holder = div().flex_shrink_0().flex().items_center().justify_center();
+            row.child(match &look.icon_box {
+                Some(icon_box) => {
+                    let size = icon_box.size * scale;
+                    let corner = match icon_box.radius {
+                        Some(corner) => corner * scale,
+                        // Concentric with the card around it.
+                        None => (radius * size / height.max(1.)).clamp(0., 16. * scale),
+                    };
+                    let mut holder = holder
+                        .size(px(size))
+                        .rounded(px(corner.min(size / 2.)))
+                        .bg(icon_box.fill);
+                    if let Some((color, width)) = icon_box.border {
+                        holder = border_width(holder, width * scale).border_color(color);
+                    }
+                    holder.child(glyph)
+                }
+                None => holder.size(px(look.icon_size * scale)).child(glyph),
+            })
+        })
+        .when(look.has_text, |row| {
+            row.child(
+                div()
+                    .relative()
+                    .top(px(text_center_offset(look, scale, window)))
+                    .whitespace_nowrap()
+                    .text_size(px(look.text_size * scale))
+                    .line_height(px(look.text_size * scale * 20. / 14.))
+                    .font_family(look.font.clone())
+                    .font_weight(FontWeight(look.weight as f32))
+                    .text_color(rgb(look.foreground))
+                    .when(terminal, |text| {
+                        // Include the cursor in the flex item's width so the
+                        // complete icon + label + cursor group is centered.
+                        text.w(px(terminal_text_width(look, scale, window)))
+                            .flex_shrink_0()
+                    })
+                    .child(look.label.clone())
+                    .when(terminal, |text| {
+                        // The cursor follows the shaped label, not the card edge.
+                        // Keep its slot while hidden so blinking never resizes the card.
+                        let label_width = f32::from(shape_label(look, scale, window).width);
+                        let visible = cursor_visible;
+                        text.child(
+                            div()
+                                .absolute()
+                                .left(px(label_width))
+                                .top_0()
+                                .opacity(if visible { 1. } else { 0. })
+                                .child("_"),
+                        )
+                    }),
+            )
+        })
+}
+
+/// State-tinted wash behind the icon side; it fades with its content layer.
+fn glow(look: &Look, opacity: f32, radius: f32) -> Option<gpui::Div> {
+    if !look.has_icon || !look.has_text || look.glow == 0. || look.surface.a == 0. {
+        return None;
+    }
+    let alpha = look.glow * look.surface.a;
+    Some(
+        div()
+            .absolute()
+            .left_0()
+            .top_0()
+            .size_full()
+            .rounded(px(radius))
+            .opacity(opacity)
+            .bg(linear_gradient(
+                90.,
+                linear_color_stop(color_alpha(look.icon, alpha), 0.),
+                linear_color_stop(color_alpha(look.icon, 0.), 0.7),
+            )),
+    )
 }
 
 impl Render for OverlayView {
@@ -900,7 +918,7 @@ impl Render for OverlayView {
             );
         }
         for (layer_look, weight) in &layers {
-            if let Some(glow) = self.glow(layer_look, *weight, radius) {
+            if let Some(glow) = glow(layer_look, *weight, radius) {
                 contents = contents.child(glow);
             }
         }

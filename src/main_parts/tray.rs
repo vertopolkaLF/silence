@@ -682,6 +682,9 @@ unsafe extern "system" fn main_wnd_proc(
             } else if wparam.0 == ID_HOOK_HEALTH_TIMER {
                 maintain_low_level_hooks();
                 check_volume_osd_positioning();
+            } else if wparam.0 == ID_LOCK_KEY_TIMER {
+                let _ = unsafe { KillTimer(hwnd, ID_LOCK_KEY_TIMER) };
+                check_lock_keys();
             } else if wparam.0 == ID_VOLUME_SOUND_TIMER {
                 let _ = unsafe { KillTimer(hwnd, ID_VOLUME_SOUND_TIMER) };
                 play_debounced_volume_change_sound();
@@ -758,6 +761,11 @@ unsafe extern "system" fn main_wnd_proc(
         }
         WM_VOLUME_MEDIA_KEY => {
             handle_volume_media_key(wparam.0);
+            LRESULT(0)
+        }
+        WM_LOCK_KEY => {
+            // Restarted by every event, so a press and its release read once.
+            let _ = unsafe { SetTimer(hwnd, ID_LOCK_KEY_TIMER, LOCK_KEY_SETTLE_MS, None) };
             LRESULT(0)
         }
         WM_OVERLAY_POSITIONING => {

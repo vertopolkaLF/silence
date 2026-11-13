@@ -10,7 +10,7 @@ use crate::settings_ui::{
 use gpui::{prelude::*, *};
 
 /// Saves an OSD setting and flashes the OSD so the change is visible at once.
-fn update_and_preview(
+pub(crate) fn update_and_preview(
     app: &mut SettingsApp,
     cx: &mut Context<SettingsApp>,
     update: impl FnOnce(&mut crate::VolumeOsdConfig),
@@ -80,6 +80,17 @@ pub(crate) fn render(
         |app, checked, _, cx| {
             app.update_config(cx, |config| {
                 config.volume.osd.show_on_device_change = checked;
+            });
+        },
+    );
+    let on_lock_keys = controls::toggle(
+        "volume-osd-lock-keys",
+        osd.show_on_lock_keys,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            app.update_config(cx, |config| {
+                config.volume.osd.show_on_lock_keys = checked;
             });
         },
     );
@@ -173,6 +184,12 @@ pub(crate) fn render(
                             Some("Speakers, headphones or microphone: shows the new device's name."),
                             on_device,
                             cx,
+                        ))
+                        .child(form::setting_row(
+                            "Show Caps, Num and Scroll Lock",
+                            Some("Shows whether the key just turned on or off."),
+                            on_lock_keys,
+                            cx,
                         )),
                 )
                 .child(
@@ -262,15 +279,12 @@ fn appearance(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> Div {
-    let theme = osd_select(
+    let theme = super::super::themes::theme_link(
         "volume-osd-theme",
-        "Theme",
-        osd.theme.clone(),
-        overlay::theme_options(),
-        app,
+        super::super::themes::Target::Volume,
+        &osd.theme,
         window,
         cx,
-        |osd, value| osd.theme = value,
     );
     let custom = osd.theme == "Custom";
     let mut fonts = app

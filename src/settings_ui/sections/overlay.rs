@@ -118,35 +118,6 @@ pub(crate) fn display_options(displays: &[crate::OverlayDisplay]) -> Vec<SelectO
         .collect()
 }
 
-/// Theme catalogue shared with the volume OSD. Ids match `gpui_overlay::theme::THEMES`.
-pub(crate) fn theme_options() -> SelectOptions {
-    SelectOptions::new(
-        crate::gpui_overlay::theme::THEMES
-            .iter()
-            .map(|(id, label)| {
-                let (icon, detail) = match *id {
-                    "Windows" => ("microsoft-windows", "Native acrylic flyout"),
-                    "MaterialYou" => ("material-design", "Tonal colors from your accent"),
-                    "Cute" => ("heart-linear", "Pastel sticker"),
-                    "CuteSticker" => ("heart-linear", "Die-cut sticker, stick & peel motion"),
-                    "Neon" => ("bolt-linear", "Glowing tube sign"),
-                    "Brutalism" => ("box-linear", "Flat slab, hard shadow"),
-                    "Terminal" => ("monitor-linear", "Upward scan lines, blinking underscore"),
-                    "Blueprint" => ("tuning-2-linear", "Drafting grid, precise square frame"),
-                    "Cassette" => ("box-linear", "Tape label, bare mic, vintage cream"),
-                    "Arcade" => ("bolt-linear", "Pixel edge, violet cabinet, hard shadow"),
-                    "Paper" => ("box-linear", "Ruled note, red margin, ink lettering"),
-                    "Frosted" => ("sun-2-linear", "Icy translucent surface, glass highlights"),
-                    "Porcelain" => ("pallete-2-linear", "Blue ceramic medallion, double rim"),
-                    "Radar" => ("monitor-linear", "Instrument panel, pulsing signal rings"),
-                    _ => ("tuning-2-linear", "Your own style, icons and labels"),
-                };
-                SelectOption::new(*id, *label).icon(icon).detail(detail)
-            })
-            .collect(),
-    )
-}
-
 pub(crate) fn render(
     app: &mut SettingsApp,
     window: &mut Window,
@@ -273,7 +244,6 @@ pub(crate) fn render(
                     cx,
                 )),
         );
-    let theme_options = theme_options();
     let mut variants = div().w_full().flex().gap(px(8.));
     for (value, label) in [
         ("MicIcon", "Icon"),
@@ -574,18 +544,12 @@ pub(crate) fn render(
         .mt(px(BLOCK_GAP))
         .opacity(dim)
         .child(form::section_heading("Appearance"))
-        .child(choose(
+        .child(super::themes::theme_link(
             "overlay-theme",
-            "Theme",
-            o.theme.clone(),
-            theme_options,
-            app,
+            super::themes::Target::Microphone,
+            &o.theme,
             window,
             cx,
-            |o, v| {
-                o.icon_pair = crate::gpui_overlay::theme::default_icon_pair(&v).to_string();
-                o.theme = v;
-            },
         ))
         .child(field("Overlay style", variants))
         .child(labels)

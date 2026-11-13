@@ -38,6 +38,8 @@ use std::{
 };
 use windows::Win32::Foundation::HWND;
 
+pub(crate) mod preview;
+
 const LEVEL_MS: u64 = 120;
 /// Bar-to-number gap as a share of the chrome gap. The number is centered in
 /// a slot sized for "100", which already leaves air on both sides.
@@ -63,12 +65,26 @@ const MEDIA_LINE_GAP: f32 = 2.0;
 /// in from the right, and the covers shrink to half and grow from half.
 const TRACK_MS: u64 = 320;
 const TRACK_SHIFT: f32 = 18.0;
-/// "Up next" holds the whole text column for a beat, then swipes up and the
-/// track comes up under it.
-const UP_NEXT_HOLD_MS: f32 = 800.0;
-const UP_NEXT_SWIPE_MS: f32 = 380.0;
-/// How fast the chevrons behind "Up next" drift forward, px per second.
-const UP_NEXT_DRIFT: f32 = 36.0;
+/// "Up next" plays on an empty pill: the label slides into the center from
+/// the left while chevrons rush the same way and settle, it holds, then label
+/// and chevrons lift away and the cover and lines rise in from below.
+/// Label and chevrons arriving.
+const UP_NEXT_ENTER_MS: f32 = 650.0;
+/// Where the label starts, left of the center.
+const UP_NEXT_LABEL_SHIFT: f32 = 20.0;
+/// How many chevron steps the chevrons travel before they settle.
+const UP_NEXT_RUSH: f32 = 2.5;
+/// When the label and chevrons start to lift away.
+const UP_NEXT_HOLD_MS: f32 = 1150.0;
+const UP_NEXT_EXIT_MS: f32 = 280.0;
+/// The track starts rising once the label and chevrons are gone.
+const UP_NEXT_CONTENT_DELAY_MS: f32 = UP_NEXT_EXIT_MS;
+const UP_NEXT_CONTENT_MS: f32 = 520.0;
+const UP_NEXT_TOTAL_MS: f32 = UP_NEXT_HOLD_MS + UP_NEXT_CONTENT_DELAY_MS + UP_NEXT_CONTENT_MS;
+/// How far the track rises, as a share of the card height.
+const UP_NEXT_RISE: f32 = 0.35;
+/// Action badge appearing or leaving.
+const BADGE_MS: u64 = 220;
 /// Ambient themes tick at ~30 fps, same as the mic overlay.
 const AMBIENT_FRAME: Duration = Duration::from_millis(33);
 
@@ -328,10 +344,7 @@ struct MediaLayer {
 
 impl MediaLayer {
     fn intro_active(&self, now: Instant) -> bool {
-        self.intro.is_some_and(|start| {
-            now.saturating_duration_since(start).as_secs_f32() * 1000.0
-                < UP_NEXT_HOLD_MS + UP_NEXT_SWIPE_MS
-        })
+        self.intro.is_some() && self.intro_elapsed(now) < UP_NEXT_TOTAL_MS
     }
 
     /// Milliseconds since the "Up next" intro started.
@@ -341,19 +354,24 @@ impl MediaLayer {
             .unwrap_or(f32::MAX)
     }
 
-    /// Progress of the "Up next" swipe: 0 while it holds, 1 once the track's
-    /// lines are up. Tracks without the intro are always at 1.
-    fn intro_progress(&self, now: Instant) -> f32 {
+    /// How far the "Up next" label and chevrons have lifted away: 0 while
+    /// they hold, 1 once gone. Tracks without the intro are always at 1.
+    fn intro_out(&self, now: Instant) -> f32 {
         if self.intro.is_none() {
             return 1.0;
         }
-        let t = ((self.intro_elapsed(now) - UP_NEXT_HOLD_MS) / UP_NEXT_SWIPE_MS).clamp(0.0, 1.0);
-        // Ease in and out: the label lifts off, then the track settles.
-        if t < 0.5 {
-            4.0 * t * t * t
-        } else {
-            1.0 - (-2.0 * t + 2.0).powi(3) / 2.0
+        let t = (self.intro_elapsed(now) - UP_NEXT_HOLD_MS) / UP_NEXT_EXIT_MS;
+        fluent_accelerate(t.clamp(0.0, 1.0))
+    }
+
+    /// How far the cover and lines have risen in after the intro.
+    fn intro_in(&self, now: Instant) -> f32 {
+        if self.intro.is_none() {
+            return 1.0;
         }
+        let t = (self.intro_elapsed(now) - UP_NEXT_HOLD_MS - UP_NEXT_CONTENT_DELAY_MS)
+            / UP_NEXT_CONTENT_MS;
+        fluent_decelerate(t.clamp(0.0, 1.0))
     }
 
     /// Cover scale and sideways share of `TRACK_SHIFT` for a track swiping in
@@ -382,6 +400,9 @@ struct VolumeView {
     media_dirty: bool,
     /// Height of the now-playing strip above the meter row.
     media_height: Motion,
+    /// The music widget's action badge; "Up next" has none, the playlist
+    /// moved on by itself.
+    badge: Motion,
     /// The card is appearing from nothing: take the new size without growing.
     snap_layout: bool,
     loaded_fonts: Vec<SharedString>,
@@ -437,6 +458,7 @@ impl VolumeView {
             media: Vec::new(),
             media_dirty: true,
             media_height: Motion::new(0.0, SIZE_MS),
+            badge: Motion::new(1.0, BADGE_MS),
             snap_layout: false,
             loaded_fonts: Vec::new(),
             needs_measure: true,
@@ -496,6 +518,22 @@ impl VolumeView {
         self.device_name = next_name;
         self.content = content;
         self.style = style;
+        let badge = if matches!(
+            self.content,
+            VolumeOsdContent::Media {
+                action: MediaAction::UpNext,
+                ..
+            }
+        ) {
+            0.0
+        } else {
+            1.0
+        };
+        if self.snap_layout {
+            self.badge = Motion::new(badge, BADGE_MS);
+        } else {
+            self.badge.retarget(badge, now);
+        }
         self.needs_measure = true;
         self.sync_chrome(now);
         self.sync_glyph(now);
@@ -570,6 +608,7 @@ impl VolumeView {
 
     fn begin_enter(&mut self, now: Instant) {
         self.want_visible = true;
+        crate::volume_osd::set_card_shown(true);
         // A hidden window gets no frames, so `render` would never get to call
         // `present(true)` again. Show the window here; the frame that follows
         // animates it in.
@@ -587,6 +626,7 @@ impl VolumeView {
 
     fn begin_exit(&mut self, now: Instant) {
         self.want_visible = false;
+        crate::volume_osd::set_card_shown(false);
         if !self.surface_ready {
             return;
         }
@@ -631,7 +671,7 @@ impl VolumeView {
             VolumeOsdContent::Media {
                 action: MediaAction::UpNext,
                 ..
-            } => (UP_NEXT_HOLD_MS + UP_NEXT_SWIPE_MS) as u64,
+            } => UP_NEXT_TOTAL_MS as u64,
             _ => 0,
         };
         let wait = self.style.duration_ms as u64 + intro;
@@ -729,6 +769,10 @@ impl VolumeView {
     }
 
     fn sync_level(&mut self, now: Instant) {
+        // No meter on screen: keep the bar where it was for the next volume change.
+        if matches!(self.content, VolumeOsdContent::LockKey { .. }) {
+            return;
+        }
         let target = f32::from(self.content.percent()) / 100.0;
         if !self.level_ready {
             self.level = Motion::new(target, LEVEL_MS);
@@ -958,8 +1002,11 @@ impl Render for VolumeView {
             .map(|corner| corner * scale)
             .unwrap_or(bar_h / 2.0)
             .min(bar_h / 2.0);
-        // A device switch shows only the glyph and the device name.
-        let device_mode = matches!(self.content, VolumeOsdContent::Device { .. });
+        // A device switch or lock key shows only the glyph and a caption.
+        let device_mode = matches!(
+            self.content,
+            VolumeOsdContent::Device { .. } | VolumeOsdContent::LockKey { .. }
+        );
         // The music widget: cover, lines, and the action's glyph at the end.
         let media_mode = matches!(self.content, VolumeOsdContent::Media { .. });
         let (number_lead, number_trail) = if chrome.number_slot.is_some() {
@@ -1058,6 +1105,7 @@ impl Render for VolumeView {
             || self.height.active(now)
             || self.radius.active(now)
             || self.media_height.active(now)
+            || self.badge.active(now)
             || self
                 .media
                 .iter()
@@ -1505,7 +1553,6 @@ impl Render for VolumeView {
                 &chrome,
                 MediaFrame {
                     foreground,
-                    accent: fill,
                     track,
                     scale,
                     card_radius: radius,
@@ -1521,7 +1568,6 @@ impl Render for VolumeView {
         if media_mode {
             let frame = MediaFrame {
                 foreground,
-                accent: fill,
                 track,
                 scale,
                 card_radius: radius,
@@ -1547,12 +1593,39 @@ impl Render for VolumeView {
                             .relative()
                             .flex_shrink_0()
                             .size(px(widget_cover))
-                            .child(media_art(&media, &chrome, &frame))
-                            .child(media_badge(&glyphs, &chrome, fill, ring, widget_cover, scale)),
+                            .child(media_art(&media, &chrome, &frame, height, now))
+                            .when(self.badge.value(now) > 0.01, |cover| {
+                                cover.child(media_badge(
+                                    &glyphs,
+                                    &chrome,
+                                    fill,
+                                    ring,
+                                    widget_cover,
+                                    scale,
+                                    self.badge.value(now),
+                                ))
+                            }),
                     )
                     .child(div().flex_shrink_0().w(px(gap)))
                     .child(media_lines(&media, &chrome, &frame, height, now).h(px(height))),
             );
+            // "Up next" plays over the empty pill before the track rises in.
+            if let Some(intro) = media
+                .iter()
+                .find(|(layer, _)| layer.intro.is_some() && layer.intro_out(now) < 1.0)
+            {
+                contents = contents.child(up_next_panel(
+                    &chrome,
+                    fill,
+                    foreground,
+                    width,
+                    height,
+                    &intro.0,
+                    intro.1,
+                    now,
+                    scale,
+                ));
+            }
         } else {
             let mut row = div()
                 .absolute()
@@ -1796,8 +1869,6 @@ fn artist_type(chrome: &VolumeChrome, scale: f32) -> (u16, f32) {
 /// Size and colors shared by the strip and the music widget, in window pixels.
 struct MediaFrame {
     foreground: u32,
-    /// "Up next" ink: the theme's meter fill.
-    accent: Rgba,
     track: Rgba,
     scale: f32,
     card_radius: f32,
@@ -1820,7 +1891,10 @@ fn media_badge(
     ring: Rgba,
     cover: f32,
     scale: f32,
+    // Appearing or leaving: grows from half and fades, like a cover.
+    shown: f32,
 ) -> Div {
+    let shown = shown.clamp(0.0, 1.0);
     let (disc, ink) = match chrome.icon_box {
         Some(icon_box) if icon_box.fill.a > 0.9 => (icon_box.fill, rgb(chrome.icon_color)),
         _ => {
@@ -1829,14 +1903,18 @@ fn media_badge(
             (fill, rgb(ink))
         }
     };
-    let size = MEDIA_BADGE * scale;
-    let outer = size + MEDIA_BADGE_RING * 2.0 * scale;
+    let zoom = 0.5 + 0.5 * shown;
+    let size = MEDIA_BADGE * scale * zoom;
+    let outer = size + MEDIA_BADGE_RING * 2.0 * scale * zoom;
+    let full = (MEDIA_BADGE + MEDIA_BADGE_RING * 2.0) * scale;
     // A quarter of the badge hangs past the art, into the card's padding.
-    let offset = cover - outer * 0.75;
+    // It scales around its own center.
+    let offset = cover - full * 0.75 + (full - outer) / 2.0;
     let mut badge = div()
         .absolute()
         .left(px(offset))
         .top(px(offset))
+        .opacity(shown)
         .size(px(outer))
         .rounded(px(outer / 2.0))
         .bg(ring)
@@ -1900,7 +1978,7 @@ fn media_strip(
                 .absolute()
                 .left(px(frame.inset))
                 .top(px(frame.inset))
-                .child(media_art(layers, chrome, &frame)),
+                .child(media_art(layers, chrome, &frame, frame.cover, Instant::now())),
         )
         .child(
             media_lines(layers, chrome, &frame, frame.cover, Instant::now())
@@ -1912,7 +1990,13 @@ fn media_strip(
 }
 
 /// The covers of every visible track, stacked for the crossfade.
-fn media_art(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaFrame) -> Div {
+fn media_art(
+    layers: &[(MediaLayer, f32)],
+    chrome: &VolumeChrome,
+    frame: &MediaFrame,
+    height: f32,
+    now: Instant,
+) -> Div {
     let MediaFrame {
         foreground,
         track,
@@ -1987,13 +2071,15 @@ fn media_art(layers: &[(MediaLayer, f32)], chrome: &VolumeChrome, frame: &MediaF
             edge_width,
         )
         .border_color(edge);
+        // After "Up next" the cover rises in from below with the lines.
+        let rise = layer.intro_in(now);
         stack = stack.child(
             div()
                 .absolute()
                 .left(px((cover - edge_len) / 2.0))
-                .top(px((cover - edge_len) / 2.0))
+                .top(px((cover - edge_len) / 2.0 + (1.0 - rise) * height * UP_NEXT_RISE))
                 .size(px(edge_len))
-                .opacity(*opacity)
+                .opacity(*opacity * rise)
                 .child(art)
                 .child(outline),
         );
@@ -2012,14 +2098,12 @@ fn media_lines(
 ) -> Div {
     let MediaFrame {
         foreground,
-        accent,
         scale,
         text_w,
         ..
     } = *frame;
     let (title_weight, title_size) = title_type(chrome, scale);
     let (artist_weight, artist_size) = artist_type(chrome, scale);
-    let (intro_weight, intro_size) = intro_type(chrome, scale);
     let mut stack = div()
         .relative()
         .flex_shrink_0()
@@ -2029,27 +2113,12 @@ fn media_lines(
         // Track change: in from the right, out to the left.
         let (_, shift) = layer.swipe(*opacity);
         let dx = shift * TRACK_SHIFT * scale;
-        // "Up next" first fills the column, then lifts away while the track
-        // rises in under it.
-        let lift = layer.intro_progress(now);
-        if lift < 1.0 {
-            stack = stack.child(up_next_panel(
-                chrome,
-                accent,
-                (intro_weight, intro_size),
-                text_w,
-                height,
-                layer.intro_elapsed(now),
-                dx,
-                -lift * height,
-                *opacity * (1.0 - lift),
-                scale,
-            ));
-        }
+        // After "Up next" the lines rise in from below.
+        let rise = layer.intro_in(now);
         let mut lines = div()
             .absolute()
             .left(px(dx))
-            .top(px((1.0 - lift) * height * 0.6))
+            .top(px((1.0 - rise) * height * UP_NEXT_RISE))
             .w(px(text_w))
             .h(px(height))
             .flex()
@@ -2058,7 +2127,7 @@ fn media_lines(
             .gap(px(MEDIA_LINE_GAP * scale))
             .whitespace_nowrap()
             .font_family(chrome.font.clone())
-            .opacity(*opacity * lift);
+            .opacity(*opacity * rise);
         lines = lines.child(
             div()
                 .font_weight(FontWeight(title_weight as f32))
@@ -2082,69 +2151,121 @@ fn media_lines(
     stack
 }
 
-/// The "Up next" intro: the label over a row of faint double chevrons that
-/// keep drifting forward, the way the playlist just moved.
+/// The "Up next" intro over the whole pill. The label slides into the center
+/// from a little to the left while a row of chevrons rushes the same way and
+/// settles behind it; then both lift away.
 #[allow(clippy::too_many_arguments)]
 fn up_next_panel(
     chrome: &VolumeChrome,
     accent: Rgba,
-    (weight, size): (u16, f32),
+    foreground: u32,
     width: f32,
     height: f32,
-    elapsed_ms: f32,
-    dx: f32,
-    dy: f32,
+    layer: &MediaLayer,
     opacity: f32,
+    now: Instant,
     scale: f32,
 ) -> Div {
+    let (weight, size) = intro_type(chrome, scale);
+    let elapsed = layer.intro_elapsed(now);
+    let enter = fluent_decelerate((elapsed / UP_NEXT_ENTER_MS).clamp(0.0, 1.0));
+    // Fades land before the travel does, so the motion reads as arriving.
+    let shown = fluent_decelerate((elapsed / (UP_NEXT_ENTER_MS * 0.5)).clamp(0.0, 1.0));
+    let out = layer.intro_out(now);
+    let lift = -out * height * 0.5;
+    let fade = opacity * (1.0 - out);
+
     let chevron = (height * 0.62).max(12.0 * scale);
     let spacing = chevron * 0.8;
-    let drift = (elapsed_ms / 1000.0 * UP_NEXT_DRIFT * scale) % spacing;
+    let rush = (1.0 - enter) * UP_NEXT_RUSH * spacing;
     let mut tint = accent;
-    tint.a *= 0.16;
+    tint.a *= 0.22;
+    let count = (width / spacing).ceil() as usize + 4;
+    // Centered on the pill once settled; extra ones cover the rush.
+    let first = (width - count as f32 * spacing) / 2.0 - rush;
     let mut chevrons = div()
         .absolute()
         .left_0()
-        .top_0()
+        .top(px(lift))
         .w(px(width))
         .h(px(height))
-        .overflow_hidden();
-    let count = (width / spacing).ceil() as usize + 2;
+        .opacity(fade * shown);
     for index in 0..count {
         chevrons = chevrons.child(
             svg()
                 .path("media-up-next")
                 .absolute()
-                .left(px(drift + (index as f32 - 1.0) * spacing))
+                .left(px(first + index as f32 * spacing))
                 .top(px((height - chevron) / 2.0))
                 .size(px(chevron))
                 .text_color(tint),
         );
     }
+    let slide = -(1.0 - enter) * UP_NEXT_LABEL_SHIFT * scale;
     div()
         .absolute()
-        .left(px(dx))
-        .top(px(dy))
+        .left_0()
+        .top_0()
         .w(px(width))
         .h(px(height))
-        .opacity(opacity)
         .child(chevrons)
         .child(
             div()
                 .absolute()
-                .left_0()
-                .top_0()
-                .size_full()
+                .left(px(slide))
+                .top(px(lift))
+                .w(px(width))
+                .h(px(height))
                 .flex()
                 .items_center()
+                .justify_center()
+                .opacity(fade * shown)
                 .whitespace_nowrap()
                 .font_family(chrome.font.clone())
                 .font_weight(FontWeight(weight as f32))
                 .text_size(px(size))
                 .line_height(px(size * 1.2))
-                .text_color(accent)
+                .text_color(rgb(foreground))
                 .child(UP_NEXT),
         )
+}
+
+/// Windows' "decelerate" curve, cubic-bezier(0.1, 0.9, 0.2, 1): things that
+/// arrive come in fast and settle softly.
+fn fluent_decelerate(t: f32) -> f32 {
+    cubic_bezier(0.1, 0.9, 0.2, 1.0, t)
+}
+
+/// Windows' "accelerate" curve, cubic-bezier(0.7, 0, 1, 0.5), for things
+/// that leave.
+fn fluent_accelerate(t: f32) -> f32 {
+    cubic_bezier(0.7, 0.0, 1.0, 0.5, t)
+}
+
+/// CSS-style cubic bezier easing from (0, 0) to (1, 1).
+fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
+    if t <= 0.0 {
+        return 0.0;
+    }
+    if t >= 1.0 {
+        return 1.0;
+    }
+    let curve = |a: f32, b: f32, s: f32| {
+        let inv = 1.0 - s;
+        3.0 * inv * inv * s * a + 3.0 * inv * s * s * b + s * s * s
+    };
+    // Find the curve parameter whose x is `t`; x is monotonic, so bisect.
+    let (mut low, mut high) = (0.0f32, 1.0f32);
+    let mut s = t;
+    for _ in 0..24 {
+        s = (low + high) / 2.0;
+        if curve(x1, x2, s) < t {
+            low = s;
+        } else {
+            high = s;
+        }
+    }
+    curve(y1, y2, s)
 }
 
 fn mix_rgba(parts: impl Iterator<Item = (Rgba, f32)>) -> Rgba {
@@ -2227,6 +2348,10 @@ fn detail_look(chrome: &VolumeChrome) -> Look {
 }
 
 fn device_caption(content: &VolumeOsdContent) -> Option<String> {
+    if let VolumeOsdContent::LockKey { key, on } = content {
+        let state = if *on { "on" } else { "off" };
+        return Some(format!("{} {state}", key.label()));
+    }
     let VolumeOsdContent::Device { name, .. } = content else {
         return None;
     };
@@ -2257,6 +2382,8 @@ fn content_glyph(content: &VolumeOsdContent) -> &'static str {
             MediaAction::Next => "media-next",
             MediaAction::Previous => "media-previous",
         },
+        VolumeOsdContent::LockKey { on: true, .. } => "lock-on",
+        VolumeOsdContent::LockKey { on: false, .. } => "lock-off",
     }
 }
 
@@ -2284,6 +2411,8 @@ fn fluent_glyph(content: &VolumeOsdContent) -> &'static str {
             MediaAction::Next => "fluent:E893",
             MediaAction::Previous => "fluent:E892",
         },
+        VolumeOsdContent::LockKey { on: true, .. } => "fluent:E72E",
+        VolumeOsdContent::LockKey { on: false, .. } => "fluent:E785",
     }
 }
 
@@ -2361,6 +2490,10 @@ pub(super) fn icon_svg(id: &str) -> Option<&'static str> {
         // Pulldown-screen glyph. Display endpoints use the monitor; this stays
         // in the binary because the task asked for the Solar display icon.
         "device-screen" => include_str!("../../assets/icons/volume/display-bold.svg"),
+        "lock-on" => include_str!("../../assets/icons/volume/lock-keyhole-minimalistic-bold.svg"),
+        "lock-off" => {
+            include_str!("../../assets/icons/volume/lock-keyhole-minimalistic-unlocked-bold.svg")
+        }
         // Now-playing stand-in when the player publishes no art.
         "media-note" => include_str!("../../assets/icons/music-note-2-bold.svg"),
         "media-play" => include_str!("../../assets/icons/play-bold.svg"),

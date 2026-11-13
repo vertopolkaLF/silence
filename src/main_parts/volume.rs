@@ -222,7 +222,27 @@ pub fn step_output_volume(steps: i32) -> Result<()> {
     if steps == 0 {
         return Ok(());
     }
-    with_output_volume(|volume| step_output_volume_on(volume, steps))
+    let changed = with_output_volume(|volume| step_output_volume_on(volume, steps))?;
+    if !changed {
+        on_output_volume_at_limit();
+    }
+    Ok(())
+}
+
+/// A step past 100% (or below 0%) writes nothing, so Windows sends no change
+/// notification. Show the OSD anyway so the press still gets an answer.
+fn on_output_volume_at_limit() {
+    let state = output_volume_state();
+    if !output_volume_is_seeded() || state.device_id.is_empty() {
+        return;
+    }
+    if volume_popup::volume_popup_open() {
+        return;
+    }
+    show_volume_osd(volume_osd::VolumeOsdContent::Level {
+        percent: output_percent(&state),
+        muted: state.muted,
+    });
 }
 
 /// `level` is a master scalar, clamped to `0.0..=1.0`.
@@ -393,6 +413,51 @@ pub fn on_output_device_changed(state: &OutputVolumeState) {
     }
     // No sound for device switches; volume ticks are own level/mute changes only.
     cancel_volume_change_sound();
+}
+
+/// Last seen on/off of Caps, Num and Scroll Lock, one bit per
+/// [`volume_osd::LockKey`]. `LOCK_KEYS_UNKNOWN` until the first read.
+static LOCK_KEYS_ON: AtomicU8 = AtomicU8::new(LOCK_KEYS_UNKNOWN);
+const LOCK_KEYS_UNKNOWN: u8 = 0xFF;
+const LOCK_KEYS: [volume_osd::LockKey; 3] = [
+    volume_osd::LockKey::Caps,
+    volume_osd::LockKey::Num,
+    volume_osd::LockKey::Scroll,
+];
+
+fn read_lock_keys() -> u8 {
+    LOCK_KEYS.iter().fold(0, |bits, key| {
+        let on = unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState(key.vk() as i32) } & 1 != 0;
+        bits | (u8::from(on) << *key as u8)
+    })
+}
+
+/// Record the lock states at startup, so the first change has something to
+/// compare against.
+pub(crate) fn prime_lock_keys() {
+    LOCK_KEYS_ON.store(read_lock_keys(), Ordering::Relaxed);
+}
+
+/// A lock key or Shift moved a moment ago. Show the OSD only for a state that
+/// actually changed: a remapped or swallowed key toggles nothing.
+pub(crate) fn check_lock_keys() {
+    let now = read_lock_keys();
+    let before = LOCK_KEYS_ON.swap(now, Ordering::Relaxed);
+    if before == LOCK_KEYS_UNKNOWN {
+        return;
+    }
+    let changed = now ^ before;
+    let Some(key) = LOCK_KEYS.into_iter().find(|key| changed & (1 << *key as u8) != 0) else {
+        return;
+    };
+    let wanted = {
+        let app = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        app.volume.osd.show_on_lock_keys
+    };
+    if wanted {
+        let on = now & (1 << key as u8) != 0;
+        show_volume_osd(volume_osd::VolumeOsdContent::LockKey { key, on });
+    }
 }
 
 static LAST_DEFAULT_CAPTURE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
@@ -851,7 +916,8 @@ fn read_bound_render_state() -> Result<OutputVolumeState> {
 }
 
 #[allow(dead_code)]
-fn step_output_volume_on(volume: &IAudioEndpointVolume, steps: i32) -> Result<()> {
+/// `false` when the level and mute were already where the step lands.
+fn step_output_volume_on(volume: &IAudioEndpointVolume, steps: i32) -> Result<bool> {
     let step_percent = STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -862,17 +928,22 @@ fn step_output_volume_on(volume: &IAudioEndpointVolume, steps: i32) -> Result<()
     let current = unsafe { volume.GetMasterVolumeLevelScalar().context("read output volume")? };
     let muted = unsafe { volume.GetMute().context("read output mute")?.as_bool() };
     let next = stepped_output_percent(current, steps, step_percent);
+    let unmute = steps > 0 && muted;
+    let target = f32::from(next) / 100.0;
+    if (current - target).abs() < 0.0005 && !unmute {
+        return Ok(false);
+    }
     unsafe {
         volume
-            .SetMasterVolumeLevelScalar(f32::from(next) / 100.0, &OUTPUT_VOLUME_EVENT_CONTEXT)
+            .SetMasterVolumeLevelScalar(target, &OUTPUT_VOLUME_EVENT_CONTEXT)
             .context("step output volume")?;
-        if steps > 0 && muted {
+        if unmute {
             volume
                 .SetMute(BOOL::from(false), &OUTPUT_VOLUME_EVENT_CONTEXT)
                 .context("unmute output while increasing volume")?;
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 #[allow(dead_code)]

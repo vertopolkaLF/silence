@@ -11,6 +11,8 @@ static MEDIA_KEYS_INTERCEPT: AtomicBool = AtomicBool::new(false);
 static MUSIC_KEYS_ON: AtomicBool = AtomicBool::new(false);
 /// Transport key currently held, so auto-repeat counts as one press.
 static MEDIA_KEY_HELD: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+/// Button whose press on the volume OSD was swallowed; its release is too.
+static OSD_CLICK_HELD: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 static WHEEL_ZONE: AtomicU8 = AtomicU8::new(0);
 static TRAY_HWND: AtomicIsize = AtomicIsize::new(0);
 static LAST_HOOK_MILLIS: AtomicU64 = AtomicU64::new(0);
@@ -277,6 +279,29 @@ fn swallow_volume_media_key(
             }
         }
     }
+    true
+}
+
+/// A press on the volume OSD card hides it. The window itself stays
+/// click-through, so the press is taken here and never reaches the app under
+/// the card; its release is taken too.
+fn swallow_volume_osd_click(event: u32, mouse: &MSLLHOOKSTRUCT) -> bool {
+    if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
+        return false;
+    }
+    let Some(button) = mouse_button_from_event(event, mouse.mouseData) else {
+        return false;
+    };
+    if !mouse_button_event_is_down(event) {
+        return OSD_CLICK_HELD
+            .compare_exchange(button, 0, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok();
+    }
+    if !volume_osd::card_hit(mouse.pt) {
+        return false;
+    }
+    OSD_CLICK_HELD.store(button, Ordering::Relaxed);
+    volume_osd::volume_osd_hide();
     true
 }
 

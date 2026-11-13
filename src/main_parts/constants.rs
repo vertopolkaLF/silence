@@ -36,6 +36,9 @@ const WM_VOLUME_POPUP: u32 = WM_APP + 21;
 pub(crate) const WM_VOLUME_OSD_MOVED: u32 = WM_APP + 22;
 /// Settings "Move OSD" toggle: `wparam` 1 = on, 0 = off.
 const WM_VOLUME_OSD_POSITIONING: u32 = WM_APP + 23;
+/// A lock key or Shift went down or up; the lock states may have changed.
+/// `wparam` is the virtual-key code, `lparam` 1 = down, 0 = up.
+const WM_LOCK_KEY: u32 = WM_APP + 24;
 /// Second notify icon for output volume. The microphone icon keeps [`ID_TRAY`].
 const ID_VOLUME_TRAY: u32 = 2;
 const ID_STATE_TIMER: usize = 10;
@@ -52,6 +55,10 @@ const ID_HOOK_HEALTH_TIMER: usize = 17;
 const ID_VOLUME_SOUND_TIMER: usize = 18;
 const ID_VOLUME_TRAY_CLICK_TIMER: usize = 19;
 const ID_VOLUME_TRAY_ADD_RETRY_TIMER: usize = 20;
+/// Reads the lock-key states shortly after a lock key or Shift moved.
+const ID_LOCK_KEY_TIMER: usize = 21;
+/// The key has been processed by then, so the toggle state is final.
+const LOCK_KEY_SETTLE_MS: u32 = 40;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;

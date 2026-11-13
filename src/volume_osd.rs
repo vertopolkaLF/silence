@@ -61,6 +61,9 @@ static OSD: Lazy<Mutex<Option<NativeOsd>>> = Lazy::new(|| Mutex::new(None));
 static RUNTIME: Lazy<Mutex<Option<Runtime>>> = Lazy::new(|| Mutex::new(None));
 static READY: Lazy<Mutex<Option<Sender<()>>>> = Lazy::new(|| Mutex::new(None));
 static ORIGINAL_WNDPROC: AtomicIsize = AtomicIsize::new(0);
+/// The card is entering or on screen (not fading out). Only then does a click
+/// on it count.
+static CARD_SHOWN: AtomicBool = AtomicBool::new(false);
 
 struct Runtime {
     sender: Sender<Command>,
@@ -175,6 +178,43 @@ pub enum VolumeOsdContent {
         track: std::sync::Arc<crate::media_session::NowPlaying>,
         action: MediaAction,
     },
+    /// Caps, Num or Scroll Lock was toggled.
+    LockKey { key: LockKey, on: bool },
+}
+
+/// A toggle key the lock-key OSD reports on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LockKey {
+    Caps,
+    Num,
+    Scroll,
+}
+
+impl LockKey {
+    pub fn from_vk(vk: u32) -> Option<Self> {
+        match vk {
+            0x14 => Some(Self::Caps),
+            0x90 => Some(Self::Num),
+            0x91 => Some(Self::Scroll),
+            _ => None,
+        }
+    }
+
+    pub fn vk(self) -> u32 {
+        match self {
+            Self::Caps => 0x14,
+            Self::Num => 0x90,
+            Self::Scroll => 0x91,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Caps => "Caps Lock",
+            Self::Num => "Num Lock",
+            Self::Scroll => "Scroll Lock",
+        }
+    }
 }
 
 /// Why the music widget is up. Drives its status glyph.
@@ -192,14 +232,14 @@ impl VolumeOsdContent {
     pub fn is_muted(&self) -> bool {
         match self {
             Self::Level { muted, .. } | Self::Device { muted, .. } => *muted,
-            Self::Media { .. } => false,
+            Self::Media { .. } | Self::LockKey { .. } => false,
         }
     }
 
     pub fn percent(&self) -> u8 {
         match self {
             Self::Level { percent, .. } | Self::Device { percent, .. } => (*percent).min(100),
-            Self::Media { .. } => 0,
+            Self::Media { .. } | Self::LockKey { .. } => 0,
         }
     }
 }
@@ -530,6 +570,34 @@ pub(crate) fn present(visible: bool) {
     unsafe {
         let _ = PostMessageW(osd.hwnd, WM_VOLUME_PRESENT, WPARAM(0), LPARAM(0));
     }
+}
+
+pub(crate) fn set_card_shown(shown: bool) {
+    CARD_SHOWN.store(shown, Ordering::Relaxed);
+}
+
+/// The window stays click-through, so the tray's mouse hook asks this. Only
+/// the card counts, not the shadow gutter around it, and never during "Move OSD".
+pub(crate) fn card_hit(point: POINT) -> bool {
+    if !CARD_SHOWN.load(Ordering::Relaxed) {
+        return false;
+    }
+    let guard = OSD.lock().unwrap();
+    let Some(osd) = guard.as_ref() else {
+        return false;
+    };
+    if osd.hwnd.0.is_null() || osd.positioning || osd.dragging || !osd.presented {
+        return false;
+    }
+    let Some((x, y, _, _)) = osd.last_surface else {
+        return false;
+    };
+    let left = x + osd.origin.0;
+    let top = y + osd.origin.1;
+    point.x >= left
+        && point.x < left + osd.card_width
+        && point.y >= top
+        && point.y < top + osd.card_height
 }
 
 /// `true` while a fullscreen app (a game, a fullscreen video) covers the

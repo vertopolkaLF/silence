@@ -16,6 +16,7 @@ pub(crate) mod hold_to_mute;
 pub(crate) mod hotkeys;
 pub(crate) mod overlay;
 pub(crate) mod sounds;
+pub(crate) mod themes;
 pub(crate) mod tray_icon;
 pub(crate) mod volume;
 
@@ -25,6 +26,7 @@ pub(crate) struct Sections {
     pub general: general::State,
     pub devices: devices::State,
     pub sounds: sounds::State,
+    pub themes: themes::State,
     pub overlay: overlay::State,
     pub hold_to_mute: hold_to_mute::State,
     pub tray_icon: tray_icon::State,
@@ -45,6 +47,7 @@ pub(crate) fn render(
         SettingsTab::General => general::render(app, window, cx),
         SettingsTab::Devices => devices::render(app, window, cx),
         SettingsTab::Sounds => sounds::render(app, window, cx),
+        SettingsTab::Themes => themes::render(app, window, cx),
         SettingsTab::Overlay => overlay::render(app, window, cx),
         SettingsTab::HoldToMute => hold_to_mute::render(app, window, cx),
         SettingsTab::TrayIcon => tray_icon::render(app, window, cx),
