@@ -23,7 +23,6 @@ use gilrs::{Button, EventType, Gilrs};
 use once_cell::sync::Lazy;
 use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Source, buffer::SamplesBuffer};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use windows::{
     Win32::{
         Devices::{

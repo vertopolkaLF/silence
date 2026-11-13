@@ -16,7 +16,7 @@ use gpui::{
 use std::rc::Rc;
 
 const STEP_FADE: Transition = Transition::new(220, Easing::Bezier(0.22, 1., 0.36, 1.));
-/// Modules + three mic screens + the Volume² screen + three volume screens.
+/// Modules + two mic screens + the Volume² screen + three volume screens + done.
 const MAX_DOTS: usize = 8;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -24,11 +24,11 @@ pub(super) enum StepKind {
     Modules,
     MicIntro,
     MicHotkey,
-    MicDone,
     Volume2,
     Wheel,
     Skin,
     MediaKeys,
+    Done,
 }
 
 pub(super) fn is_hotkey_step(app: &SettingsApp) -> bool {
@@ -51,11 +51,9 @@ pub(super) fn focus_ids(kind: StepKind) -> &'static [&'static str] {
         ],
         StepKind::MicIntro => &[
             "welcome-intro-back",
-            "welcome-import",
             "welcome-set-hotkey",
         ],
         StepKind::MicHotkey => &[],
-        StepKind::MicDone => &["welcome-done-back", "welcome-finish"],
         StepKind::Volume2 => &[
             "welcome-v2-import",
             "welcome-v2-autostart",
@@ -80,17 +78,14 @@ pub(super) fn focus_ids(kind: StepKind) -> &'static [&'static str] {
             "welcome-skin-next",
         ],
         StepKind::MediaKeys => &["welcome-media-back", "welcome-media-next"],
+        StepKind::Done => &["welcome-done-back", "welcome-finish"],
     }
 }
 
 fn plan(app: &SettingsApp) -> Vec<StepKind> {
     let mut steps = vec![StepKind::Modules];
     if app.welcome.pick_microphone {
-        steps.extend([
-            StepKind::MicIntro,
-            StepKind::MicHotkey,
-            StepKind::MicDone,
-        ]);
+        steps.extend([StepKind::MicIntro, StepKind::MicHotkey]);
     }
     if app.welcome.pick_volume {
         if volume2_in_flow(app) {
@@ -98,6 +93,7 @@ fn plan(app: &SettingsApp) -> Vec<StepKind> {
         }
         steps.extend([StepKind::Wheel, StepKind::Skin, StepKind::MediaKeys]);
     }
+    steps.push(StepKind::Done);
     steps
 }
 
@@ -119,10 +115,6 @@ fn volume2_in_flow(app: &SettingsApp) -> bool {
     } else {
         app.welcome.volume2_included
     }
-}
-
-pub(super) fn is_last(app: &SettingsApp) -> bool {
-    app.welcome.step + 1 >= plan(app).len()
 }
 
 pub(super) fn advance(

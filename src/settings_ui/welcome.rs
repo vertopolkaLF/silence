@@ -16,14 +16,11 @@ use gpui::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    io::ErrorKind,
     time::{Duration, Instant},
 };
 
 pub(crate) struct State {
     step: usize,
-    returning_user: bool,
-    import_error: String,
     captured: Option<crate::Shortcut>,
     modifier_hold: Option<(crate::Shortcut, Instant)>,
     held_keys: HashSet<u32>,
@@ -51,8 +48,6 @@ impl Default for State {
     fn default() -> Self {
         Self {
             step: 0,
-            returning_user: false,
-            import_error: String::new(),
             captured: None,
             modifier_hold: None,
             held_keys: HashSet::new(),
@@ -386,43 +381,23 @@ fn heading(
 
 fn features(app: &SettingsApp) -> Div {
     let palette = app.palette;
-    let cards = if app.welcome.returning_user {
-        [
-            (
-                "microphone-3-bold",
-                "Managing devices",
-                "Pick exact mics or target every input.",
-            ),
-            (
-                "monitor-bold",
-                "Better overlay",
-                "More styles with live positioning.",
-            ),
-            (
-                "keyboard-bold",
-                "New hotkeys system",
-                "Bind keys, mouse, or controller buttons.",
-            ),
-        ]
-    } else {
-        [
-            (
-                "keyboard-bold",
-                "Global hotkeys",
-                "Mute from games, calls, or whatever fullscreen nonsense is eating your keyboard.",
-            ),
-            (
-                "widget-bold",
-                "Live overlay",
-                "Your mic state updates everywhere immediately, because stale UI is bullshit.",
-            ),
-            (
-                "volume-loud-bold",
-                "Sound feedback",
-                "Hear the mute change before you start talking into the void like a professional idiot.",
-            ),
-        ]
-    };
+    let cards = [
+        (
+            "keyboard-bold",
+            "Global hotkeys",
+            "Mute from games, calls, or whatever fullscreen nonsense is eating your keyboard.",
+        ),
+        (
+            "widget-bold",
+            "Live overlay",
+            "Your mic state updates everywhere immediately, because stale UI is bullshit.",
+        ),
+        (
+            "volume-loud-bold",
+            "Sound feedback",
+            "Hear the mute change before you start talking into the void like a professional idiot.",
+        ),
+    ];
     div()
         .flex()
         .gap(px(12.))
@@ -664,11 +639,12 @@ pub(crate) fn render(
         if app.welcome.completed { 0.02 } else { 0.16 },
         anim::UI,
     );
+    let kind = flow::current(app);
     let viewport = window.viewport_size();
     let stars = app.welcome.stars.frame(
         f32::from(viewport.width),
         f32::from(viewport.height),
-        app.welcome.completed,
+        kind == flow::StepKind::Done,
         window.is_visible(),
     );
     let star_canvas = canvas(
@@ -683,7 +659,6 @@ pub(crate) fn render(
     .left_0()
     .top_0()
     .size_full();
-    let kind = flow::current(app);
     let count_fade = flow::progress_fade(app, window, cx);
     let mut screen = div()
         .flex()
@@ -738,70 +713,6 @@ pub(crate) fn render(
                 ),
             ))
             .child(features(app));
-        if !app.welcome.import_error.is_empty() {
-            let error_in = anim::tween_from(
-                window,
-                cx,
-                "welcome-import-error",
-                0.,
-                1.,
-                Transition::new(200, Easing::Ease),
-            );
-            screen = screen.child(
-                block(
-                    app,
-                    20,
-                    div()
-                        .py(px(9.))
-                        .px(px(12.))
-                        .rounded(px(8.))
-                        .border_1()
-                        .border_color(mix_pct(palette.danger, 42., palette.border).hsla())
-                        .bg(palette.danger.opacity(0.12).hsla())
-                        .text_color(palette.danger.hsla())
-                        .text_size(px(13.))
-                        .font_weight(FontWeight(700.))
-                        .opacity(error_in)
-                        .child(app.welcome.import_error.clone()),
-                )
-                .self_start()
-                .max_w_full(),
-            );
-        }
-        let import = action(
-            "welcome-import",
-            "Import settings from v.1.X.X app",
-            false,
-            true,
-            app,
-            window,
-            cx,
-            |app, _, window, cx| match crate::import_v1_settings() {
-                Ok(()) => {
-                    app.welcome.import_error.clear();
-                    app.welcome.returning_user = true;
-                    app.welcome.completed = true;
-                    app.welcome.progress = 1.;
-                    app.reload_config(cx);
-                    app.refresh_devices(cx);
-                    flow::goto(app, flow::StepKind::MicDone, window, cx);
-                }
-                Err(error) => {
-                    let not_found = error.chain().any(|cause| {
-                        cause
-                            .downcast_ref::<std::io::Error>()
-                            .is_some_and(|e| e.kind() == ErrorKind::NotFound)
-                            || cause.to_string().to_ascii_lowercase().contains("not found")
-                    });
-                    app.welcome.import_error = if not_found {
-                        "not found".into()
-                    } else {
-                        error.to_string()
-                    };
-                    cx.notify();
-                }
-            },
-        );
         let back = action(
             "welcome-intro-back",
             "Back",
@@ -831,7 +742,6 @@ pub(crate) fn render(
                 .items_center()
                 .gap(px(10.))
                 .child(back)
-                .child(import)
                 .child(next),
         ));
         }
@@ -881,16 +791,25 @@ pub(crate) fn render(
                 .child(next),
         ));
         }
-        flow::StepKind::MicDone => {
-        let returning = app.welcome.returning_user;
-        let last = flow::is_last(app);
-        screen = screen.child(block(app, 80, heading(if returning { "Welcome Back!" } else { "Ready to mute" },
-            Some(if returning { "Have a look at new features" } else {
-                "Explore a bunch of options to customize your experience. Multiple hotkeys, custom sounds, managing your audio devices, gamepad support and more..."
-            }), !returning, cx)));
-        if returning {
-            screen = screen.child(features(app));
-        }
+        flow::StepKind::Done => {
+        let (title, subtitle, finish_label) = match (app.welcome.pick_microphone, app.welcome.pick_volume) {
+            (true, true) => (
+                "You're all set",
+                "Mute with your hotkey, scroll to change volume. Explore multiple hotkeys, custom sounds, overlay looks, audio devices, gamepad support and more...",
+                "Let's go",
+            ),
+            (false, true) => (
+                "Ready to scroll",
+                "Explore a bunch of options to customize your experience. Wheel areas, overlay skins, media keys, audio devices and more...",
+                "Start scrolling",
+            ),
+            _ => (
+                "Ready to mute",
+                "Explore a bunch of options to customize your experience. Multiple hotkeys, custom sounds, managing your audio devices, gamepad support and more...",
+                "Start muting",
+            ),
+        };
+        screen = screen.child(block(app, 80, heading(title, Some(subtitle), true, cx)));
         let back = action(
             "welcome-done-back",
             "Back",
@@ -907,13 +826,7 @@ pub(crate) fn render(
         );
         let next = action(
             "welcome-finish",
-            if !last {
-                "Next"
-            } else if returning {
-                "Continue muting"
-            } else {
-                "Start muting"
-            },
+            finish_label,
             true,
             false,
             app,
@@ -1082,7 +995,7 @@ struct StarField {
     stars: Vec<Star>,
     rng: u64,
     current_ftl: f32,
-    recorded: bool,
+    warp: bool,
     last_frame: Instant,
     dimensions: (f32, f32),
 }
@@ -1097,7 +1010,7 @@ impl StarField {
                 .as_nanos() as u64
                 | 1,
             current_ftl: 1.,
-            recorded: false,
+            warp: false,
             last_frame: Instant::now(),
             dimensions: (0., 0.),
         }
@@ -1128,7 +1041,7 @@ impl StarField {
             progress_speed: 1. / (duration * 60.),
         }
     }
-    fn frame(&mut self, width: f32, height: f32, recorded: bool, visible: bool) -> Vec<StarPaint> {
+    fn frame(&mut self, width: f32, height: f32, warp: bool, visible: bool) -> Vec<StarPaint> {
         let dt = if visible {
             self.last_frame.elapsed().as_secs_f32().min(0.05) * 60.
         } else {
@@ -1136,13 +1049,13 @@ impl StarField {
         };
         self.last_frame = Instant::now();
         self.dimensions = (width, height);
-        if self.stars.is_empty() || (self.recorded && !recorded) {
+        if self.stars.is_empty() || (self.warp && !warp) {
             self.current_ftl = 1.;
             self.stars = (0..55).map(|_| self.star(true)).collect();
         }
-        self.recorded = recorded;
+        self.warp = warp;
         self.current_ftl +=
-            (if recorded { 10. } else { 1. } - self.current_ftl) * (1. - 0.95_f32.powf(dt));
+            (if warp { 10. } else { 1. } - self.current_ftl) * (1. - 0.95_f32.powf(dt));
         let ftl = self.current_ftl;
         for index in 0..self.stars.len() {
             let star = &mut self.stars[index];
