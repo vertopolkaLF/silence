@@ -771,6 +771,8 @@ pub struct AdvancedSettings {
     #[serde(default)]
     pub set_mic_volume_to_zero_on_mute: bool,
     #[serde(default)]
+    pub block_bluetooth_handsfree: bool,
+    #[serde(default)]
     pub ungroup_tray_devices: bool,
     #[serde(default = "default_audio_device_name_display")]
     pub audio_device_name_display: String,
@@ -786,6 +788,7 @@ impl Default for AdvancedSettings {
             disable_tray_double_click_settings: false,
             disable_auto_updates: false,
             set_mic_volume_to_zero_on_mute: false,
+            block_bluetooth_handsfree: false,
             ungroup_tray_devices: false,
             audio_device_name_display: default_audio_device_name_display(),
             enable_mica: default_enable_mica(),

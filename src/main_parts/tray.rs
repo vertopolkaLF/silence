@@ -744,6 +744,7 @@ unsafe extern "system" fn main_wnd_proc(
         WM_AUDIO_ENDPOINT_CHANGED => {
             ensure_audio_notification_registration();
             refresh_mute_state();
+            enforce_bluetooth_handsfree_block();
             on_capture_endpoints_changed();
             LRESULT(0)
         }

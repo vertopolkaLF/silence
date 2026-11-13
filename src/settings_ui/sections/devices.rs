@@ -125,6 +125,15 @@ pub(crate) fn render(
         cx,
         |app, value, _, cx| app.update_config(cx, |c| c.advanced.ungroup_tray_devices = value),
     );
+    let handsfree = controls::toggle(
+        "devices-bt-handsfree",
+        app.snapshot.config.advanced.block_bluetooth_handsfree,
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |c| c.advanced.block_bluetooth_handsfree = value)
+        },
+    );
     vec![
         div()
             .flex()
@@ -143,6 +152,12 @@ pub(crate) fn render(
                         "Ungroup devices in tray menu",
                         None,
                         toggle,
+                        cx,
+                    ))
+                    .child(super::form::setting_row(
+                        "Keep Bluetooth headphones in high quality",
+                        Some("Turns off hands-free mode, so calls can't drop sound to mono. The headset's own mic stops working"),
+                        handsfree,
                         cx,
                     )),
             )
@@ -184,7 +199,7 @@ fn device_list(
         .flex()
         .flex_col()
         .gap(px(10.))
-        .child(style::section(title))
+        .child(style::group(title, cx))
         .child(body)
 }
 

@@ -40,6 +40,16 @@ pub(crate) fn section(text: impl Into<SharedString>) -> Div {
         .child(text.into())
 }
 
+/// Heading of a group of rows: [`section`] in the muted color, so it reads as
+/// a label for the rows below rather than as one more setting.
+pub(crate) fn group(text: impl Into<SharedString>, cx: &App) -> Div {
+    section(text).text_color(palette(cx).muted.hsla())
+}
+
+/// Space above a [`group`] heading, measured from the rule of the row above.
+/// Larger than the row gap so the heading sits with the rows it names.
+pub(crate) const GROUP_GAP: f32 = 32.;
+
 /// Muted 13px/1.4 description under a setting label.
 pub(crate) fn desc(text: impl Into<SharedString>, cx: &App) -> Div {
     div()

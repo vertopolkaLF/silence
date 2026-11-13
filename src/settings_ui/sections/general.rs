@@ -154,8 +154,8 @@ pub(crate) fn render(
         .flex()
         .flex_col()
         .gap(px(ROW_GAP))
-        .pt(px(style::BLOCK_GAP - ROW_GAP + 8.))
-        .child(style::section("Backup"))
+        .pt(px(style::GROUP_GAP - ROW_GAP))
+        .child(style::group("Backup", cx))
         .child(card_row(
             "Export settings",
             Some("Saves hotkeys, sounds and appearance to a file."),
@@ -180,7 +180,7 @@ pub(crate) fn render(
             window,
             cx,
         ))
-        .child(style::section("Reset").mt(px(style::BLOCK_GAP - ROW_GAP)))
+        .child(style::group("Reset", cx).mt(px(style::GROUP_GAP - ROW_GAP)))
         .child(action_card(
             "general-reset",
             "Reset all settings",

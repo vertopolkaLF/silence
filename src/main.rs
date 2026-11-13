@@ -150,6 +150,7 @@ include!("main_parts/hotkeys_mute.rs");
 include!("main_parts/updates_overlay.rs");
 include!("main_parts/mute_feedback.rs");
 include!("main_parts/audio.rs");
+include!("main_parts/bt_handsfree.rs");
 include!("main_parts/volume.rs");
 include!("main_parts/volume_input.rs");
 include!("main_parts/runtime_config.rs");

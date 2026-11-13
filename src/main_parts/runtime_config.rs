@@ -886,6 +886,8 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     let mut state = STATE.lock().unwrap();
     let volume_zero_mute_changed =
         state.advanced.set_mic_volume_to_zero_on_mute != config.advanced.set_mic_volume_to_zero_on_mute;
+    let handsfree_block_changed =
+        state.advanced.block_bluetooth_handsfree != config.advanced.block_bluetooth_handsfree;
     let indicator_device_changed =
         indicator_device_id(&state.advanced.indicator_device, &state.hotkeys)
             != indicator_device_id(&config.advanced.indicator_device, &config.hotkeys);
@@ -926,6 +928,9 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     if !hwnd.0.is_null() {
         // Tray process only; the settings process has no OSD.
         apply_volume_osd_config(config);
+        if handsfree_block_changed {
+            sync_bluetooth_handsfree_setting(config.advanced.block_bluetooth_handsfree);
+        }
     }
     sync_volume_tray_icon();
     prime_sound_assets(&config.sound_settings);

@@ -234,6 +234,7 @@ fn run_background_app() -> Result<()> {
         ensure_gamepad_monitors(true);
     }
     ensure_audio_notification_registration();
+    enforce_bluetooth_handsfree_block();
     // Seed the default microphone so the first real switch shows the OSD.
     on_capture_endpoints_changed();
     if volume_module_enabled() {
