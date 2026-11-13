@@ -290,7 +290,6 @@ pub(crate) fn sound_picker(
         mic.volume
     }
     .min(100);
-    let has_override = override_theme.is_some();
     let library = mic.custom_sounds.clone();
     let mut label_settings = if volume_tick { volume_sound } else { mic };
     label_settings.custom_sounds = library.clone();
@@ -362,8 +361,9 @@ pub(crate) fn sound_picker(
         window,
         cx,
     );
-    // A card row: the select is the row, its buttons sit at the row's end.
-    let mut row = div()
+    // A card row: the select is the row, the preview button ends it. Hold to
+    // mute goes back to the inherited sound through the "Default" option.
+    div()
         .w_full()
         .flex_shrink_0()
         .flex()
@@ -371,31 +371,7 @@ pub(crate) fn sound_picker(
         .gap(px(6.))
         .pr(px(10.))
         .child(div().flex_1().min_w_0().child(select))
-        .child(preview);
-    if inherited {
-        row = row.child(
-            controls::button(
-                format!("{id}-reset"),
-                ButtonKind::Tonal,
-                None,
-                Some("Reset".into()),
-                !has_override,
-                window,
-                cx,
-                move |app, _, _, cx| {
-                    app.update_config(cx, |config| {
-                        if muted {
-                            config.hold_to_mute.mute_theme_override = None;
-                        } else {
-                            config.hold_to_mute.unmute_theme_override = None;
-                        }
-                    });
-                },
-            )
-            .px(px(14.)),
-        );
-    }
-    row
+        .child(preview)
 }
 
 fn preview_key(selection: &str, muted: bool) -> String {

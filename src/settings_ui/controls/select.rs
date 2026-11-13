@@ -205,6 +205,7 @@ fn option_copy(
     option: &SelectOption,
     detail: bool,
     current: bool,
+    dense: bool,
     p: crate::settings_ui::theme::Palette,
 ) -> Div {
     div()
@@ -216,8 +217,14 @@ fn option_copy(
         .child(
             div()
                 .min_w_0()
-                .text_size(px(if current { 14. } else { 16. }))
-                .font_weight(FontWeight(if current { 560. } else { 400. }))
+                .text_size(px(if current || dense { 14. } else { 16. }))
+                .font_weight(FontWeight(if current {
+                    560.
+                } else if dense {
+                    500.
+                } else {
+                    400.
+                }))
                 .line_height(relative(1.18))
                 .text_color(p.text.hsla())
                 .when(!current, |this| this.line_clamp(2))
@@ -660,7 +667,7 @@ pub(crate) fn select(
                 .min_w_0()
                 .when_some(previous.filter(|_| exiting < 1.), |this, old| {
                     this.child(
-                        option_copy(&old, options.show_current_detail, true, p)
+                        option_copy(&old, options.show_current_detail, true, false, p)
                             .absolute()
                             .top(px(-14. * exiting))
                             .opacity(1. - exiting),
@@ -668,7 +675,7 @@ pub(crate) fn select(
                 })
                 .when_some(current.clone(), |this, current| {
                     this.child(
-                        option_copy(&current, options.show_current_detail, true, p)
+                        option_copy(&current, options.show_current_detail, true, false, p)
                             .relative()
                             .top(px(14. * (1. - entering)))
                             .opacity(entering),
@@ -854,6 +861,9 @@ pub(crate) fn select(
     root
 }
 
+/// Width of the popover a card-row select opens.
+const ROW_MENU_WIDTH: f32 = 300.;
+
 fn menu(
     id: &SharedString,
     value: &SharedString,
@@ -870,6 +880,21 @@ fn menu(
 ) -> AnyElement {
     let p = palette(cx);
     let viewport = window.viewport_size();
+    // A card-row select opens a compact popover under its value. The card is
+    // already surface-2, so the popover is one step above it, and its rows
+    // are the size of the row's own text.
+    let row = options.row_label.is_some();
+    let menu_bg = if row && !p.mica {
+        p.surface_3
+    } else {
+        p.select_menu_bg
+    };
+    let highlight_bg = if row {
+        mix_pct(p.text, 9., menu_bg)
+    } else {
+        p.surface_3
+    };
+    let row_height = if row { 36. } else { 44. };
     let mut rows = Vec::<AnyElement>::new();
     let mut group = None;
     let mut selected_child = 0;
@@ -897,7 +922,7 @@ fn menu(
         if index == highlighted {
             selected_child = rows.len();
         }
-        desired_height += if option.detail.is_some() { 53. } else { 48. };
+        desired_height += row_height + if option.detail.is_some() { 9. } else { 4. };
         let selected = option.value == *value;
         let key = ElementId::from((ElementId::from(id.clone()), option.value.clone()));
         let (pointer, hover, _) = hover_tween(key.clone(), window, cx);
@@ -909,11 +934,9 @@ fn menu(
             anim::UI,
         )
         .max(hover);
-        let bg = if selected {
-            mix_pct(p.accent, 14. + 8. * highlight, p.surface_2)
-        } else {
-            lerp(TRANSPARENT, p.surface_3, highlight)
-        };
+        // The chosen option is marked by a check and brighter text, not by
+        // a fill: only the pointer and the arrow keys move the highlight.
+        let bg = lerp(TRANSPARENT, highlight_bg, highlight);
         let choose_state = state.clone();
         let choose_id = id.clone();
         let choose_value = option.value.clone();
@@ -927,35 +950,44 @@ fn menu(
                 .id(key.clone())
                 .flex_shrink_0()
                 .mx(px(6.))
-                .min_h(px(44.))
+                .min_h(px(row_height))
                 .flex()
                 .items_center()
-                .gap(px(12.))
-                .rounded(px(10.))
+                .gap(px(8.))
+                .rounded(px(if row { 8. } else { 10. }))
                 .bg(bg.hsla())
-                .text_color(lerp(p.muted, p.text, highlight).hsla())
+                .text_color(lerp(p.muted, p.text, highlight.max(selected as u8 as f32)).hsla())
                 .child(
                     div()
                         .id((key.clone(), "choose"))
                         .flex_1()
                         .min_w_0()
-                        .min_h(px(44.))
-                        .py(px(8.))
+                        .min_h(px(row_height))
+                        .py(px(if row { 6. } else { 8. }))
                         .px(px(10.))
                         .flex()
                         .items_center()
-                        .gap(px(12.))
+                        .gap(px(if row { 10. } else { 12. }))
                         .cursor_pointer()
                         .when_some(option.icon.clone(), |this, name| {
                             this.child(
                                 svg()
                                     .path(icon(&name))
-                                    .size(px(18.))
+                                    .size(px(if row { 17. } else { 18. }))
                                     .flex_shrink_0()
                                     .text_color(p.accent_text.hsla()),
                             )
                         })
-                        .child(option_copy(&option, true, false, p))
+                        .child(option_copy(&option, true, false, row, p))
+                        .when(selected, |this| {
+                            this.child(
+                                svg()
+                                    .path(icon("check-mark"))
+                                    .size(px(15.))
+                                    .flex_shrink_0()
+                                    .text_color(p.accent_text.hsla()),
+                            )
+                        })
                         .when(hover_preview.is_some(), |this| {
                             this.on_hover(cx.listener(move |app, hovered: &bool, window, cx| {
                                 if *hovered && open {
@@ -1047,13 +1079,25 @@ fn menu(
         .unwrap_or(desired_height.min(280.));
     let down = below >= desired_height || (below >= desired_height.min(140.) && below >= above);
     let height = desired_height.min(if down { below } else { above }).max(1.);
-    let width = f32::from(bounds.size.width).min(f32::from(viewport.width) - 24.);
-    let left =
-        f32::from(bounds.left()).clamp(12., (f32::from(viewport.width) - 12. - width).max(12.));
-    let top = if down {
-        f32::from(bounds.bottom()) + 8.
+    let width = if row {
+        ROW_MENU_WIDTH.min(f32::from(bounds.size.width))
     } else {
-        f32::from(bounds.top()) - 8. - height
+        f32::from(bounds.size.width)
+    }
+    .min(f32::from(viewport.width) - 24.);
+    // Under the value: the popover's right edge follows the row's.
+    let anchor = if row {
+        f32::from(bounds.right()) - 8. - width
+    } else {
+        f32::from(bounds.left())
+    };
+    let left = anchor.clamp(12., (f32::from(viewport.width) - 12. - width).max(12.));
+    // A row is taller than its text, so the popover tucks in under the value.
+    let gap = if row { -6. } else { 8. };
+    let top = if down {
+        f32::from(bounds.bottom()) + gap
+    } else {
+        f32::from(bounds.top()) - gap - height
     };
     let scroll = state.read(cx).scroll.clone();
     state.update(cx, |s, _| {
@@ -1124,10 +1168,17 @@ fn menu(
         .relative()
         .w(px(width))
         .h(px(height))
-        .rounded(px(14.))
+        .rounded(px(if row { 12. } else { 14. }))
         .border_1()
-        .border_color(TRANSPARENT.hsla())
-        .bg(p.select_menu_bg.hsla())
+        .border_color(
+            if row {
+                mix_pct(p.text, 7., TRANSPARENT)
+            } else {
+                TRANSPARENT
+            }
+            .hsla(),
+        )
+        .bg(menu_bg.hsla())
         .opacity(visibility)
         .top(px((if down { -6. } else { 6. }) * (1. - visibility)))
         .shadow(vec![BoxShadow {
@@ -1147,7 +1198,7 @@ fn menu(
                 .py(px(6.))
                 .flex()
                 .flex_col()
-                .gap(px(4.))
+                .gap(px(if row { 2. } else { 4. }))
                 // A div with a tracked scroll handle reports no child bounds to
                 // this listener; read them from the handle instead.
                 .on_children_prepainted(move |_, window, cx| {

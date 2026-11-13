@@ -199,19 +199,24 @@ pub(crate) fn rows(children: Vec<AnyElement>, cx: &App) -> Div {
 }
 
 /// The switch for a whole page's feature. It is a labeled strip, so it cannot
-/// be mistaken for the first setting's toggle under it.
+/// be mistaken for the first setting's toggle under it. A click anywhere on
+/// the strip flips it.
 pub(crate) fn master_switch(
     id: &'static str,
     icon_name: &'static str,
     title: &'static str,
     on: bool,
-    toggle: impl IntoElement,
+    toggle: controls::Toggle,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
-) -> Div {
+) -> Stateful<Div> {
     let p = style::palette(cx);
     let t = anim::tween(window, cx, (ElementId::from(id), "master"), on as u8 as f32, anim::UI);
+    let (_, pill, flip) = toggle.into_parts();
     div()
+        .id(ElementId::from((ElementId::from(id), SharedString::from("strip"))))
+        .cursor_pointer()
+        .on_click(move |_, window, cx| flip(window, cx))
         .flex()
         .items_center()
         .gap(px(14.))
@@ -251,7 +256,7 @@ pub(crate) fn master_switch(
                         .text_color(lerp(p.muted, p.accent_text, t).hsla()),
                 ),
         )
-        .child(toggle)
+        .child(pill)
 }
 
 /// Opacity for everything a master switch governs: it fades while the

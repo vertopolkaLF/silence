@@ -384,6 +384,9 @@ fn save_config(config: &Config) -> Result<()> {
     Ok(())
 }
 
+/// Shows a modal save dialog and writes the config there. Blocks until the
+/// dialog closes, so call it off the GPUI thread: the dialog's message loop
+/// re-enters GPUI's window procedure and crashes the settings process.
 pub fn export_settings() -> Result<()> {
     let Some(target) = rfd::FileDialog::new()
         .add_filter("JSON", &["json"])
@@ -398,14 +401,15 @@ pub fn export_settings() -> Result<()> {
     Ok(())
 }
 
-pub fn import_settings() -> Result<()> {
-    let Some(source) = rfd::FileDialog::new()
+/// Shows a modal open dialog for a settings file. Blocks until the dialog
+/// closes, so call it off the GPUI thread (see `export_settings`).
+pub fn choose_settings_file() -> Option<PathBuf> {
+    rfd::FileDialog::new()
         .add_filter("JSON", &["json"])
         .pick_file()
-    else {
-        return Ok(());
-    };
+}
 
+pub fn import_settings(source: &Path) -> Result<()> {
     let content = fs::read_to_string(source)?;
     let mut config = parse_config_content(&content)?;
     config.welcome_completed = true;

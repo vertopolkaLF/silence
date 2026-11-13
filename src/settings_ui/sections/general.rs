@@ -120,10 +120,16 @@ pub(crate) fn render(
         false,
         window,
         cx,
-        |app, _, _, cx| {
-            if crate::export_settings().is_ok() {
-                app.reload_config(cx);
-            }
+        |_, _, _, cx| {
+            // The save dialog is modal and blocking; running it on the GPUI
+            // thread re-enters the window procedure and crashes the process.
+            cx.background_executor()
+                .spawn(async {
+                    if let Err(err) = crate::export_settings() {
+                        eprintln!("failed to export settings: {err:?}");
+                    }
+                })
+                .detach();
         },
     )
     .min_w(px(88.));
@@ -135,20 +141,30 @@ pub(crate) fn render(
         false,
         window,
         cx,
-                    |app, _, _, cx| {
-                        match crate::import_settings() {
-                            Ok(()) => {
-                                app.reload_config(cx);
-                                app.refresh_devices(cx);
-                            }
-                            Err(err) if crate::startup_change_was_cancelled(&err) => {
-                                app.sections.general.admin_prompt =
-                                    Some(AdminPrompt::Notice(NOTICE_CANCELLED));
-                                cx.notify();
-                            }
-                            Err(err) => eprintln!("failed to import settings: {err:?}"),
-                        }
-                    },
+        |_, _, _, cx| {
+            // Pick the file off the GPUI thread (see Export), then apply it here.
+            let pick = cx
+                .background_executor()
+                .spawn(async { crate::choose_settings_file() });
+            cx.spawn(async move |this, cx| {
+                let Some(source) = pick.await else {
+                    return;
+                };
+                let _ = this.update(cx, |app, cx| match crate::import_settings(&source) {
+                    Ok(()) => {
+                        app.reload_config(cx);
+                        app.refresh_devices(cx);
+                    }
+                    Err(err) if crate::startup_change_was_cancelled(&err) => {
+                        app.sections.general.admin_prompt =
+                            Some(AdminPrompt::Notice(NOTICE_CANCELLED));
+                        cx.notify();
+                    }
+                    Err(err) => eprintln!("failed to import settings: {err:?}"),
+                });
+            })
+            .detach();
+        },
     )
     .min_w(px(88.));
     // Backup and reset: two cards, one button size, reset set apart as danger.
