@@ -14,7 +14,6 @@ use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ConfirmAction {
-    ImportV1,
     Reset,
 }
 
@@ -168,16 +167,6 @@ pub(crate) fn render(
             Some("Replaces the current settings with a saved file."),
             import,
             false,
-            cx,
-        ))
-        .child(action_card(
-            "general-import-v1",
-            "Import from silence! v1",
-            Some("Converts the settings of the old version."),
-            "Import",
-            ConfirmAction::ImportV1,
-            false,
-            window,
             cx,
         ))
         .child(style::group("Reset", cx).mt(px(style::GROUP_GAP - ROW_GAP)))
@@ -721,11 +710,6 @@ fn confirm_dialog(
     let shift = if closing { 6. } else { 8. } * (1. - modal);
 
     let (title, body, confirm_label) = match action {
-        ConfirmAction::ImportV1 => (
-            "Import from silence! v1?",
-            "Current settings will be replaced by converted v1 settings from the old app data folder.",
-            "Import",
-        ),
         ConfirmAction::Reset => (
             "Reset all settings?",
             "Current settings will be replaced with defaults immediately.",
@@ -762,9 +746,6 @@ fn confirm_dialog(
     )
     .on_click(cx.listener(move |app, _, _, cx| {
         let result = match action {
-            ConfirmAction::ImportV1 => {
-                crate::import_v1_settings().and_then(|_| crate::complete_welcome())
-            }
             ConfirmAction::Reset => crate::reset_settings(),
         };
         match result {
