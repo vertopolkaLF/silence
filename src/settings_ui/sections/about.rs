@@ -106,7 +106,7 @@ pub(crate) fn check(app: &mut SettingsApp, install: bool, cx: &mut Context<Setti
                 Ok(crate::updater::UpdateCheck::UpToDate) => {
                     set_update(app, UpdateState::UpToDate(current_check_time()))
                 }
-                Err(error) => set_update(app, UpdateState::Failed(error.to_string())),
+                Err(error) => set_update(app, UpdateState::Failed(failure_text(&error))),
             }
             cx.notify();
         });
@@ -139,7 +139,7 @@ fn download(
         .await;
         let state = match result {
             Ok(()) => UpdateState::Installing,
-            Err(error) => UpdateState::Failed(error.to_string()),
+            Err(error) => UpdateState::Failed(failure_text(&error)),
         };
         let _ = sender.send(state);
     });
@@ -687,4 +687,25 @@ fn layer(
             .opacity(opacity),
         opacity,
     )
+}
+
+/// A sentence for the status row. The anyhow chain is for the log: its top
+/// context ("latest GitHub release response") means nothing to a person.
+fn failure_text(error: &anyhow::Error) -> String {
+    eprintln!("update failed: {error:?}");
+    let http = error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<reqwest::Error>());
+    match http {
+        Some(http) if matches!(http.status().map(|s| s.as_u16()), Some(403 | 429)) => {
+            "GitHub is limiting update checks right now. Try again in an hour.".into()
+        }
+        Some(http) if http.status().is_some_and(|s| s.is_server_error()) => {
+            "GitHub is having trouble. Try again later.".into()
+        }
+        Some(http) if http.is_connect() || http.is_timeout() || http.is_request() => {
+            "Couldn't reach GitHub. Check your internet connection.".into()
+        }
+        _ => "Something went wrong. Try again later.".into(),
+    }
 }

@@ -9,9 +9,12 @@ use crate::settings_ui::{
 use gpui::{prelude::*, *};
 
 /// Page title row with an optional trailing action; every page starts with it.
+/// The title sits on the card rows' text edge and the action on their control
+/// edge.
 pub(crate) fn page_title(title: &'static str, trailing: Option<AnyElement>) -> Div {
     style::page_header()
         .h(px(40.))
+        .px(px(ROW_PAD))
         .flex_shrink_0()
         .mb(px(style::TITLE_GAP))
         .child(style::h1(title))
