@@ -698,6 +698,10 @@ struct Config {
     hotkeys: Vec<HotkeyBinding>,
     #[serde(default)]
     hotkeys_paused: bool,
+    /// The last welcome screen lets the user try the hotkey before the flow
+    /// is marked complete. Cleared by `complete_welcome`.
+    #[serde(default)]
+    welcome_hotkey_trial: bool,
     #[serde(default)]
     startup: StartupSettings,
     #[serde(default)]
@@ -725,6 +729,7 @@ impl Default for Config {
             shortcut: Shortcut::default(),
             hotkeys: vec![HotkeyBinding::default()],
             hotkeys_paused: false,
+            welcome_hotkey_trial: false,
             startup: StartupSettings::default(),
             sound_settings: SoundSettings::default(),
             hold_to_mute: HoldToMuteSettings::default(),
@@ -863,6 +868,7 @@ struct AppState {
     /// False until the first render-endpoint read. Device-change events start after that.
     output_volume_seeded: bool,
     welcome_completed: bool,
+    welcome_hotkey_trial: bool,
     modifiers: ModifierState,
     muted: bool,
     mute_failure: Option<MuteFailureNotice>,
@@ -2327,6 +2333,7 @@ impl Default for AppState {
             output_volume: OutputVolumeState::default(),
             output_volume_seeded: false,
             welcome_completed: config.welcome_completed,
+            welcome_hotkey_trial: config.welcome_hotkey_trial,
             modifiers: ModifierState::default(),
             muted: false,
             mute_failure: None,

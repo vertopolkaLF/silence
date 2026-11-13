@@ -414,6 +414,7 @@ pub fn import_settings(source: &Path) -> Result<()> {
     let mut config = parse_config_content(&content)?;
     config.welcome_completed = true;
     config.hotkeys_paused = false;
+    config.welcome_hotkey_trial = false;
     sync_startup_registration(
         config.startup.launch_on_startup,
         config.startup.run_as_administrator,
@@ -442,6 +443,7 @@ pub fn complete_welcome() -> Result<()> {
     let mut config = load_config().unwrap_or_default();
     config.welcome_completed = true;
     config.hotkeys_paused = false;
+    config.welcome_hotkey_trial = false;
     save_config(&config)?;
     apply_live_config(&config, config_modified_time());
     Ok(())
@@ -524,6 +526,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.modules = config.modules.clone();
     state.volume = config.volume.clone();
     state.welcome_completed = config.welcome_completed;
+    state.welcome_hotkey_trial = config.welcome_hotkey_trial;
     state.modifiers = ModifierState::default();
     state.config_modified = modified;
     state.shortcut_down = false;
@@ -566,7 +569,7 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
 }
 
 fn hotkeys_blocked(state: &AppState) -> bool {
-    state.hotkeys_paused || !state.welcome_completed
+    state.hotkeys_paused || !(state.welcome_completed || state.welcome_hotkey_trial)
 }
 
 fn sync_microphone_module(was_enabled: bool) {

@@ -244,7 +244,8 @@ fn skin_card(
 /// Sample glyph for a skin card.
 ///
 /// Drawn as vector shapes: the 16px tray rasterizer looks coarse at card size.
-fn skin_preview(
+/// The welcome flow shows the same glyphs.
+pub(crate) fn skin_preview(
     skin: crate::VolumeTraySkin,
     level: f32,
     muted: bool,

@@ -53,6 +53,24 @@ fn shortcut_is_alt_space(shortcut: &Shortcut) -> bool {
     shortcut.alt && !shortcut.ctrl && !shortcut.shift && !shortcut.win && shortcut.vk == 0x20
 }
 
+/// Debug preview only: puts the settings window at a screen rectangle (in
+/// pixels) and shows it on top without taking focus.
+pub(crate) fn show_settings_preview_window(hwnd: isize, x: i32, y: i32, width: i32, height: i32) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        HWND_TOPMOST, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SetWindowPos, ShowWindow,
+    };
+    // From another thread, so the resize reaches GPUI through its message
+    // loop instead of re-entering it while the window is being set up.
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        let hwnd = HWND(hwnd as *mut c_void);
+        unsafe {
+            let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        }
+    });
+}
+
 pub(crate) fn install_settings_window_guard(hwnd: isize) {
     if hwnd == 0 || SETTINGS_ORIGINAL_WNDPROC.load(Ordering::Relaxed) != 0 {
         return;
@@ -474,6 +492,16 @@ fn main() -> Result<()> {
             return Ok(());
         }
         PENDING_NOTIFICATION_ACTION.lock().unwrap().replace(action);
+    }
+
+    // Hidden dev entry: the welcome flow without the single-instance mutex or
+    // the mouse hook, so a running app and its settings window are left alone.
+    // Run it with APPDATA pointed at a scratch folder.
+    if settings_ui::debug_arg("--welcome-preview=").is_some() {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
+        }
+        return settings_ui::run();
     }
 
     if std::env::args().any(|arg| arg == "--settings") {

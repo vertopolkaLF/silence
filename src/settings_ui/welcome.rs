@@ -1,5 +1,5 @@
 //! Welcome flow from `gui/welcome.rs`, welcome.css and welcome-stars.js.
-//! The first step picks Microphone and/or Volume; later steps follow that choice.
+//! The first step greets and picks Microphone and/or Volume; later steps follow that choice.
 mod flow;
 use super::{
     SettingsApp,
@@ -32,7 +32,7 @@ pub(crate) struct State {
     stars: StarField,
     keycaps: HashMap<String, Keycap>,
     button_focus: HashMap<&'static str, gpui::FocusHandle>,
-    /// Both tiles start off. A valid choice is written to `config.modules`.
+    /// Seeded from `config.modules`. A valid choice is written back to it.
     pick_microphone: bool,
     pick_volume: bool,
     volume2_detection: Option<crate::volume2_import::Volume2Detection>,
@@ -40,8 +40,9 @@ pub(crate) struct State {
     /// Latched when leaving the module step so later indexes stay put.
     volume2_included: bool,
     volume2_summary: Vec<String>,
-    volume2_notice: String,
-    volume2_notice_error: bool,
+    /// Result text under the import, autostart and close rows, in that order.
+    volume2_notes: [String; 3],
+    volume2_note_errors: [bool; 3],
 }
 
 impl Default for State {
@@ -65,8 +66,8 @@ impl Default for State {
             volume2_probe_started: false,
             volume2_included: false,
             volume2_summary: Vec::new(),
-            volume2_notice: String::new(),
-            volume2_notice_error: false,
+            volume2_notes: Default::default(),
+            volume2_note_errors: [false; 3],
         }
     }
 }
@@ -132,7 +133,17 @@ fn set_step(
             }
         }));
     }
+    sync_hotkey_trial(app, cx);
     cx.notify();
+}
+
+/// Hotkeys stay off during the flow, except on the last screen, where the
+/// user tries the one they just picked.
+fn sync_hotkey_trial(app: &mut SettingsApp, cx: &mut Context<SettingsApp>) {
+    let wanted = flow::current(app) == flow::StepKind::Done && app.welcome.pick_microphone;
+    if app.snapshot.config.welcome_hotkey_trial != wanted {
+        app.update_config(cx, |config| config.welcome_hotkey_trial = wanted);
+    }
 }
 
 fn capture(app: &mut SettingsApp, shortcut: crate::Shortcut, cx: &mut Context<SettingsApp>) {
@@ -379,75 +390,6 @@ fn heading(
         }))
 }
 
-fn features(app: &SettingsApp) -> Div {
-    let palette = app.palette;
-    let cards = [
-        (
-            "keyboard-bold",
-            "Global hotkeys",
-            "Mute from games, calls, or whatever fullscreen nonsense is eating your keyboard.",
-        ),
-        (
-            "widget-bold",
-            "Live overlay",
-            "Your mic state updates everywhere immediately, because stale UI is bullshit.",
-        ),
-        (
-            "volume-loud-bold",
-            "Sound feedback",
-            "Hear the mute change before you start talking into the void like a professional idiot.",
-        ),
-    ];
-    div()
-        .flex()
-        .gap(px(12.))
-        .children(cards.into_iter().map(|(name, title, text)| {
-            block(
-                app,
-                40,
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(10.))
-                    .p(px(16.))
-                    .size_full()
-                    .rounded(px(12.))
-                    .bg(palette.surface_2.hsla())
-                    .shadow(vec![BoxShadow {
-                        color: palette.shadow_soft.hsla(),
-                        offset: point(px(0.), px(12.)),
-                        blur_radius: px(28.),
-                        spread_radius: px(0.),
-                        inset: false,
-                    }])
-                    .child(
-                        svg()
-                            .path(icon(name))
-                            .size(px(32.))
-                            .flex_shrink_0()
-                            .text_color(palette.accent.hsla()),
-                    )
-                    .child(
-                        div()
-                            .font_family("Bricolage Grotesque Welcome Card")
-                            .font_weight(FontWeight(600.))
-                            .text_size(px(19.))
-                            .line_height(relative(1.1))
-                            .child(title),
-                    )
-                    .child(
-                        div()
-                            .text_color(palette.muted.hsla())
-                            .text_size(px(13.))
-                            .line_height(relative(1.45))
-                            .child(text),
-                    ),
-            )
-            .flex_1()
-            .min_w_0()
-        }))
-}
-
 struct Keycap {
     born: Instant,
     moved: Instant,
@@ -465,7 +407,7 @@ impl Keycap {
     }
 }
 
-/// Actual font measurement, then the DOM observer's 220ms FLIP and keycap-rise.
+/// Left-aligned keycaps: actual font measurement, a 220ms FLIP and keycap-rise.
 fn keycaps(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<SettingsApp>) -> Div {
     let shortcut = app
         .welcome
@@ -508,7 +450,7 @@ fn keycaps(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settings
         } else {
             10.
         };
-        if row_width + gap + width > 524. && gap > 0. {
+        if row_width + gap + width > 680. && gap > 0. {
             rows.push(Vec::new());
             row_width = 0.;
         }
@@ -521,13 +463,11 @@ fn keycaps(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settings
     let mut elements = Vec::new();
     let mut present = HashSet::new();
     for (row, indices) in rows.iter().enumerate() {
-        let total: f32 = indices.iter().map(|i| widths[*i]).sum::<f32>()
-            + indices.len().saturating_sub(1) as f32 * 10.;
-        let mut x = (560. - total) / 2.;
+        let mut x = 0.;
         for i in indices {
             let key = format!("{i}-{}", parts[*i]);
             present.insert(key.clone());
-            let target = (x, 18. + row as f32 * 74.);
+            let target = (x, row as f32 * 74.);
             let cap = app
                 .welcome
                 .keycaps
@@ -578,14 +518,13 @@ fn keycaps(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settings
         window,
         cx,
         "welcome-keycaps-height",
-        36. + rows.len() as f32 * 74. - 10.,
+        rows.len() as f32 * 74. - 10.,
         Transition::new(220, Easing::Bezier(0.22, 1., 0.36, 1.)),
     );
     div()
         .relative()
-        .w(px(560.))
-        .h(px(height.max(96.)))
-        .my(px(20.))
+        .w_full()
+        .h(px(height.max(64.)))
         .children(elements)
 }
 
@@ -605,6 +544,12 @@ pub(crate) fn render(
                 .map(|b| b.shortcut.clone())
                 .unwrap_or_default(),
         );
+        flow::init(app, cx);
+        if let Some(step) = super::debug_arg("--welcome-preview=") {
+            flow::preview(app, &step);
+        }
+        // A trial left on by a crashed settings window must not outlive it.
+        sync_hotkey_trial(app, cx);
     }
     // Only the visible welcome requests star frames. Completion unmounts it.
     if window.is_visible() {
@@ -659,31 +604,12 @@ pub(crate) fn render(
     .left_0()
     .top_0()
     .size_full();
-    let count_fade = flow::progress_fade(app, window, cx);
+    let dots = flow::progress_dots(app, window, cx);
     let mut screen = div()
         .flex()
         .flex_col()
         .gap(px(22.))
-        .when(kind == flow::StepKind::MicHotkey, |this| {
-            this.items_center().text_center()
-        })
-        .child(block(
-            app,
-            80,
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(8.))
-                .child(
-                    div()
-                        .text_size(px(13.))
-                        .font_weight(FontWeight(800.))
-                        .text_color(palette.accent.hsla())
-                        .opacity(count_fade)
-                        .child(flow::progress_label(app)),
-                )
-                .child(flow::progress_dots(app, window, cx)),
-        ));
+        .child(block(app, 80, dots));
     match kind {
         flow::StepKind::Modules => {
             screen = screen.child(flow::modules_step(app, window, cx));
@@ -694,157 +620,82 @@ pub(crate) fn render(
         flow::StepKind::Wheel => {
             screen = screen.child(flow::wheel_step(app, window, cx));
         }
-        flow::StepKind::Skin => {
-            screen = screen.child(flow::skin_step(app, window, cx));
+        flow::StepKind::Look => {
+            screen = screen.child(flow::look_step(app, window, cx));
         }
-        flow::StepKind::MediaKeys => {
-            screen = screen.child(flow::media_step(app, window, cx));
+        flow::StepKind::Done => {
+            screen = screen.child(flow::done_step(app, window, cx));
         }
-        flow::StepKind::MicIntro => {
-        screen = screen
-            .child(block(
+        flow::StepKind::MicHotkey => {
+            screen = screen.child(block(
                 app,
                 80,
                 heading(
-                    "Hi! Welcome to silence!",
-                    Some("The best app to mute your mic. Period."),
-                    false,
+                    "Pick your mute hotkey",
+                    Some(
+                        "Press a key combo or a mouse button. Hold a modifier on its own for a second to use just that.",
+                    ),
+                    true,
                     cx,
                 ),
-            ))
-            .child(features(app));
-        let back = action(
-            "welcome-intro-back",
-            "Back",
-            false,
-            false,
-            app,
-            window,
-            cx,
-            |app, _, window, cx| flow::retreat(app, window, cx),
-        );
-        let next = action(
-            "welcome-set-hotkey",
-            "Set hotkey",
-            true,
-            false,
-            app,
-            window,
-            cx,
-            |app, _, window, cx| flow::advance(app, window, cx),
-        );
-        screen = screen.child(block(
-            app,
-            0,
-            div()
-                .flex()
-                .flex_wrap()
-                .items_center()
-                .gap(px(10.))
-                .child(back)
-                .child(next),
-        ));
-        }
-        flow::StepKind::MicHotkey => {
-        screen = screen.child(block(
-            app,
-            80,
-            heading("Choose your hotkey", None, false, cx),
-        ));
-        let caps = keycaps(app, window, cx);
-        screen = screen.child(block(app, 40, caps));
-        let back = action(
-            "welcome-back",
-            "Back",
-            false,
-            false,
-            app,
-            window,
-            cx,
-            |app, _, window, cx| {
-                app.welcome.completed = false;
-                app.welcome.progress = 0.;
-                flow::retreat(app, window, cx);
-            },
-        );
-        let next = action(
-            "welcome-looks-good",
-            "Looks good",
-            true,
-            false,
-            app,
-            window,
-            cx,
-            |app, _, window, cx| {
-                capture(app, app.welcome.captured.clone().unwrap_or_default(), cx);
-                flow::advance(app, window, cx);
-            },
-        );
-        screen = screen.child(block(
-            app,
-            0,
-            div()
-                .flex()
-                .items_center()
-                .gap(px(10.))
-                .child(back)
-                .child(next),
-        ));
-        }
-        flow::StepKind::Done => {
-        let (title, subtitle, finish_label) = match (app.welcome.pick_microphone, app.welcome.pick_volume) {
-            (true, true) => (
-                "You're all set",
-                "Mute with your hotkey, scroll to change volume. Explore multiple hotkeys, custom sounds, overlay looks, audio devices, gamepad support and more...",
-                "Let's go",
-            ),
-            (false, true) => (
-                "Ready to scroll",
-                "Explore a bunch of options to customize your experience. Wheel areas, overlay skins, media keys, audio devices and more...",
-                "Start scrolling",
-            ),
-            _ => (
-                "Ready to mute",
-                "Explore a bunch of options to customize your experience. Multiple hotkeys, custom sounds, managing your audio devices, gamepad support and more...",
-                "Start muting",
-            ),
-        };
-        screen = screen.child(block(app, 80, heading(title, Some(subtitle), true, cx)));
-        let back = action(
-            "welcome-done-back",
-            "Back",
-            false,
-            false,
-            app,
-            window,
-            cx,
-            |app, _, window, cx| {
-                app.welcome.completed = false;
-                app.welcome.progress = 0.;
-                flow::retreat(app, window, cx);
-            },
-        );
-        let next = action(
-            "welcome-finish",
-            finish_label,
-            true,
-            false,
-            app,
-            window,
-            cx,
-            |app, _, window, cx| flow::advance(app, window, cx),
-        );
-        screen = screen.child(block(
-            app,
-            0,
-            div()
-                .flex()
-                .items_center()
-                .gap(px(10.))
-                .mt(px(8.))
-                .child(back)
-                .child(next),
-        ));
+            ));
+            let caps = keycaps(app, window, cx);
+            screen = screen.child(block(app, 40, caps));
+            screen = screen.child(block(
+                app,
+                20,
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(8.))
+                    .text_size(px(13.))
+                    .text_color(palette.muted.hsla())
+                    .child(
+                        svg()
+                            .path(icon("monitor-linear"))
+                            .size(px(16.))
+                            .flex_shrink_0()
+                            .text_color(palette.muted.hsla()),
+                    )
+                    .child("Works in games and fullscreen apps. You can add more hotkeys later."),
+            ));
+            let back = action(
+                "welcome-back",
+                "Back",
+                false,
+                false,
+                app,
+                window,
+                cx,
+                |app, _, window, cx| {
+                    app.welcome.completed = false;
+                    app.welcome.progress = 0.;
+                    flow::retreat(app, window, cx);
+                },
+            );
+            let next = action(
+                "welcome-looks-good",
+                "Use this hotkey",
+                true,
+                false,
+                app,
+                window,
+                cx,
+                |app, _, window, cx| {
+                    capture(app, app.welcome.captured.clone().unwrap_or_default(), cx);
+                    flow::advance(app, window, cx);
+                },
+            );
+            screen = screen.child(block(
+                app,
+                0,
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.))
+                    .child(back)
+                    .child(next),
+            ));
         }
     }
     let background = div()
@@ -922,7 +773,7 @@ pub(crate) fn render(
             {
                 return;
             }
-            let ids = flow::focus_ids(flow::current(app));
+            let ids = flow::focus_ids(app);
             if ids.is_empty() {
                 return;
             }

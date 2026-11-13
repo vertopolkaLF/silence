@@ -190,6 +190,9 @@ impl SettingsApp {
         self.closing = Some(std::time::Instant::now());
         if self.snapshot.config.welcome_completed {
             self.update_config(cx, |config| config.hotkeys_paused = false);
+        } else if self.snapshot.config.welcome_hotkey_trial {
+            // Closed on the last welcome screen: hotkeys go back off until it is finished.
+            self.update_config(cx, |config| config.welcome_hotkey_trial = false);
         }
         cx.spawn(async move |_, cx| {
             cx.background_executor()
@@ -288,6 +291,14 @@ fn debug_startup_tab() -> Option<SettingsTab> {
         .find(|tab| format!("{tab:?}").eq_ignore_ascii_case(&name))
 }
 
+/// Value of a `--name=value` argument, in debug builds only.
+pub(crate) fn debug_arg(prefix: &str) -> Option<String> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    std::env::args().find_map(|arg| arg.strip_prefix(prefix).map(str::to_owned))
+}
+
 fn settings_should_open_volume() -> bool {
     std::env::args().any(|arg| arg == "--volume")
 }
@@ -312,6 +323,11 @@ pub(crate) fn run() -> Result<()> {
             let mica = crate::effective_settings_mica_enabled(&snapshot.config);
             cx.set_global(Palette::load(mica));
             let window_size = size(px(WINDOW_WIDTH), px(WINDOW_HEIGHT));
+            // Debug: `--preview-at=X,Y` opens at that screen pixel, unfocused.
+            let preview_at = debug_arg("--preview-at=").and_then(|value| {
+                let (x, y) = value.split_once(',')?;
+                Some((x.parse::<i32>().ok()?, y.parse::<i32>().ok()?))
+            });
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                     None,
@@ -325,8 +341,8 @@ pub(crate) fn run() -> Result<()> {
                 }),
                 window_min_size: Some(size(px(WINDOW_MIN_WIDTH), px(WINDOW_MIN_HEIGHT))),
                 is_resizable: true,
-                focus: true,
-                show: true,
+                focus: preview_at.is_none(),
+                show: preview_at.is_none(),
                 window_background: if mica {
                     WindowBackgroundAppearance::MicaBackdrop
                 } else {
@@ -343,6 +359,17 @@ pub(crate) fn run() -> Result<()> {
                         if let Ok(handle) = HasWindowHandle::window_handle(window) {
                             if let RawWindowHandle::Win32(raw) = handle.as_raw() {
                                 crate::install_settings_window_guard(raw.hwnd.get());
+                                if let Some((x, y)) = preview_at {
+                                    // A hidden window keeps the system default size.
+                                    let scale = window.scale_factor();
+                                    crate::show_settings_preview_window(
+                                        raw.hwnd.get(),
+                                        x,
+                                        y,
+                                        (WINDOW_WIDTH * scale) as i32,
+                                        (WINDOW_HEIGHT * scale) as i32,
+                                    );
+                                }
                             }
                         }
                     });
