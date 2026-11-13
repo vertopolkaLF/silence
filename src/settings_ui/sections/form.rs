@@ -22,13 +22,13 @@ pub(crate) fn page_title(title: &'static str, trailing: Option<AnyElement>) -> D
 pub(crate) const TILE_GAP: f32 = 8.;
 /// Space between two sections of a page.
 pub(crate) const SECTION_GAP: f32 = 28.;
-/// Horizontal padding of a card row. The slider's label sits at the same
-/// inset, so every text on a page shares one left edge.
+/// Horizontal padding of a card row: every text on a page shares one left
+/// edge.
 pub(crate) const ROW_PAD: f32 = 18.;
 /// Height of a one-line card row, the same as a hotkey row.
 pub(crate) const ROW_HEIGHT: f32 = 58.;
 
-/// One section of a page: an optional heading, then cards and sliders.
+/// One section of a page: an optional heading, then its cards.
 pub(crate) fn block() -> Div {
     div()
         .flex()
@@ -122,14 +122,40 @@ pub(crate) fn row_box() -> Div {
         .py(px(14.))
 }
 
+/// What ends a card row. A switch also makes the whole row flip it.
+pub(crate) trait RowControl {
+    fn into_row_control(self) -> (AnyElement, Option<(ElementId, controls::Flip)>);
+}
+
+impl RowControl for controls::Toggle {
+    fn into_row_control(self) -> (AnyElement, Option<(ElementId, controls::Flip)>) {
+        let (id, pill, flip) = self.into_parts();
+        (pill.into_any_element(), Some((id, flip)))
+    }
+}
+
+impl RowControl for Div {
+    fn into_row_control(self) -> (AnyElement, Option<(ElementId, controls::Flip)>) {
+        (self.into_any_element(), None)
+    }
+}
+
+impl RowControl for Stateful<Div> {
+    fn into_row_control(self) -> (AnyElement, Option<(ElementId, controls::Flip)>) {
+        (self.into_any_element(), None)
+    }
+}
+
 /// One setting in a card: label, optional description, control on the right.
+/// With a switch as the control, a click anywhere in the row flips it.
 pub(crate) fn setting_row(
     title: impl Into<SharedString>,
     description: Option<&'static str>,
-    trailing: impl IntoElement,
+    trailing: impl RowControl,
     cx: &App,
 ) -> Div {
-    div()
+    let (control, flip) = trailing.into_row_control();
+    let row = div()
         .flex()
         .items_center()
         .justify_between()
@@ -148,7 +174,28 @@ pub(crate) fn setting_row(
                 .child(style::label(title))
                 .children(description.map(|text| style::desc(text, cx))),
         )
-        .child(trailing)
+        .child(control);
+    match flip {
+        None => row,
+        Some((id, flip)) => div().flex_shrink_0().child(
+            row.id(ElementId::from((id, SharedString::from("row"))))
+                .cursor_pointer()
+                .on_click(move |_, window, cx| flip(window, cx)),
+        ),
+    }
+}
+
+/// Rows with rules between them, for a block that opens inside a card.
+pub(crate) fn rows(children: Vec<AnyElement>, cx: &App) -> Div {
+    let rule = style::palette(cx).border.hsla();
+    let mut body = div().flex().flex_col().w_full().flex_shrink_0();
+    for (index, child) in children.into_iter().enumerate() {
+        if index > 0 {
+            body = body.child(div().w_full().h(px(1.)).flex_shrink_0().bg(rule));
+        }
+        body = body.child(child);
+    }
+    body
 }
 
 /// The switch for a whole page's feature. It is a labeled strip, so it cannot
@@ -248,7 +295,7 @@ pub(crate) fn section_heading(label: &'static str, cx: &App) -> Div {
         .mb(px(2.))
 }
 
-/// Integer slider with a suffix ("2%", "1500 ms").
+/// Integer slider row with a suffix ("2%", "1500 ms").
 pub(crate) fn int_slider(
     id: impl Into<ElementId>,
     label: impl Into<SharedString>,
@@ -260,10 +307,10 @@ pub(crate) fn int_slider(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     on_change: impl Fn(&mut SettingsApp, f64, &mut Window, &mut Context<SettingsApp>) + 'static,
-) -> Stateful<Div> {
+) -> Div {
     let value = value.clamp(min, max);
     let text = format!("{value:.0}{suffix}");
-    controls::range(
+    controls::range_row(
         id,
         value,
         RangeOptions {
@@ -280,8 +327,7 @@ pub(crate) fn int_slider(
     )
 }
 
-/// 0–100% slider used for overlay placement and the volume OSD.
-/// Callers add any page-specific margin; the track itself matches.
+/// 0–100% slider row used for overlay placement and the volume OSD.
 pub(crate) fn percent_slider(
     id: impl Into<ElementId>,
     label: impl Into<SharedString>,
@@ -290,24 +336,8 @@ pub(crate) fn percent_slider(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     on_change: impl Fn(&mut SettingsApp, f64, &mut Window, &mut Context<SettingsApp>) + 'static,
-) -> Stateful<Div> {
-    let value = value.clamp(0., 100.);
-    let text = format!("{value:.0}{suffix}");
-    controls::range(
-        id,
-        value,
-        RangeOptions {
-            min: 0.,
-            max: 100.,
-            step: 1.,
-            label: label.into(),
-            value_label: text.into(),
-            icon: None,
-        },
-        window,
-        cx,
-        on_change,
-    )
+) -> Div {
+    int_slider(id, label, value, 0., 100., 1., suffix, window, cx, on_change)
 }
 
 /// A control and the collapsible blocks that hang under it. The parent's gap

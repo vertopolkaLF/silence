@@ -23,7 +23,7 @@ fn switch(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     write: impl Fn(&mut crate::MusicConfig, bool) + 'static,
-) -> Stateful<Div> {
+) -> controls::Toggle {
     controls::toggle(id, value, window, cx, move |app, checked, _, cx| {
         app.update_config(cx, |config| write(&mut config.volume.music, checked));
     })
@@ -68,7 +68,7 @@ pub(crate) fn render(
         },
     );
     let duration_ms = music.duration_ms.clamp(1_000, 10_000);
-    let duration = controls::range(
+    let duration = controls::range_row(
         "music-duration",
         f64::from(duration_ms),
         RangeOptions {
@@ -125,9 +125,9 @@ pub(crate) fn render(
                             Some("Shows the next song when the playlist moves on by itself."),
                             up_next,
                             cx,
-                        )),
-                )
-                .child(duration),
+                        ))
+                        .row(duration),
+                ),
         )
         .child(
             form::block()

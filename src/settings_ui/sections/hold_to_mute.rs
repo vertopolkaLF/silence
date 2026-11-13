@@ -122,7 +122,7 @@ pub(crate) fn render(
         } else {
             format!("Default ({}%)", sounds_config.volume.min(100))
         };
-        let range = controls::range(
+        let range = controls::range_row(
             "hold-volume",
             f64::from(volume),
             sounds::volume_options(volume_label),
@@ -136,7 +136,7 @@ pub(crate) fn render(
         );
         let reset = controls::button(
             "hold-volume-reset",
-            ButtonKind::Secondary,
+            ButtonKind::Tonal,
             None,
             Some("Reset".into()),
             hold.volume_override.is_none(),
@@ -169,15 +169,12 @@ pub(crate) fn render(
         let content = form::block()
             .pt(px(form::SECTION_GAP))
             .child(form::section_heading("Sounds", cx))
-            .child(form::card(cx).row(mute).row(unmute))
+            // Reset ends the volume row, as it ends the two sound rows.
             .child(
-                div()
-                    .w_full()
-                    .flex()
-                    .items_center()
-                    .gap(px(8.))
-                    .child(div().flex_1().min_w_0().child(range))
-                    .child(reset),
+                form::card(cx)
+                    .row(mute)
+                    .row(unmute)
+                    .row(range.pr(px(10.)).child(reset.px(px(14.)))),
             );
         let app_entity = cx.weak_entity();
         collapse = collapse.child(

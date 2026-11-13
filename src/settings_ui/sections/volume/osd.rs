@@ -54,7 +54,7 @@ pub(crate) fn render(
         },
     );
     let duration_ms = osd.duration_ms.clamp(500, 5_000);
-    let duration = controls::range(
+    let duration = controls::range_row(
         "volume-osd-duration",
         f64::from(duration_ms),
         RangeOptions {
@@ -182,6 +182,7 @@ pub(crate) fn render(
                         .child(
                             form::card(cx)
                                 .row(visibility)
+                                .row(duration)
                                 .row(form::setting_row(
                                     "Show when the default device changes",
                                     Some("Speakers, headphones or microphone: shows the new device's name."),
@@ -194,22 +195,23 @@ pub(crate) fn render(
                                     on_lock_keys,
                                     cx,
                                 )),
-                        )
-                        .child(duration),
+                        ),
                 )
                 .child(
                     form::block()
                         .child(form::section_heading("Position", cx))
                         .child(
-                            form::card(cx).row(display).row(form::setting_row(
-                                "Move OSD",
-                                Some("Shows the OSD so you can drag it into place, until this is turned off."),
-                                positioning,
-                                cx,
-                            )),
-                        )
-                        .child(horizontal)
-                        .child(vertical),
+                            form::card(cx)
+                                .row(display)
+                                .row(horizontal)
+                                .row(vertical)
+                                .row(form::setting_row(
+                                    "Move OSD",
+                                    Some("Shows the OSD so you can drag it into place, until this is turned off."),
+                                    positioning,
+                                    cx,
+                                )),
+                        ),
                 )
                 .child(appearance),
         )
@@ -228,7 +230,7 @@ fn osd_slider(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     write: impl Fn(&mut crate::VolumeOsdConfig, f64) + 'static,
-) -> Stateful<Div> {
+) -> Div {
     let write = std::rc::Rc::new(write);
     form::int_slider(
         id,
@@ -399,18 +401,19 @@ fn appearance(
         cx,
         |osd, value| osd.content_opacity = value as u8,
     );
-    // The Custom theme's knobs: choices on one card, then its sliders.
-    let custom_content = form::block()
-        .child(
-            form::card(cx)
-                .row(font)
-                .row(icon_style)
-                .row(background)
-                .row(border),
-        )
-        .child(weight)
-        .child(background_opacity)
-        .child(opacity);
+    // The Custom theme's knobs open as more rows of the Appearance card.
+    let custom_content = form::rows(
+        vec![
+            font.into_any_element(),
+            weight.into_any_element(),
+            icon_style.into_any_element(),
+            background.into_any_element(),
+            background_opacity.into_any_element(),
+            border.into_any_element(),
+            opacity.into_any_element(),
+        ],
+        cx,
+    );
     let supports_radius = crate::gpui_overlay::theme::supports_corner_radius(
         crate::gpui_overlay::volume::normalize_theme(&osd.theme),
     );
@@ -448,26 +451,18 @@ fn appearance(
     form::block()
         .child(form::section_heading("Appearance", cx))
         .child(
-            form::group()
-                .child(form::card(cx).row(theme))
-                .child(form::collapse_in_gap(
-                    "volume-osd-custom",
-                    custom,
-                    form::TILE_GAP,
-                    custom_content,
-                    window,
-                    cx,
-                ))
-                .child(form::collapse_in_gap(
+            form::card(cx)
+                .row(theme)
+                .reveal("volume-osd-custom", custom, custom_content, window, cx)
+                .reveal(
                     "volume-osd-radius-collapse",
                     supports_radius,
-                    form::TILE_GAP,
-                    div().child(radius),
+                    radius,
                     window,
                     cx,
-                )),
+                )
+                .row(scale),
         )
-        .child(scale)
 }
 
 fn visibility_key(visibility: crate::VolumeOsdVisibility) -> &'static str {

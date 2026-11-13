@@ -36,28 +36,35 @@ fn slider(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     change: impl Fn(&mut crate::OverlayConfig, f64) + 'static,
-) -> Stateful<Div> {
+) -> AnyElement {
     let value = value.clamp(min, max);
     let text = if step < 1. {
         format!("{value:.1}{suffix}")
     } else {
         format!("{value:.0}{suffix}")
     };
-    controls::range(
-        id,
-        value,
-        RangeOptions {
-            min,
-            max,
-            step,
-            label: label.into(),
-            value_label: text.into(),
-            icon: (id == "overlay-action-volume").then(|| "volume-loud-linear".into()),
-        },
-        window,
-        cx,
-        move |app, value, _, cx| app.update_config(cx, |c| change(&mut c.overlay, value)),
-    )
+    // The action editor is a side panel: it keeps the wide bar. Pages get
+    // the card row.
+    let panel = id == "overlay-action-volume";
+    let options = RangeOptions {
+        min,
+        max,
+        step,
+        label: label.into(),
+        value_label: text.into(),
+        icon: panel.then(|| "volume-loud-linear".into()),
+    };
+    let on_change = move |app: &mut SettingsApp,
+                          value: f64,
+                          _: &mut Window,
+                          cx: &mut Context<SettingsApp>| {
+        app.update_config(cx, |c| change(&mut c.overlay, value))
+    };
+    if panel {
+        controls::range(id, value, options, window, cx, on_change).into_any_element()
+    } else {
+        controls::range_row(id, value, options, window, cx, on_change).into_any_element()
+    }
 }
 fn choose(
     id: &'static str,
@@ -214,30 +221,31 @@ pub(crate) fn render(
                 .mt(px(SECTION_GAP))
                 .opacity(dim)
                 .child(
-                    form::block().child(form::section_heading("When to show", cx)).child(
-                        form::group()
-                            .child(form::card(cx).row(visibility))
-                            .child(collapse_in_gap(
-                                "overlay-duration-collapse",
-                                o.visibility == "AfterToggle",
-                                TILE_GAP,
-                                div().child(duration),
-                                window,
-                                cx,
-                            )),
-                    ),
+                    form::block()
+                        .child(form::section_heading("When to show", cx))
+                        .child(form::card(cx).row(visibility).reveal(
+                            "overlay-duration-collapse",
+                            o.visibility == "AfterToggle",
+                            duration,
+                            window,
+                            cx,
+                        )),
                 )
                 .child(
                     form::block()
                         .child(form::section_heading("Position", cx))
-                        .child(form::card(cx).row(display).row(form::setting_row(
-                            "Move overlay",
-                            Some("Shows the overlay until this is turned off."),
-                            positioning,
-                            cx,
-                        )))
-                        .child(position_x)
-                        .child(position_y),
+                        .child(
+                            form::card(cx)
+                                .row(display)
+                                .row(position_x)
+                                .row(position_y)
+                                .row(form::setting_row(
+                                    "Move overlay",
+                                    Some("Shows the overlay until this is turned off."),
+                                    positioning,
+                                    cx,
+                                )),
+                        ),
                 ),
         );
     let mut variants = div().w_full().flex().gap(px(8.));
@@ -457,51 +465,58 @@ pub(crate) fn render(
         }),
         cx,
     );
-    // The Custom theme's knobs: choices on one card, then its sliders. The
-    // font row and the weight slider exist only while the overlay has text.
-    let custom_content = form::block()
-        .child(
-            form::group()
-                .child(
-                    form::card(cx)
-                        .row(icon_style)
-                        .row(background)
-                        .row(border)
-                        .reveal("overlay-font-collapse", has_text, font, window, cx),
-                )
-                .child(collapse_in_gap(
-                    "overlay-weight-collapse",
-                    has_text,
-                    TILE_GAP,
-                    div().child(weight),
-                    window,
-                    cx,
-                )),
-        )
-        .child(slider(
-            "overlay-bg-opacity",
-            "Background opacity",
-            o.background_opacity as f64,
-            0.,
-            100.,
-            5.,
-            "%",
-            window,
-            cx,
-            |o, v| o.background_opacity = v as u8,
-        ))
-        .child(slider(
-            "overlay-opacity",
-            "Opacity",
-            o.content_opacity as f64,
-            20.,
-            100.,
-            5.,
-            "%",
-            window,
-            cx,
-            |o, v| o.content_opacity = v as u8,
-        ));
+    let background_opacity = slider(
+        "overlay-bg-opacity",
+        "Background opacity",
+        o.background_opacity as f64,
+        0.,
+        100.,
+        5.,
+        "%",
+        window,
+        cx,
+        |o, v| o.background_opacity = v as u8,
+    );
+    let opacity = slider(
+        "overlay-opacity",
+        "Opacity",
+        o.content_opacity as f64,
+        20.,
+        100.,
+        5.,
+        "%",
+        window,
+        cx,
+        |o, v| o.content_opacity = v as u8,
+    );
+    // The Custom theme's knobs open as more rows of the Appearance card. The
+    // font rows exist only while the overlay has text; their rules fold away
+    // with them.
+    let font_rows = form::collapse(
+        "overlay-font-collapse",
+        has_text,
+        div()
+            .child(style::divider(cx))
+            .child(font)
+            .child(style::divider(cx))
+            .child(weight),
+        window,
+        cx,
+    );
+    let custom_content = div()
+        .flex()
+        .flex_col()
+        .w_full()
+        .child(icon_style)
+        .child(style::divider(cx))
+        .child(background)
+        .child(font_rows)
+        .child(style::divider(cx))
+        .child(background_opacity)
+        .child(style::divider(cx))
+        .child(border)
+        .child(style::divider(cx))
+        .child(opacity);
     let radius = slider(
         "overlay-radius",
         "Border radius",
@@ -521,50 +536,37 @@ pub(crate) fn render(
         .opacity(dim)
         .child(form::section_heading("Appearance", cx))
         .child(
-            form::group()
-                .child(
-                    form::card(cx)
-                        .row(super::themes::theme_link(
-                            "overlay-theme",
-                            super::themes::Target::Microphone,
-                            &o.theme,
-                            window,
-                            cx,
-                        ))
-                        .row(card_field("Overlay style", variants))
-                        .row(form::row_box().child(labels))
-                        .row(form::row_box().child(icons)),
-                )
-                .child(collapse_in_gap(
-                    "overlay-custom-collapse",
-                    custom,
-                    TILE_GAP,
-                    custom_content,
+            form::card(cx)
+                .row(super::themes::theme_link(
+                    "overlay-theme",
+                    super::themes::Target::Microphone,
+                    &o.theme,
                     window,
                     cx,
                 ))
-                .child(collapse_in_gap(
+                .row(card_field("Overlay style", variants))
+                .row(form::row_box().child(labels))
+                .row(form::row_box().child(icons))
+                .reveal("overlay-custom-collapse", custom, custom_content, window, cx)
+                .reveal(
                     "overlay-radius-collapse",
                     crate::gpui_overlay::theme::supports_corner_radius(&o.theme),
-                    TILE_GAP,
-                    div().child(radius),
+                    radius,
                     window,
                     cx,
+                )
+                .row(slider(
+                    "overlay-scale",
+                    "Size scale",
+                    o.scale as f64,
+                    10.,
+                    400.,
+                    5.,
+                    "%",
+                    window,
+                    cx,
+                    |o, v| o.scale = v as u32,
                 )),
-        )
-        .child(
-            slider(
-                "overlay-scale",
-                "Size scale",
-                o.scale as f64,
-                10.,
-                400.,
-                5.,
-                "%",
-                window,
-                cx,
-                |o, v| o.scale = v as u32,
-            ),
         );
     let behaviour = behaviour(app, window, cx);
     // Exactly one block for each SettingsTab::Overlay section, in sidebar order.

@@ -121,8 +121,7 @@ pub(crate) fn render(
         .child(form::page_title("Wheel & clicks", None))
         .child(
             form::block()
-                .child(form::card(cx).row(zone))
-                .child(step),
+                .child(form::card(cx).row(zone).row(step)),
         )
         .child(
             form::block()

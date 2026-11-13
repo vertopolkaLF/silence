@@ -80,7 +80,7 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.volume.sound.enabled = checked);
         },
     );
-    let volume = controls::range(
+    let volume = controls::range_row(
         "sounds-volume",
         f64::from(sounds.volume.min(100)),
         volume_options(format!("{}%", sounds.volume.min(100))),
@@ -166,9 +166,9 @@ pub(crate) fn render(
                         cx,
                     ))
                     .row(mute)
-                    .row(unmute),
+                    .row(unmute)
+                    .row(volume),
             )
-            .child(volume)
             .into_any_element(),
         form::block()
             .pt(px(form::SECTION_GAP))

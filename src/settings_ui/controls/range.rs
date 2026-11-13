@@ -1,4 +1,5 @@
-//! Filled 40px range shell from `.ui-range-*` in `controls.css`.
+//! Filled range: the 40px bar with its label inside (side panels) and the
+//! compact bar that ends a card row.
 use super::{SettingsApp, anim};
 use crate::settings_ui::{assets::icon, color::mix_pct, style::palette};
 use gpui::{prelude::*, *};
@@ -64,8 +65,62 @@ pub(crate) fn range(
     cx: &mut Context<SettingsApp>,
     on_change: impl Fn(&mut SettingsApp, f64, &mut Window, &mut Context<SettingsApp>) + 'static,
 ) -> Stateful<Div> {
+    build(id, value, options, false, window, cx, on_change)
+}
+
+/// Width of the bar that ends a card row.
+const ROW_BAR_WIDTH: f32 = 220.;
+
+/// A card row: the label on the left, a compact bar with the value on the
+/// right. Only the bar drags. The returned row takes further children, such
+/// as a Reset button after the bar.
+pub(crate) fn range_row(
+    id: impl Into<ElementId>,
+    value: f64,
+    options: RangeOptions,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+    on_change: impl Fn(&mut SettingsApp, f64, &mut Window, &mut Context<SettingsApp>) + 'static,
+) -> Div {
+    let label = options.label.clone();
+    let bar = build(id, value, options, true, window, cx, on_change);
+    div()
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .min_h(px(58.))
+        .px(px(18.))
+        .py(px(10.))
+        .flex_shrink_0()
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .text_size(px(14.))
+                .line_height(relative(1.35))
+                .font_weight(FontWeight(600.))
+                .child(label),
+        )
+        .child(bar)
+}
+
+fn build(
+    id: impl Into<ElementId>,
+    value: f64,
+    options: RangeOptions,
+    compact: bool,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+    on_change: impl Fn(&mut SettingsApp, f64, &mut Window, &mut Context<SettingsApp>) + 'static,
+) -> Stateful<Div> {
     let id = id.into();
     let p = palette(cx);
+    // The compact bar sits on a card, so its track is one step above it.
+    let (height, radius, thumb_height, inset, track) = if compact {
+        (36., 10., 26., 12., p.surface_3)
+    } else {
+        (40., 12., 30., 18., p.surface_2)
+    };
     let state = window.use_keyed_state((id.clone(), "range-state"), cx, |_, cx| State {
         bounds: Bounds::default(),
         hovered_since: None,
@@ -188,8 +243,14 @@ pub(crate) fn range(
     div()
         .id(id)
         .relative()
-        .w_full()
-        .h(px(40.))
+        .h(px(height))
+        .map(|this| {
+            if compact {
+                this.w(px(ROW_BAR_WIDTH)).flex_shrink_0()
+            } else {
+                this.w_full()
+            }
+        })
         .cursor_pointer()
         .track_focus(&focus)
         .focus_visible(move |style| super::focus_outline(style, p.focus.hsla()))
@@ -274,8 +335,8 @@ pub(crate) fn range(
                 .top_0()
                 .bottom_0()
                 .w_full()
-                .rounded(px(12.))
-                .bg(p.surface_2.hsla()),
+                .rounded(px(radius))
+                .bg(track.hsla()),
         )
         .child(
             div()
@@ -283,16 +344,16 @@ pub(crate) fn range(
                 .top_0()
                 .bottom_0()
                 .w(relative(progress))
-                .rounded(px(12.))
-                .bg(mix_pct(p.accent, 12., p.surface_2).hsla()),
+                .rounded(px(radius))
+                .bg(mix_pct(p.accent, if compact { 16. } else { 12. }, track).hsla()),
         )
         .child(
             div()
                 .absolute()
-                .top(px(5. + (30. - 30. * scale) / 2.))
+                .top(px((height - thumb_height * scale) / 2.))
                 .left(px(left + (6. - 6. * scale) / 2.))
                 .w(px(6. * scale))
-                .h(px(30. * scale))
+                .h(px(thumb_height * scale))
                 .rounded(px(12.))
                 .bg(mix_pct(p.accent, 86., p.text).hsla())
                 .shadow(vec![BoxShadow {
@@ -308,34 +369,43 @@ pub(crate) fn range(
                 .absolute()
                 .top_0()
                 .bottom_0()
-                .left(px(18.))
-                .right(px(18.))
+                .left(px(inset))
+                .right(px(inset))
                 .flex()
                 .items_center()
-                .justify_between()
+                .map(|this| {
+                    if compact {
+                        this.justify_end()
+                    } else {
+                        this.justify_between()
+                    }
+                })
                 .gap(px(16.))
                 .text_color(p.text.hsla())
                 // The shell is a `<label>`: global.css sets 14px on labels.
                 .text_size(px(14.))
                 .font_weight(FontWeight(650.))
                 .line_height(relative(1.2))
-                .child(
-                    div()
-                        .min_w_0()
-                        .flex()
-                        .items_center()
-                        .gap(px(8.))
-                        .when_some(options.icon, |this, name| {
-                            this.child(
-                                svg()
-                                    .path(icon(&name))
-                                    .size(px(18.))
-                                    .flex_shrink_0()
-                                    .text_color(p.text.hsla()),
-                            )
-                        })
-                        .child(options.label),
-                )
+                // In a card row the label is the row's, not the bar's.
+                .when(!compact, |this| {
+                    this.child(
+                        div()
+                            .min_w_0()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .when_some(options.icon, |this, name| {
+                                this.child(
+                                    svg()
+                                        .path(icon(&name))
+                                        .size(px(18.))
+                                        .flex_shrink_0()
+                                        .text_color(p.text.hsla()),
+                                )
+                            })
+                            .child(options.label),
+                    )
+                })
                 .child(div().flex_shrink_0().child(options.value_label)),
         )
         .child(capture)

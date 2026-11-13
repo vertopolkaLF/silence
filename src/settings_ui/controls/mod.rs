@@ -9,7 +9,7 @@ mod segmented_toggle;
 mod select;
 mod text_input;
 
-pub(crate) use range::{RangeOptions, range};
+pub(crate) use range::{RangeOptions, range, range_row};
 pub(crate) use segmented_toggle::{SegmentedToggleOption, segmented_toggle};
 pub(crate) use select::{SelectOption, SelectOptions, select};
 pub(crate) use text_input::{
@@ -115,6 +115,35 @@ impl gpui::Render for Tooltip {
     }
 }
 
+/// A switch and the action that flips it. As an element it flips on a click
+/// on the pill. A card row takes it apart and flips on a click anywhere in
+/// the row instead.
+pub(crate) struct Toggle {
+    id: ElementId,
+    pill: Stateful<Div>,
+    flip: Flip,
+}
+
+pub(crate) type Flip = std::rc::Rc<dyn Fn(&mut Window, &mut gpui::App)>;
+
+impl Toggle {
+    /// The pill without a click handler, and the flip for the row to call.
+    pub(crate) fn into_parts(self) -> (ElementId, Stateful<Div>, Flip) {
+        (self.id, self.pill, self.flip)
+    }
+}
+
+impl IntoElement for Toggle {
+    type Element = Stateful<Div>;
+
+    fn into_element(self) -> Stateful<Div> {
+        let flip = self.flip;
+        self.pill
+            .cursor_pointer()
+            .on_click(move |_, window, cx| flip(window, cx))
+    }
+}
+
 /// `.toggle`: 46x26 pill switch; the knob slides 20px.
 pub(crate) fn toggle(
     id: impl Into<ElementId>,
@@ -122,8 +151,12 @@ pub(crate) fn toggle(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     on_change: impl Fn(&mut SettingsApp, bool, &mut Window, &mut Context<SettingsApp>) + 'static,
-) -> Stateful<Div> {
+) -> Toggle {
     let id: ElementId = id.into();
+    let app = cx.weak_entity();
+    let flip: Flip = std::rc::Rc::new(move |window, cx| {
+        let _ = app.update(cx, |app, cx| on_change(app, !checked, window, cx));
+    });
     let palette = palette(cx);
     let on = anim::tween(
         window,
@@ -132,14 +165,13 @@ pub(crate) fn toggle(
         checked as u8 as f32,
         UI,
     );
-    div()
-        .id(id)
+    let pill = div()
+        .id(id.clone())
         .relative()
         .w(px(46.))
         .h(px(26.))
         .flex_shrink_0()
         .rounded_full()
-        .cursor_pointer()
         .bg(lerp(palette.surface_3, palette.accent, on).hsla())
         .shadow(vec![BoxShadow {
             color: palette.shadow_medium.hsla(),
@@ -148,7 +180,6 @@ pub(crate) fn toggle(
             spread_radius: px(0.),
             inset: true,
         }])
-        .on_click(cx.listener(move |app, _, window, cx| on_change(app, !checked, window, cx)))
         .child(
             div()
                 .absolute()
@@ -164,7 +195,8 @@ pub(crate) fn toggle(
                     spread_radius: px(0.),
                     inset: false,
                 }]),
-        )
+        );
+    Toggle { id, pill, flip }
 }
 
 /// `.ui-checkbox`: 20px rounded box with a scaling check mark and a label.

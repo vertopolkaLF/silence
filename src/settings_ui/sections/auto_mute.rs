@@ -237,7 +237,7 @@ pub(crate) fn render(
                     .reveal(
                         "auto-mute-dependent",
                         enabled,
-                        form::setting_row("Unmute on activity", None, unmute, cx).pl(px(40.)),
+                        form::setting_row("Unmute on activity", None, unmute, cx).pl(px(22.)),
                         window,
                         cx,
                     )
