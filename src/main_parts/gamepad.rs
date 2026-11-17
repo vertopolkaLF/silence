@@ -214,6 +214,7 @@ fn run_background_app() -> Result<()> {
         state.muted = muted;
         state.mic_in_use = mic_in_use;
     }
+    start_background_workers();
     register_notification_integration();
     updater::cleanup_downloads_after_startup();
     maybe_show_updated_notification();
@@ -227,8 +228,7 @@ fn run_background_app() -> Result<()> {
 
     // Flags go up before the hooks so the first wheel or volume key is covered.
     mark_tray_input_hooks_ready();
-    install_keyboard_hook(instance.into())?;
-    install_mouse_hook(instance.into())?;
+    spawn_input_hook_thread()?;
     prime_lock_keys();
     if gamepad_monitoring_needed(true) {
         ensure_gamepad_monitors(true);
@@ -310,6 +310,89 @@ fn create_message_window(instance: HINSTANCE) -> Result<HWND> {
     // tray itself is elevated. Harmless while it is not.
     allow_cross_process_window_messages(hwnd);
     Ok(hwnd)
+}
+
+/// Thread id of the tray's input hook thread; 0 before it runs.
+static INPUT_HOOK_THREAD: AtomicU32 = AtomicU32::new(0);
+/// Hotkey actions the hooks decided on, run in order on the main thread.
+static HOOK_ACTIONS: Lazy<Mutex<Vec<HotkeyRequest>>> = Lazy::new(|| Mutex::new(Vec::new()));
+
+/// Windows calls `WH_KEYBOARD_LL` / `WH_MOUSE_LL` hooks on the thread that
+/// installed them, and every key press and cursor move system-wide waits for
+/// that thread. The tray's main thread does audio, shell and timer work that
+/// can take tens of milliseconds (explorer calls stall while it updates the
+/// media flyout), which made the cursor jitter. This thread only pumps
+/// messages; the hooks decide and hand real work to the main thread.
+fn spawn_input_hook_thread() -> Result<()> {
+    let (ready, started) = std::sync::mpsc::channel::<Result<()>>();
+    thread::Builder::new()
+        .name("silence-input-hooks".into())
+        .spawn(move || {
+            unsafe {
+                let _ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+            }
+            // A thread message queue exists once the thread calls a USER
+            // function; make sure it does before anyone posts to it.
+            let mut msg = MSG::default();
+            unsafe {
+                let _ = PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE);
+            }
+            INPUT_HOOK_THREAD.store(unsafe { GetCurrentThreadId() }, Ordering::Release);
+            let installed = unsafe { GetModuleHandleW(None) }
+                .map_err(anyhow::Error::from)
+                .and_then(|instance| {
+                    install_keyboard_hook(instance.into())?;
+                    install_mouse_hook(instance.into())
+                });
+            let failed = installed.is_err();
+            let _ = ready.send(installed);
+            if failed {
+                return;
+            }
+            while unsafe { GetMessageW(&mut msg, None, 0, 0) }.as_bool() {
+                if msg.hwnd.0.is_null() && msg.message == WM_REINSTALL_HOOKS {
+                    reinstall_low_level_hooks();
+                    continue;
+                }
+                unsafe {
+                    let _ = TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+        })
+        .context("start input hook thread")?;
+    started
+        .recv()
+        .context("input hook thread exited before installing hooks")?
+}
+
+/// From a hook: run `action` on the main thread, never on the hook thread.
+/// Without a tray window (the settings process) it runs right here, as before.
+fn dispatch_hook_action(action: HotkeyRequest) {
+    let hwnd = tray_hwnd();
+    if hwnd.0.is_null() || INPUT_HOOK_THREAD.load(Ordering::Acquire) != unsafe { GetCurrentThreadId() } {
+        run_hotkey_action(action);
+        return;
+    }
+    HOOK_ACTIONS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(action);
+    unsafe {
+        let _ = PostMessageW(hwnd, WM_HOOK_ACTIONS, WPARAM(0), LPARAM(0));
+    }
+}
+
+/// Main thread: run what the hooks queued.
+fn run_hook_actions() {
+    let actions = std::mem::take(
+        &mut *HOOK_ACTIONS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
+    );
+    for action in actions {
+        run_hotkey_action(action);
+    }
 }
 
 fn install_keyboard_hook(instance: HINSTANCE) -> Result<()> {

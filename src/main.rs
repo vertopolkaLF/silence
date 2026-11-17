@@ -12,7 +12,7 @@ use std::{
     ptr::{null, null_mut},
     sync::{
         Mutex, RwLock,
-        atomic::{AtomicBool, AtomicIsize, AtomicU64, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicIsize, AtomicU32, AtomicU64, AtomicU8, Ordering},
     },
     thread,
     time::{Duration, Instant, SystemTime},
@@ -60,7 +60,7 @@ use windows::{
         },
         System::{
             Com::{
-                CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
+                CLSCTX_ALL, COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
                 CoTaskMemFree, STGM_READ, STGM_READWRITE, StructuredStorage::PropVariantChangeType,
             },
             Diagnostics::ToolHelp::{
@@ -74,7 +74,8 @@ use windows::{
             },
             SystemInformation::GetTickCount,
             Threading::{
-                CreateMutexW, GetCurrentThreadId, OpenProcess, PROCESS_NAME_FORMAT,
+                CreateMutexW, GetCurrentThread, GetCurrentThreadId, OpenProcess, SetThreadPriority,
+                THREAD_PRIORITY_HIGHEST, PROCESS_NAME_FORMAT,
                 PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
             },
             Variant::VT_LPWSTR,
@@ -104,7 +105,8 @@ use windows::{
                 HHOOK, HICON,
                 HMENU, IDC_ARROW, IDI_APPLICATION, IsIconic, IsWindowVisible, KBDLLHOOKSTRUCT,
                 KillTimer, LR_DEFAULTSIZE, LoadCursorW, LoadIconW, MENU_ITEM_FLAGS, MSG,
-                MSLLHOOKSTRUCT, PostMessageW, PostQuitMessage, RegisterClassW,
+                MSLLHOOKSTRUCT, PM_NOREMOVE, PeekMessageW, PostMessageW, PostQuitMessage,
+                PostThreadMessageW, RegisterClassW,
                 RegisterWindowMessageW, SC_KEYMENU, SW_RESTORE, SW_SHOW, SendMessageW,
                 SetForegroundWindow, SetMenuItemBitmaps, SetTimer, SetWindowLongPtrW,
                 SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
@@ -156,6 +158,7 @@ include!("main_parts/volume_input.rs");
 include!("main_parts/runtime_config.rs");
 include!("main_parts/input_utils.rs");
 include!("main_parts/elevation.rs");
+include!("main_parts/background.rs");
 
 #[allow(dead_code)]
 pub mod volume_tray_icons {

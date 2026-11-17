@@ -1141,9 +1141,12 @@ impl Render for VolumeView {
 
         // Whole physical pixels, so the card's edges and hairline stay crisp.
         let gutter = (chrome.gutter * scale * window_scale).round() / window_scale;
-        // The glass theme keeps its window still, sized for the largest card
-        // seen so far, and moves the card inside it.
-        let held = (chrome.entrance == Entrance::Nudge && self.surface_ready).then(|| {
+        // Themes that do not travel across the screen keep their window still,
+        // sized for the largest card seen so far, and move the card inside it.
+        // Resizing the window every animation frame rebuilt GPUI's swap chain
+        // each frame and made the whole desktop stutter.
+        let still_window = matches!(chrome.entrance, Entrance::Nudge | Entrance::Fade);
+        let held = (still_window && self.surface_ready).then(|| {
             self.held.0 = self.held.0.max(width).max(self.width.to);
             self.held.1 = self.held.1.max(height).max(self.height.to);
             (
@@ -1160,8 +1163,13 @@ impl Render for VolumeView {
             (gutter * window_scale).round() as i32,
             slide,
             // Until the first paint lands the window waits fully off screen.
-            (chrome.entrance == Entrance::Nudge && self.surface_ready)
-                .then(|| (NUDGE_DISTANCE * scale * window_scale).round() as i32),
+            match chrome.entrance {
+                Entrance::Nudge if self.surface_ready => {
+                    Some((NUDGE_DISTANCE * scale * window_scale).round() as i32)
+                }
+                Entrance::Fade if self.surface_ready => Some(0),
+                _ => None,
+            },
             held,
         );
         let (card_x, card_y) = (origin.0 as f32 / window_scale, origin.1 as f32 / window_scale);
@@ -1835,21 +1843,25 @@ fn fit_text(text: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> String
     if name.is_empty() || max_width <= 1.0 || measure(&name) <= max_width {
         return name;
     }
-    let mut kept = String::new();
-    for ch in name.chars() {
-        let mut next = kept.clone();
-        next.push(ch);
-        next.push('…');
-        if measure(&next) > max_width {
-            break;
+    // Binary search on the kept length: each measure shapes a new string on
+    // the render thread, so a char-by-char walk over a long title stalled frames.
+    let chars: Vec<char> = name.chars().collect();
+    let cut = |count: usize| -> String {
+        let mut kept: String = chars[..count].iter().collect();
+        kept.truncate(kept.trim_end().len());
+        kept.push('…');
+        kept
+    };
+    let (mut fits, mut too_long) = (0usize, chars.len());
+    while too_long - fits > 1 {
+        let mid = (fits + too_long) / 2;
+        if measure(&cut(mid)) <= max_width {
+            fits = mid;
+        } else {
+            too_long = mid;
         }
-        kept.push(ch);
     }
-    if kept.is_empty() {
-        "…".to_string()
-    } else {
-        format!("{kept}…")
-    }
+    cut(fits)
 }
 
 /// Track title: the theme's face, a step bolder than its numbers so it leads.
@@ -2994,6 +3006,16 @@ mod tests {
         assert_eq!(speaker_icon(34, false), "speaker-loud");
         assert_eq!(speaker_icon(100, false), "speaker-loud");
         assert_eq!(speaker_icon(80, true), "speaker-mute");
+    }
+
+    #[test]
+    fn fit_text_keeps_the_longest_prefix_that_fits() {
+        let measure = |text: &str| text.chars().count() as f32 * 10.0;
+        assert_eq!(fit_text("short", 100.0, measure), "short");
+        assert_eq!(fit_text("abcdefghijklmnop", 60.0, measure), "abcde…");
+        assert_eq!(fit_text("ab cdefgh", 40.0, measure), "ab…");
+        assert_eq!(fit_text("abcdef", 5.0, measure), "…");
+        assert_eq!(fit_text("", 50.0, measure), "");
     }
 
     #[test]

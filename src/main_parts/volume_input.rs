@@ -146,7 +146,7 @@ fn sync_volume_input_runtime() {
 /// Safe to call when the volume icon does not exist yet: the icon rect stays
 /// empty and taskbar / notification rects still update. The tray-icon code
 /// should call this again after `NIM_ADD` / `NIM_MODIFY` on [`ID_VOLUME_TRAY`].
-pub(crate) fn refresh_wheel_targets() {
+fn refresh_wheel_targets_now() {
     if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
         return;
     }
@@ -366,7 +366,16 @@ fn maintain_low_level_hooks() {
         return;
     }
     if wheel_volume::should_reinstall_hook(last_hook_event()) {
-        reinstall_low_level_hooks();
+        // Hooks belong to the thread that installs them: reinstall there.
+        let thread = INPUT_HOOK_THREAD.load(Ordering::Acquire);
+        if thread == 0 {
+            return;
+        }
+        if unsafe { PostThreadMessageW(thread, WM_REINSTALL_HOOKS, WPARAM(0), LPARAM(0)) }.is_err() {
+            eprintln!("failed to ask the input hook thread to reinstall hooks");
+        }
+        // Do not ask again on every tick while that request is pending.
+        note_hook_event();
     }
 }
 

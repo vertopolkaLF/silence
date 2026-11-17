@@ -88,7 +88,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
             }
         }
         for action in actions {
-            run_hotkey_action(action);
+            dispatch_hook_action(action);
         }
         if suppress_key {
             return LRESULT(1);
@@ -140,7 +140,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         drop(state);
 
         for action in actions {
-            run_hotkey_action(action);
+            dispatch_hook_action(action);
         }
         if suppress_key {
             return LRESULT(1);
@@ -277,7 +277,7 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
     }
 
     for action in actions {
-        run_hotkey_action(action);
+        dispatch_hook_action(action);
     }
 
     unsafe { CallNextHookEx(None, code, wparam, lparam) }

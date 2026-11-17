@@ -915,7 +915,28 @@ fn monitor_under_cursor() -> String {
         .unwrap_or_else(|| crate::OVERLAY_DISPLAY_PRIMARY.to_string())
 }
 
+/// Monitors as last enumerated. Layout asks several times per animation
+/// frame; display changes clear it, and it expires on its own as a backstop.
+static MONITORS: Lazy<Mutex<Option<(std::time::Instant, Vec<MonitorRect>)>>> =
+    Lazy::new(|| Mutex::new(None));
+const MONITORS_TTL: Duration = Duration::from_secs(2);
+
+fn forget_monitors() {
+    *MONITORS.lock().unwrap() = None;
+}
+
 fn monitor_rects() -> Vec<MonitorRect> {
+    if let Some((at, monitors)) = MONITORS.lock().unwrap().as_ref()
+        && at.elapsed() < MONITORS_TTL
+    {
+        return monitors.clone();
+    }
+    let monitors = enumerate_monitors();
+    *MONITORS.lock().unwrap() = Some((std::time::Instant::now(), monitors.clone()));
+    monitors
+}
+
+fn enumerate_monitors() -> Vec<MonitorRect> {
     let mut monitors = Vec::<MonitorRect>::new();
     unsafe {
         let _ = EnumDisplayMonitors(
@@ -935,6 +956,9 @@ struct MonitorRect {
     rect: RECT,
     primary: bool,
 }
+
+// HMONITOR is a plain handle value, valid on any thread.
+unsafe impl Send for MonitorRect {}
 
 unsafe extern "system" fn collect_monitor_rect(
     monitor: HMONITOR,
@@ -1051,6 +1075,10 @@ unsafe extern "system" fn volume_wnd_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     match msg {
+        WM_DISPLAYCHANGE | WM_DPICHANGED | WM_SETTINGCHANGE => {
+            forget_monitors();
+            unsafe { forward_window_message(hwnd, msg, wparam, lparam) }
+        }
         WM_NCCALCSIZE => LRESULT(0),
         WM_PAINT => {
             let result = unsafe { forward_window_message(hwnd, msg, wparam, lparam) };

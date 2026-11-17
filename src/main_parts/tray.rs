@@ -744,8 +744,7 @@ unsafe extern "system" fn main_wnd_proc(
         WM_AUDIO_ENDPOINT_CHANGED => {
             ensure_audio_notification_registration();
             refresh_mute_state();
-            enforce_bluetooth_handsfree_block();
-            on_capture_endpoints_changed();
+            audio_endpoints_changed_in_background();
             LRESULT(0)
         }
         WM_OUTPUT_VOLUME_CHANGED => {
@@ -762,6 +761,14 @@ unsafe extern "system" fn main_wnd_proc(
         }
         WM_VOLUME_MEDIA_KEY => {
             handle_volume_media_key(wparam.0);
+            LRESULT(0)
+        }
+        WM_MIC_IN_USE => {
+            apply_mic_in_use(wparam.0 != 0);
+            LRESULT(0)
+        }
+        WM_HOOK_ACTIONS => {
+            run_hook_actions();
             LRESULT(0)
         }
         WM_LOCK_KEY => {

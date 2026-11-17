@@ -39,6 +39,12 @@ const WM_VOLUME_OSD_POSITIONING: u32 = WM_APP + 23;
 /// A lock key or Shift went down or up; the lock states may have changed.
 /// `wparam` is the virtual-key code, `lparam` 1 = down, 0 = up.
 const WM_LOCK_KEY: u32 = WM_APP + 24;
+/// The input hook thread queued hotkey actions in `HOOK_ACTIONS`.
+const WM_HOOK_ACTIONS: u32 = WM_APP + 25;
+/// Thread message to the input hook thread: unhook and install again.
+const WM_REINSTALL_HOOKS: u32 = WM_APP + 26;
+/// The audio worker read a new "microphone in use" state; `wparam` 1 = in use.
+const WM_MIC_IN_USE: u32 = WM_APP + 27;
 /// Second notify icon for output volume. The microphone icon keeps [`ID_TRAY`].
 const ID_VOLUME_TRAY: u32 = 2;
 const ID_STATE_TIMER: usize = 10;

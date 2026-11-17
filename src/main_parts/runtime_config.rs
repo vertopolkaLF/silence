@@ -2,32 +2,22 @@ fn refresh_runtime_state() {
     reload_config_if_changed();
     evaluate_auto_mute_inactivity();
     refresh_mute_state();
-    refresh_mic_in_use_state_throttled();
+    // "Microphone in use" is polled by the audio worker (`background.rs`).
 }
 
-fn refresh_mic_in_use_state_throttled() {
+/// Read "microphone in use" on this thread. Fallback without the worker.
+fn refresh_mic_in_use_state_now() {
+    match current_mic_in_use() {
+        Ok(mic_in_use) => apply_mic_in_use(mic_in_use),
+        Err(err) => eprintln!("failed to refresh microphone use state: {err:?}"),
+    }
+}
+
+/// Main thread: a new "microphone in use" reading.
+fn apply_mic_in_use(mic_in_use: bool) {
     if !microphone_module_enabled() {
         return;
     }
-    let mut last_refresh = LAST_MIC_IN_USE_REFRESH.lock().unwrap();
-    if last_refresh.is_some_and(|last| last.elapsed() < Duration::from_millis(MIC_IN_USE_REFRESH_MS))
-    {
-        return;
-    }
-    *last_refresh = Some(Instant::now());
-    drop(last_refresh);
-
-    refresh_mic_in_use_state();
-}
-
-fn refresh_mic_in_use_state() {
-    let mic_in_use = match current_mic_in_use() {
-        Ok(mic_in_use) => mic_in_use,
-        Err(err) => {
-            eprintln!("failed to refresh microphone use state: {err:?}");
-            return;
-        }
-    };
     let changed = {
         let mut state = STATE.lock().unwrap();
         let changed = state.mic_in_use != mic_in_use;
