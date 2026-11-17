@@ -257,6 +257,12 @@ fn run_background_app() -> Result<()> {
     unsafe {
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).into() {
+            // TEMP lag trace: main thread owns the mouse hook.
+            let _span = crate::lag_trace::Span::with(
+                "main dispatch",
+                format!("msg 0x{:x} wparam {}", msg.message, msg.wParam.0),
+                15.0,
+            );
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }

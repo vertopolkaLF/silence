@@ -177,6 +177,7 @@ pub(crate) fn run(receiver: flume::Receiver<Command>) -> Result<()> {
                                     let _ = cx.update(|cx| super::volume_popup::handle(command, cx));
                                 }
                             }
+                            let _span = crate::lag_trace::Span::new("osd commands", 8.0);
                             let applied = handle.update(cx, |view, window, cx| {
                                 for command in batch {
                                     if !matches!(command, Command::Shutdown) {
@@ -889,6 +890,12 @@ impl VolumeView {
 impl Render for VolumeView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let now = Instant::now();
+        // TEMP lag trace
+        let _span = crate::lag_trace::Span::with(
+            "osd render",
+            format!("media_dirty={}", self.media_dirty),
+            8.0,
+        );
         if !self.background_set {
             window.set_background_appearance(WindowBackgroundAppearance::Transparent);
             self.background_set = true;

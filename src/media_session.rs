@@ -249,7 +249,10 @@ fn watch(wake: flume::Sender<Wake>, woken: flume::Receiver<Wake>) -> windows::co
             subscriptions = subscribe(&manager, &wake);
         }
 
-        let next = read_current(&manager, &mut cache);
+        let next = {
+            let _span = crate::lag_trace::Span::new("media read_current", 0.0);
+            read_current(&manager, &mut cache)
+        };
         publish(next.as_ref());
         let now = Instant::now();
         if pending
@@ -366,6 +369,7 @@ fn unasked_action(
 }
 
 fn show(next: &Snapshot, action: MediaAction) -> Shown {
+    crate::lag_trace::log(|| format!("media show {action:?} cover={}", next.track.cover.is_some()));
     crate::show_music_osd(next.track.clone(), action);
     Shown {
         at: Instant::now(),
@@ -532,6 +536,7 @@ fn system_time() -> i64 {
 fn read_cover(
     thumbnail: &windows::Storage::Streams::IRandomAccessStreamReference,
 ) -> Option<Arc<Image>> {
+    let _span = crate::lag_trace::Span::new("media read_cover", 0.0);
     let stream = thumbnail.OpenReadAsync().ok()?.get().ok()?;
     let size = stream.Size().ok()?;
     if size == 0 || size > MAX_THUMBNAIL_BYTES {

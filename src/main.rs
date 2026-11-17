@@ -126,6 +126,7 @@ mod gpui_overlay;
 mod native_overlay;
 pub(crate) mod overlay_icons;
 mod media_session;
+mod lag_trace; // TEMP lag trace
 mod volume_osd;
 mod volume_popup;
 mod volume_sessions;
