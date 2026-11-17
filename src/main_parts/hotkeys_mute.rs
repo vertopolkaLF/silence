@@ -224,13 +224,6 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
 
     let event = wparam.0 as u32;
     let mouse = unsafe { *(lparam.0 as *const MSLLHOOKSTRUCT) };
-    // TEMP lag trace: how late this hook runs after the input happened.
-    {
-        let late = unsafe { GetTickCount() }.wrapping_sub(mouse.time);
-        if late >= 20 && late < 60_000 {
-            crate::lag_trace::log(|| format!("mouse hook late {late}ms (msg 0x{event:x})"));
-        }
-    }
     if swallow_volume_osd_click(event, &mouse) {
         return LRESULT(1);
     }
