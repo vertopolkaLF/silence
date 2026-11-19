@@ -180,6 +180,16 @@ pub enum VolumeOsdContent {
     },
     /// Caps, Num or Scroll Lock was toggled.
     LockKey { key: LockKey, on: bool },
+    /// One app's volume (the wheel over its taskbar button): the level
+    /// layout with the app's own icon in place of the speaker.
+    App {
+        /// Session key; tells two apps' icons apart.
+        key: String,
+        /// The exe's icon as PNG; `None` falls back to the speaker glyph.
+        icon: Option<std::sync::Arc<Vec<u8>>>,
+        percent: u8,
+        muted: bool,
+    },
 }
 
 /// A toggle key the lock-key OSD reports on.
@@ -231,14 +241,18 @@ pub enum MediaAction {
 impl VolumeOsdContent {
     pub fn is_muted(&self) -> bool {
         match self {
-            Self::Level { muted, .. } | Self::Device { muted, .. } => *muted,
+            Self::Level { muted, .. } | Self::Device { muted, .. } | Self::App { muted, .. } => {
+                *muted
+            }
             Self::Media { .. } | Self::LockKey { .. } => false,
         }
     }
 
     pub fn percent(&self) -> u8 {
         match self {
-            Self::Level { percent, .. } | Self::Device { percent, .. } => (*percent).min(100),
+            Self::Level { percent, .. } | Self::Device { percent, .. } | Self::App { percent, .. } => {
+                (*percent).min(100)
+            }
             Self::Media { .. } | Self::LockKey { .. } => 0,
         }
     }

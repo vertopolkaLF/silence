@@ -222,6 +222,72 @@ pub fn set_app_mute(key: &str, muted: bool) {
     queue_write(key, None, Some(muted));
 }
 
+/// Moves the apps behind `keys` by `steps` notches of `step` percent, onto
+/// that grid, and returns the first of them as it is now. A step up unmutes.
+/// Writes directly, so the next notch reads the new level: call it off the
+/// UI thread. `None` when none of them has a session any more.
+pub fn step_app_volume(keys: &[String], steps: i32, step: u8) -> Option<AppVolume> {
+    let matching: Vec<Session> = sessions()
+        .into_iter()
+        .filter(|session| !session.system && keys.contains(&session.key))
+        .collect();
+    let first = matching.first()?;
+    let level = unsafe { first.volume.GetMasterVolume() }.unwrap_or(1.0);
+    let muted = unsafe { first.volume.GetMute() }.is_ok_and(|muted| muted.as_bool());
+    let current = (level.clamp(0.0, 1.0) * 100.0).round() as i32;
+    let target = snap_step(current, steps, i32::from(step.clamp(1, 100)));
+    let unmute = muted && steps > 0;
+    for session in &matching {
+        let _ = unsafe {
+            session
+                .volume
+                .SetMasterVolume(target as f32 / 100.0, std::ptr::null())
+        };
+        if unmute {
+            let _ = unsafe { session.volume.SetMute(false, std::ptr::null()) };
+        }
+    }
+    let name = if first.display_name.is_empty() {
+        app_name(first.pid, first.path.as_deref())
+    } else {
+        first.display_name.clone()
+    };
+    Some(AppVolume {
+        key: first.key.clone(),
+        name,
+        icon_path: first.path.clone(),
+        percent: target as u8,
+        muted: muted && !unmute,
+        system: false,
+    })
+}
+
+/// `current` moved by `steps` grid lines of `step`, within 0..=100. Off-grid
+/// levels land on the nearest line in the direction of travel.
+fn snap_step(current: i32, steps: i32, step: i32) -> i32 {
+    let base = if steps > 0 {
+        current.div_euclid(step)
+    } else {
+        (current + step - 1).div_euclid(step)
+    };
+    ((base + steps) * step).clamp(0, 100)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::snap_step;
+
+    #[test]
+    fn steps_snap_onto_the_grid() {
+        assert_eq!(snap_step(37, 1, 2), 38);
+        assert_eq!(snap_step(37, -1, 2), 36);
+        assert_eq!(snap_step(40, 1, 5), 45);
+        assert_eq!(snap_step(40, -2, 5), 30);
+        assert_eq!(snap_step(99, 3, 2), 100);
+        assert_eq!(snap_step(1, -1, 2), 0);
+    }
+}
+
 static PID_PATHS: Lazy<Mutex<HashMap<u32, Option<PathBuf>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 

@@ -594,6 +594,23 @@ fn show_volume_osd(content: volume_osd::VolumeOsdContent) {
     volume_osd::volume_osd_show(content, &style);
 }
 
+/// The wheel moved one app's volume (over its taskbar button). Any thread.
+pub(crate) fn show_app_volume_osd(app: volume_sessions::AppVolume) {
+    let icon = app
+        .icon_path
+        .as_deref()
+        .and_then(|path| volume_sessions::app_icon_png(path, APP_OSD_ICON_PX));
+    show_volume_osd(volume_osd::VolumeOsdContent::App {
+        key: app.key,
+        icon,
+        percent: app.percent,
+        muted: app.muted,
+    });
+}
+
+/// App icons in the OSD are drawn from this many pixels, enough for 2x scale.
+const APP_OSD_ICON_PX: u32 = 64;
+
 /// Start the OSD thread (and the popup window on it) and the wallpaper blur
 /// now, so the first volume change or click shows them without a delay.
 pub(crate) fn prewarm_volume_ui() {

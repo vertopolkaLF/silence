@@ -395,6 +395,8 @@ struct VolumeView {
     layers: Vec<ChromeLayer>,
     glyphs: Vec<Glyph>,
     captions: Vec<Caption>,
+    /// Decoded app icons by session key, for `app:` glyphs.
+    app_icons: std::collections::HashMap<String, Arc<Image>>,
     media: Vec<MediaLayer>,
     /// Re-read the playing track and re-fit its text on the next frame.
     media_dirty: bool,
@@ -455,6 +457,7 @@ impl VolumeView {
             }],
             glyphs: Vec::new(),
             captions: Vec::new(),
+            app_icons: std::collections::HashMap::new(),
             media: Vec::new(),
             media_dirty: true,
             media_height: Motion::new(0.0, SIZE_MS),
@@ -657,7 +660,10 @@ impl VolumeView {
     /// The task is replaced, which cancels the previous wait. The callback must
     /// not drop `hide_wait`: that task is the one currently running.
     fn arm_hide(&mut self, cx: &mut Context<Self>, now: Instant) {
-        if self.positioning || (self.style.while_muted && self.content.is_muted()) {
+        // "While muted" is about the output; a muted app still times out.
+        let output_muted =
+            self.content.is_muted() && !matches!(self.content, VolumeOsdContent::App { .. });
+        if self.positioning || (self.style.while_muted && output_muted) {
             self.hide_wait = None;
             return;
         }
@@ -736,10 +742,12 @@ impl VolumeView {
     fn sync_glyph(&mut self, now: Instant) {
         // The music badge is too small for Fluent's hairline glyphs.
         let media = matches!(self.content, VolumeOsdContent::Media { .. });
-        let id = if self.incoming().chrome.fluent && !media {
-            fluent_glyph(&self.content)
+        let id: SharedString = if let Some(id) = self.app_glyph() {
+            id.into()
+        } else if self.incoming().chrome.fluent && !media {
+            fluent_glyph(&self.content).into()
         } else {
-            content_glyph(&self.content)
+            content_glyph(&self.content).into()
         };
         let color = self.incoming().chrome.icon_color;
         let mut matched = false;
@@ -759,13 +767,40 @@ impl VolumeView {
                 opacity
             };
             self.glyphs.push(Glyph {
-                path: id.into(),
+                path: id,
                 color,
                 opacity,
             });
         }
         self.glyphs
             .retain(|glyph| glyph.opacity.to > 0.0 || glyph.opacity.active(now));
+    }
+
+    /// `app:<key>` (or `app-muted:<key>`) for an app with an icon; the icon is
+    /// decoded once and kept while its glyph is on screen.
+    fn app_glyph(&mut self) -> Option<String> {
+        let VolumeOsdContent::App {
+            key, icon, muted, ..
+        } = &self.content
+        else {
+            return None;
+        };
+        let png = icon.as_ref()?;
+        let live: Vec<&str> = self
+            .glyphs
+            .iter()
+            .filter_map(|glyph| app_glyph_key(&glyph.path))
+            .collect();
+        self.app_icons
+            .retain(|known, _| known == key || live.contains(&known.as_str()));
+        self.app_icons
+            .entry(key.clone())
+            .or_insert_with(|| Arc::new(Image::from_bytes(gpui::ImageFormat::Png, (**png).clone())));
+        Some(if *muted {
+            format!("app-muted:{key}")
+        } else {
+            format!("app:{key}")
+        })
     }
 
     fn sync_level(&mut self, now: Instant) {
@@ -1527,6 +1562,19 @@ impl Render for VolumeView {
                     .justify_center()
                     .opacity(*opacity)
                     .child(match path.strip_prefix("fluent:") {
+                        _ if app_glyph_key(path).is_some() => {
+                            let size = chrome.icon_size * scale;
+                            let muted = path.starts_with("app-muted:");
+                            match app_glyph_key(path).and_then(|key| self.app_icons.get(key)) {
+                                Some(image) => img(image.clone())
+                                    .size(px(size))
+                                    .object_fit(ObjectFit::Contain)
+                                    // Muted: the app's icon stays, faded.
+                                    .opacity(if muted { 0.4 } else { 1.0 })
+                                    .into_any_element(),
+                                None => div().size(px(size)).into_any_element(),
+                            }
+                        }
                         Some(code) => {
                             let glyph = u32::from_str_radix(code, 16)
                                 .ok()
@@ -2381,7 +2429,9 @@ fn content_glyph(content: &VolumeOsdContent) -> &'static str {
         return "speaker-mute";
     }
     match content {
-        VolumeOsdContent::Level { percent, .. } => speaker_icon(*percent, false),
+        VolumeOsdContent::Level { percent, .. } | VolumeOsdContent::App { percent, .. } => {
+            speaker_icon(*percent, false)
+        }
         VolumeOsdContent::Device { kind, .. } => match kind {
             DeviceKind::Headphones => "device-headphones",
             DeviceKind::Display => "device-monitor",
@@ -2399,13 +2449,19 @@ fn content_glyph(content: &VolumeOsdContent) -> &'static str {
     }
 }
 
+/// Session key of an `app:` / `app-muted:` glyph id.
+fn app_glyph_key(path: &str) -> Option<&str> {
+    path.strip_prefix("app:")
+        .or_else(|| path.strip_prefix("app-muted:"))
+}
+
 /// Segoe Fluent Icons code points, as `fluent:<hex>` glyph ids.
 fn fluent_glyph(content: &VolumeOsdContent) -> &'static str {
     if content.is_muted() {
         return "fluent:E74F";
     }
     match content {
-        VolumeOsdContent::Level { percent, .. } => match (*percent).min(100) {
+        VolumeOsdContent::Level { percent, .. } | VolumeOsdContent::App { percent, .. } => match (*percent).min(100) {
             0 => "fluent:E992",
             1..=33 => "fluent:E993",
             34..=66 => "fluent:E994",

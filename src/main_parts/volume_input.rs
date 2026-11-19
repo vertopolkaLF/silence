@@ -86,17 +86,20 @@ fn sync_volume_input_runtime() {
     if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
         return;
     }
-    let (hwnd, module_on, zone, intercept, volume_sound, music) = {
+    let (hwnd, module_on, zone, app_buttons, step, intercept, volume_sound, music) = {
         let state = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         (
             state.hwnd,
             state.modules.volume,
             state.volume.wheel.zone,
+            state.volume.wheel.app_buttons,
+            state.volume.wheel.step_percent,
             state.volume.media_keys.intercept,
             volume_sound_settings(&state),
             state.volume.music.clone(),
         )
     };
+    taskbar_apps::configure(module_on && app_buttons, step);
     let music_on = module_on && music.enabled;
     MUSIC_KEYS_ON.store(
         music_on && (music.on_play_pause || music.on_skip),
@@ -166,6 +169,28 @@ fn refresh_wheel_targets_now() {
 #[allow(dead_code)] // later settings bridge; this stage only stores the flag
 pub(crate) fn volume_icon_hidden_in_overflow() -> bool {
     VOLUME_ICON_HIDDEN_IN_OVERFLOW.load(Ordering::Relaxed)
+}
+
+/// Pointer moved: lets the taskbar-app worker re-read the buttons while the
+/// pointer is over a taskbar. Tray only, never blocks.
+fn taskbar_app_hover(lparam: LPARAM) {
+    if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) || lparam.0 == 0 {
+        return;
+    }
+    let mouse = unsafe { &*(lparam.0 as *const MSLLHOOKSTRUCT) };
+    taskbar_apps::hover(mouse.pt);
+}
+
+/// `true` when the wheel is over the taskbar button of an app playing sound:
+/// that app's volume changes instead. Wins over the wheel zone. Never blocks.
+fn taskbar_app_wheel(message: u32, lparam: LPARAM) -> bool {
+    if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) || !VOLUME_MODULE_ON.load(Ordering::Relaxed) {
+        return false;
+    }
+    match wheel_volume::decode_wheel(message, lparam) {
+        Some((pt, delta, false)) => taskbar_apps::wheel(pt, delta),
+        _ => false,
+    }
 }
 
 /// `true` when this wheel event was taken by the tray. Never blocks.

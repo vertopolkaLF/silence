@@ -218,7 +218,13 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
 
     // The settings process installs this same proc. `TRAY_VOLUME_HOOKS` is set
     // only in the tray, so that thread never swallows a wheel.
-    if wparam.0 as u32 == WM_MOUSEWHEEL && volume_wheel_should_swallow(wparam.0 as u32, lparam) {
+    if wparam.0 as u32 == WM_MOUSEMOVE {
+        taskbar_app_hover(lparam);
+    }
+    if wparam.0 as u32 == WM_MOUSEWHEEL
+        && (taskbar_app_wheel(wparam.0 as u32, lparam)
+            || volume_wheel_should_swallow(wparam.0 as u32, lparam))
+    {
         return LRESULT(1);
     }
 

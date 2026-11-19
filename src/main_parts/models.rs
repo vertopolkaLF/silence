@@ -1751,6 +1751,9 @@ pub struct VolumeWheelConfig {
     pub zone: WheelZone,
     #[serde(default = "default_volume_wheel_step")]
     pub step_percent: u8,
+    /// The wheel over an app's taskbar button changes that app's volume.
+    #[serde(default = "default_true")]
+    pub app_buttons: bool,
 }
 
 impl Default for VolumeWheelConfig {
@@ -1758,6 +1761,7 @@ impl Default for VolumeWheelConfig {
         Self {
             zone: WheelZone::default(),
             step_percent: default_volume_wheel_step(),
+            app_buttons: true,
         }
     }
 }

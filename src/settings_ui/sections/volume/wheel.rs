@@ -96,6 +96,15 @@ pub(crate) fn render(
             app.update_config(cx, |config| config.volume.wheel.step_percent = value);
         },
     );
+    let app_buttons = controls::toggle(
+        "volume-wheel-app-buttons",
+        wheel.app_buttons,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            app.update_config(cx, |config| config.volume.wheel.app_buttons = checked);
+        },
+    );
     let left = click_select("volume-click-left", "Left click", clicks.left, app, window, cx, |clicks, action| {
         clicks.left = action;
     });
@@ -120,8 +129,17 @@ pub(crate) fn render(
     vec![column()
         .child(form::page_title("Wheel & clicks", None))
         .child(
-            form::block()
-                .child(form::card(cx).row(zone).row(step)),
+            form::block().child(
+                form::card(cx)
+                    .row(zone)
+                    .row(step)
+                    .row(form::setting_row(
+                        "Per-app volume on the taskbar",
+                        Some("Scroll over an app's taskbar button to change only that app's volume."),
+                        app_buttons,
+                        cx,
+                    )),
+            ),
         )
         .child(
             form::block()
