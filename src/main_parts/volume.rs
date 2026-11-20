@@ -595,7 +595,8 @@ fn show_volume_osd(content: volume_osd::VolumeOsdContent) {
 }
 
 /// The wheel moved one app's volume (over its taskbar button). Any thread.
-pub(crate) fn show_app_volume_osd(app: volume_sessions::AppVolume) {
+/// `preview` is where the taskbar's window preview probably is.
+pub(crate) fn show_app_volume_osd(app: volume_sessions::AppVolume, preview: Option<RECT>) {
     let icon = app
         .icon_path
         .as_deref()
@@ -605,6 +606,7 @@ pub(crate) fn show_app_volume_osd(app: volume_sessions::AppVolume) {
         icon,
         percent: app.percent,
         muted: app.muted,
+        avoid: preview,
     });
 }
 

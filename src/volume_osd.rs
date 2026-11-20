@@ -189,6 +189,10 @@ pub enum VolumeOsdContent {
         icon: Option<std::sync::Arc<Vec<u8>>>,
         percent: u8,
         muted: bool,
+        /// Where the taskbar's window preview is likely drawn (physical
+        /// pixels). Explorer paints it above every window, so the card steps
+        /// aside instead of hiding under it.
+        avoid: Option<RECT>,
     },
 }
 
@@ -319,6 +323,10 @@ pub fn volume_osd_init() -> Result<()> {
 }
 
 pub fn volume_osd_show(content: VolumeOsdContent, style: &VolumeOsdStyle) {
+    *AVOID.lock().unwrap() = match &content {
+        VolumeOsdContent::App { avoid, .. } => *avoid,
+        _ => None,
+    };
     send(Command::Show {
         content,
         style: style.clone(),
@@ -343,6 +351,35 @@ pub fn volume_osd_set_positioning(active: bool) {
 /// Where the last drag left the card: (display id, x %, y %).
 pub fn take_moved_position() -> Option<(String, f32, f32)> {
     MOVED.lock().unwrap().take()
+}
+
+/// See `VolumeOsdContent::App::avoid`. Set with each show.
+static AVOID: Lazy<Mutex<Option<RECT>>> = Lazy::new(|| Mutex::new(None));
+
+/// `x` for a `width` x `height` card at `y`, moved sideways off [`AVOID`] to
+/// whichever side is closer and still on `monitor`.
+fn avoid_x(x: i32, y: i32, width: i32, height: i32, monitor: &RECT) -> i32 {
+    let Some(zone) = *AVOID.lock().unwrap() else {
+        return x;
+    };
+    shift_off(x, y, width, height, &zone, monitor)
+}
+
+fn shift_off(x: i32, y: i32, width: i32, height: i32, zone: &RECT, monitor: &RECT) -> i32 {
+    let overlaps = x < zone.right && x + width > zone.left && y < zone.bottom && y + height > zone.top;
+    if !overlaps {
+        return x;
+    }
+    let left = zone.left - width;
+    let right = zone.right;
+    let fits = |candidate: i32| candidate >= monitor.left && candidate + width <= monitor.right;
+    match (fits(left), fits(right)) {
+        (true, true) if (x - left).abs() <= (right - x).abs() => left,
+        (true, true) => right,
+        (true, false) => left,
+        (false, true) => right,
+        (false, false) => x,
+    }
 }
 
 static MOVED: Lazy<Mutex<Option<(String, f32, f32)>>> = Lazy::new(|| Mutex::new(None));
@@ -558,6 +595,7 @@ pub(crate) fn card_rect(width: i32, height: i32) -> Option<(RECT, RECT)> {
     let screen_h = (rect.bottom - rect.top).max(height);
     let x = rect.left + percent_to_axis(osd.position_x, screen_w, width);
     let y = rect.top + percent_to_axis(osd.position_y, screen_h, height);
+    let x = avoid_x(x, y, width, height, &rect);
     Some((
         rect,
         RECT {
@@ -822,6 +860,7 @@ impl NativeOsd {
         let screen_h = (rect.bottom - rect.top).max(self.card_height);
         let x = rect.left + percent_to_axis(self.position_x, screen_w, self.card_width);
         let y = rect.top + percent_to_axis(self.position_y, screen_h, self.card_height);
+        let x = avoid_x(x, y, self.card_width, self.card_height, &rect);
         let slide = self.slide_offset(y, &rect);
         let bounds = match (self.held, self.slide_travel) {
             (Some((held_w, held_h)), Some(travel)) => {
@@ -831,6 +870,14 @@ impl NativeOsd {
                     + percent_to_axis(self.position_x, screen_w.max(held_w), held_w);
                 let held_y = rect.top
                     + percent_to_axis(self.position_y, screen_h.max(held_h), held_h);
+                // Step aside as a whole, the card on the side next to the zone.
+                let free_x = held_x;
+                let held_x = avoid_x(held_x, held_y, held_w, held_h, &rect);
+                let x = match held_x.cmp(&free_x) {
+                    std::cmp::Ordering::Less => held_x + held_w - self.card_width,
+                    std::cmp::Ordering::Greater => held_x,
+                    std::cmp::Ordering::Equal => x,
+                };
                 let left = held_x - self.inset_x;
                 let top = held_y - self.inset_y - travel;
                 self.origin = (x - left, y + slide - top);
@@ -1209,5 +1256,36 @@ unsafe fn forward_window_message(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: L
             wparam,
             lparam,
         )
+    }
+}
+
+#[cfg(test)]
+mod avoid_tests {
+    use super::shift_off;
+    use windows::Win32::Foundation::RECT;
+
+    fn rect(left: i32, top: i32, right: i32, bottom: i32) -> RECT {
+        RECT { left, top, right, bottom }
+    }
+
+    #[test]
+    fn card_steps_to_the_nearer_side_of_the_preview() {
+        let monitor = rect(0, 0, 2560, 1440);
+        let zone = rect(1100, 1100, 1400, 1440);
+        // Clear of the zone: stays.
+        assert_eq!(shift_off(100, 1300, 200, 50, &zone, &monitor), 100);
+        // Left of center: goes left.
+        assert_eq!(shift_off(1150, 1300, 200, 50, &zone, &monitor), 900);
+        // Right of center: goes right.
+        assert_eq!(shift_off(1300, 1300, 200, 50, &zone, &monitor), 1400);
+        // Above the zone: stays.
+        assert_eq!(shift_off(1150, 900, 200, 50, &zone, &monitor), 1150);
+    }
+
+    #[test]
+    fn card_keeps_on_the_monitor() {
+        let monitor = rect(0, 0, 1000, 1000);
+        let zone = rect(50, 800, 600, 1000);
+        assert_eq!(shift_off(60, 900, 200, 50, &zone, &monitor), 600);
     }
 }

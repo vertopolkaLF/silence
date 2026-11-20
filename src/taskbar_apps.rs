@@ -36,7 +36,9 @@ use windows::{
             },
             Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
         },
+        Graphics::Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromPoint},
         UI::{
+            HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
             Accessibility::{
                 CUIAutomation, IUIAutomation, IUIAutomationCondition, TreeScope_Descendants,
                 UIA_ClassNamePropertyId,
@@ -64,6 +66,12 @@ const SCAN_INTERVAL: Duration = Duration::from_millis(700);
 
 /// Taskbar rects (auto-hide, a new monitor) are re-read this often.
 const TASKBAR_INTERVAL: Duration = Duration::from_secs(2);
+
+/// One window preview over a taskbar button, in logical pixels, with the
+/// room the card keeps from it. Measured on Windows 11 24H2 at 125%.
+const PREVIEW_WIDTH: f32 = 220.0;
+const PREVIEW_HEIGHT: f32 = 230.0;
+const PREVIEW_MARGIN: f32 = 12.0;
 
 /// `PKEY_AppUserModel_ID`; its own module would need another windows feature.
 const PKEY_APP_USER_MODEL_ID: PROPERTYKEY = PROPERTYKEY {
@@ -98,6 +106,8 @@ struct Button {
     rect: Rect,
     /// Session keys of the apps behind the button that are playing now.
     keys: Vec<String>,
+    /// Window previews shown side by side over the button on hover.
+    previews: u32,
 }
 
 enum Msg {
@@ -213,14 +223,14 @@ fn run(receiver: mpsc::Receiver<Msg>) {
                 }
             }
             Ok(Msg::Wheel { pt, delta }) => {
-                let keys = BUTTONS
+                let (keys, preview) = BUTTONS
                     .read()
                     .ok()
                     .and_then(|buttons| {
                         buttons
                             .iter()
                             .find(|button| button.rect.contains(pt))
-                            .map(|button| button.keys.clone())
+                            .map(|button| (button.keys.clone(), preview_zone(button)))
                     })
                     .unwrap_or_default();
                 if keys.is_empty() {
@@ -236,7 +246,7 @@ fn run(receiver: mpsc::Receiver<Msg>) {
                 }
                 let step = STEP.load(Ordering::Relaxed);
                 if let Some(app) = volume_sessions::step_app_volume(&keys, steps, step) {
-                    crate::show_app_volume_osd(app);
+                    crate::show_app_volume_osd(app, preview);
                 }
             }
             Err(RecvTimeoutError::Disconnected) => return,
@@ -326,7 +336,12 @@ fn scan(automation: &IUIAutomation, condition: &IUIAutomationCondition) {
             } else {
                 button_keys(&id, &name, &live, &mut windows)
             };
-            buttons.push(Button { rect, keys });
+            let previews = running_windows(&name).clamp(1, 8);
+            buttons.push(Button {
+                rect,
+                keys,
+                previews,
+            });
         }
     }
     if let Ok(mut cache) = BUTTONS.write() {
@@ -384,6 +399,51 @@ fn button_keys(
     }
     keys.dedup();
     keys
+}
+
+/// "Discord - 3 running windows" -> 3; a single window's button says 1.
+fn running_windows(name: &str) -> u32 {
+    let Some(at) = name.rfind(" - ") else {
+        return 1;
+    };
+    let tail = &name[at + 3..];
+    if !tail.contains("running window") {
+        return 1;
+    }
+    tail.split_whitespace()
+        .next()
+        .and_then(|count| count.parse().ok())
+        .unwrap_or(1)
+}
+
+/// Where Windows draws the hover previews for `button`, with a margin:
+/// centered over it, just above the taskbar, one preview per window.
+/// Explorer draws them in its own composition layer, not as a window, so
+/// there is no rectangle to ask for.
+fn preview_zone(button: &Button) -> Option<RECT> {
+    let rect = button.rect;
+    let center = POINT {
+        x: rect.left + (rect.right - rect.left) / 2,
+        y: rect.top + (rect.bottom - rect.top) / 2,
+    };
+    let scale = monitor_scale(center);
+    let half = (PREVIEW_WIDTH * button.previews as f32 / 2.0 + PREVIEW_MARGIN) * scale;
+    let height = (PREVIEW_HEIGHT + PREVIEW_MARGIN) * scale;
+    Some(RECT {
+        left: center.x - half.round() as i32,
+        top: rect.top - height.round() as i32,
+        right: center.x + half.round() as i32,
+        bottom: rect.bottom,
+    })
+}
+
+fn monitor_scale(pt: POINT) -> f32 {
+    let monitor = unsafe { MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST) };
+    let (mut dpi_x, mut dpi_y) = (96u32, 96u32);
+    if unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) }.is_err() {
+        return 1.0;
+    }
+    dpi_x.max(96) as f32 / 96.0
 }
 
 fn button_app_name(name: &str) -> &str {
@@ -505,7 +565,14 @@ fn package_app_id(pid: u32) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::button_app_name;
+    use super::{button_app_name, running_windows};
+
+    #[test]
+    fn window_count_from_button_label() {
+        assert_eq!(running_windows("Discord - 3 running windows"), 3);
+        assert_eq!(running_windows("Reddit - Google Chrome - 1 running window"), 1);
+        assert_eq!(running_windows("Discord pinned"), 1);
+    }
 
     #[test]
     fn app_name_from_button_label() {
