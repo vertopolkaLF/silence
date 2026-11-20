@@ -7,33 +7,29 @@ use crate::settings_ui::{
 };
 use gpui::{prelude::*, *};
 
-const ZONES: &[(crate::WheelZone, &str, &str, &str, &str)] = &[
+const ZONES: &[(crate::WheelZone, &str, &str, &str)] = &[
     (
         crate::WheelZone::Off,
         "Off",
         "Off",
-        "The wheel never changes the volume.",
         "forbidden-circle-linear",
     ),
     (
         crate::WheelZone::TrayIcon,
         "TrayIcon",
         "Tray icon",
-        "Over the volume icon. Keep it pinned on the taskbar, not behind ^.",
         "volume-loud-linear",
     ),
     (
         crate::WheelZone::NotificationArea,
         "NotificationArea",
         "Notification area",
-        "Anywhere over the icons next to the clock.",
         "bell-linear",
     ),
     (
         crate::WheelZone::Taskbar,
         "Taskbar",
         "Whole taskbar",
-        "Anywhere on the taskbar, on every monitor.",
         "window-frame-linear",
     ),
 ];
@@ -63,9 +59,7 @@ pub(crate) fn render(
     let zone_options = SelectOptions::new(
         ZONES
             .iter()
-            .map(|(_, key, label, detail, icon)| {
-                SelectOption::new(*key, *label).detail(*detail).icon(*icon)
-            })
+            .map(|(_, key, label, icon)| SelectOption::new(*key, *label).icon(*icon))
             .collect(),
     );
     let zone_options = zone_options.row("Scroll zone");

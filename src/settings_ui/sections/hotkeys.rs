@@ -6,6 +6,7 @@ use crate::settings_ui::{
     color::{TRANSPARENT, gray, lerp, mix_pct},
     controls::{
         self, ButtonKind, RangeOptions, SegmentedToggleOption, SelectOption, SelectOptions,
+        TextInputEvent, TextInputOptions,
     },
     live, style,
 };
@@ -17,6 +18,10 @@ use std::{
 
 const DEFAULT_TARGET_LABEL: &str = "Default";
 const ALL_MICROPHONES_LABEL: &str = "All microphones";
+/// The editor and action picker cover the content area, right of the sidebar.
+const SIDEBAR_WIDTH: f32 = 240.;
+/// Horizontal padding of the editor and picker columns.
+const PANEL_PADDING_X: f32 = 40.;
 
 #[derive(Default)]
 pub(crate) struct State {
@@ -37,6 +42,12 @@ pub(crate) struct State {
     picker: bool,
     picker_entered: Option<Instant>,
     picker_closing: Option<Instant>,
+    picker_query: String,
+    /// `"all"` or an [`ActionCategory::id`].
+    picker_tab: SharedString,
+    picker_focus_search: bool,
+    /// The search input held focus; hand it back to the editor once the picker closes.
+    refocus_editor: bool,
     pending_exit: Option<Instant>,
     poll: Option<Task<()>>,
     focus: Option<FocusHandle>,
@@ -273,6 +284,7 @@ fn poll(app: &mut SettingsApp, cx: &mut Context<SettingsApp>) {
     {
         app.sections.hotkeys.picker = false;
         app.sections.hotkeys.picker_closing = None;
+        app.sections.hotkeys.refocus_editor = true;
         cx.notify();
     }
     if !app.sections.hotkeys.recording {
@@ -740,74 +752,128 @@ fn target_options(
     }
 }
 
-fn action_options() -> Vec<SelectOption> {
-    const ORDERED_ACTIONS: &[crate::HotkeyAction] = &[
-        crate::HotkeyAction::Mute,
-        crate::HotkeyAction::Unmute,
-        crate::HotkeyAction::ToggleMute,
-        crate::HotkeyAction::HoldToMute,
-        crate::HotkeyAction::HoldToUnmute,
-        crate::HotkeyAction::HoldToToggle,
-        crate::HotkeyAction::SetDefaultOutputDevice,
-        crate::HotkeyAction::ToggleDefaultOutputDevice,
-        crate::HotkeyAction::NextOutputDevice,
-        crate::HotkeyAction::PreviousOutputDevice,
-        crate::HotkeyAction::SetDefaultInputDevice,
-        crate::HotkeyAction::ToggleDefaultInputDevice,
-        crate::HotkeyAction::IncreaseVolume,
-        crate::HotkeyAction::DecreaseVolume,
-        crate::HotkeyAction::SetVolume,
-        crate::HotkeyAction::ToggleOutputMute,
-        crate::HotkeyAction::OpenSettings,
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ActionCategory {
+    Microphone,
+    Output,
+    Input,
+    Volume,
+    App,
+}
+
+impl ActionCategory {
+    const ALL: [Self; 5] = [
+        Self::Microphone,
+        Self::Output,
+        Self::Input,
+        Self::Volume,
+        Self::App,
     ];
 
-    ORDERED_ACTIONS
+    fn id(self) -> &'static str {
+        match self {
+            Self::Microphone => "microphone",
+            Self::Output => "output",
+            Self::Input => "input",
+            Self::Volume => "volume",
+            Self::App => "app",
+        }
+    }
+
+    fn tab_label(self) -> &'static str {
+        match self {
+            Self::Microphone => "Microphone",
+            Self::Output => "Output",
+            Self::Input => "Input",
+            Self::Volume => "Volume",
+            Self::App => "App",
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Self::Microphone => "Microphone",
+            Self::Output => "Output device",
+            Self::Input => "Input device",
+            Self::Volume => "Volume",
+            Self::App => "App",
+        }
+    }
+
+    fn icon(self) -> &'static str {
+        match self {
+            Self::Microphone => "microphone-3-linear",
+            Self::Output => "speaker-minimalistic-linear",
+            Self::Input => "microphone-large-linear",
+            Self::Volume => "volume-loud-linear",
+            Self::App => "settings-linear",
+        }
+    }
+
+    fn actions(self) -> &'static [crate::HotkeyAction] {
+        use crate::HotkeyAction::*;
+        match self {
+            Self::Microphone => &[
+                ToggleMute,
+                Mute,
+                Unmute,
+                HoldToUnmute,
+                HoldToMute,
+                HoldToToggle,
+            ],
+            Self::Output => &[
+                NextOutputDevice,
+                PreviousOutputDevice,
+                SetDefaultOutputDevice,
+                ToggleDefaultOutputDevice,
+            ],
+            Self::Input => &[SetDefaultInputDevice, ToggleDefaultInputDevice],
+            Self::Volume => &[IncreaseVolume, DecreaseVolume, SetVolume, ToggleOutputMute],
+            Self::App => &[OpenSettings],
+        }
+    }
+
+    /// Hotkeys of a disabled module stay configurable but do nothing.
+    fn enabled(self, config: &crate::Config) -> bool {
+        match self {
+            Self::Microphone | Self::Input => config.modules.microphone,
+            Self::Output | Self::Volume => config.modules.volume,
+            Self::App => true,
+        }
+    }
+}
+
+fn action_icon(action: crate::HotkeyAction) -> &'static str {
+    use crate::HotkeyAction::*;
+    match action {
+        ToggleMute => "refresh-circle-linear",
+        Mute => "microphone-3-off-linear",
+        Unmute => "microphone-3-linear",
+        HoldToUnmute => "hand-shake-linear",
+        HoldToMute => "hand-stars-linear",
+        HoldToToggle => "oven-mitts-linear",
+        SetDefaultOutputDevice => "speaker-minimalistic-linear",
+        ToggleDefaultOutputDevice | ToggleDefaultInputDevice => "transfer-horizontal-linear",
+        NextOutputDevice => "alt-arrow-right-linear",
+        PreviousOutputDevice => "alt-arrow-left-linear",
+        SetDefaultInputDevice => "microphone-large-linear",
+        IncreaseVolume => "volume-loud-linear",
+        DecreaseVolume => "volume-small-linear",
+        SetVolume => "tuning-2-linear",
+        ToggleOutputMute => "volume-cross-linear",
+        OpenSettings => "settings-linear",
+    }
+}
+
+fn action_options() -> Vec<SelectOption> {
+    ActionCategory::ALL
         .iter()
-        .map(|action| {
-            let option = SelectOption::new(action.id(), action.label());
-            match action {
-                crate::HotkeyAction::ToggleMute => option.group("Mute").icon("microphone-3-linear"),
-                crate::HotkeyAction::Mute => option.group("Mute").icon("microphone-3-linear"),
-                crate::HotkeyAction::Unmute => option.group("Mute").icon("microphone-3-linear"),
-                crate::HotkeyAction::HoldToToggle => {
-                    option.group("Hold to mute").icon("oven-mitts-linear")
-                }
-                crate::HotkeyAction::HoldToMute => {
-                    option.group("Hold to mute").icon("oven-mitts-linear")
-                }
-                crate::HotkeyAction::HoldToUnmute => {
-                    option.group("Hold to mute").icon("oven-mitts-linear")
-                }
-                crate::HotkeyAction::SetDefaultInputDevice => {
-                    option.group("Devices").icon("microphone-3-linear")
-                }
-                crate::HotkeyAction::SetDefaultOutputDevice => {
-                    option.group("Devices").icon("volume-loud-linear")
-                }
-                crate::HotkeyAction::ToggleDefaultInputDevice => {
-                    option.group("Devices").icon("microphone-3-linear")
-                }
-                crate::HotkeyAction::ToggleDefaultOutputDevice => {
-                    option.group("Devices").icon("volume-loud-linear")
-                }
-                crate::HotkeyAction::NextOutputDevice => {
-                    option.group("Devices").icon("volume-loud-linear")
-                }
-                crate::HotkeyAction::PreviousOutputDevice => {
-                    option.group("Devices").icon("volume-loud-linear")
-                }
-                crate::HotkeyAction::SetVolume => option.group("Volume").icon("volume-loud-linear"),
-                crate::HotkeyAction::IncreaseVolume => {
-                    option.group("Volume").icon("volume-loud-linear")
-                }
-                crate::HotkeyAction::DecreaseVolume => {
-                    option.group("Volume").icon("volume-loud-linear")
-                }
-                crate::HotkeyAction::ToggleOutputMute => {
-                    option.group("Volume").icon("volume-loud-linear")
-                }
-                crate::HotkeyAction::OpenSettings => option.group("System").icon("settings-linear"),
-            }
+        .flat_map(|category| {
+            category.actions().iter().map(move |action| {
+                SelectOption::new(action.id(), action.label())
+                    .group(category.title())
+                    .icon(action_icon(*action))
+            })
         })
         .collect()
 }
@@ -1319,11 +1385,71 @@ fn key_display(
         })
 }
 
+fn open_picker(app: &mut SettingsApp) {
+    stop_recording(app);
+    app.open_select = None;
+    let s = &mut app.sections.hotkeys;
+    s.picker = true;
+    s.picker_entered = Some(Instant::now());
+    s.picker_closing = None;
+    s.picker_query.clear();
+    s.picker_tab = "all".into();
+    s.picker_focus_search = true;
+}
+
 fn dismiss_picker(app: &mut SettingsApp, cx: &mut Context<SettingsApp>) {
     if app.sections.hotkeys.picker_closing.is_none() {
         app.sections.hotkeys.picker_closing = Some(Instant::now());
     }
     cx.notify();
+}
+
+fn picker_matches(
+    category: ActionCategory,
+    action: crate::HotkeyAction,
+    tab: &str,
+    query: &str,
+) -> bool {
+    (tab == "all" || tab == category.id())
+        && (query.is_empty()
+            || [action.label(), category.title()]
+                .iter()
+                .any(|text| text.to_lowercase().contains(query)))
+}
+
+fn visible_actions(app: &SettingsApp) -> Vec<crate::HotkeyAction> {
+    let s = &app.sections.hotkeys;
+    let query = s.picker_query.trim().to_lowercase();
+    ActionCategory::ALL
+        .iter()
+        .flat_map(|category| {
+            category
+                .actions()
+                .iter()
+                .copied()
+                .filter(|action| picker_matches(*category, *action, &s.picker_tab, &query))
+        })
+        .collect()
+}
+
+/// Shortcut of another hotkey that already runs `action`, for the "In use" hint.
+fn shortcut_in_use(
+    config: &crate::Config,
+    action: crate::HotkeyAction,
+    draft_id: &str,
+) -> Option<String> {
+    config
+        .hotkeys
+        .iter()
+        .filter(|b| b.action == action && b.id != draft_id)
+        .map(|b| {
+            b.gamepad
+                .as_ref()
+                .map(|g| g.parts())
+                .unwrap_or_else(|| b.shortcut.parts())
+                .join(" + ")
+        })
+        .find(|keys| !keys.is_empty())
 }
 
 fn action_picker(
@@ -1333,7 +1459,9 @@ fn action_picker(
 ) -> AnyElement {
     let p = app.palette;
     let s = &app.sections.hotkeys;
-    let action = s.draft.as_ref().unwrap().action;
+    let draft = s.draft.as_ref().unwrap();
+    let action = draft.action;
+    let draft_id = draft.id.clone();
     let closing = s.picker_closing;
     let t = if let Some(start) = closing {
         1. - Easing::Bezier(0.4, 0., 1., 1.).apply(start.elapsed().as_secs_f32() / 0.18)
@@ -1344,118 +1472,390 @@ fn action_picker(
     if t > 0. && t < 1. {
         window.request_animation_frame();
     }
-    let mut groups = div()
-        .id("hotkey-action-groups")
+    let tab = s.picker_tab.clone();
+    let raw_query = s.picker_query.trim().to_string();
+    let query = raw_query.to_lowercase();
+    let focus_search = std::mem::take(&mut app.sections.hotkeys.picker_focus_search);
+
+    let back = controls::button(
+        "hotkey-picker-back",
+        ButtonKind::Icon,
+        Some("alt-arrow-left-linear"),
+        None,
+        false,
+        window,
+        cx,
+        |app, _, _, cx| dismiss_picker(app, cx),
+    );
+    let header = div()
         .flex()
-        .flex_col()
-        .gap(px(18.))
-        .p(px(32.))
-        .pr(px(24.))
-        .size_full()
-        .overflow_y_scroll();
-    let options = action_options();
-    for group in ["Mute", "Hold to mute", "Devices", "Volume", "System"] {
-        let mut cards = div().grid().grid_cols(2).gap(px(10.));
-        for option in options
+        .items_center()
+        .gap(px(14.))
+        .px(px(PANEL_PADDING_X))
+        .child(back)
+        .child(style::h2("Choose action").text_size(px(23.)));
+
+    let input = controls::text_input(
+        "hotkey-picker-search",
+        app.sections.hotkeys.picker_query.clone(),
+        TextInputOptions {
+            placeholder: "Search actions, like \u{201c}mute\u{201d} or \u{201c}next\u{201d}".into(),
+            caret_color: Some(p.accent.hsla()),
+            ..Default::default()
+        },
+        window,
+        cx,
+        |app, event, _, cx| match event {
+            TextInputEvent::Change(value) => {
+                app.sections.hotkeys.picker_query = value.to_string();
+                cx.notify();
+            }
+            TextInputEvent::Enter(_) => {
+                if let Some(first) = visible_actions(app).first().copied() {
+                    change_action(app, first, cx);
+                }
+            }
+            TextInputEvent::Escape => dismiss_picker(app, cx),
+            _ => {}
+        },
+    );
+    if focus_search {
+        let input = input.clone();
+        cx.defer_in(window, move |_, window, cx| {
+            input.update(cx, |input, cx| input.focus_at_end(window, cx));
+        });
+    }
+    let (pointer, hover, _) = controls::hover_tween("hotkey-picker-search-shell", window, cx);
+    let focus_input = input.clone();
+    let search = controls::track_pointer(
+        div()
+            .id("hotkey-picker-search-shell")
+            .h(px(44.))
+            .px(px(14.))
+            .flex()
+            .items_center()
+            .gap(px(10.))
+            .rounded(px(12.))
+            .cursor_text()
+            .bg(lerp(p.surface_2, p.surface_3, hover).hsla())
+            .child(
+                svg()
+                    .path(icon("magnifer-linear"))
+                    .size(px(18.))
+                    .flex_shrink_0()
+                    .text_color(p.muted.hsla()),
+            )
+            .child(
+                // The input is one line box tall and clips to it. The font's
+                // ascent + descent exceed the inherited 1.26 line height, which
+                // cut off the glyph bottoms; an explicit taller line fits them.
+                controls::text_input_container("hotkey-picker-search-input", &input)
+                    .flex_1()
+                    .line_height(px(20.))
+                    .text_size(px(14.))
+                    .font_weight(FontWeight(560.)),
+            ),
+        pointer,
+    )
+    .on_click(move |_, window, cx| {
+        focus_input.update(cx, |input, cx| input.focus_at_end(window, cx));
+    });
+
+    // Content-sized segments: equal widths would clip "Microphone".
+    // Same 12px outer radius as the search field; pills stay concentric (12 - 4).
+    let mut tabs = div()
+        .id("hotkey-picker-tabs")
+        .w_full()
+        .flex()
+        .overflow_x_scroll()
+        .gap(px(4.))
+        .p(px(4.))
+        .rounded(px(12.))
+        .bg(p.surface_2.hsla());
+    for (value, label, tab_icon) in std::iter::once(("all", "All", "widget-linear")).chain(
+        ActionCategory::ALL
             .iter()
-            .filter(|o| o.group_label.as_deref() == Some(group))
-        {
-            let value = option.value.clone();
-            let selected = value.as_ref() == action.id();
-            let id = SharedString::from(format!("hotkey-action-card-{value}"));
-            let (pointer, hover, _) = controls::hover_tween(id.clone(), window, cx);
-            let amount = if selected { 30. } else { 6. + 14. * hover };
-            let card = controls::track_pointer(
+            .map(|c| (c.id(), c.tab_label(), c.icon())),
+    ) {
+        let id = SharedString::from(format!("hotkey-picker-tab-{value}"));
+        let active = anim::tween(
+            window,
+            cx,
+            (ElementId::from(id.clone()), "active"),
+            (tab.as_ref() == value) as u8 as f32,
+            anim::UI,
+        );
+        let (pointer, hover, _) = controls::hover_tween(id.clone(), window, cx);
+        let color = lerp(lerp(p.muted, p.text, 0.5 * hover), p.text, active);
+        tabs = tabs.child(
+            controls::track_pointer(
                 div()
                     .id(id)
-                    .relative()
-                    .top(px(-hover.max(selected as u8 as f32)))
-                    .min_w_0()
+                    .flex_grow(1.)
+                    .flex_shrink_0()
+                    .h(px(34.))
+                    .px(px(12.))
                     .flex()
                     .items_center()
-                    .gap(px(10.))
-                    .px(px(16.))
-                    .py(px(12.))
-                    .border_1()
-                    .border_color(TRANSPARENT.hsla())
-                    .rounded(px(12.))
+                    .justify_center()
+                    .gap(px(8.))
+                    .rounded(px(8.))
                     .cursor_pointer()
-                    .bg(mix_pct(p.accent, amount, p.surface_2).hsla())
-                    .when(selected || hover > 0., |el| {
-                        el.shadow(vec![BoxShadow {
-                            color: p.shadow_faint.hsla(),
-                            offset: point(px(0.), px(8.)),
-                            blur_radius: px(20.),
-                            spread_radius: px(0.),
-                            inset: false,
-                        }])
-                    })
-                    .when_some(option.icon.clone(), |el, name| {
-                        el.child(
-                            svg()
-                                .path(icon(&name))
-                                .size(px(22.))
-                                .flex_shrink_0()
-                                .text_color(p.accent_text.hsla()),
-                        )
-                    })
+                    .text_size(px(13.))
+                    .font_weight(FontWeight(650.))
+                    .bg(lerp(TRANSPARENT, p.surface_color[3], active).hsla())
+                    .text_color(color.hsla())
+                    .shadow(vec![BoxShadow {
+                        color: p.shadow_soft.opacity(active).hsla(),
+                        offset: point(px(0.), px(1.)),
+                        blur_radius: px(2.),
+                        spread_radius: px(0.),
+                        inset: false,
+                    }])
                     .child(
-                        div()
-                            .min_w_0()
-                            .text_size(px(14.))
-                            .font_weight(FontWeight(650.))
-                            .line_height(relative(1.16))
-                            .child(option.label.clone()),
-                    ),
+                        svg()
+                            .path(icon(tab_icon))
+                            .size(px(16.))
+                            .flex_shrink_0()
+                            .text_color(color.hsla()),
+                    )
+                    .child(label),
                 pointer,
             )
             .on_click(cx.listener(move |app, _, _, cx| {
-                change_action(app, crate::HotkeyAction::from_id(&value), cx)
-            }));
-            cards = cards.child(card);
+                app.sections.hotkeys.picker_tab = value.into();
+                cx.notify();
+            })),
+        );
+    }
+
+    // A new tab key restarts the reveal, so switching tabs slides the list in.
+    let reveal = anim::tween_from(
+        window,
+        cx,
+        SharedString::from(format!("hotkey-picker-list-{tab}")),
+        0.,
+        1.,
+        Transition::new(220, Easing::Bezier(0.22, 1., 0.36, 1.)),
+    );
+    let mut column = div()
+        .relative()
+        .top(px(10. * (1. - reveal)))
+        .opacity(reveal)
+        .flex()
+        .flex_col()
+        .gap(px(20.));
+    let mut any = false;
+    for category in ActionCategory::ALL {
+        let actions: Vec<_> = category
+            .actions()
+            .iter()
+            .copied()
+            .filter(|a| picker_matches(category, *a, &tab, &query))
+            .collect();
+        if actions.is_empty() {
+            continue;
         }
-        groups = groups.child(
+        any = true;
+        let enabled = category.enabled(&app.snapshot.config);
+        let mut rows = div()
+            .flex()
+            .flex_col()
+            .p(px(4.))
+            .rounded(px(14.))
+            .bg(p.surface_2.hsla());
+        for (i, row_action) in actions.into_iter().enumerate() {
+            if i > 0 {
+                rows = rows.child(
+                    div()
+                        .h(px(1.))
+                        .ml(px(60.))
+                        .mr(px(12.))
+                        .bg(p.border.hsla()),
+                );
+            }
+            let in_use = shortcut_in_use(&app.snapshot.config, row_action, &draft_id);
+            let selected = row_action == action;
+            let id = SharedString::from(format!("hotkey-action-row-{}", row_action.id()));
+            let (pointer, hover, _) = controls::hover_tween(id.clone(), window, cx);
+            let row = div()
+                .id(id)
+                .flex()
+                .items_center()
+                .gap(px(14.))
+                .px(px(12.))
+                .py(px(10.))
+                .rounded(px(10.))
+                .cursor_pointer()
+                .bg(if selected {
+                    mix_pct(p.accent, 16. + 6. * hover, TRANSPARENT)
+                } else {
+                    lerp(TRANSPARENT, p.surface_3, hover)
+                }
+                .hsla())
+                .when(!enabled, |el| el.opacity(0.55))
+                .child(
+                    div()
+                        .size(px(34.))
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(9.))
+                        .bg(mix_pct(p.accent, 14., p.surface_3).hsla())
+                        .child(
+                            svg()
+                                .path(icon(action_icon(row_action)))
+                                .size(px(19.))
+                                .text_color(p.accent_text.hsla()),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_size(px(15.))
+                        .font_weight(FontWeight(650.))
+                        .text_ellipsis()
+                        .child(row_action.label()),
+                )
+                .when_some(in_use, |el, keys| {
+                    el.child(
+                        div()
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .gap(px(6.))
+                            .text_size(px(12.))
+                            .font_weight(FontWeight(600.))
+                            .text_color(p.faint.hsla())
+                            .child("In use")
+                            .child(
+                                div()
+                                    .px(px(7.))
+                                    .py(px(2.))
+                                    .rounded(px(6.))
+                                    .bg(p.surface_3.hsla())
+                                    .text_color(p.muted.hsla())
+                                    .child(keys),
+                            ),
+                    )
+                })
+                .when(row_action.is_hold(), |el| {
+                    el.child(
+                        div()
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .gap(px(5.))
+                            .px(px(8.))
+                            .py(px(3.))
+                            .rounded(px(6.))
+                            .bg(p.surface_3.hsla())
+                            .text_size(px(11.))
+                            .font_weight(FontWeight(700.))
+                            .text_color(p.muted.hsla())
+                            .child(
+                                svg()
+                                    .path(icon("hand-shake-linear"))
+                                    .size(px(13.))
+                                    .text_color(p.muted.hsla()),
+                            )
+                            .child("Hold"),
+                    )
+                });
+            rows = rows.child(
+                controls::track_pointer(row, pointer).on_click(cx.listener(
+                    move |app, _, _, cx| change_action(app, row_action, cx),
+                )),
+            );
+        }
+        column = column.child(
             div()
                 .flex()
                 .flex_col()
                 .gap(px(10.))
                 .child(
-                    style::h3(group.to_uppercase())
-                        .text_size(px(12.))
-                        .font_weight(FontWeight(700.))
-                        .text_color(p.muted.hsla()),
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.))
+                        // Rows: 4px card padding + 12px row padding.
+                        .pl(px(16.))
+                        .child(style::group(category.title(), cx))
+                        .when(!enabled, |el| {
+                            el.child(
+                                div()
+                                    .px(px(7.))
+                                    .py(px(2.))
+                                    .rounded(px(6.))
+                                    .bg(p.surface_2.hsla())
+                                    .text_size(px(11.))
+                                    .font_weight(FontWeight(650.))
+                                    .text_color(p.faint.hsla())
+                                    .child("Module is off"),
+                            )
+                        }),
                 )
-                .child(cards),
+                .child(rows),
         );
     }
+    if !any {
+        column = column.child(
+            div()
+                .py(px(60.))
+                .flex()
+                .justify_center()
+                .text_size(px(14.))
+                .text_color(p.muted.hsla())
+                .child(format!("No actions match \u{201c}{raw_query}\u{201d}")),
+        );
+    }
+    let list = div()
+        .id("hotkey-action-groups")
+        .flex_1()
+        .min_h_0()
+        .overflow_y_scroll()
+        .px(px(PANEL_PADDING_X))
+        .pt(px(4.))
+        .pb(px(32.))
+        .child(column);
+
+    let content_width = window.viewport_size().width.as_f32() - SIDEBAR_WIDTH;
     div()
-        .id("hotkey-picker-backdrop")
+        .id("hotkey-action-panel")
         .absolute()
-        .inset_0()
-        .bg(gray(0., 34. * t).hsla())
-        .on_click(cx.listener(|app, _, _, cx| dismiss_picker(app, cx)))
+        .top_0()
+        .left(px(SIDEBAR_WIDTH + 32. * (1. - t)))
+        .w(px(content_width))
+        .h_full()
+        .opacity(t)
+        .flex()
+        .flex_col()
+        .gap(px(18.))
+        .pt(px(32.))
+        .rounded_tl(px(16.))
+        .rounded_bl(px(16.))
+        .bg(p.hotkey_panel_bg.hsla())
+        .shadow(vec![BoxShadow {
+            color: p.shadow_medium.hsla(),
+            offset: point(px(-24.), px(0.)),
+            blur_radius: px(54.),
+            spread_radius: px(0.),
+            inset: false,
+        }])
+        .on_click(|_, _, cx| cx.stop_propagation())
+        .child(header)
         .child(
             div()
-                .id("hotkey-action-sidepanel")
-                .absolute()
-                .right(px(-32. * (1. - t)))
-                .top_0()
-                .w(relative(0.7))
-                .h_full()
-                .opacity(t)
-                .rounded_tl(px(24.))
-                .rounded_bl(px(24.))
-                .bg(p.hotkey_panel_bg.hsla())
-                .shadow(vec![BoxShadow {
-                    color: p.shadow_medium.hsla(),
-                    offset: point(px(-24.), px(0.)),
-                    blur_radius: px(54.),
-                    spread_radius: px(0.),
-                    inset: false,
-                }])
-                .on_click(|_, _, cx| cx.stop_propagation())
-                .child(groups),
+                .flex()
+                .flex_col()
+                .gap(px(12.))
+                .px(px(PANEL_PADDING_X))
+                .child(search)
+                .child(tabs),
         )
+        .child(list)
         .into_any_element()
 }
 
@@ -1466,6 +1866,10 @@ pub(crate) fn modal_host(
 ) -> impl IntoElement {
     if let Some(request) = app.hotkey_modal_request.take() {
         open(app, request, window, cx);
+        // Debug: `--hotkey-picker` opens straight into the action picker, for screenshots.
+        if crate::settings_ui::debug_arg("--hotkey-picker").is_some() {
+            open_picker(app);
+        }
     }
     let Some(draft) = app.sections.hotkeys.draft.clone() else {
         if app.sections.hotkeys.poll.take().is_some() {
@@ -1473,6 +1877,12 @@ pub(crate) fn modal_host(
         }
         return div().into_any_element();
     };
+    if app.sections.hotkeys.refocus_editor && !app.sections.hotkeys.picker {
+        app.sections.hotkeys.refocus_editor = false;
+        if let Some(focus) = &app.sections.hotkeys.focus {
+            focus.focus(window, cx);
+        }
+    }
     let p = app.palette;
     let s = &app.sections.hotkeys;
     let editing = s.editing;
@@ -1570,19 +1980,16 @@ pub(crate) fn modal_host(
         pointer,
     )
     .on_click(cx.listener(|app, _, _, cx| {
-        stop_recording(app);
-        app.open_select = None;
-        app.sections.hotkeys.picker = true;
-        app.sections.hotkeys.picker_entered = Some(Instant::now());
-        app.sections.hotkeys.picker_closing = None;
+        open_picker(app);
         cx.notify();
     }));
-    let recorder = record_panes(app, window, cx);
+    let content_width = window.viewport_size().width.as_f32() - SIDEBAR_WIDTH;
+    let recorder = record_panes(app, content_width - 2. * PANEL_PADDING_X, window, cx);
     let mut body = div()
         .flex()
         .flex_col()
         .gap(px(14.))
-        .px(px(40.))
+        .px(px(PANEL_PADDING_X))
         .pb(px(32.))
         .child(source)
         .child(
@@ -1766,16 +2173,17 @@ pub(crate) fn modal_host(
     let panel = div()
         .id("hotkey-editor-panel")
         .track_focus(app.sections.hotkeys.focus.as_ref().unwrap())
-        .relative()
-        .right(px(-28. * (1. - panel_t)))
-        .w(px(480.))
+        .absolute()
+        .top_0()
+        .left(px(SIDEBAR_WIDTH + 28. * (1. - panel_t)))
+        .w(px(content_width))
         .h_full()
         .flex()
         .flex_col()
         .gap(px(24.))
         .pt(px(32.))
-        .rounded_tl(px(24.))
-        .rounded_bl(px(24.))
+        .rounded_tl(px(16.))
+        .rounded_bl(px(16.))
         .bg(p.hotkey_panel_bg.hsla())
         .opacity(panel_t)
         .shadow(vec![BoxShadow {
@@ -1792,7 +2200,7 @@ pub(crate) fn modal_host(
                 .items_center()
                 .justify_between()
                 .gap(px(14.))
-                .px(px(40.))
+                .px(px(PANEL_PADDING_X))
                 .child(
                     div()
                         .flex()
@@ -1828,8 +2236,6 @@ pub(crate) fn modal_host(
         .relative()
         .w(viewport.width)
         .h(viewport.height)
-        .flex()
-        .justify_end()
         .bg(gray(0., 60. * scrim_t).hsla())
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(cx.listener(|app, _, _, cx| {
@@ -1860,7 +2266,12 @@ pub(crate) fn modal_host(
 }
 
 /// The CSS track is 200% wide and translates by one pane; both sides stay mounted.
-fn record_panes(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<SettingsApp>) -> Div {
+fn record_panes(
+    app: &mut SettingsApp,
+    pane_width: f32,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) -> Div {
     let active_gamepad = app.sections.hotkeys.gamepad;
     let slide = anim::tween(
         window,
@@ -1876,7 +2287,11 @@ fn record_panes(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Set
         if active_gamepad { 75.2 } else { 59.6 },
         Transition::new(220, Easing::Bezier(0.22, 1., 0.36, 1.)),
     );
-    let mut track = div().relative().left(px(-400. * slide)).w(px(800.)).flex();
+    let mut track = div()
+        .relative()
+        .left(px(-pane_width * slide))
+        .w(px(2. * pane_width))
+        .flex();
     for gamepad in [false, true] {
         let s = &app.sections.hotkeys;
         let recording = s.recording && gamepad == active_gamepad;
@@ -1932,7 +2347,7 @@ fn record_panes(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Set
         } else {
             -10. * slide
         };
-        track = track.child(div().relative().left(px(offset)).w(px(400.)).flex_shrink_0().opacity(opacity).flex().flex_col().gap(px(6.))
+        track = track.child(div().relative().left(px(offset)).w(px(pane_width)).flex_shrink_0().opacity(opacity).flex().flex_col().gap(px(6.))
             .child(div().flex().gap(px(10.)).items_center().child(div().flex_1().min_w_0().child(display)).child(record))
             .child(div().text_size(px(12.)).line_height(relative(1.3)).text_color(app.palette.faint.hsla())
                 .child(if gamepad { "Hold one control to bind it, or press a second while the first is still held" } else { "Hold to bind only modifier keys" })));

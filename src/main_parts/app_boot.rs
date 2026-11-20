@@ -497,7 +497,10 @@ fn main() -> Result<()> {
     // Hidden dev entry: the welcome flow without the single-instance mutex or
     // the mouse hook, so a running app and its settings window are left alone.
     // Run it with APPDATA pointed at a scratch folder.
-    if settings_ui::debug_arg("--welcome-preview=").is_some() {
+    // `--hotkey-picker` (screenshots of the action picker) takes the same route.
+    if settings_ui::debug_arg("--welcome-preview=").is_some()
+        || settings_ui::debug_arg("--hotkey-picker").is_some()
+    {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok();
         }

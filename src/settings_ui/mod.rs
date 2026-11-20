@@ -116,6 +116,11 @@ impl SettingsApp {
             _tasks: Vec::new(),
         };
         app._tasks.extend(live::start(window, cx));
+        if debug_arg("--hotkey-picker").is_some() {
+            app.hotkey_modal_request = Some(HotkeyModalRequest::Add {
+                preset_action: None,
+            });
+        }
         if settings_should_start_update() {
             sections::about::check(&mut app, true, cx);
         } else {
