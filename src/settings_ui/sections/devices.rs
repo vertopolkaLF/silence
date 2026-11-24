@@ -176,11 +176,11 @@ fn device_list(
     let p = app.palette;
     let body = if rows.is_empty() {
         div()
-            .min_h(px(44.))
+            .min_h(px(super::form::ROW_HEIGHT))
             .flex()
             .items_center()
             .px(px(super::form::ROW_PAD))
-            .rounded(px(12.))
+            .rounded(px(14.))
             .border_1()
             .border_dashed()
             .border_color(p.border_strong.hsla())
@@ -188,16 +188,22 @@ fn device_list(
             .text_color(p.muted.hsla())
             .child(empty)
     } else {
-        div().flex().flex_col().gap(px(8.)).children(
-            rows.into_iter()
-                .map(|row| device_row(row, rename_allowed, app, window, cx))
-                .collect::<Vec<_>>(),
-        )
+        let total = rows.len();
+        let mut card = super::form::card(cx);
+        for (index, row) in rows.into_iter().enumerate() {
+            card = card.row(device_row(
+                row,
+                index == 0,
+                index + 1 == total,
+                rename_allowed,
+                app,
+                window,
+                cx,
+            ));
+        }
+        card.into_element()
     };
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(super::form::TILE_GAP))
+    super::form::block()
         .child(super::form::section_heading(title, cx))
         .child(body)
 }
@@ -231,6 +237,8 @@ fn finish_rename(
 
 fn device_row(
     row: DeviceRow,
+    is_first: bool,
+    is_last: bool,
     rename_allowed: bool,
     app: &mut SettingsApp,
     window: &mut Window,
@@ -556,28 +564,31 @@ fn device_row(
         .flex()
         .items_center()
         .gap(px(12.))
-        .min_h(px(52.))
+        .min_h(px(super::form::ROW_HEIGHT))
         .pl(px(super::form::ROW_PAD))
-        .pr(px(8.))
-        .py(px(8.))
-        .rounded(px(12.))
-        .bg(p.surface_2.hsla())
-        .shadow(vec![
-            BoxShadow {
-                color: p.focus.opacity(edit).hsla(),
-                offset: point(px(0.), px(0.)),
-                blur_radius: px(0.),
-                spread_radius: px(1.),
-                inset: true,
-            },
-            BoxShadow {
-                color: mix_pct(p.focus, 18. * edit, TRANSPARENT).hsla(),
-                offset: point(px(0.), px(0.)),
-                blur_radius: px(0.),
-                spread_radius: px(2.),
-                inset: false,
-            },
-        ])
+        .pr(px(10.))
+        .py(px(10.))
+        .flex_shrink_0()
+        .when(is_first, |this| this.rounded_tl(px(14.)).rounded_tr(px(14.)))
+        .when(is_last, |this| this.rounded_bl(px(14.)).rounded_br(px(14.)))
+        .when(edit > 0., |this| {
+            this.shadow(vec![
+                BoxShadow {
+                    color: p.focus.opacity(edit).hsla(),
+                    offset: point(px(0.), px(0.)),
+                    blur_radius: px(0.),
+                    spread_radius: px(1.),
+                    inset: true,
+                },
+                BoxShadow {
+                    color: mix_pct(p.focus, 18. * edit, TRANSPARENT).hsla(),
+                    offset: point(px(0.), px(0.)),
+                    blur_radius: px(0.),
+                    spread_radius: px(2.),
+                    inset: false,
+                },
+            ])
+        })
         .child(
             div()
                 .flex()
