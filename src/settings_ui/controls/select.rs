@@ -862,7 +862,7 @@ pub(crate) fn select(
 }
 
 /// Width of the popover a card-row select opens.
-const ROW_MENU_WIDTH: f32 = 300.;
+const ROW_MENU_WIDTH: f32 = 280.;
 
 fn menu(
     id: &SharedString,
@@ -884,21 +884,29 @@ fn menu(
     // already surface-2, so the popover is one step above it, and its rows
     // are the size of the row's own text.
     let row = options.row_label.is_some();
-    let menu_bg = if row && !p.mica {
-        p.surface_3
+    // The row popover is tinted from the accent like the window behind it,
+    // so it reads as a warmer, lifted piece of the same material instead of
+    // a grey slab. It stays opaque: it floats over other rows.
+    let menu_bg = if row {
+        p.accent.relative(if p.mica { 25. } else { 24. }, 0.24)
     } else {
         p.select_menu_bg
     };
     let highlight_bg = if row {
-        mix_pct(p.text, 9., menu_bg)
+        mix_pct(p.text, 7., menu_bg)
     } else {
         p.surface_3
     };
+    // The chosen option sits on a faint accent wash; hovering it deepens it.
+    let selected_bg = mix_pct(p.accent, 14., menu_bg);
+    let selected_hover_bg = mix_pct(p.accent, 20., menu_bg);
     let row_height = if row { 36. } else { 44. };
+    // Popover padding; row radius stays concentric with the 14px shell.
+    let inset = if row { 5. } else { 6. };
     let mut rows = Vec::<AnyElement>::new();
     let mut group = None;
     let mut selected_child = 0;
-    let mut desired_height: f32 = 12.;
+    let mut desired_height: f32 = inset * 2.;
     for (index, option) in filtered.into_iter().enumerate() {
         if option.group_label != group {
             group = option.group_label.clone();
@@ -907,7 +915,7 @@ fn menu(
                 rows.push(
                     div()
                         .flex_shrink_0()
-                        .mx(px(6.))
+                        .mx(px(inset))
                         .pt(px(8.))
                         .pb(px(2.))
                         .px(px(10.))
@@ -922,7 +930,8 @@ fn menu(
         if index == highlighted {
             selected_child = rows.len();
         }
-        desired_height += row_height + if option.detail.is_some() { 9. } else { 4. };
+        desired_height += row_height
+            + if option.detail.is_some() { 9. } else if row { 1. } else { 4. };
         let selected = option.value == *value;
         let key = ElementId::from((ElementId::from(id.clone()), option.value.clone()));
         let (pointer, hover, _) = hover_tween(key.clone(), window, cx);
@@ -934,9 +943,24 @@ fn menu(
             anim::UI,
         )
         .max(hover);
-        // The chosen option is marked by a check and brighter text, not by
-        // a fill: only the pointer and the arrow keys move the highlight.
-        let bg = lerp(TRANSPARENT, highlight_bg, highlight);
+        // Full-size menus mark the chosen option by a check and brighter
+        // text only. The row popover also gives it an accent wash, and keeps
+        // icons quiet until their row is chosen or pointed at.
+        let bg = if row {
+            if selected {
+                lerp(selected_bg, selected_hover_bg, highlight)
+            } else {
+                lerp(TRANSPARENT, highlight_bg, highlight)
+            }
+        } else {
+            lerp(TRANSPARENT, highlight_bg, highlight)
+        };
+        let lit = highlight.max(selected as u8 as f32);
+        let icon_color = if row {
+            lerp(p.muted, p.accent_text, lit)
+        } else {
+            p.accent_text
+        };
         let choose_state = state.clone();
         let choose_id = id.clone();
         let choose_value = option.value.clone();
@@ -949,14 +973,14 @@ fn menu(
             div()
                 .id(key.clone())
                 .flex_shrink_0()
-                .mx(px(6.))
+                .mx(px(inset))
                 .min_h(px(row_height))
                 .flex()
                 .items_center()
                 .gap(px(8.))
-                .rounded(px(if row { 8. } else { 10. }))
+                .rounded(px(if row { 9. } else { 10. }))
                 .bg(bg.hsla())
-                .text_color(lerp(p.muted, p.text, highlight.max(selected as u8 as f32)).hsla())
+                .text_color(lerp(p.muted, p.text, lit).hsla())
                 .child(
                     div()
                         .id((key.clone(), "choose"))
@@ -964,7 +988,9 @@ fn menu(
                         .min_w_0()
                         .min_h(px(row_height))
                         .py(px(if row { 6. } else { 8. }))
-                        .px(px(10.))
+                        .pl(px(10.))
+                        // Row popover: puts the check right under the trigger's chevron.
+                        .pr(px(if row { 12. } else { 10. }))
                         .flex()
                         .items_center()
                         .gap(px(if row { 10. } else { 12. }))
@@ -975,7 +1001,7 @@ fn menu(
                                     .path(icon(&name))
                                     .size(px(if row { 17. } else { 18. }))
                                     .flex_shrink_0()
-                                    .text_color(p.accent_text.hsla()),
+                                    .text_color(icon_color.hsla()),
                             )
                         })
                         .child(option_copy(&option, true, false, row, p))
@@ -1062,7 +1088,7 @@ fn menu(
         desired_height = 52.;
         rows.push(
             div()
-                .mx(px(6.))
+                .mx(px(inset))
                 .px(px(10.))
                 .py(px(12.))
                 .text_size(px(13.))
@@ -1085,15 +1111,16 @@ fn menu(
         f32::from(bounds.size.width)
     }
     .min(f32::from(viewport.width) - 24.);
-    // Under the value: the popover's right edge follows the row's.
+    // Under the value: the popover's right edge is flush with the card's, so
+    // the check mark lands right under the trigger's chevron.
     let anchor = if row {
-        f32::from(bounds.right()) - 8. - width
+        f32::from(bounds.right()) - width
     } else {
         f32::from(bounds.left())
     };
     let left = anchor.clamp(12., (f32::from(viewport.width) - 12. - width).max(12.));
     // A row is taller than its text, so the popover tucks in under the value.
-    let gap = if row { -6. } else { 8. };
+    let gap = if row { -4. } else { 8. };
     let top = if down {
         f32::from(bounds.bottom()) + gap
     } else {
@@ -1163,31 +1190,60 @@ fn menu(
     .size_full();
     let content_state = state.clone();
     let content_scroll = scroll.clone();
-    let menu = div()
-        .id((ElementId::from(id.clone()), "menu"))
-        .relative()
-        .w(px(width))
-        .h(px(height))
-        .rounded(px(if row { 12. } else { 14. }))
-        .border_1()
-        .border_color(
-            if row {
-                mix_pct(p.text, 7., TRANSPARENT)
-            } else {
-                TRANSPARENT
-            }
-            .hsla(),
-        )
-        .bg(menu_bg.hsla())
-        .opacity(visibility)
-        .top(px((if down { -6. } else { 6. }) * (1. - visibility)))
-        .shadow(vec![BoxShadow {
+    let radius = 14.;
+    let shadows = if row {
+        // No border: a hairline inset ring and a lit top edge define the
+        // shape, and two drop shadows lift it off the card.
+        vec![
+            BoxShadow {
+                color: hsla(0., 0., 1., 0.055),
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(0.),
+                spread_radius: px(1.),
+                inset: true,
+            },
+            BoxShadow {
+                color: hsla(0., 0., 1., 0.05),
+                offset: point(px(0.), px(1.)),
+                blur_radius: px(0.),
+                spread_radius: px(0.),
+                inset: true,
+            },
+            BoxShadow {
+                color: hsla(0., 0., 0., 0.28),
+                offset: point(px(0.), px(2.)),
+                blur_radius: px(6.),
+                spread_radius: px(0.),
+                inset: false,
+            },
+            BoxShadow {
+                color: hsla(0., 0., 0., 0.42),
+                offset: point(px(0.), px(16.)),
+                blur_radius: px(40.),
+                spread_radius: px(-4.),
+                inset: false,
+            },
+        ]
+    } else {
+        vec![BoxShadow {
             color: p.shadow_medium.hsla(),
             offset: point(px(0.), px(18.)),
             blur_radius: px(36.),
             spread_radius: px(0.),
             inset: false,
-        }])
+        }]
+    };
+    let menu = div()
+        .id((ElementId::from(id.clone()), "menu"))
+        .relative()
+        .w(px(width))
+        .h(px(height))
+        .rounded(px(radius))
+        .when(!row, |this| this.border_1().border_color(TRANSPARENT.hsla()))
+        .bg(menu_bg.hsla())
+        .opacity(visibility)
+        .top(px((if down { -6. } else { 6. }) * (1. - visibility)))
+        .shadow(shadows)
         // Block hover/scroll for the page underneath the floating menu.
         .occlude()
         .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
@@ -1195,10 +1251,10 @@ fn menu(
         .child(
             div()
                 .size_full()
-                .py(px(6.))
+                .py(px(inset))
                 .flex()
                 .flex_col()
-                .gap(px(if row { 2. } else { 4. }))
+                .gap(px(if row { 1. } else { 4. }))
                 // A div with a tracked scroll handle reports no child bounds to
                 // this listener; read them from the handle instead.
                 .on_children_prepainted(move |_, window, cx| {
@@ -1209,7 +1265,9 @@ fn menu(
                             .last();
                         let measured = first
                             .zip(last)
-                            .map(|(first, last)| f32::from(last.bottom() - first.top()) + 12.)
+                            .map(|(first, last)| {
+                                f32::from(last.bottom() - first.top()) + inset * 2.
+                            })
                             .unwrap_or(52.);
                         content_state.update(cx, |s, _| s.menu_height = Some(measured.min(280.)));
                         window.request_animation_frame();
