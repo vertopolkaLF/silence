@@ -9,6 +9,9 @@ static TRAY_ICON_ADDED: AtomicBool = AtomicBool::new(false);
 static SETTINGS_MICA_ENABLED: AtomicBool = AtomicBool::new(false);
 static TASKBAR_CREATED_MESSAGE: Lazy<u32> =
     Lazy::new(|| unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) });
+static SHELLHOOK_MESSAGE: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageW(w!("SHELLHOOK")) });
+static WINDOWS_BUILD_NUMBER: Lazy<u32> = Lazy::new(|| windows_build_number().unwrap_or(0));
 
 thread_local! {
     static AUDIO_NOTIFICATION_REGISTRATION: RefCell<Option<AudioNotificationRegistration>> =

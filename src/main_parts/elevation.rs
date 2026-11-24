@@ -101,6 +101,7 @@ pub(crate) fn allow_cross_process_window_messages(hwnd: HWND) {
         allow_window_message(hwnd, *message);
     }
     allow_window_message(hwnd, *TASKBAR_CREATED_MESSAGE);
+    allow_window_message(hwnd, *SHELLHOOK_MESSAGE);
 }
 
 fn allow_window_message(hwnd: HWND, message: u32) {

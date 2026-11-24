@@ -1,4 +1,6 @@
 fn cleanup() {
+    let hwnd = STATE.lock().unwrap().hwnd;
+    bt_media::shutdown(hwnd);
     shutdown_audio_notification_registration();
     native_overlay::destroy();
     remove_tray_icon();

@@ -24,7 +24,7 @@ pub(crate) fn render(
         .child(form::card(cx).row(form::setting_row(
             "Use silence! for the volume keys",
             Some(
-                "Volume up, down and mute show silence!'s OSD instead of the Windows flyout and step like the wheel. Apps running as administrator keep the Windows flyout unless silence! runs as administrator too.",
+                "Volume up, down and mute — including Bluetooth headphones and headsets — show silence!'s OSD instead of the Windows flyout. Keyboard keys step like the wheel; apps running as administrator keep the Windows flyout unless silence! runs as administrator too.",
             ),
             toggle,
             cx,

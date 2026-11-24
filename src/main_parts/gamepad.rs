@@ -228,6 +228,7 @@ fn run_background_app() -> Result<()> {
 
     // Flags go up before the hooks so the first wheel or volume key is covered.
     mark_tray_input_hooks_ready();
+    bt_media::install(hwnd, *WINDOWS_BUILD_NUMBER);
     spawn_input_hook_thread()?;
     prime_lock_keys();
     if gamepad_monitoring_needed(true) {

@@ -112,7 +112,8 @@ use windows::{
                 SetWindowsHookExW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
                 TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
                 WINDOW_EX_STYLE, WM_APP, WM_CLOSE, WM_COMMAND, WM_DESTROY, WM_DISPLAYCHANGE,
-                WM_DPICHANGED, WM_DWMCOLORIZATIONCOLORCHANGED, WM_DWMCOMPOSITIONCHANGED, WM_KEYDOWN,
+                WM_DPICHANGED, WM_DWMCOLORIZATIONCOLORCHANGED, WM_DWMCOMPOSITIONCHANGED, WM_INPUT,
+                WM_KEYDOWN,
                 WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
                 WM_MBUTTONUP, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_RBUTTONDOWN,
                 WM_RBUTTONUP, WM_SETTINGCHANGE, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
@@ -124,6 +125,7 @@ use windows::{
     core::{GUID, HRESULT, IUnknown, IUnknown_Vtbl, Interface, PCWSTR, PROPVARIANT, PWSTR, w},
 };
 
+mod bt_media;
 mod gpui_overlay;
 mod native_overlay;
 pub(crate) mod overlay_icons;

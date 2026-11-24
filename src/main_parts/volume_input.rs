@@ -6,9 +6,14 @@
 
 static TRAY_VOLUME_HOOKS: AtomicBool = AtomicBool::new(false);
 static VOLUME_MODULE_ON: AtomicBool = AtomicBool::new(false);
+static VOLUME_OSD_ENABLED: AtomicBool = AtomicBool::new(false);
 static MEDIA_KEYS_INTERCEPT: AtomicBool = AtomicBool::new(false);
 /// The music widget wants play/pause/next/previous key presses.
 static MUSIC_KEYS_ON: AtomicBool = AtomicBool::new(false);
+/// Timestamp (`HOOK_CLOCK` millis) of the most recent keyboard volume key
+/// swallowed by `WH_KEYBOARD_LL`, so matching HID Consumer Control reports do
+/// not schedule a redundant external limit-OSD fallback.
+static LAST_KEYBOARD_VOLUME_KEY_MILLIS: AtomicU64 = AtomicU64::new(0);
 /// Transport key currently held, so auto-repeat counts as one press.
 static MEDIA_KEY_HELD: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 /// Button whose press on the volume OSD was swallowed; its release is too.
@@ -86,11 +91,12 @@ fn sync_volume_input_runtime() {
     if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
         return;
     }
-    let (hwnd, module_on, zone, app_buttons, step, intercept, volume_sound, music) = {
+    let (hwnd, module_on, osd_enabled, zone, app_buttons, step, intercept, volume_sound, music) = {
         let state = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         (
             state.hwnd,
             state.modules.volume,
+            state.volume.osd.enabled,
             state.volume.wheel.zone,
             state.volume.wheel.app_buttons,
             state.volume.wheel.step_percent,
@@ -113,9 +119,15 @@ fn sync_volume_input_runtime() {
     let was_refreshing =
         VOLUME_MODULE_ON.load(Ordering::Relaxed) && WHEEL_ZONE.load(Ordering::Relaxed) != 0;
     VOLUME_MODULE_ON.store(module_on, Ordering::Relaxed);
+    VOLUME_OSD_ENABLED.store(osd_enabled, Ordering::Relaxed);
     WHEEL_ZONE.store(zone_code, Ordering::Relaxed);
     MEDIA_KEYS_INTERCEPT.store(intercept, Ordering::Relaxed);
     TRAY_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+
+    if !should_suppress_native_osd() {
+        cancel_external_volume_limit_timer();
+        bt_media::restore_native_osd(hwnd);
+    }
 
     if module_on {
         prime_sound_assets(&volume_sound);
@@ -360,6 +372,75 @@ fn is_volume_media_vk(vk: u32) -> bool {
     matches!(vk, VK_VOLUME_MUTE | VK_VOLUME_DOWN | VK_VOLUME_UP)
 }
 
+fn should_suppress_native_osd() -> bool {
+    TRAY_VOLUME_HOOKS.load(Ordering::Relaxed)
+        && VOLUME_MODULE_ON.load(Ordering::Relaxed)
+        && VOLUME_OSD_ENABLED.load(Ordering::Relaxed)
+        && MEDIA_KEYS_INTERCEPT.load(Ordering::Relaxed)
+}
+
+fn note_keyboard_volume_key() {
+    let millis = HOOK_CLOCK.elapsed().as_millis().max(1);
+    LAST_KEYBOARD_VOLUME_KEY_MILLIS
+        .store(millis.min(u128::from(u64::MAX)) as u64, Ordering::Relaxed);
+}
+
+fn keyboard_volume_key_was_recent() -> bool {
+    let last = LAST_KEYBOARD_VOLUME_KEY_MILLIS.load(Ordering::Relaxed);
+    if last == 0 {
+        return false;
+    }
+    let now = HOOK_CLOCK.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
+    now.saturating_sub(last) < 80
+}
+
+fn cancel_external_volume_limit_timer() {
+    let hwnd = tray_hwnd();
+    if !hwnd.0.is_null() {
+        unsafe {
+            let _ = KillTimer(hwnd, ID_EXTERNAL_VOLUME_LIMIT_TIMER);
+        }
+    }
+}
+
+fn handle_bt_media_event(event: bt_media::BtMediaEvent) {
+    match event {
+        bt_media::BtMediaEvent::Volume => {
+            if !should_suppress_native_osd() {
+                return;
+            }
+            let hwnd = tray_hwnd();
+            bt_media::suppress_native_osd(hwnd, *WINDOWS_BUILD_NUMBER);
+            // If this HID/shell volume press was not already handled by
+            // `WH_KEYBOARD_LL` and volume is pinned at 0% or 100% (so Core
+            // Audio emits no change notification), still show silence!'s OSD.
+            if !keyboard_volume_key_was_recent() && !hwnd.0.is_null() {
+                unsafe {
+                    let _ = SetTimer(
+                        hwnd,
+                        ID_EXTERNAL_VOLUME_LIMIT_TIMER,
+                        EXTERNAL_VOLUME_LIMIT_DELAY_MS,
+                        None,
+                    );
+                }
+            }
+        }
+        bt_media::BtMediaEvent::Transport(key) => {
+            if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
+                return;
+            }
+            if MUSIC_KEYS_ON.load(Ordering::Relaxed) {
+                media_session::media_key(key);
+                // Windows 10's legacy media+volume flyout also appears on
+                // transport buttons; suppress it while our widget handles them.
+                if *WINDOWS_BUILD_NUMBER < 22_620 && should_suppress_native_osd() {
+                    bt_media::suppress_native_osd(tray_hwnd(), *WINDOWS_BUILD_NUMBER);
+                }
+            }
+        }
+    }
+}
+
 fn handle_volume_media_key(vk: usize) {
     if !volume_module_enabled() {
         return;
@@ -373,6 +454,8 @@ fn handle_volume_media_key(vk: usize) {
     if !intercept {
         return;
     }
+    note_keyboard_volume_key();
+    cancel_external_volume_limit_timer();
     let result = match vk as u32 {
         VK_VOLUME_UP => step_output_volume(1),
         VK_VOLUME_DOWN => step_output_volume(-1),

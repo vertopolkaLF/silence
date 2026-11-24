@@ -609,6 +609,7 @@ unsafe extern "system" fn main_wnd_proc(
     if msg == *TASKBAR_CREATED_MESSAGE {
         TRAY_ICON_ADDED.store(false, Ordering::Relaxed);
         VOLUME_TRAY_ADDED.store(false, Ordering::Relaxed);
+        bt_media::on_taskbar_created(hwnd);
         let _ = add_tray_icon(hwnd);
         add_volume_tray_icon(hwnd);
         // The volume icon is added separately and should call
@@ -616,6 +617,12 @@ unsafe extern "system" fn main_wnd_proc(
         // picks up taskbar rects when that icon is missing.
         if wheel_targets_refresh_wanted() {
             refresh_wheel_targets();
+        }
+        return LRESULT(0);
+    }
+    if msg == *SHELLHOOK_MESSAGE {
+        if let Some(event) = bt_media::handle_shell_hook(wparam, lparam) {
+            handle_bt_media_event(event);
         }
         return LRESULT(0);
     }
@@ -694,8 +701,21 @@ unsafe extern "system" fn main_wnd_proc(
                 run_volume_click_action(action);
             } else if wparam.0 == ID_VOLUME_TRAY_ADD_RETRY_TIMER {
                 add_volume_tray_icon(hwnd);
+            } else if wparam.0 == ID_NATIVE_OSD_RESTORE_TIMER {
+                bt_media::restore_native_osd(hwnd);
+            } else if wparam.0 == ID_NATIVE_OSD_RETRY_TIMER {
+                bt_media::on_retry_timer(hwnd);
+            } else if wparam.0 == ID_EXTERNAL_VOLUME_LIMIT_TIMER {
+                let _ = unsafe { KillTimer(hwnd, ID_EXTERNAL_VOLUME_LIMIT_TIMER) };
+                on_output_volume_at_limit();
             }
             LRESULT(0)
+        }
+        WM_INPUT => {
+            for event in bt_media::handle_raw_input(lparam) {
+                handle_bt_media_event(event);
+            }
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
         WM_TOGGLE_MUTE => {
             toggle_mute();

@@ -57,9 +57,24 @@ const NEAR_END: i64 = 12 * 10_000_000;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MediaKey {
     PlayPause,
+    Play,
+    Pause,
     Next,
     Previous,
     Stop,
+}
+
+impl MediaKey {
+    /// Transport group for deduplicating overlapping hook/HID/shell events from
+    /// the same physical press.
+    fn dedup_group(self) -> u8 {
+        match self {
+            Self::PlayPause | Self::Play | Self::Pause => 1,
+            Self::Next => 2,
+            Self::Previous => 3,
+            Self::Stop => 4,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -99,12 +114,28 @@ pub fn start() {
     });
 }
 
-/// A media key went down. Called from the keyboard hook: never blocks.
+/// Drop duplicate transport notifications arriving within this window across
+/// `WH_KEYBOARD_LL`, HID Raw Input, and `HSHELL_APPCOMMAND`.
+const KEY_DEDUP_WINDOW: Duration = Duration::from_millis(80);
+static LAST_MEDIA_KEY: Lazy<Mutex<Option<(u8, Instant)>>> = Lazy::new(|| Mutex::new(None));
+
+/// A media key went down. Called from the keyboard hook, Raw Input, or shell
+/// hook: never blocks.
 pub fn media_key(key: MediaKey) {
+    let now = Instant::now();
+    let group = key.dedup_group();
+    if let Ok(mut last) = LAST_MEDIA_KEY.try_lock() {
+        if last.is_some_and(|(prev_group, at)| {
+            prev_group == group && now.duration_since(at) < KEY_DEDUP_WINDOW
+        }) {
+            return;
+        }
+        *last = Some((group, now));
+    }
     if let Ok(wake) = WAKE.try_lock()
         && let Some(wake) = wake.as_ref()
     {
-        let _ = wake.send(Wake::Key(key, Instant::now()));
+        let _ = wake.send(Wake::Key(key, now));
     }
 }
 
@@ -296,7 +327,7 @@ fn key_action(
         .unwrap_or_else(|| (String::new(), false));
     let due = now.duration_since(pending.at) >= KEY_FALLBACK;
     let action = match pending.key {
-        MediaKey::PlayPause | MediaKey::Stop => {
+        MediaKey::PlayPause | MediaKey::Play | MediaKey::Pause | MediaKey::Stop => {
             let changed = next.playing() != before_playing;
             if !changed && !due {
                 return None;
@@ -305,7 +336,12 @@ fn key_action(
             let playing = if changed || pending.shown {
                 next.playing()
             } else {
-                pending.key == MediaKey::PlayPause && !before_playing
+                match pending.key {
+                    MediaKey::Play => true,
+                    MediaKey::Pause | MediaKey::Stop => false,
+                    MediaKey::PlayPause => !before_playing,
+                    MediaKey::Next | MediaKey::Previous => next.playing(),
+                }
             };
             if playing {
                 MediaAction::Play

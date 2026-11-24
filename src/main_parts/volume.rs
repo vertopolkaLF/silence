@@ -232,6 +232,7 @@ pub fn step_output_volume(steps: i32) -> Result<()> {
 /// A step past 100% (or below 0%) writes nothing, so Windows sends no change
 /// notification. Show the OSD anyway so the press still gets an answer.
 fn on_output_volume_at_limit() {
+    cancel_external_volume_limit_timer();
     let state = output_volume_state();
     if !output_volume_is_seeded() || state.device_id.is_empty() {
         return;
@@ -360,6 +361,13 @@ pub(crate) fn handle_volume_popup_request(kind: usize, value: isize) {
 
 /// Single place later stages attach to a level or mute change.
 pub fn on_output_volume_changed(state: &OutputVolumeState, source: VolumeChangeSource) {
+    cancel_external_volume_limit_timer();
+    if source == VolumeChangeSource::External && should_suppress_native_osd() {
+        // Bluetooth AVRCP Absolute Volume (and other external hardware volume
+        // events) update Core Audio directly and also trigger Explorer's native
+        // OSD. Hide it so only silence!'s OSD appears.
+        bt_media::suppress_native_osd(tray_hwnd(), *WINDOWS_BUILD_NUMBER);
+    }
     // Own writes only: wheel, media keys, and any other silence! call that
     // passes `OUTPUT_VOLUME_EVENT_CONTEXT`. External changes from other apps
     // do not play. Device switches go through `on_output_device_changed` and

@@ -63,8 +63,18 @@ const ID_VOLUME_TRAY_CLICK_TIMER: usize = 19;
 const ID_VOLUME_TRAY_ADD_RETRY_TIMER: usize = 20;
 /// Reads the lock-key states shortly after a lock key or Shift moved.
 const ID_LOCK_KEY_TIMER: usize = 21;
+/// Restores Windows' native OSD window after a Bluetooth/external volume burst.
+pub(crate) const ID_NATIVE_OSD_RESTORE_TIMER: usize = 22;
+/// One-shot retry to locate Explorer's native OSD window if it was created lazily.
+pub(crate) const ID_NATIVE_OSD_RETRY_TIMER: usize = 23;
+/// Shows silence!'s OSD if an external/BT volume button hit 0% or 100% without changing level.
+const ID_EXTERNAL_VOLUME_LIMIT_TIMER: usize = 24;
 /// The key has been processed by then, so the toggle state is final.
 const LOCK_KEY_SETTLE_MS: u32 = 40;
+/// Longer than Windows' native OSD display timeout so restoring never flashes it.
+pub(crate) const NATIVE_OSD_RESTORE_DELAY_MS: u32 = 3_500;
+pub(crate) const NATIVE_OSD_RETRY_DELAY_MS: u32 = 40;
+const EXTERNAL_VOLUME_LIMIT_DELAY_MS: u32 = 80;
 const ID_MENU_TOGGLE: usize = 1001;
 const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
