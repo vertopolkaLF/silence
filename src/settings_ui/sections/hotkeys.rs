@@ -1546,18 +1546,14 @@ fn action_picker(
                     .text_color(p.muted.hsla()),
             )
             .child(
-                // The input is one line box tall and clips to it. The font's
-                // ascent + descent exceed the inherited 1.26 line height, which
-                // cut off the glyph bottoms; an explicit taller line fits them.
                 controls::text_input_container("hotkey-picker-search-input", &input)
                     .flex_1()
-                    .line_height(px(20.))
                     .text_size(px(14.))
                     .font_weight(FontWeight(560.)),
             ),
         pointer,
     )
-    .on_click(move |_, window, cx| {
+    .on_mouse_down(MouseButton::Left, move |_, window, cx| {
         focus_input.update(cx, |input, cx| input.focus_at_end(window, cx));
     });
 

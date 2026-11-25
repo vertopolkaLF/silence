@@ -9,6 +9,9 @@ use crate::settings_ui::{
 };
 use gpui::{prelude::*, *};
 
+const MIN_MINUTES: u16 = 1;
+const MAX_MINUTES: u16 = 1440;
+
 #[derive(Default)]
 pub(crate) struct State {
     minutes: String,
@@ -18,9 +21,9 @@ pub(crate) struct State {
 }
 
 fn apply_minutes(app: &mut SettingsApp, value: &str, cx: &mut Context<SettingsApp>) {
-    if !value.is_empty() {
-        let value = value.parse::<u64>().unwrap_or(u64::MAX).clamp(1, 1440) as u16;
-        app.sections.auto_mute.minutes = value.to_string();
+    if let Ok(value) = value.parse::<u16>()
+        && (MIN_MINUTES..=MAX_MINUTES).contains(&value)
+    {
         app.sections.auto_mute.backing_minutes = Some(value);
         if app.snapshot.config.auto_mute.after_inactivity_minutes != value {
             app.update_config(cx, |c| c.auto_mute.after_inactivity_minutes = value);
@@ -35,10 +38,14 @@ pub(crate) fn render(
 ) -> Vec<AnyElement> {
     let config = app.snapshot.config.auto_mute.clone();
     let enabled = config.after_inactivity_enabled;
-    let minutes = config.after_inactivity_minutes.clamp(1, 1440);
+    let minutes = config
+        .after_inactivity_minutes
+        .clamp(MIN_MINUTES, MAX_MINUTES);
     if app.sections.auto_mute.backing_minutes != Some(minutes) {
         app.sections.auto_mute.backing_minutes = Some(minutes);
-        app.sections.auto_mute.minutes = minutes.to_string();
+        if !app.sections.auto_mute.focused {
+            app.sections.auto_mute.minutes = minutes.to_string();
+        }
     }
     let draft = app.sections.auto_mute.minutes.clone();
     let input = controls::text_input(
@@ -46,7 +53,10 @@ pub(crate) fn render(
         draft,
         TextInputOptions {
             disabled: !enabled,
-            numeric: Some(NumericInput { min: 1, max: 1440 }),
+            numeric: Some(NumericInput {
+                min: u64::from(MIN_MINUTES),
+                max: u64::from(MAX_MINUTES),
+            }),
             ..Default::default()
         },
         window,
@@ -60,7 +70,7 @@ pub(crate) fn render(
                         .config
                         .auto_mute
                         .after_inactivity_minutes
-                        .clamp(1, 1440)
+                        .clamp(MIN_MINUTES, MAX_MINUTES)
                         .to_string();
                     cx.notify();
                 }
@@ -70,24 +80,12 @@ pub(crate) fn render(
                 TextInputEvent::Change(value) => {
                     app.sections.auto_mute.minutes = value.to_string();
                     apply_minutes(app, &value, cx);
-                    if app.sections.auto_mute.minutes != value.as_ref() {
-                        let normalized = app.sections.auto_mute.minutes.clone();
-                        // The input is borrowed while emitting Change. Apply the
-                        // controlled/clamped value after this event has finished.
-                        cx.defer_in(window, move |app, _, cx| {
-                            if let Some(input) = &app.sections.auto_mute.input {
-                                input.update(cx, |input, cx| input.set_value(normalized, cx));
-                            }
-                        });
-                    }
                 }
                 TextInputEvent::Focus => app.sections.auto_mute.focused = true,
                 TextInputEvent::Blur(value) => {
                     app.sections.auto_mute.focused = false;
                     app.sections.auto_mute.minutes = value.to_string();
-                    if app.snapshot.config.auto_mute.after_inactivity_enabled {
-                        apply_minutes(app, &value, cx);
-                    }
+                    apply_minutes(app, &value, cx);
                 }
                 TextInputEvent::Enter(value) => {
                     app.sections.auto_mute.minutes = value.to_string();
@@ -95,16 +93,15 @@ pub(crate) fn render(
                 }
                 TextInputEvent::Up | TextInputEvent::Down => {
                     let old = app
-                        .sections
+                        .snapshot
+                        .config
                         .auto_mute
-                        .minutes
-                        .parse::<u64>()
-                        .unwrap_or(1)
-                        .clamp(1, 1440);
+                        .after_inactivity_minutes
+                        .clamp(MIN_MINUTES, MAX_MINUTES);
                     let value = if matches!(event, TextInputEvent::Up) {
-                        (old + 1).min(1440)
+                        (old + 1).min(MAX_MINUTES)
                     } else {
-                        old.saturating_sub(1).max(1)
+                        (old - 1).max(MIN_MINUTES)
                     };
                     let value = value.to_string();
                     app.sections.auto_mute.minutes = value.clone();
@@ -115,7 +112,22 @@ pub(crate) fn render(
                         }
                     });
                 }
-                _ => {}
+                TextInputEvent::Escape => {
+                    let value = app
+                        .snapshot
+                        .config
+                        .auto_mute
+                        .after_inactivity_minutes
+                        .clamp(MIN_MINUTES, MAX_MINUTES)
+                        .to_string();
+                    app.sections.auto_mute.minutes = value.clone();
+                    cx.defer_in(window, move |app, window, cx| {
+                        if let Some(input) = &app.sections.auto_mute.input {
+                            input.update(cx, |input, cx| input.set_value(value, cx));
+                        }
+                        app.focus_handle.focus(window, cx);
+                    });
+                }
             }
             cx.notify();
         },
@@ -137,10 +149,9 @@ pub(crate) fn render(
         UI,
     );
     let (pointer, hover, _) = controls::hover_tween("auto-mute-number", window, cx);
-    let number_focus = input.read(cx).focus_handle(cx);
     let number = controls::track_pointer(
         controls::text_input_container("auto-mute-number", &input)
-            .w(px(56.))
+            .w(px(64.))
             .h(px(32.))
             .px(px(10.))
             .rounded(px(8.))
@@ -150,13 +161,6 @@ pub(crate) fn render(
             .border_color(lerp(TRANSPARENT, p.focus, focus).hsla())
             .bg(lerp(p.surface_3, p.surface_hover, hover * (1. - disabled)).hsla())
             .text_color(p.text.hsla())
-            // The padded shell is part of the input's click target too.
-            .when(enabled, |this| {
-                this.cursor(CursorStyle::IBeam)
-                    .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                        number_focus.focus(window, cx)
-                    })
-            })
             .when(!enabled, |this| this.cursor_not_allowed()),
         pointer,
     );

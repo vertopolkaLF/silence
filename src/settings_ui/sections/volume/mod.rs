@@ -149,7 +149,6 @@ pub(crate) fn numeric_field(
         UI,
     );
     let (pointer, hover, _) = controls::hover_tween((ElementId::from(id), "shell"), window, cx);
-    let focus_handle = input.read(cx).focus_handle(cx);
     div()
         .flex()
         .items_center()
@@ -167,11 +166,7 @@ pub(crate) fn numeric_field(
                     .bg(lerp(p.surface_2, p.surface_3, hover).hsla())
                     .text_size(px(14.))
                     .font_weight(FontWeight(600.))
-                    .text_color(p.text.hsla())
-                    .cursor(CursorStyle::IBeam)
-                    .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                        focus_handle.focus(window, cx);
-                    }),
+                    .text_color(p.text.hsla()),
                 pointer,
             ),
         )

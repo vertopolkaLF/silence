@@ -318,6 +318,7 @@ pub(crate) fn run() -> Result<()> {
     gpui::Application::with_platform(platform)
         .with_assets(assets::SettingsAssets)
         .run(|cx: &mut App| {
+            cx.set_cursor_hide_mode(gpui::CursorHideMode::Never);
             assets::register_fonts(cx);
             // No hotkey editor is open yet, so a set pause flag is left over
             // from a settings process that died mid-edit.

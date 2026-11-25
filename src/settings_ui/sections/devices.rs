@@ -336,13 +336,6 @@ fn device_row(
                 }
             });
         }
-        let width = anim::tween(
-            window,
-            cx,
-            (key.clone(), "rename-width"),
-            (draft.chars().count() as f32 * 0.54 + 0.65).clamp(1.8, 20.) * 14.,
-            UI,
-        );
         let commit_row = row.clone();
         let cancel_row = row.clone();
         let commit = action(
@@ -376,21 +369,20 @@ fn device_row(
             .flex()
             .items_center()
             .min_w_0()
-            .h(px(18.))
+            .min_h(px(18.))
             .pr(px(52.))
             .text_size(px(14.))
             .font_weight(FontWeight(620.))
             .line_height(px(18.))
             .child(
                 controls::text_input_container((key.clone(), "rename-shell"), &input)
-                    .w(px(width))
-                    .min_w(px(25.2))
-                    .flex_shrink_1(),
+                    .flex_1(),
             )
             .child(
                 div()
                     .absolute()
-                    .top_0()
+                    .top(relative(0.5))
+                    .mt(px(-9.))
                     .right(px(24.))
                     .size(px(18.))
                     .flex()
@@ -401,7 +393,8 @@ fn device_row(
             .child(
                 div()
                     .absolute()
-                    .top_0()
+                    .top(relative(0.5))
+                    .mt(px(-9.))
                     .right_0()
                     .size(px(18.))
                     .flex()
@@ -607,7 +600,7 @@ fn device_row(
                         .flex_shrink_0()
                         .text_color(p.muted.hsla()),
                 )
-                .child(div().flex().flex_col().min_w_0().child(name)),
+                .child(div().flex().flex_col().min_w_0().flex_1().child(name)),
         )
         .child(
             div()
