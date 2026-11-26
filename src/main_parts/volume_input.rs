@@ -7,7 +7,6 @@
 static TRAY_VOLUME_HOOKS: AtomicBool = AtomicBool::new(false);
 static VOLUME_MODULE_ON: AtomicBool = AtomicBool::new(false);
 static VOLUME_OSD_ENABLED: AtomicBool = AtomicBool::new(false);
-static MEDIA_KEYS_INTERCEPT: AtomicBool = AtomicBool::new(false);
 /// The music widget wants play/pause/next/previous key presses.
 static MUSIC_KEYS_ON: AtomicBool = AtomicBool::new(false);
 /// Timestamp (`HOOK_CLOCK` millis) of the most recent keyboard volume key
@@ -91,7 +90,7 @@ fn sync_volume_input_runtime() {
     if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
         return;
     }
-    let (hwnd, module_on, osd_enabled, zone, app_buttons, step, intercept, volume_sound, music) = {
+    let (hwnd, module_on, osd_enabled, zone, app_buttons, step, volume_sound, music) = {
         let state = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         (
             state.hwnd,
@@ -100,7 +99,6 @@ fn sync_volume_input_runtime() {
             state.volume.wheel.zone,
             state.volume.wheel.app_buttons,
             state.volume.wheel.step_percent,
-            state.volume.media_keys.intercept,
             volume_sound_settings(&state),
             state.volume.music.clone(),
         )
@@ -121,7 +119,6 @@ fn sync_volume_input_runtime() {
     VOLUME_MODULE_ON.store(module_on, Ordering::Relaxed);
     VOLUME_OSD_ENABLED.store(osd_enabled, Ordering::Relaxed);
     WHEEL_ZONE.store(zone_code, Ordering::Relaxed);
-    MEDIA_KEYS_INTERCEPT.store(intercept, Ordering::Relaxed);
     TRAY_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
 
     if !should_suppress_native_osd() {
@@ -299,7 +296,7 @@ fn swallow_volume_media_key(
     }
     if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed)
         || !VOLUME_MODULE_ON.load(Ordering::Relaxed)
-        || !MEDIA_KEYS_INTERCEPT.load(Ordering::Relaxed)
+        || !VOLUME_OSD_ENABLED.load(Ordering::Relaxed)
         || !is_volume_media_vk(vk)
     {
         return false;
@@ -376,7 +373,6 @@ fn should_suppress_native_osd() -> bool {
     TRAY_VOLUME_HOOKS.load(Ordering::Relaxed)
         && VOLUME_MODULE_ON.load(Ordering::Relaxed)
         && VOLUME_OSD_ENABLED.load(Ordering::Relaxed)
-        && MEDIA_KEYS_INTERCEPT.load(Ordering::Relaxed)
 }
 
 fn note_keyboard_volume_key() {
@@ -445,13 +441,8 @@ fn handle_volume_media_key(vk: usize) {
     if !volume_module_enabled() {
         return;
     }
-    let intercept = STATE
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .volume
-        .media_keys
-        .intercept;
-    if !intercept {
+    // The keys are ours only while our OSD replaces the Windows flyout.
+    if !VOLUME_OSD_ENABLED.load(Ordering::Relaxed) {
         return;
     }
     note_keyboard_volume_key();

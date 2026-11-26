@@ -243,7 +243,11 @@ pub(crate) fn render(
     let current = app_group(
         "tray-current-group",
         "Currently using mic",
-        "No apps are using the microphone",
+        EmptyState {
+            icon: "microphone-3-linear",
+            title: "Nothing is using the mic",
+            hint: "Apps show up here while they record.",
+        },
         current_rows,
         window,
         cx,
@@ -251,7 +255,11 @@ pub(crate) fn render(
     let ignored = app_group(
         "tray-ignored-group",
         "Ignored apps",
-        "No ignored apps",
+        EmptyState {
+            icon: "forbidden-circle-linear",
+            title: "No ignored apps",
+            hint: "Press Ignore on an app above to hide it from the tray menu.",
+        },
         ignored_rows,
         window,
         cx,
@@ -443,10 +451,20 @@ fn toggle_ignored(app: &mut SettingsApp, exe: &str, current: bool, cx: &mut Cont
     });
 }
 
+/// What an app list shows while it has no rows.
+struct EmptyState {
+    icon: &'static str,
+    title: &'static str,
+    hint: &'static str,
+}
+
+/// Height of the empty-state card; the list tweens between it and its rows.
+const EMPTY_HEIGHT: f32 = 62.;
+
 fn app_group(
     id: &'static str,
     title: &'static str,
-    empty: &'static str,
+    empty: EmptyState,
     rows: Vec<AnyElement>,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
@@ -454,7 +472,7 @@ fn app_group(
     let p = style::palette(cx);
     let count = rows.len();
     let estimate = if count == 0 {
-        44.
+        EMPTY_HEIGHT
     } else {
         count as f32 * 54. + count.saturating_sub(1) as f32 * 8.
     };
@@ -475,20 +493,55 @@ fn app_group(
         Transition::new(180, Easing::Bezier(0.22, 1., 0.36, 1.)),
     );
     let list = if count == 0 {
+        // A filled card like the rows it stands in for; an outlined box here
+        // read as a text field.
         div()
-            .min_h(px(44.))
+            .h(px(EMPTY_HEIGHT))
             .flex_shrink_0()
             .flex()
             .items_center()
+            .gap(px(12.))
             .px(px(form::ROW_PAD))
             .rounded(px(12.))
-            .border_1()
-            .border_dashed()
-            .border_color(p.border_strong.hsla())
-            .bg(mix_pct(p.surface_2, 76., TRANSPARENT).hsla())
-            .text_size(px(13.))
-            .text_color(p.muted.hsla())
-            .child(empty)
+            .bg(p.surface_2.hsla())
+            .child(
+                div()
+                    .size(px(32.))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(8.))
+                    .bg(p.surface_3.hsla())
+                    .child(
+                        svg()
+                            .path(icon(empty.icon))
+                            .size(px(18.))
+                            .text_color(p.muted.hsla()),
+                    ),
+            )
+            .child(
+                div()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.))
+                    .child(
+                        div()
+                            .text_size(px(13.5))
+                            .font_weight(FontWeight(620.))
+                            .line_height(px(18.))
+                            .text_color(p.text.opacity(0.8).hsla())
+                            .child(empty.title),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .line_height(px(15.))
+                            .text_color(p.muted.opacity(0.75).hsla())
+                            .child(empty.hint),
+                    ),
+            )
     } else {
         div().flex().flex_col().gap(px(8.)).children(rows)
     };
@@ -500,7 +553,7 @@ fn app_group(
         .child(div().h(px(height)).flex_shrink_0().overflow_hidden().child(
             list.on_children_prepainted(move |bounds, _, cx| {
                 let height = if count == 0 {
-                    44.
+                    EMPTY_HEIGHT
                 } else {
                     bounds.iter().map(|b| b.size.height.as_f32()).sum::<f32>()
                         + count.saturating_sub(1) as f32 * 8.

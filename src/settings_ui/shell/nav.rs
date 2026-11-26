@@ -33,7 +33,6 @@ pub(crate) enum SettingsTab {
     VolumeOsd,
     VolumeMusic,
     VolumeTray,
-    VolumeMediaKeys,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -68,7 +67,6 @@ impl SettingsTab {
         Self::VolumeOsd,
         Self::VolumeMusic,
         Self::VolumeTray,
-        Self::VolumeMediaKeys,
         Self::General,
         Self::About,
     ];
@@ -89,7 +87,6 @@ impl SettingsTab {
             Self::VolumeOsd => "OSD",
             Self::VolumeMusic => "Music",
             Self::VolumeTray => "Tray icon",
-            Self::VolumeMediaKeys => "Media keys",
         }
     }
 
@@ -102,10 +99,7 @@ impl SettingsTab {
             Self::VolumeWheel
             | Self::VolumeOsd
             | Self::VolumeMusic
-            | Self::VolumeTray
-            | Self::VolumeMediaKeys => {
-                Some(ModuleId::Volume)
-            }
+            | Self::VolumeTray => Some(ModuleId::Volume),
             Self::Hotkeys
             | Self::Devices
             | Self::Sounds
@@ -132,7 +126,6 @@ impl SettingsTab {
             Self::VolumeOsd => "slider-minimalistic-horizontal-linear",
             Self::VolumeMusic => "vinyl-linear",
             Self::VolumeTray => "widget-linear",
-            Self::VolumeMediaKeys => "play-circle-linear",
         }
     }
 
@@ -153,7 +146,6 @@ impl SettingsTab {
             Self::VolumeOsd => "slider-minimalistic-horizontal-bold",
             Self::VolumeMusic => "vinyl-bold",
             Self::VolumeTray => "widget-bold",
-            Self::VolumeMediaKeys => "play-circle-bold",
         }
     }
 
@@ -195,7 +187,6 @@ impl SettingsTab {
             Self::VolumeOsd => &[s!("volume-osd", "OSD")],
             Self::VolumeMusic => &[s!("volume-music", "Music")],
             Self::VolumeTray => &[s!("volume-tray-icon", "Tray icon")],
-            Self::VolumeMediaKeys => &[s!("volume-media-keys", "Media keys")],
         }
     }
 
@@ -225,7 +216,6 @@ pub(crate) fn module_tabs(module: ModuleId) -> &'static [SettingsTab] {
             SettingsTab::VolumeOsd,
             SettingsTab::VolumeMusic,
             SettingsTab::VolumeTray,
-            SettingsTab::VolumeMediaKeys,
         ],
     }
 }

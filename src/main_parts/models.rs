@@ -1746,10 +1746,6 @@ fn default_volume_osd_show_on_device_change() -> bool {
     true
 }
 
-fn default_volume_media_keys_intercept() -> bool {
-    true
-}
-
 /// Existing installs omit this object: microphone stays on, volume stays off.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct ModulesConfig {
@@ -1902,6 +1898,8 @@ pub enum VolumeOsdVisibility {
 /// [`OverlayConfig::display`], plus [`VOLUME_OSD_DISPLAY_CURSOR`].
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct VolumeOsdConfig {
+    /// Also takes the keyboard volume keys, so the Windows flyout never shows
+    /// next to this OSD.
     #[serde(default = "default_volume_osd_enabled")]
     pub enabled: bool,
     #[serde(default = "default_volume_osd_theme")]
@@ -2034,20 +2032,6 @@ impl Default for MusicConfig {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct VolumeMediaKeysConfig {
-    #[serde(default = "default_volume_media_keys_intercept")]
-    pub intercept: bool,
-}
-
-impl Default for VolumeMediaKeysConfig {
-    fn default() -> Self {
-        Self {
-            intercept: default_volume_media_keys_intercept(),
-        }
-    }
-}
-
 /// Output-volume settings. `sound` matches [`SoundSettings`] so the sounds UI
 /// can bind the same controls; `enabled` defaults to false when the object is absent.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -2060,8 +2044,6 @@ pub struct VolumeConfig {
     pub tray_icon: VolumeTrayIconConfig,
     #[serde(default)]
     pub osd: VolumeOsdConfig,
-    #[serde(default)]
-    pub media_keys: VolumeMediaKeysConfig,
     #[serde(default)]
     pub music: MusicConfig,
     #[serde(default = "default_volume_sound_settings")]
@@ -2080,7 +2062,6 @@ impl Default for VolumeConfig {
             clicks: VolumeClicksConfig::default(),
             tray_icon: VolumeTrayIconConfig::default(),
             osd: VolumeOsdConfig::default(),
-            media_keys: VolumeMediaKeysConfig::default(),
             music: MusicConfig::default(),
             sound: default_volume_sound_settings(),
             popup: VolumePopupConfig::default(),

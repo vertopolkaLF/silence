@@ -59,7 +59,6 @@ pub(crate) fn render(
         SettingsTab::VolumeOsd => volume::osd::render(app, window, cx),
         SettingsTab::VolumeMusic => volume::music::render(app, window, cx),
         SettingsTab::VolumeTray => volume::tray_icon::render(app, window, cx),
-        SettingsTab::VolumeMediaKeys => volume::media_keys::render(app, window, cx),
     };
     match module {
         Some(module) => with_off_banner(app, module, blocks, window, cx),

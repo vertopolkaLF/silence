@@ -430,8 +430,8 @@ pub(crate) fn collapse(
         .child(inner)
 }
 
-/// Choice card: preview and label side by side, cards share the row. The
-/// selected card is filled and carries a check badge.
+/// Choice card: preview above its label, cards share the row. The selected
+/// card is filled and outlined in the accent.
 pub(crate) fn choice_card(
     id: SharedString,
     label: &'static str,
@@ -467,11 +467,13 @@ pub(crate) fn choice_card(
             .relative()
             .flex_1()
             .min_w_0()
-            .h(px(52.))
+            .h(px(78.))
             .flex()
+            .flex_col()
             .items_center()
-            .gap(px(10.))
-            .px(px(12.))
+            .justify_center()
+            .gap(px(8.))
+            .px(px(8.))
             .rounded(px(12.))
             .border_1()
             .border_color(lerp(TRANSPARENT, p.accent, active).hsla())
@@ -485,8 +487,8 @@ pub(crate) fn choice_card(
             .cursor_pointer()
             .child(
                 div()
-                    .w(px(32.))
-                    .h(px(32.))
+                    .max_w_full()
+                    .h(px(30.))
                     .flex_shrink_0()
                     .flex()
                     .items_center()
@@ -495,6 +497,7 @@ pub(crate) fn choice_card(
             )
             .child(
                 div()
+                    .max_w_full()
                     .min_w_0()
                     .text_size(px(13.))
                     .line_height(relative(1.2))
@@ -503,8 +506,7 @@ pub(crate) fn choice_card(
                     .text_ellipsis()
                     .text_color(lerp(p.muted, p.text, active.max(hover)).hsla())
                     .child(label),
-            )
-            .child(check_badge(active, cx)),
+            ),
         pointer,
     )
     .on_key_down(cx.listener(move |app, event: &KeyDownEvent, _, cx| {
@@ -514,27 +516,6 @@ pub(crate) fn choice_card(
         }
     }))
     .on_click(cx.listener(move |app, _, _, cx| on_select(app, cx)))
-}
-
-/// Accent dot with a check in the top-right corner of a selected option.
-fn check_badge(active: f32, cx: &App) -> Div {
-    let p = style::palette(cx);
-    div()
-        .absolute()
-        .top(px(5.))
-        .right(px(5.))
-        .size(px(14.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_full()
-        .bg(p.accent.opacity(active).hsla())
-        .child(
-            svg()
-                .path(icon("check-mark"))
-                .size(px(9.))
-                .text_color(p.on_accent.opacity(active).hsla()),
-        )
 }
 
 /// Square icon option. Its name lives in the tooltip and, when selected, in

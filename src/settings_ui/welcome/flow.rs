@@ -1451,7 +1451,6 @@ pub(super) fn look_step(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> Div {
-    let palette = app.palette;
     let selected = app.snapshot.config.volume.tray_icon.skin;
     let options = [
         ("welcome-skin-rings", crate::VolumeTraySkin::Rings, "Rings"),
@@ -1467,52 +1466,6 @@ pub(super) fn look_step(
     for (id, skin, label) in options {
         skins = skins.child(skin_swatch(id, skin, label, selected == skin, app, window, cx));
     }
-    let toggle = controls::toggle(
-        "welcome-media-keys",
-        app.snapshot.config.volume.media_keys.intercept,
-        window,
-        cx,
-        |app, checked, _, cx| {
-            app.update_config(cx, |config| config.volume.media_keys.intercept = checked);
-        },
-    );
-    let keys = div()
-        .flex()
-        .items_center()
-        .gap(px(14.))
-        .p(px(16.))
-        .rounded(px(12.))
-        .bg(palette.surface_2.hsla())
-        .shadow(vec![card_shadow(&palette)])
-        .child(
-            svg()
-                .path(icon("keyboard-bold"))
-                .size(px(24.))
-                .flex_shrink_0()
-                .text_color(palette.accent.hsla()),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(3.))
-                .flex_1()
-                .min_w_0()
-                .child(
-                    div()
-                        .text_size(px(15.))
-                        .font_weight(FontWeight(600.))
-                        .child("Handle keyboard volume keys"),
-                )
-                .child(
-                    div()
-                        .text_color(palette.muted.hsla())
-                        .text_size(px(13.))
-                        .line_height(relative(1.4))
-                        .child("Shows the silence! volume popup instead of the Windows one."),
-                ),
-        )
-        .child(toggle);
     div()
         .flex()
         .flex_col()
@@ -1521,8 +1474,8 @@ pub(super) fn look_step(
             app,
             80,
             heading(
-                "Tray icon and keys",
-                Some("How volume looks next to the clock, and who handles the volume keys."),
+                "Tray icon",
+                Some("How volume looks next to the clock."),
                 false,
                 cx,
             ),
@@ -1530,7 +1483,7 @@ pub(super) fn look_step(
         .child(block(
             app,
             40,
-            div().flex().flex_col().gap(px(12.)).child(skins).child(keys),
+            skins,
         ))
         .child({
             let row = nav_row("welcome-look-back", "welcome-look-next", app, window, cx);

@@ -1159,25 +1159,23 @@ fn status_badge(label: &'static str, accent: bool, p: Palette) -> Div {
 }
 
 fn horizontal_peak_bar(peak: f32, p: Palette) -> Div {
+    // Same zones as the device list's meter: green, then accent, red only
+    // near full scale. A solid bar turned red on ordinary loud audio.
+    const SEGMENTS: usize = 32;
     let clamped = peak.clamp(0.0, 1.0);
-    let fill_color = if clamped > 0.92 {
-        p.danger
-    } else if clamped > 0.72 {
-        p.accent
-    } else {
-        p.success
-    };
-    div()
-        .flex_1()
-        .h(px(6.))
-        .rounded_full()
-        .overflow_hidden()
-        .bg(p.surface_3.hsla())
-        .child(
-            div()
-                .h_full()
-                .w(relative(clamped))
-                .rounded_full()
-                .bg(fill_color.hsla()),
-        )
+    let mut row = div().flex_1().h(px(8.)).flex().gap(px(2.));
+    for i in 0..SEGMENTS {
+        let position = (i as f32 + 0.5) / SEGMENTS as f32;
+        let color = if clamped < position {
+            p.surface_3
+        } else if position > 0.875 {
+            p.danger
+        } else if position > 0.625 {
+            p.accent
+        } else {
+            p.success
+        };
+        row = row.child(div().flex_1().h_full().rounded(px(1.5)).bg(color.hsla()));
+    }
+    row
 }

@@ -275,37 +275,47 @@ pub(crate) fn render(
         if value == "Dot" && !custom {
             continue;
         }
-        let preview = match value {
-            "MicIcon" => svg()
+        // A miniature overlay: a dark chip showing the live state with the
+        // user's own unmuted label, so it reads as a picture, not as text.
+        let sample: SharedString = if o.unmuted_label.trim().is_empty() {
+            "On".into()
+        } else {
+            o.unmuted_label.clone().into()
+        };
+        let mic = || {
+            svg()
                 .path(icon("microphone-3-linear"))
-                .size(px(24.))
-                .text_color(p.success.hsla())
-                .into_any_element(),
-            "IconText" => div()
-                .flex()
-                .items_center()
-                .gap(px(4.))
-                .text_size(px(12.))
-                .font_weight(FontWeight(750.))
-                .text_color(p.success.hsla())
-                .child(
-                    svg()
-                        .path(icon("microphone-3-linear"))
-                        .size(px(20.))
-                        .text_color(p.success.hsla()),
-                )
-                .child("On")
-                .into_any_element(),
-            "Text" => div()
-                .text_size(px(15.))
-                .font_weight(FontWeight(800.))
-                .text_color(p.text.hsla())
-                .child("On")
-                .into_any_element(),
-            _ => div()
                 .size(px(16.))
-                .rounded_full()
-                .bg(p.success.hsla())
+                .flex_shrink_0()
+                .text_color(p.success.hsla())
+        };
+        let text = |label: SharedString| {
+            div()
+                .min_w_0()
+                .text_size(px(12.))
+                .line_height(px(16.))
+                .font_weight(FontWeight(700.))
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .text_color(p.success.hsla())
+                .child(label)
+        };
+        let chip = div()
+            .max_w_full()
+            .min_w_0()
+            .h(px(28.))
+            .px(px(10.))
+            .flex()
+            .items_center()
+            .gap(px(5.))
+            .rounded(px(8.))
+            .bg(p.neutral_bg.hsla());
+        let preview = match value {
+            "MicIcon" => chip.child(mic()).into_any_element(),
+            "IconText" => chip.child(mic()).child(text(sample.clone())).into_any_element(),
+            "Text" => chip.child(text(sample.clone())).into_any_element(),
+            _ => chip
+                .child(div().size(px(10.)).rounded_full().bg(p.success.hsla()))
                 .into_any_element(),
         };
         variants = variants.child(form::choice_card(
