@@ -20,6 +20,7 @@ pub(crate) enum LiveEvent {
     EndpointsChanged,
     ConfigChanged,
     DisplaysChanged,
+    OpenDevices,
 }
 
 static EVENTS: Lazy<(flume::Sender<LiveEvent>, flume::Receiver<LiveEvent>)> =
@@ -62,7 +63,7 @@ pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
     &RUNTIME
 }
 
-pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task<()>; 2] {
+pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task<()>; 3] {
     if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(window) {
         if let raw_window_handle::RawWindowHandle::Win32(raw) = handle.as_raw() {
             crate::register_settings_audio_notifications(raw.hwnd.get());
@@ -75,6 +76,11 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
             let mut events = vec![first];
             events.extend(receiver.try_iter());
             let alive = this.update(cx, |app, cx| {
+                if events.contains(&LiveEvent::OpenDevices) {
+                    app.nav.select(super::shell::nav::SettingsTab::Devices);
+                    app.refresh_devices(cx);
+                    cx.notify();
+                }
                 if events.contains(&LiveEvent::EndpointsChanged) {
                     crate::rebind_settings_audio_notifications();
                     app.refresh_devices(cx);
@@ -87,6 +93,7 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
                         app.snapshot.muted = muted;
                         cx.notify();
                     }
+                    app.sections.devices.refresh_open_properties();
                 }
                 if events.contains(&LiveEvent::ConfigChanged) {
                     app.reload_config(cx);
@@ -121,5 +128,39 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
             }
         }
     });
-    [events, mic_apps]
+    let peak_meters = cx.spawn(async move |this, cx| {
+        loop {
+            cx.background_executor()
+                .timer(Duration::from_millis(50))
+                .await;
+            let active_ids: Option<Vec<String>> = this
+                .read_with(cx, |app, _| {
+                    if app.nav.displayed_tab != super::shell::nav::SettingsTab::Devices {
+                        return None;
+                    }
+                    Some(app.sections.devices.metered_device_ids(&app.snapshot))
+                })
+                .ok()
+                .flatten();
+            let Some(ids) = active_ids else {
+                continue;
+            };
+            if ids.is_empty() {
+                continue;
+            }
+            let sampled = cx
+                .background_executor()
+                .spawn(async move { crate::audio_devices::sample_peak_levels(&ids) })
+                .await;
+            let alive = this.update(cx, |app, cx| {
+                if app.sections.devices.update_peaks(sampled) {
+                    cx.notify();
+                }
+            });
+            if alive.is_err() {
+                break;
+            }
+        }
+    });
+    [events, mic_apps, peak_meters]
 }

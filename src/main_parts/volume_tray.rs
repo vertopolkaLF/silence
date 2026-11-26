@@ -555,9 +555,7 @@ mod volume_mixer {
 
 /// Classic Sound control panel on the Playback tab.
 fn open_audio_devices() {
-    if let Err(err) = Command::new("control.exe").arg("mmsys.cpl,,0").spawn() {
-        eprintln!("failed to open audio devices: {err:?}");
-    }
+    open_devices_window();
 }
 
 fn open_sound_settings() {

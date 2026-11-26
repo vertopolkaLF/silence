@@ -829,7 +829,7 @@ impl ActionCategory {
             ],
             Self::Input => &[SetDefaultInputDevice, ToggleDefaultInputDevice],
             Self::Volume => &[IncreaseVolume, DecreaseVolume, SetVolume, ToggleOutputMute],
-            Self::App => &[OpenSettings],
+            Self::App => &[OpenSettings, OpenDevices],
         }
     }
 
@@ -862,6 +862,7 @@ fn action_icon(action: crate::HotkeyAction) -> &'static str {
         SetVolume => "tuning-2-linear",
         ToggleOutputMute => "volume-cross-linear",
         OpenSettings => "settings-linear",
+        OpenDevices => "headphones-round-sound-linear",
     }
 }
 

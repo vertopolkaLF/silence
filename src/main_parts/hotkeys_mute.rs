@@ -407,6 +407,7 @@ enum HotkeyRequest {
     NextOutputDevice,
     PreviousOutputDevice,
     OpenSettings,
+    OpenDevices,
 }
 
 fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
@@ -465,6 +466,7 @@ fn hotkey_action_request(hotkey: &HotkeyBinding) -> HotkeyRequest {
         HotkeyAction::NextOutputDevice => HotkeyRequest::NextOutputDevice,
         HotkeyAction::PreviousOutputDevice => HotkeyRequest::PreviousOutputDevice,
         HotkeyAction::OpenSettings => HotkeyRequest::OpenSettings,
+        HotkeyAction::OpenDevices => HotkeyRequest::OpenDevices,
     }
 }
 
@@ -497,6 +499,7 @@ fn hotkey_request_allowed(action: &HotkeyRequest) -> bool {
             module_enabled(HotkeyAction::PreviousOutputDevice.module())
         }
         HotkeyRequest::OpenSettings => module_enabled(HotkeyAction::OpenSettings.module()),
+        HotkeyRequest::OpenDevices => module_enabled(HotkeyAction::OpenDevices.module()),
     }
 }
 
@@ -593,6 +596,7 @@ fn run_hotkey_action(action: HotkeyRequest) {
             }
         }
         HotkeyRequest::OpenSettings => open_settings_window(),
+        HotkeyRequest::OpenDevices => open_devices_window(),
     }
 }
 

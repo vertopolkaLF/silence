@@ -989,6 +989,13 @@ fn show_tray_menu(hwnd: HWND) {
             ID_MENU_TOGGLE,
             PCWSTR(status_w.as_ptr()),
         );
+        let devices_w = wide("Sound devices...");
+        let _ = AppendMenuW(
+            menu,
+            MENU_ITEM_FLAGS(0),
+            ID_MENU_DEVICES,
+            PCWSTR(devices_w.as_ptr()),
+        );
         let _ = AppendMenuW(
             menu,
             MENU_ITEM_FLAGS(0),
@@ -1081,6 +1088,19 @@ fn show_tray_menu(hwnd: HWND) {
                 );
                 bitmaps.push(bitmap);
             }
+        }
+        if let Some(bitmap) = create_menu_svg_bitmap(
+            include_str!("../../assets/icons/headphones-round-sound-linear.svg"),
+            icon_color,
+        ) {
+            let _ = SetMenuItemBitmaps(
+                menu,
+                ID_MENU_DEVICES as u32,
+                MENU_ITEM_FLAGS(0),
+                bitmap,
+                bitmap,
+            );
+            bitmaps.push(bitmap);
         }
         if let Some(bitmap) = create_menu_svg_bitmap(
             include_str!("../../assets/icons/settings-bold.svg"),
@@ -1286,6 +1306,7 @@ fn handle_tray_device_command(command_id: usize) {
 fn handle_tray_menu_command(command_id: usize) {
     match command_id {
         ID_MENU_TOGGLE => toggle_mute(),
+        ID_MENU_DEVICES => open_devices_window(),
         ID_MENU_SETTINGS => open_settings_window(),
         ID_MENU_INSTALL_UPDATE => run_update_now_action(),
         ID_MENU_EXIT => {
@@ -1347,6 +1368,25 @@ fn open_settings_window() {
     }
 
     launch_settings_window(None);
+}
+
+fn open_devices_window() {
+    let title = wide(SETTINGS_WINDOW_TITLE);
+    if let Ok(hwnd) = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }
+        && !hwnd.0.is_null()
+    {
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_SHOW);
+            if IsIconic(hwnd).as_bool() {
+                let _ = ShowWindow(hwnd, SW_RESTORE);
+            }
+            let _ = SetForegroundWindow(hwnd);
+            let _ = PostMessageW(hwnd, WM_OPEN_DEVICES, WPARAM(0), LPARAM(0));
+        }
+        return;
+    }
+
+    launch_settings_window(Some("--devices"));
 }
 
 fn launch_settings_window(tab_arg: Option<&str>) {

@@ -247,6 +247,10 @@ unsafe extern "system" fn settings_window_proc(
             settings_ui::live::push(settings_ui::live::LiveEvent::ConfigChanged);
             return LRESULT(0);
         }
+        WM_OPEN_DEVICES => {
+            settings_ui::live::push(settings_ui::live::LiveEvent::OpenDevices);
+            return LRESULT(0);
+        }
         WM_DISPLAYCHANGE => settings_ui::live::push(settings_ui::live::LiveEvent::DisplaysChanged),
         _ => {}
     }

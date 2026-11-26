@@ -1,19 +1,155 @@
-//! Devices tab, matching the Dioxus implementation and `.device-*` in general.css.
+//! Devices tab: modern replacement for Windows Sound Control Panel (`mmsys.cpl`).
+//!
+//! Features Output/Input tabs, disabled & disconnected visibility, FormFactor
+//! icons, live peak meters, optional separate Default Communication role,
+//! right-click context menu, and a slide-in Properties sub-view.
+
+use crate::audio_devices::{self, DeviceEntry, DeviceProperties};
 use crate::settings_ui::{
-    SettingsApp,
+    SettingsApp, SettingsSnapshot,
     anim::{self, Easing, Transition, UI},
     assets::icon,
     color::{TRANSPARENT, lerp, mix_pct},
-    controls::{self, SelectOption, SelectOptions, TextInput, TextInputEvent, TextInputOptions},
+    controls::{
+        self, SegmentedToggleOption, SelectOption, SelectOptions, TextInput, TextInputEvent,
+        TextInputOptions,
+    },
     style::palette,
+    theme::Palette,
 };
 use gpui::{prelude::*, *};
 use std::{collections::HashMap, rc::Rc};
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum DeviceFlowTab {
+    #[default]
+    Output,
+    Input,
+}
+
+impl DeviceFlowTab {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Output => "output",
+            Self::Input => "input",
+        }
+    }
+
+    fn from_str(value: &str) -> Self {
+        match value {
+            "input" => Self::Input,
+            _ => Self::Output,
+        }
+    }
+}
+
+pub(crate) struct OpenDevice {
+    pub id: String,
+    pub input: bool,
+    pub props: DeviceProperties,
+    pub listen_access_denied: bool,
+    pub renaming: bool,
+    pub rename_draft: String,
+    pub rename_input: Option<Entity<TextInput>>,
+    pub rename_focus_pending: bool,
+    pub rename_generation: u64,
+}
+
+struct ContextMenu {
+    device_id: String,
+    input: bool,
+    position: Point<Pixels>,
+}
+
 #[derive(Default)]
 pub(crate) struct State {
+    active_tab: DeviceFlowTab,
     rows: HashMap<String, Rename>,
+    peaks: HashMap<String, f32>,
+    open_device: Option<OpenDevice>,
+    context_menu: Option<ContextMenu>,
 }
+
+impl State {
+    pub(crate) fn open_properties(&self) -> Option<&OpenDevice> {
+        self.open_device.as_ref()
+    }
+
+    pub(crate) fn open_properties_mut(&mut self) -> Option<&mut OpenDevice> {
+        self.open_device.as_mut()
+    }
+
+    pub(crate) fn open_device_properties(&mut self, id: String, input: bool) {
+        self.context_menu = None;
+        if let Ok(props) = audio_devices::read_device_properties(&id, input) {
+            self.open_device = Some(OpenDevice {
+                id,
+                input,
+                props,
+                listen_access_denied: false,
+                renaming: false,
+                rename_draft: String::new(),
+                rename_input: None,
+                rename_focus_pending: false,
+                rename_generation: 0,
+            });
+        }
+    }
+
+    pub(crate) fn close_properties(&mut self) {
+        self.open_device = None;
+    }
+
+    pub(crate) fn refresh_open_properties(&mut self) {
+        let Some(open) = self.open_device.as_mut() else {
+            return;
+        };
+        if let Ok(props) = audio_devices::read_device_properties(&open.id, open.input) {
+            open.props = props;
+        }
+    }
+
+    /// Returns active device IDs currently visible on screen for peak metering.
+    pub(crate) fn metered_device_ids(&self, snapshot: &SettingsSnapshot) -> Vec<String> {
+        if let Some(open) = &self.open_device {
+            return if open.props.active {
+                vec![open.id.clone()]
+            } else {
+                Vec::new()
+            };
+        }
+        let list = match self.active_tab {
+            DeviceFlowTab::Output => &snapshot.all_output_devices,
+            DeviceFlowTab::Input => &snapshot.all_input_devices,
+        };
+        list.iter()
+            .filter(|d| d.state.is_active())
+            .map(|d| d.id.clone())
+            .collect()
+    }
+
+    /// Smoothly blends sampled peaks (instant attack, gentle decay). Returns
+    /// true when any meter visibly moved.
+    pub(crate) fn update_peaks(&mut self, sampled: HashMap<String, f32>) -> bool {
+        let mut changed = false;
+        self.peaks.retain(|id, _| sampled.contains_key(id));
+        for (id, raw) in sampled {
+            let prev = self.peaks.get(&id).copied().unwrap_or(0.0);
+            let next = if raw >= prev {
+                raw
+            } else {
+                let decayed = prev * 0.68;
+                if decayed < 0.008 { 0.0 } else { decayed }
+            };
+            if (next - prev).abs() > 0.004 {
+                changed = true;
+            }
+            self.peaks.insert(id, next);
+        }
+        changed
+    }
+}
+
 #[derive(Default)]
 struct Rename {
     editing: bool,
@@ -22,20 +158,55 @@ struct Rename {
     focus_pending: bool,
     generation: u64,
 }
-#[derive(Clone)]
-struct DeviceRow {
-    id: String,
-    name: String,
-    pretty_name: String,
-    default: bool,
-    input: bool,
-}
 
 pub(crate) fn render(
     app: &mut SettingsApp,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> Vec<AnyElement> {
+    // If a device properties sub-view is open, render it directly.
+    if let Some((open_id, open_input, props, listen_denied)) = app
+        .sections
+        .devices
+        .open_device
+        .as_ref()
+        .map(|o| (o.id.clone(), o.input, o.props.clone(), o.listen_access_denied))
+    {
+        let entry = if open_input {
+            app.snapshot
+                .all_input_devices
+                .iter()
+                .find(|d| d.id == open_id)
+                .cloned()
+        } else {
+            app.snapshot
+                .all_output_devices
+                .iter()
+                .find(|d| d.id == open_id)
+                .cloned()
+        };
+        if let Some(entry) = entry {
+            let peak = app
+                .sections
+                .devices
+                .peaks
+                .get(&open_id)
+                .copied()
+                .unwrap_or(0.0);
+            return vec![super::devices_properties::render(
+                app,
+                entry,
+                props,
+                listen_denied,
+                peak,
+                window,
+                cx,
+            )];
+        } else {
+            app.sections.devices.close_properties();
+        }
+    }
+
     let mode = app
         .snapshot
         .config
@@ -43,70 +214,72 @@ pub(crate) fn render(
         .audio_device_name_display
         .clone();
     let rename_allowed = mode != crate::AUDIO_DEVICE_NAME_SYSTEM;
-    let output = app
-        .snapshot
-        .output_devices
-        .iter()
-        .map(|d| DeviceRow {
-            id: d.id.clone(),
-            name: d.display_name(&mode),
-            pretty_name: d.name.clone(),
-            default: d.is_default,
-            input: false,
-        })
-        .collect::<Vec<_>>();
-    let input = app
-        .snapshot
-        .devices
-        .iter()
-        .map(|d| DeviceRow {
-            id: d.id.clone(),
-            name: d.display_name(&mode),
-            pretty_name: d.name.clone(),
-            default: d.is_default,
-            input: true,
-        })
-        .collect::<Vec<_>>();
-    // Unplugged rows lose their editor, just as keyed Dioxus rows unmount.
-    app.sections
-        .devices
-        .rows
-        .retain(|id, _| output.iter().chain(&input).any(|d| &d.id == id));
-    let lists = div()
-        .flex()
-        .flex_col()
-        .gap(px(super::form::SECTION_GAP))
-        .child(device_list(
-            "Output",
-            "No active output devices found",
-            output.clone(),
-            rename_allowed,
-            app,
-            window,
-            cx,
-        ))
-        .child(device_list(
-            "Input",
-            "No active input devices found",
-            input,
-            rename_allowed,
-            app,
-            window,
-            cx,
-        ))
-        ;
-    let mut options = SelectOptions::new(vec![
+    let split_comm = app.snapshot.config.advanced.separate_communication_device;
+    let active_tab = app.sections.devices.active_tab;
+
+    let current_devices: Vec<DeviceEntry> = match active_tab {
+        DeviceFlowTab::Output => app.snapshot.all_output_devices.clone(),
+        DeviceFlowTab::Input => app.snapshot.all_input_devices.clone(),
+    };
+
+    // Unplugged/hidden rows lose their inline rename editor.
+    app.sections.devices.rows.retain(|id, _| {
+        app.snapshot
+            .all_output_devices
+            .iter()
+            .chain(&app.snapshot.all_input_devices)
+            .any(|d| &d.id == id)
+    });
+
+    let tab_switch = controls::segmented_toggle(
+        "devices-flow-tabs",
+        active_tab.as_str(),
+        vec![
+            SegmentedToggleOption::new("output", "Output").icon("volume-loud-linear"),
+            SegmentedToggleOption::new("input", "Input").icon("microphone-3-linear"),
+        ],
+        window,
+        cx,
+        |app, value, _, cx| {
+            let next = DeviceFlowTab::from_str(&value);
+            if app.sections.devices.active_tab != next {
+                app.sections.devices.active_tab = next;
+                app.sections.devices.context_menu = None;
+                cx.notify();
+            }
+        },
+    )
+    .mb(px(14.));
+
+    let empty_text = match active_tab {
+        DeviceFlowTab::Output => "No output devices found",
+        DeviceFlowTab::Input => "No input devices found",
+    };
+
+    let list_block = device_list(
+        empty_text,
+        current_devices,
+        &mode,
+        rename_allowed,
+        split_comm,
+        app,
+        window,
+        cx,
+    );
+
+    // Options card
+    let mut name_options = SelectOptions::new(vec![
         SelectOption::new(crate::AUDIO_DEVICE_NAME_PRETTY, "Pretty Name")
             .icon("microphone-3-linear"),
         SelectOption::new(crate::AUDIO_DEVICE_NAME_SYSTEM, "System Name").icon("widget-linear"),
         SelectOption::new(crate::AUDIO_DEVICE_NAME_BOTH, "Both").icon("volume-loud-linear"),
     ])
     .row("Displayed device name");
-    options.show_current_detail = false;
-    let select = controls::select(
+    name_options.show_current_detail = false;
+    let name_select = controls::select(
         "devices-name-display",
-        mode,
-        options,
+        mode.clone(),
+        name_options,
         app,
         window,
         cx,
@@ -116,14 +289,42 @@ pub(crate) fn render(
             })
         },
     );
-    let toggle = controls::toggle(
+
+    let show_disabled_toggle = controls::toggle(
+        "devices-show-disabled",
+        app.snapshot.config.advanced.show_disabled_devices,
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |c| c.advanced.show_disabled_devices = value)
+        },
+    );
+    let show_disconnected_toggle = controls::toggle(
+        "devices-show-disconnected",
+        app.snapshot.config.advanced.show_disconnected_devices,
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |c| c.advanced.show_disconnected_devices = value)
+        },
+    );
+    let split_comm_toggle = controls::toggle(
+        "devices-split-comm",
+        split_comm,
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |c| c.advanced.separate_communication_device = value)
+        },
+    );
+    let ungroup_toggle = controls::toggle(
         "devices-ungroup",
         app.snapshot.config.advanced.ungroup_tray_devices,
         window,
         cx,
         |app, value, _, cx| app.update_config(cx, |c| c.advanced.ungroup_tray_devices = value),
     );
-    let handsfree = controls::toggle(
+    let handsfree_toggle = controls::toggle(
         "devices-bt-handsfree",
         app.snapshot.config.advanced.block_bluetooth_handsfree,
         window,
@@ -132,43 +333,68 @@ pub(crate) fn render(
             app.update_config(cx, |c| c.advanced.block_bluetooth_handsfree = value)
         },
     );
+
+    let context_menu = render_context_menu(app, &mode, rename_allowed, split_comm, window, cx);
+
     vec![
         div()
             .flex()
             .flex_col()
             .max_w(px(720.))
+            .w_full()
             .child(super::form::page_title("Devices", None))
-            .child(lists)
+            .child(tab_switch)
+            .child(list_block)
             .child(
                 super::form::block()
                     .mt(px(super::form::SECTION_GAP))
                     .child(super::form::section_heading("Options", cx))
                     .child(
                         super::form::card(cx)
-                            .row(select)
+                            .row(name_select)
+                            .row(super::form::setting_row(
+                                "Show disabled devices",
+                                Some("Include manually disabled devices so you can re-enable them here"),
+                                show_disabled_toggle,
+                                cx,
+                            ))
+                            .row(super::form::setting_row(
+                                "Show disconnected devices",
+                                Some("Include unplugged ports and offline Bluetooth devices"),
+                                show_disconnected_toggle,
+                                cx,
+                            ))
+                            .row(super::form::setting_row(
+                                "Separate communication device",
+                                Some("Set default audio and default communications devices independently"),
+                                split_comm_toggle,
+                                cx,
+                            ))
                             .row(super::form::setting_row(
                                 "Ungroup devices in tray menu",
                                 None,
-                                toggle,
+                                ungroup_toggle,
                                 cx,
                             ))
                             .row(super::form::setting_row(
                                 "Keep Bluetooth headphones in high quality",
                                 Some("Turns off hands-free mode, so calls can't drop sound to mono. The headset's own mic stops working"),
-                                handsfree,
+                                handsfree_toggle,
                                 cx,
                             )),
                     ),
             )
+            .children(context_menu)
             .into_any_element(),
     ]
 }
 
 fn device_list(
-    title: &'static str,
     empty: &'static str,
-    rows: Vec<DeviceRow>,
+    rows: Vec<DeviceEntry>,
+    mode: &str,
     rename_allowed: bool,
+    split_comm: bool,
     app: &mut SettingsApp,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
@@ -190,12 +416,14 @@ fn device_list(
     } else {
         let total = rows.len();
         let mut card = super::form::card(cx);
-        for (index, row) in rows.into_iter().enumerate() {
+        for (index, entry) in rows.into_iter().enumerate() {
             card = card.row(device_row(
-                row,
+                entry,
                 index == 0,
                 index + 1 == total,
+                mode,
                 rename_allowed,
+                split_comm,
                 app,
                 window,
                 cx,
@@ -203,19 +431,18 @@ fn device_list(
         }
         card.into_element()
     };
-    super::form::block()
-        .child(super::form::section_heading(title, cx))
-        .child(body)
+    super::form::block().child(body)
 }
 
 fn finish_rename(
     app: &mut SettingsApp,
-    row: &DeviceRow,
+    device_id: &str,
+    original_pretty_name: &str,
     commit: bool,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) {
-    let Some(state) = app.sections.devices.rows.get_mut(&row.id) else {
+    let Some(state) = app.sections.devices.rows.get_mut(device_id) else {
         return;
     };
     if !state.editing {
@@ -224,49 +451,86 @@ fn finish_rename(
     let next = state.draft.trim().to_string();
     state.editing = false;
     state.focus_pending = false;
-    state.draft = row.pretty_name.clone();
+    state.draft = original_pretty_name.to_string();
     state.input = None;
-    // Enter is emitted while the input entity is borrowed; never update it here.
-    if commit && !next.is_empty() && next != row.pretty_name {
-        let _ = crate::rename_audio_device(&row.id, &next);
+    if commit && !next.is_empty() && next != original_pretty_name {
+        let _ = crate::rename_audio_device(device_id, &next);
         app.refresh_devices(cx);
     }
     app.focus_handle.focus(window, cx);
     cx.notify();
 }
 
+fn start_rename(app: &mut SettingsApp, device_id: &str, pretty_name: &str, cx: &mut Context<SettingsApp>) {
+    let state = app
+        .sections
+        .devices
+        .rows
+        .entry(device_id.to_string())
+        .or_default();
+    state.draft = pretty_name.to_string();
+    state.editing = true;
+    state.focus_pending = true;
+    state.generation += 1;
+    cx.notify();
+}
+
+#[allow(clippy::too_many_arguments)]
 fn device_row(
-    row: DeviceRow,
+    entry: DeviceEntry,
     is_first: bool,
     is_last: bool,
+    mode: &str,
     rename_allowed: bool,
+    split_comm: bool,
     app: &mut SettingsApp,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> Stateful<Div> {
     let p = app.palette;
-    let key = ElementId::from(SharedString::from(format!("device-row-{}", row.id)));
-    let state = app.sections.devices.rows.entry(row.id.clone()).or_default();
+    let key = ElementId::from(SharedString::from(format!("device-row-{}", entry.id)));
+    let display_name = entry.display_name(mode);
+    let subtitle = entry.subtitle(mode);
+    let is_active = entry.state.is_active();
+    let is_disabled = entry.state.is_disabled();
+    let peak = app
+        .sections
+        .devices
+        .peaks
+        .get(&entry.id)
+        .copied()
+        .unwrap_or(0.0);
+
+    let state = app
+        .sections
+        .devices
+        .rows
+        .entry(entry.id.clone())
+        .or_default();
     let editing = state.editing;
     let draft = state.draft.clone();
     let generation = state.generation;
     let focus_pending = std::mem::take(&mut state.focus_pending);
-    let active = anim::tween(
+
+    let (row_ptr, row_hover, _) = controls::hover_tween((key.clone(), "row-hover"), window, cx);
+    let active_t = anim::tween(
         window,
         cx,
         (key.clone(), "active"),
-        row.default as u8 as f32,
+        entry.is_default as u8 as f32,
         UI,
     );
-    let edit = anim::tween(
+    let edit_t = anim::tween(
         window,
         cx,
         (key.clone(), "editing"),
         editing as u8 as f32,
         UI,
     );
-    let name = if editing {
-        let event_row = row.clone();
+
+    let name_block = if editing {
+        let id_ev = entry.id.clone();
+        let orig_ev = entry.name.clone();
         let input = controls::text_input(
             (
                 key.clone(),
@@ -284,45 +548,48 @@ fn device_row(
                     .sections
                     .devices
                     .rows
-                    .get(&event_row.id)
-                    .is_some_and(|state| state.editing && state.generation == generation)
+                    .get(&id_ev)
+                    .is_some_and(|s| s.editing && s.generation == generation)
                 {
                     return;
                 }
                 match event {
                     TextInputEvent::Change(value) => {
-                        if let Some(state) = app.sections.devices.rows.get_mut(&event_row.id) {
-                            state.draft = value.to_string();
+                        if let Some(s) = app.sections.devices.rows.get_mut(&id_ev) {
+                            s.draft = value.to_string();
                         }
                         cx.notify();
                     }
                     TextInputEvent::Blur(value) if value.trim().is_empty() => {
-                        if let Some(state) = app.sections.devices.rows.get_mut(&event_row.id) {
-                            state.draft = event_row.pretty_name.clone();
+                        if let Some(s) = app.sections.devices.rows.get_mut(&id_ev) {
+                            s.draft = orig_ev.clone();
                         }
-                        // Defer to avoid borrowing the input again inside its blur callback.
-                        let id = event_row.id.clone();
-                        let old = event_row.pretty_name.clone();
+                        let id = id_ev.clone();
+                        let old = orig_ev.clone();
                         cx.defer_in(window, move |app, _, cx| {
-                            if let Some(state) = app.sections.devices.rows.get(&id)
-                                && state.editing
-                                && state.generation == generation
-                                && let Some(input) = &state.input
+                            if let Some(s) = app.sections.devices.rows.get(&id)
+                                && s.editing
+                                && s.generation == generation
+                                && let Some(input) = &s.input
                             {
                                 input.update(cx, |input, cx| input.set_value(old, cx));
                             }
                         });
                         cx.notify();
                     }
-                    TextInputEvent::Enter(_) => finish_rename(app, &event_row, true, window, cx),
-                    TextInputEvent::Escape => finish_rename(app, &event_row, false, window, cx),
+                    TextInputEvent::Enter(_) => {
+                        finish_rename(app, &id_ev, &orig_ev, true, window, cx)
+                    }
+                    TextInputEvent::Escape => {
+                        finish_rename(app, &id_ev, &orig_ev, false, window, cx)
+                    }
                     _ => {}
                 }
             },
         );
-        app.sections.devices.rows.get_mut(&row.id).unwrap().input = Some(input.clone());
+        app.sections.devices.rows.get_mut(&entry.id).unwrap().input = Some(input.clone());
         if focus_pending {
-            let id = row.id.clone();
+            let id = entry.id.clone();
             let focus_input = input.clone();
             cx.defer_in(window, move |app, window, cx| {
                 if app
@@ -336,8 +603,10 @@ fn device_row(
                 }
             });
         }
-        let commit_row = row.clone();
-        let cancel_row = row.clone();
+        let commit_id = entry.id.clone();
+        let commit_orig = entry.name.clone();
+        let cancel_id = entry.id.clone();
+        let cancel_orig = entry.name.clone();
         let commit = action(
             (
                 key.clone(),
@@ -349,7 +618,7 @@ fn device_row(
             false,
             window,
             cx,
-            move |app, window, cx| finish_rename(app, &commit_row, true, window, cx),
+            move |app, window, cx| finish_rename(app, &commit_id, &commit_orig, true, window, cx),
         );
         let cancel = action(
             (
@@ -362,7 +631,7 @@ fn device_row(
             false,
             window,
             cx,
-            move |app, window, cx| finish_rename(app, &cancel_row, false, window, cx),
+            move |app, window, cx| finish_rename(app, &cancel_id, &cancel_orig, false, window, cx),
         );
         div()
             .relative()
@@ -375,8 +644,7 @@ fn device_row(
             .font_weight(FontWeight(620.))
             .line_height(px(18.))
             .child(
-                controls::text_input_container((key.clone(), "rename-shell"), &input)
-                    .flex_1(),
+                controls::text_input_container((key.clone(), "rename-shell"), &input).flex_1(),
             )
             .child(
                 div()
@@ -404,223 +672,673 @@ fn device_row(
             )
     } else {
         div()
+            .flex()
+            .flex_col()
             .min_w_0()
-            .text_size(px(14.))
-            .font_weight(FontWeight(620.))
-            .line_height(px(18.))
-            .text_ellipsis()
-            .child(row.name.clone())
-    };
-    let default_row = row.clone();
-    let default_id = ElementId::from((key.clone(), "default"));
-    let (default_pointer, default_hover, _) =
-        controls::hover_tween(default_id.clone(), window, cx);
-    let default = div()
-        .w(px(112.))
-        .flex()
-        .justify_end()
-        .flex_shrink_0()
-        .child(if row.default {
-            div()
-                .h(px(26.))
-                .pl(px(9.))
-                .pr(px(11.))
-                .flex()
-                .items_center()
-                .gap(px(6.))
-                .rounded_full()
-                .opacity(active)
-                .bg(p.accent_soft.hsla())
-                .text_size(px(12.5))
-                .font_weight(FontWeight(600.))
-                .text_color(p.accent_text.hsla())
-                .child(
-                    svg()
-                        .path(icon("check-mark"))
-                        .size(px(10.))
-                        .text_color(p.accent_text.hsla()),
-                )
-                .child("Default")
-                .into_any_element()
-        } else {
-            controls::track_pointer(
+            .gap(px(2.))
+            .child(
                 div()
-                    .id(default_id)
+                    .min_w_0()
+                    .text_size(px(14.))
+                    .font_weight(FontWeight(620.))
+                    .line_height(px(18.))
+                    .text_color(if is_active {
+                        p.text.hsla()
+                    } else {
+                        p.muted.hsla()
+                    })
+                    .text_ellipsis()
+                    .child(display_name),
+            )
+            .when_some(subtitle, |this, sub| {
+                this.child(
+                    div()
+                        .min_w_0()
+                        .text_size(px(12.))
+                        .line_height(px(15.))
+                        .text_color(p.muted.opacity(0.85).hsla())
+                        .text_ellipsis()
+                        .child(sub),
+                )
+            })
+    };
+
+    // Right-side controls depend on device state.
+    let trailing = if is_active {
+        let meter = compact_peak_meter(peak, p);
+
+        let default_id = ElementId::from((key.clone(), "default"));
+        let (default_ptr, default_hover, _) = controls::hover_tween(default_id.clone(), window, cx);
+        let default_dev_id = entry.id.clone();
+        let default_pill = div()
+            .flex()
+            .justify_end()
+            .flex_shrink_0()
+            .child(if entry.is_default {
+                div()
                     .h(px(26.))
-                    .px(px(11.))
+                    .pl(px(9.))
+                    .pr(px(11.))
                     .flex()
                     .items_center()
+                    .gap(px(6.))
                     .rounded_full()
-                    .opacity(1. - active)
-                    .cursor_pointer()
-                    .bg(lerp(mix_pct(p.text, 6.5, TRANSPARENT), p.surface_3, default_hover).hsla())
+                    .opacity(active_t)
+                    .bg(p.accent_soft.hsla())
                     .text_size(px(12.5))
                     .font_weight(FontWeight(600.))
-                    .text_color(lerp(p.muted, p.text, default_hover).hsla())
-                    .child("Set as default"),
-                default_pointer,
-            )
-            .on_click(cx.listener(move |app, _, _, cx| {
-                if default_row.id.is_empty() {
-                    return;
-                }
-                if default_row.input {
-                    let _ = crate::set_default_capture_device(&default_row.id);
+                    .text_color(p.accent_text.hsla())
+                    .child(
+                        svg()
+                            .path(icon("check-mark"))
+                            .size(px(10.))
+                            .text_color(p.accent_text.hsla()),
+                    )
+                    .child("Default")
+                    .into_any_element()
+            } else {
+                controls::track_pointer(
+                    div()
+                        .id(default_id)
+                        .h(px(26.))
+                        .px(px(11.))
+                        .flex()
+                        .items_center()
+                        .rounded_full()
+                        .opacity(1. - active_t)
+                        .cursor_pointer()
+                        .bg(lerp(
+                            mix_pct(p.text, 6.5, TRANSPARENT),
+                            p.surface_3,
+                            default_hover,
+                        )
+                        .hsla())
+                        .text_size(px(12.5))
+                        .font_weight(FontWeight(600.))
+                        .text_color(lerp(p.muted, p.text, default_hover).hsla())
+                        .child("Set as default"),
+                    default_ptr,
+                )
+                .on_click(cx.listener(move |app, _, _, cx| {
+                    cx.stop_propagation();
+                    let _ = audio_devices::set_default_device(&default_dev_id, split_comm);
+                    app.refresh_devices(cx);
+                }))
+                .into_any_element()
+            });
+
+        // Separate Default Communication role button (animates width when setting toggles)
+        let comm_slot = anim::tween(
+            window,
+            cx,
+            (key.clone(), "comm-slot"),
+            split_comm as u8 as f32,
+            UI,
+        );
+        let comm_dev_id = entry.id.clone();
+        let is_comm = entry.is_default_comm;
+        let comm_btn = (comm_slot > 0.01).then(|| {
+            let btn = action(
+                (key.clone(), "comm"),
+                if is_comm { "phone-bold" } else { "phone-linear" },
+                if is_comm {
+                    "Default communication device"
                 } else {
-                    let _ = crate::set_default_render_device(&default_row.id);
-                }
-                app.refresh_devices(cx);
-            }))
-            .into_any_element()
+                    "Set as default communication device"
+                },
+                ActionKind::Comm(is_comm),
+                false,
+                window,
+                cx,
+                move |app, _, cx| {
+                    let _ = audio_devices::set_default_comm_device(&comm_dev_id);
+                    app.refresh_devices(cx);
+                },
+            );
+            div()
+                .w(px(40. * comm_slot))
+                .pl(px(4. * comm_slot))
+                .overflow_hidden()
+                .opacity(comm_slot)
+                .child(btn)
         });
-    let rename_row = row.clone();
-    let rename = (rename_allowed && !editing).then(|| {
-        action(
-            (key.clone(), "rename"),
-            "pen-linear",
-            "Rename",
-            ActionKind::Normal,
+
+        let favorite = (!entry.input).then(|| {
+            let is_favorite = app
+                .snapshot
+                .config
+                .volume
+                .favorite_output_devices
+                .iter()
+                .any(|id| id == &entry.id);
+            let fav_id = entry.id.clone();
+            action(
+                (key.clone(), "favorite"),
+                if is_favorite {
+                    "star-bold"
+                } else {
+                    "star-linear"
+                },
+                if is_favorite {
+                    "Favorite: next/previous output hotkeys cycle through favorites"
+                } else {
+                    "Add to favorites for next/previous output hotkeys"
+                },
+                ActionKind::Favorite(is_favorite),
+                false,
+                window,
+                cx,
+                move |app, _, cx| {
+                    let id = fav_id.clone();
+                    app.update_config(cx, |config| {
+                        let list = &mut config.volume.favorite_output_devices;
+                        if list.iter().any(|existing| existing == &id) {
+                            list.retain(|existing| existing != &id);
+                        } else {
+                            list.push(id);
+                        }
+                    });
+                },
+            )
+        });
+
+        let rename_slot = anim::tween(
+            window,
+            cx,
+            (key.clone(), "rename-slot"),
+            (rename_allowed && !editing) as u8 as f32,
+            UI,
+        );
+        let rename_id = entry.id.clone();
+        let rename_orig = entry.name.clone();
+        let rename = (rename_allowed && !editing).then(|| {
+            action(
+                (key.clone(), "rename"),
+                "pen-linear",
+                "Rename",
+                ActionKind::Normal,
+                false,
+                window,
+                cx,
+                move |app, _, cx| start_rename(app, &rename_id, &rename_orig, cx),
+            )
+        });
+
+        let chevron = div()
+            .size(px(28.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .flex_shrink_0()
+            .child(
+                svg()
+                    .path(icon("alt-arrow-right-linear"))
+                    .size(px(15.))
+                    .text_color(lerp(p.muted.opacity(0.65), p.text, row_hover).hsla()),
+            );
+
+        div()
+            .flex()
+            .items_center()
+            .flex_shrink_0()
+            .gap(px(4.))
+            .child(div().pr(px(8.)).child(meter))
+            .child(default_pill)
+            .children(comm_btn)
+            .children(favorite)
+            .when(rename_slot > 0., |this| {
+                this.child(
+                    div()
+                        .w(px(38. * rename_slot))
+                        .overflow_hidden()
+                        .opacity(rename_slot)
+                        .children(rename),
+                )
+            })
+            .child(chevron)
+    } else if is_disabled {
+        let enable_id = ElementId::from((key.clone(), "enable"));
+        let (en_ptr, en_hover, _) = controls::hover_tween(enable_id.clone(), window, cx);
+        let enable_dev_id = entry.id.clone();
+        let enable_btn = controls::track_pointer(
+            div()
+                .id(enable_id)
+                .h(px(28.))
+                .px(px(12.))
+                .rounded_full()
+                .flex()
+                .items_center()
+                .cursor_pointer()
+                .bg(lerp(p.surface_3, p.accent_soft, en_hover).hsla())
+                .text_size(px(12.5))
+                .font_weight(FontWeight(620.))
+                .text_color(lerp(p.text, p.accent_text, en_hover).hsla())
+                .child("Enable"),
+            en_ptr,
+        )
+        .on_click(cx.listener(move |app, _, _, cx| {
+            cx.stop_propagation();
+            let _ = audio_devices::set_device_enabled(&enable_dev_id, true);
+            app.refresh_devices(cx);
+        }));
+
+        let chevron = div()
+            .size(px(28.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .flex_shrink_0()
+            .child(
+                svg()
+                    .path(icon("alt-arrow-right-linear"))
+                    .size(px(15.))
+                    .text_color(lerp(p.muted.opacity(0.5), p.text, row_hover).hsla()),
+            );
+
+        div()
+            .flex()
+            .items_center()
+            .flex_shrink_0()
+            .gap(px(4.))
+            .child(enable_btn)
+            .child(chevron)
+    } else {
+        // Disconnected
+        div()
+            .flex()
+            .items_center()
+            .flex_shrink_0()
+            .pr(px(8.))
+            .child(
+                div()
+                    .text_size(px(12.))
+                    .font_weight(FontWeight(600.))
+                    .text_color(p.muted.opacity(0.75).hsla())
+                    .child("Disconnected"),
+            )
+    };
+
+    let open_id = entry.id.clone();
+    let open_input = entry.input;
+    let can_open_props = !editing && (is_active || is_disabled);
+    let ctx_id = entry.id.clone();
+    let ctx_input = entry.input;
+
+    let row_bg = if editing {
+        TRANSPARENT
+    } else {
+        lerp(TRANSPARENT, mix_pct(p.text, 4.0, TRANSPARENT), row_hover)
+    };
+
+    let icon_color = if entry.is_default {
+        p.accent_text
+    } else if is_active {
+        p.muted
+    } else {
+        p.muted.opacity(0.55)
+    };
+
+    controls::track_pointer(
+        div()
+            .id(key)
+            .flex()
+            .items_center()
+            .gap(px(12.))
+            .min_h(px(super::form::ROW_HEIGHT))
+            .pl(px(super::form::ROW_PAD))
+            .pr(px(10.))
+            .py(px(10.))
+            .flex_shrink_0()
+            .bg(row_bg.hsla())
+            .when(can_open_props, |this| this.cursor_pointer())
+            .when(is_first, |this| this.rounded_tl(px(14.)).rounded_tr(px(14.)))
+            .when(is_last, |this| this.rounded_bl(px(14.)).rounded_br(px(14.)))
+            .when(edit_t > 0., |this| {
+                this.shadow(vec![
+                    BoxShadow {
+                        color: p.focus.opacity(edit_t).hsla(),
+                        offset: point(px(0.), px(0.)),
+                        blur_radius: px(0.),
+                        spread_radius: px(1.),
+                        inset: true,
+                    },
+                    BoxShadow {
+                        color: mix_pct(p.focus, 18. * edit_t, TRANSPARENT).hsla(),
+                        offset: point(px(0.), px(0.)),
+                        blur_radius: px(0.),
+                        spread_radius: px(2.),
+                        inset: false,
+                    },
+                ])
+            })
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .min_w_0()
+                    .flex_1()
+                    .gap(px(12.))
+                    .child(
+                        svg()
+                            .path(icon(entry.icon_name()))
+                            .size(px(20.))
+                            .flex_shrink_0()
+                            .text_color(icon_color.hsla()),
+                    )
+                    .child(div().flex().flex_col().min_w_0().flex_1().child(name_block)),
+            )
+            .child(trailing),
+        row_ptr,
+    )
+    .on_click(cx.listener(move |app, _, _, cx| {
+        if can_open_props {
+            app.sections
+                .devices
+                .open_device_properties(open_id.clone(), open_input);
+            cx.notify();
+        }
+    }))
+    .on_mouse_down(
+        MouseButton::Right,
+        cx.listener(move |app, event: &MouseDownEvent, _, cx| {
+            app.sections.devices.context_menu = Some(ContextMenu {
+                device_id: ctx_id.clone(),
+                input: ctx_input,
+                position: event.position,
+            });
+            cx.notify();
+        }),
+    )
+}
+
+/// Sleek 8-bar live peak level indicator for active device rows.
+fn compact_peak_meter(peak: f32, p: Palette) -> Div {
+    const BARS: usize = 8;
+    let clamped = peak.clamp(0.0, 1.0);
+    let mut row = div()
+        .flex()
+        .items_end()
+        .gap(px(2.))
+        .h(px(16.))
+        .flex_shrink_0();
+    for i in 0..BARS {
+        let threshold = (i as f32 + 0.5) / BARS as f32;
+        let lit = clamped >= threshold;
+        let height = 5.0 + (i as f32 / (BARS - 1) as f32) * 11.0;
+        let bar_color = if !lit {
+            p.surface_3
+        } else if i >= 7 {
+            p.danger
+        } else if i >= 5 {
+            p.accent
+        } else {
+            p.success
+        };
+        row = row.child(
+            div()
+                .w(px(3.))
+                .h(px(height))
+                .rounded_full()
+                .bg(bar_color.hsla()),
+        );
+    }
+    row
+}
+
+fn render_context_menu(
+    app: &mut SettingsApp,
+    _mode: &str,
+    rename_allowed: bool,
+    split_comm: bool,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) -> Option<AnyElement> {
+    let menu_state = app.sections.devices.context_menu.as_ref()?;
+    let device_id = menu_state.device_id.clone();
+    let input = menu_state.input;
+    let pos = menu_state.position;
+
+    let entry = if input {
+        app.snapshot
+            .all_input_devices
+            .iter()
+            .find(|d| d.id == device_id)
+            .cloned()
+    } else {
+        app.snapshot
+            .all_output_devices
+            .iter()
+            .find(|d| d.id == device_id)
+            .cloned()
+    }?;
+
+    let p = app.palette;
+    let mut items: Vec<AnyElement> = Vec::new();
+
+    if entry.state.is_active() && !entry.is_default {
+        let id = entry.id.clone();
+        items.push(ctx_item(
+            "ctx-default",
+            "check-mark",
+            "Set as default",
             false,
             window,
             cx,
             move |app, _, cx| {
-                let state = app
-                    .sections
-                    .devices
-                    .rows
-                    .entry(rename_row.id.clone())
-                    .or_default();
-                state.draft = rename_row.pretty_name.clone();
-                state.editing = true;
-                state.focus_pending = true;
-                state.generation += 1;
+                let _ = audio_devices::set_default_device(&id, split_comm);
+                app.sections.devices.context_menu = None;
+                app.refresh_devices(cx);
+            },
+        ));
+    }
+
+    if entry.state.is_active() && split_comm && !entry.is_default_comm {
+        let id = entry.id.clone();
+        items.push(ctx_item(
+            "ctx-comm",
+            "phone-linear",
+            "Set as default communication",
+            false,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = audio_devices::set_default_comm_device(&id);
+                app.sections.devices.context_menu = None;
+                app.refresh_devices(cx);
+            },
+        ));
+    }
+
+    if entry.state.is_active() && !entry.input {
+        let id = entry.id.clone();
+        items.push(ctx_item(
+            "ctx-test",
+            "play-circle-linear",
+            "Test",
+            false,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = audio_devices::play_test_tone(&id);
+                app.sections.devices.context_menu = None;
                 cx.notify();
             },
-        )
-    });
-    let favorite = (!row.input).then(|| {
-        let is_favorite = app
-            .snapshot
-            .config
-            .volume
-            .favorite_output_devices
-            .iter()
-            .any(|id| id == &row.id);
-        let favorite_id = row.id.clone();
-        action(
-            (key.clone(), "favorite"),
-            if is_favorite { "star-bold" } else { "star-linear" },
-            if is_favorite {
-                "Favorite: next/previous output hotkeys cycle through favorites"
-            } else {
-                "Add to favorites for next/previous output hotkeys"
-            },
-            ActionKind::Favorite(is_favorite),
+        ));
+    }
+
+    if rename_allowed {
+        let id = entry.id.clone();
+        let orig = entry.name.clone();
+        items.push(ctx_item(
+            "ctx-rename",
+            "pen-linear",
+            "Rename",
             false,
             window,
             cx,
             move |app, _, cx| {
-                let id = favorite_id.clone();
-                app.update_config(cx, |config| {
-                    let list = &mut config.volume.favorite_output_devices;
-                    if list.iter().any(|existing| existing == &id) {
-                        list.retain(|existing| existing != &id);
-                    } else {
-                        list.push(id);
-                    }
-                });
+                app.sections.devices.context_menu = None;
+                start_rename(app, &id, &orig, cx);
             },
-        )
-    });
-    let properties_row = row.clone();
-    let properties = action(
-        (key.clone(), "properties"),
-        "settings-linear",
-        "Open properties",
-        ActionKind::Normal,
-        false,
-        window,
-        cx,
-        move |_, _, _| {
-            let _ = crate::open_audio_device_properties(&properties_row.id, properties_row.input);
-        },
-    );
-    let rename_slot = anim::tween(
-        window,
-        cx,
-        (key.clone(), "rename-slot"),
-        (rename_allowed && !editing) as u8 as f32,
-        UI,
-    );
-    div()
-        .id(key)
+        ));
+    }
+
+    if entry.state.is_active() {
+        let id = entry.id.clone();
+        items.push(ctx_item(
+            "ctx-disable",
+            "forbidden-circle-linear",
+            "Disable",
+            true,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = audio_devices::set_device_enabled(&id, false);
+                app.sections.devices.context_menu = None;
+                app.refresh_devices(cx);
+            },
+        ));
+    } else if entry.state.is_disabled() {
+        let id = entry.id.clone();
+        items.push(ctx_item(
+            "ctx-enable",
+            "check-circle-bold",
+            "Enable",
+            false,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = audio_devices::set_device_enabled(&id, true);
+                app.sections.devices.context_menu = None;
+                app.refresh_devices(cx);
+            },
+        ));
+    }
+
+    if entry.state.is_active() || entry.state.is_disabled() {
+        let id = entry.id.clone();
+        let inp = entry.input;
+        items.push(ctx_item(
+            "ctx-props",
+            "tuning-2-linear",
+            "Properties",
+            false,
+            window,
+            cx,
+            move |app, _, cx| {
+                app.sections.devices.open_device_properties(id.clone(), inp);
+                cx.notify();
+            },
+        ));
+    }
+
+    {
+        let id = entry.id.clone();
+        let inp = entry.input;
+        items.push(ctx_item(
+            "ctx-win-props",
+            "square-arrow-right-up-linear",
+            "Open Windows properties",
+            false,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = crate::open_audio_device_properties(&id, inp);
+                app.sections.devices.context_menu = None;
+                cx.notify();
+            },
+        ));
+    }
+
+    let menu_w = 224.0_f32;
+    let menu_h = (items.len() as f32) * 34.0 + 12.0;
+    let vp = window.viewport_size();
+    let left = pos.x.as_f32().min((vp.width.as_f32() - menu_w - 12.0).max(8.0));
+    let top = pos.y.as_f32().min((vp.height.as_f32() - menu_h - 12.0).max(8.0));
+
+    let menu = div()
+        .id("devices-context-menu")
+        .w(px(menu_w))
+        .p(px(6.))
+        .rounded(px(12.))
+        .bg(p.select_menu_bg.hsla())
+        .border_1()
+        .border_color(p.border_strong.hsla())
+        .shadow(vec![BoxShadow {
+            color: p.shadow_medium.hsla(),
+            offset: point(px(0.), px(8.)),
+            blur_radius: px(24.),
+            spread_radius: px(0.),
+            inset: false,
+        }])
         .flex()
-        .items_center()
-        .gap(px(12.))
-        .min_h(px(super::form::ROW_HEIGHT))
-        .pl(px(super::form::ROW_PAD))
-        .pr(px(10.))
-        .py(px(10.))
-        .flex_shrink_0()
-        .when(is_first, |this| this.rounded_tl(px(14.)).rounded_tr(px(14.)))
-        .when(is_last, |this| this.rounded_bl(px(14.)).rounded_br(px(14.)))
-        .when(edit > 0., |this| {
-            this.shadow(vec![
-                BoxShadow {
-                    color: p.focus.opacity(edit).hsla(),
-                    offset: point(px(0.), px(0.)),
-                    blur_radius: px(0.),
-                    spread_radius: px(1.),
-                    inset: true,
-                },
-                BoxShadow {
-                    color: mix_pct(p.focus, 18. * edit, TRANSPARENT).hsla(),
-                    offset: point(px(0.), px(0.)),
-                    blur_radius: px(0.),
-                    spread_radius: px(2.),
-                    inset: false,
-                },
-            ])
-        })
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .min_w_0()
-                .flex_1()
-                .gap(px(12.))
-                .child(
-                    svg()
-                        .path(icon(if row.input {
-                            "microphone-3-linear"
-                        } else {
-                            "volume-loud-linear"
-                        }))
-                        .size(px(20.))
-                        .flex_shrink_0()
-                        .text_color(p.muted.hsla()),
-                )
-                .child(div().flex().flex_col().min_w_0().flex_1().child(name)),
-        )
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .flex_shrink_0()
-                .child(div().pr(px(6.)).child(default))
-                .children(favorite)
-                .when(rename_slot > 0., |this| {
-                    this.child(
-                        div()
-                            .w(px(42. * rename_slot))
-                            .pl(px(6. * rename_slot))
-                            .overflow_hidden()
-                            .opacity(rename_slot)
-                            .children(rename),
-                    )
-                })
-                .child(div().pl(px(6.)).child(properties)),
-        )
+        .flex_col()
+        .gap(px(2.))
+        .on_mouse_down_out(cx.listener(|app, _, _, cx| {
+            if app.sections.devices.context_menu.is_some() {
+                app.sections.devices.context_menu = None;
+                cx.notify();
+            }
+        }))
+        .children(items);
+
+    Some(
+        deferred(anchored().position(point(px(left), px(top))).child(menu))
+            .with_priority(100)
+            .into_any_element(),
+    )
+}
+
+fn ctx_item(
+    id: &'static str,
+    icon_name: &'static str,
+    label: &'static str,
+    danger: bool,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+    on_click: impl Fn(&mut SettingsApp, &mut Window, &mut Context<SettingsApp>) + 'static,
+) -> AnyElement {
+    let p = palette(cx);
+    let el_id = ElementId::from(id);
+    let (ptr, hover, _) = controls::hover_tween(el_id.clone(), window, cx);
+    let fg = if danger {
+        lerp(p.danger, p.danger_hover, hover)
+    } else {
+        p.text
+    };
+    let bg = if danger {
+        lerp(TRANSPARENT, mix_pct(p.danger, 14., TRANSPARENT), hover)
+    } else {
+        lerp(TRANSPARENT, p.surface_3, hover)
+    };
+    controls::track_pointer(
+        div()
+            .id(el_id)
+            .h(px(32.))
+            .px(px(10.))
+            .rounded(px(8.))
+            .flex()
+            .items_center()
+            .gap(px(9.))
+            .cursor_pointer()
+            .bg(bg.hsla())
+            .text_size(px(13.))
+            .font_weight(FontWeight(560.))
+            .text_color(fg.hsla())
+            .child(
+                svg()
+                    .path(icon(icon_name))
+                    .size(px(15.))
+                    .text_color(if danger { fg } else { lerp(p.muted, p.text, hover) }.hsla()),
+            )
+            .child(label),
+        ptr,
+    )
+    .on_click(cx.listener(move |app, _, window, cx| {
+        cx.stop_propagation();
+        on_click(app, window, cx);
+    }))
+    .into_any_element()
 }
 
 #[derive(Clone, Copy)]
@@ -628,9 +1346,12 @@ enum ActionKind {
     Normal,
     /// Star toggle; `true` while the device is a favorite.
     Favorite(bool),
+    /// Communication default toggle; `true` while this device is the default comm device.
+    Comm(bool),
     Commit,
     Cancel,
 }
+
 struct ActionTooltip(&'static str);
 impl Render for ActionTooltip {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -645,6 +1366,7 @@ impl Render for ActionTooltip {
             .child(self.0)
     }
 }
+
 fn action(
     id: impl Into<ElementId>,
     icon_name: &'static str,
@@ -661,8 +1383,6 @@ fn action(
     let key_callback = callback.clone();
     let (pointer, hover, press) = controls::hover_tween(id.clone(), window, cx);
     let inline = matches!(kind, ActionKind::Commit | ActionKind::Cancel);
-    // GPUI Div has no transform. Scale the painted box and SVG inside the
-    // fixed 18px action slot, preserving the CSS transform's layout footprint.
     let entrance = if inline {
         anim::tween_from(
             window,
@@ -677,7 +1397,7 @@ fn action(
     };
     let scale = 0.82 + 0.18 * entrance;
     let fg = match kind {
-        ActionKind::Favorite(on) => {
+        ActionKind::Favorite(on) | ActionKind::Comm(on) => {
             if on {
                 p.accent_text
             } else {
@@ -688,6 +1408,14 @@ fn action(
         ActionKind::Cancel => lerp(p.danger, p.danger_hover, hover),
         _ => lerp(p.muted, p.text, if disabled { 0. } else { hover }),
     };
+    let bg = match kind {
+        ActionKind::Comm(true) => lerp(p.accent_soft, mix_pct(p.accent, 22., TRANSPARENT), hover),
+        _ => lerp(
+            lerp(TRANSPARENT, p.surface_3, hover),
+            p.surface_2,
+            if disabled || inline { 0. } else { press },
+        ),
+    };
     let focus = window
         .use_keyed_state((id.clone(), "focus"), cx, |_, cx| cx.focus_handle())
         .read(cx)
@@ -695,19 +1423,14 @@ fn action(
     controls::track_pointer(
         div()
             .id(id)
-            .size(px(if inline { 18. * scale } else { 36. }))
+            .size(px(if inline { 18. * scale } else { 34. }))
             .flex_shrink_0()
             .opacity(entrance)
             .flex()
             .items_center()
             .justify_center()
             .rounded(px(if inline { 6. * scale } else { 8. }))
-            .bg(lerp(
-                lerp(TRANSPARENT, p.surface_3, hover),
-                p.surface_2,
-                if disabled || inline { 0. } else { press },
-            )
-            .hsla())
+            .bg(bg.hsla())
             .when(!disabled, |this| {
                 this.cursor_pointer()
                     .track_focus(&focus)
@@ -718,7 +1441,10 @@ fn action(
                             cx.stop_propagation();
                         }
                     }))
-                    .on_click(cx.listener(move |app, _, window, cx| callback(app, window, cx)))
+                    .on_click(cx.listener(move |app, _, window, cx| {
+                        cx.stop_propagation();
+                        callback(app, window, cx);
+                    }))
             })
             .tooltip(move |_, cx| cx.new(|_| ActionTooltip(title)).into())
             .child(

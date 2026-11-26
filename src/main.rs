@@ -125,6 +125,7 @@ use windows::{
     core::{GUID, HRESULT, IUnknown, IUnknown_Vtbl, Interface, PCWSTR, PROPVARIANT, PWSTR, w},
 };
 
+mod audio_devices;
 mod bt_media;
 mod gpui_overlay;
 mod native_overlay;

@@ -809,6 +809,7 @@ pub(crate) fn action_options() -> Vec<SelectOption> {
         crate::HotkeyAction::SetVolume,
         crate::HotkeyAction::ToggleOutputMute,
         crate::HotkeyAction::OpenSettings,
+        crate::HotkeyAction::OpenDevices,
     ];
 
     ORDERED_ACTIONS
@@ -857,6 +858,9 @@ pub(crate) fn action_options() -> Vec<SelectOption> {
                     option.group("Volume").icon("volume-loud-linear")
                 }
                 crate::HotkeyAction::OpenSettings => option.group("System").icon("settings-linear"),
+                crate::HotkeyAction::OpenDevices => {
+                    option.group("System").icon("headphones-round-sound-linear")
+                }
             }
         })
         .collect()

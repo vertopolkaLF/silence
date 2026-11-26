@@ -88,6 +88,7 @@ pub(crate) fn allow_cross_process_window_messages(hwnd: HWND) {
         WM_MUTE,
         WM_UNMUTE,
         WM_OPEN_SETTINGS,
+        WM_OPEN_DEVICES,
         WM_UPDATE_NOW,
         WM_WHATS_NEW,
         WM_EXIT_ALL,

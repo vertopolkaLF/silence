@@ -463,6 +463,7 @@ pub enum HotkeyAction {
     NextOutputDevice,
     PreviousOutputDevice,
     OpenSettings,
+    OpenDevices,
 }
 
 impl HotkeyAction {
@@ -484,6 +485,7 @@ impl HotkeyAction {
         Self::NextOutputDevice,
         Self::PreviousOutputDevice,
         Self::OpenSettings,
+        Self::OpenDevices,
     ];
 
     pub fn label(self) -> &'static str {
@@ -505,6 +507,7 @@ impl HotkeyAction {
             Self::NextOutputDevice => "Next output device",
             Self::PreviousOutputDevice => "Previous output device",
             Self::OpenSettings => "Open settings",
+            Self::OpenDevices => "Open sound devices",
         }
     }
 
@@ -527,6 +530,7 @@ impl HotkeyAction {
             Self::NextOutputDevice => "NextOutputDevice",
             Self::PreviousOutputDevice => "PreviousOutputDevice",
             Self::OpenSettings => "OpenSettings",
+            Self::OpenDevices => "OpenDevices",
         }
     }
 
@@ -548,6 +552,7 @@ impl HotkeyAction {
             "NextOutputDevice" => Self::NextOutputDevice,
             "PreviousOutputDevice" => Self::PreviousOutputDevice,
             "OpenSettings" => Self::OpenSettings,
+            "OpenDevices" => Self::OpenDevices,
             _ => Self::ToggleMute,
         }
     }
@@ -625,7 +630,7 @@ impl HotkeyAction {
             | Self::ToggleOutputMute
             | Self::NextOutputDevice
             | Self::PreviousOutputDevice => HotkeyModule::Volume,
-            Self::OpenSettings => HotkeyModule::System,
+            Self::OpenSettings | Self::OpenDevices => HotkeyModule::System,
         }
     }
 }
@@ -785,6 +790,12 @@ pub struct AdvancedSettings {
     pub enable_mica: bool,
     #[serde(default = "default_indicator_device")]
     pub indicator_device: String,
+    #[serde(default = "default_show_disabled_devices")]
+    pub show_disabled_devices: bool,
+    #[serde(default)]
+    pub show_disconnected_devices: bool,
+    #[serde(default)]
+    pub separate_communication_device: bool,
 }
 
 impl Default for AdvancedSettings {
@@ -798,8 +809,15 @@ impl Default for AdvancedSettings {
             audio_device_name_display: default_audio_device_name_display(),
             enable_mica: default_enable_mica(),
             indicator_device: default_indicator_device(),
+            show_disabled_devices: default_show_disabled_devices(),
+            show_disconnected_devices: false,
+            separate_communication_device: false,
         }
     }
+}
+
+fn default_show_disabled_devices() -> bool {
+    true
 }
 
 fn default_audio_device_name_display() -> String {

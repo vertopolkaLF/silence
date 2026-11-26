@@ -38,6 +38,8 @@ pub(crate) struct SettingsSnapshot {
     pub config: crate::Config,
     pub devices: Vec<crate::MicDevice>,
     pub output_devices: Vec<crate::AudioDevice>,
+    pub all_input_devices: Vec<crate::audio_devices::DeviceEntry>,
+    pub all_output_devices: Vec<crate::audio_devices::DeviceEntry>,
     pub mic_using_apps: Vec<crate::MicUsingApp>,
     pub overlay_displays: Vec<crate::OverlayDisplay>,
     pub system_fonts: Vec<crate::SystemFont>,
@@ -46,14 +48,29 @@ pub(crate) struct SettingsSnapshot {
 
 impl SettingsSnapshot {
     fn load() -> Self {
+        let config = crate::load_config().unwrap_or_default();
+        let show_disabled = config.advanced.show_disabled_devices;
+        let show_disconnected = config.advanced.show_disconnected_devices;
         Self {
-            config: crate::load_config().unwrap_or_default(),
             devices: crate::capture_devices().unwrap_or_default(),
             output_devices: crate::render_devices().unwrap_or_default(),
+            all_input_devices: crate::audio_devices::list_devices(
+                true,
+                show_disabled,
+                show_disconnected,
+            )
+            .unwrap_or_default(),
+            all_output_devices: crate::audio_devices::list_devices(
+                false,
+                show_disabled,
+                show_disconnected,
+            )
+            .unwrap_or_default(),
             mic_using_apps: crate::current_mic_using_apps(),
             overlay_displays: crate::overlay_displays(),
             system_fonts: crate::system_fonts(),
             muted: crate::mic_mute_state(None).unwrap_or(false),
+            config,
         }
     }
 }
@@ -95,6 +112,8 @@ impl SettingsApp {
             tab
         } else if settings_should_open_about() {
             SettingsTab::About
+        } else if settings_should_open_devices() {
+            SettingsTab::Devices
         } else if settings_should_open_volume() {
             SettingsTab::VolumeWheel
         } else {
@@ -148,7 +167,14 @@ impl SettingsApp {
         let _ = crate::save_config(&config);
         crate::apply_live_config(&config, crate::config_modified_time());
         let mica = crate::effective_settings_mica_enabled(&config);
+        let devices_filter_changed = config.advanced.show_disabled_devices
+            != self.snapshot.config.advanced.show_disabled_devices
+            || config.advanced.show_disconnected_devices
+                != self.snapshot.config.advanced.show_disconnected_devices;
         self.snapshot.config = config;
+        if devices_filter_changed {
+            self.refresh_devices(cx);
+        }
         if mica != mica_was_enabled {
             self.set_mica(mica, cx);
         }
@@ -161,7 +187,14 @@ impl SettingsApp {
             let mica = crate::effective_settings_mica_enabled(&config);
             let changed_mica = mica != self.palette.mica;
             if self.snapshot.config != config {
+                let devices_filter_changed = config.advanced.show_disabled_devices
+                    != self.snapshot.config.advanced.show_disabled_devices
+                    || config.advanced.show_disconnected_devices
+                        != self.snapshot.config.advanced.show_disconnected_devices;
                 self.snapshot.config = config;
+                if devices_filter_changed {
+                    self.refresh_devices(cx);
+                }
                 cx.notify();
             }
             if changed_mica {
@@ -171,11 +204,26 @@ impl SettingsApp {
     }
 
     pub fn refresh_devices(&mut self, cx: &mut Context<Self>) {
+        let show_disabled = self.snapshot.config.advanced.show_disabled_devices;
+        let show_disconnected = self.snapshot.config.advanced.show_disconnected_devices;
         let devices = crate::capture_devices().unwrap_or_default();
         let output_devices = crate::render_devices().unwrap_or_default();
-        if devices != self.snapshot.devices || output_devices != self.snapshot.output_devices {
+        let all_input_devices =
+            crate::audio_devices::list_devices(true, show_disabled, show_disconnected)
+                .unwrap_or_default();
+        let all_output_devices =
+            crate::audio_devices::list_devices(false, show_disabled, show_disconnected)
+                .unwrap_or_default();
+        let changed = devices != self.snapshot.devices
+            || output_devices != self.snapshot.output_devices
+            || all_input_devices != self.snapshot.all_input_devices
+            || all_output_devices != self.snapshot.all_output_devices;
+        if changed {
             self.snapshot.devices = devices;
             self.snapshot.output_devices = output_devices;
+            self.snapshot.all_input_devices = all_input_devices;
+            self.snapshot.all_output_devices = all_output_devices;
+            self.sections.devices.refresh_open_properties();
             cx.notify();
         }
     }
@@ -306,6 +354,10 @@ pub(crate) fn debug_arg(prefix: &str) -> Option<String> {
 
 fn settings_should_open_volume() -> bool {
     std::env::args().any(|arg| arg == "--volume")
+}
+
+fn settings_should_open_devices() -> bool {
+    std::env::args().any(|arg| arg == "--devices")
 }
 
 pub(crate) fn settings_should_start_update() -> bool {

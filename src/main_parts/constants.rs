@@ -45,6 +45,8 @@ const WM_HOOK_ACTIONS: u32 = WM_APP + 25;
 const WM_REINSTALL_HOOKS: u32 = WM_APP + 26;
 /// The audio worker read a new "microphone in use" state; `wparam` 1 = in use.
 const WM_MIC_IN_USE: u32 = WM_APP + 27;
+/// Focus the settings window and navigate directly to the Devices tab.
+const WM_OPEN_DEVICES: u32 = WM_APP + 28;
 /// Second notify icon for output volume. The microphone icon keeps [`ID_TRAY`].
 const ID_VOLUME_TRAY: u32 = 2;
 const ID_STATE_TIMER: usize = 10;
@@ -80,6 +82,7 @@ const ID_MENU_SETTINGS: usize = 1002;
 const ID_MENU_EXIT: usize = 1003;
 const ID_MENU_TITLE: usize = 1004;
 const ID_MENU_INSTALL_UPDATE: usize = 1005;
+const ID_MENU_DEVICES: usize = 1006;
 const ID_MENU_INPUT_DEVICE_BASE: usize = 2000;
 const ID_MENU_OUTPUT_DEVICE_BASE: usize = 3000;
 const ID_MENU_MIC_APP_BASE: usize = 4000;
