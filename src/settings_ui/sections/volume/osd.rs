@@ -94,6 +94,15 @@ pub(crate) fn render(
             });
         },
     );
+    let fade_on_hover = controls::toggle(
+        "volume-osd-fade-on-hover",
+        osd.fade_on_hover,
+        window,
+        cx,
+        |app, checked, _, cx| {
+            update_and_preview(app, cx, |osd| osd.fade_on_hover = checked);
+        },
+    );
 
     let mut displays = overlay::display_options(&app.snapshot.overlay_displays);
     displays.insert(
@@ -193,6 +202,12 @@ pub(crate) fn render(
                                     "Show Caps, Num and Scroll Lock",
                                     Some("Shows whether the key just turned on or off."),
                                     on_lock_keys,
+                                    cx,
+                                ))
+                                .row(form::setting_row(
+                                    "Fade out on hover",
+                                    Some("Turns see-through while the pointer is over it."),
+                                    fade_on_hover,
                                     cx,
                                 )),
                         ),

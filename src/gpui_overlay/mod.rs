@@ -36,6 +36,11 @@ use windows::Win32::Foundation::HWND;
 
 /// Ambient theme details redraw at ~30 fps; transitions still follow vsync.
 const AMBIENT_FRAME_INTERVAL: Duration = Duration::from_millis(33);
+/// "Fade on hover": the windows are click-through, so the pointer is polled.
+pub(crate) const HOVER_POLL_INTERVAL: Duration = Duration::from_millis(50);
+/// Opacity of an OSD under the pointer with "fade on hover" on.
+pub(crate) const HOVER_ALPHA: f32 = 0.15;
+pub(crate) const HOVER_FADE_MS: u64 = 180;
 
 pub(super) enum Command {
     Refresh,
@@ -371,6 +376,10 @@ struct OverlayView {
     detail_epoch: Instant,
     /// Pending capped-rate redraw for ambient details (radar sweep, scanlines, neon pulse).
     ambient_frame: Option<Task<()>>,
+    /// 1 = solid, [`HOVER_ALPHA`] = under the pointer with "fade on hover" on.
+    hover: Motion,
+    /// Polls the pointer while "fade on hover" applies.
+    hover_poll: Option<Task<()>>,
 }
 
 impl OverlayView {
@@ -398,6 +407,8 @@ impl OverlayView {
             last_chrome: None,
             detail_epoch: Instant::now(),
             ambient_frame: None,
+            hover: Motion::new(1., HOVER_FADE_MS),
+            hover_poll: None,
         }
     }
 
@@ -730,6 +741,37 @@ impl Render for OverlayView {
                     alpha > 0.001
                 });
         native_overlay::present(should_present);
+        let fade_on_hover = should_present
+            && self.state.settings.fade_on_hover
+            && self.state.settings.behaviour != "Button"
+            && !self.state.positioning;
+        if !fade_on_hover {
+            self.hover_poll = None;
+            self.hover.retarget(1., now);
+        } else if self.hover_poll.is_none() {
+            self.hover_poll = Some(cx.spawn(async move |view, cx| {
+                loop {
+                    cx.background_executor().timer(HOVER_POLL_INTERVAL).await;
+                    let over = native_overlay::pointer_over_card();
+                    let updated = view.update(cx, |view, cx| {
+                        let target = if over { HOVER_ALPHA } else { 1. };
+                        if (view.hover.to - target).abs() > 0.001 {
+                            view.hover.retarget(target, Instant::now());
+                            cx.notify();
+                        }
+                    });
+                    if updated.is_err() {
+                        break;
+                    }
+                }
+            }));
+        }
+        if self.hover.active(now) {
+            window.request_animation_frame();
+        }
+        let hover = self.hover.value(now);
+        // DWM's acrylic ignores GPUI opacity; that theme fades the whole window.
+        native_overlay::set_window_alpha(if look.acrylic { hover } else { 1. });
         // A hidden, enabled surface stays ready for its next entrance. A disabled
         // overlay can retire as soon as its exit stops contributing pixels.
         let settled = !should_present
@@ -808,7 +850,8 @@ impl Render for OverlayView {
                 .left(px(gutter))
                 .top(px(gutter))
                 .w(px(width))
-                .h(px(height));
+                .h(px(height))
+                .opacity(hover);
             for (layer_look, weight) in &layers {
                 if layer_look.icon_path.starts_with("cute-sticker/") {
                     artwork = artwork.child(sticker::render(
@@ -887,7 +930,7 @@ impl Render for OverlayView {
             .h(px(height))
             .rounded(px(radius))
             // Acrylic slides away whole instead (see set_geometry); it cannot fade.
-            .opacity(if look.acrylic { 1. } else { alpha });
+            .opacity(if look.acrylic { 1. } else { alpha * hover });
         if look.surface.a > 0. {
             card = card.bg(bg);
         }

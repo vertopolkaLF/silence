@@ -77,6 +77,9 @@ struct NativeOverlay {
     suppress_next_click_after_drag: bool,
     acrylic: bool,
     chrome_dark: bool,
+    /// Whole-window alpha. Only the acrylic theme fades this way: DWM's
+    /// backdrop ignores GPUI's opacity.
+    window_alpha: u8,
 }
 // HWND is only operated on its GPUI thread, or through asynchronous Win32 positioning.
 unsafe impl Send for NativeOverlay {}
@@ -144,6 +147,7 @@ pub(super) fn attach(
     native.presented = false;
     native.awaiting_first_paint = true;
     native.acrylic = false;
+    native.window_alpha = 255;
     native.apply_click_through();
     // Apply the measured warm-up position before ShowWindow can expose it.
     native.apply_layout();
@@ -187,6 +191,7 @@ pub(super) fn prepare(
         suppress_next_click_after_drag: false,
         acrylic: false,
         chrome_dark: true,
+        window_alpha: 255,
     };
     *OVERLAY.lock().unwrap() = Some(native);
     Ok(())
@@ -336,6 +341,40 @@ pub(super) fn present(visible: bool) {
         }
     }
 }
+/// The pointer is over the card while "fade on hover" applies: pass-through
+/// mode only, never while positioning. Button mode needs the card visible to
+/// aim at.
+pub(super) fn pointer_over_card() -> bool {
+    let mut cursor = windows::Win32::Foundation::POINT::default();
+    if unsafe { GetCursorPos(&mut cursor) }.is_err() {
+        return false;
+    }
+    let guard = OVERLAY.lock().unwrap();
+    let Some(overlay) = guard.as_ref() else {
+        return false;
+    };
+    overlay.settings.fade_on_hover
+        && overlay.settings.behaviour != "Button"
+        && !overlay.positioning
+        && overlay.presented
+        && !overlay.hwnd.0.is_null()
+        && overlay.contains(cursor.x, cursor.y - overlay.slide_offset())
+}
+
+/// Whole-window opacity, for the acrylic theme's fade on hover.
+pub(super) fn set_window_alpha(alpha: f32) {
+    let mut guard = OVERLAY.lock().unwrap();
+    let Some(overlay) = guard.as_mut() else {
+        return;
+    };
+    let alpha = (alpha.clamp(0., 1.) * 255.).round() as u8;
+    if overlay.window_alpha == alpha || overlay.hwnd.0.is_null() {
+        return;
+    }
+    overlay.window_alpha = alpha;
+    overlay.apply_window_alpha();
+}
+
 /// Returns false while the HWND is not attached yet.
 pub(super) fn set_chrome(acrylic: bool, dark: bool) -> bool {
     let mut guard = OVERLAY.lock().unwrap();
@@ -621,13 +660,30 @@ impl NativeOverlay {
             if style != next_style {
                 let _ = SetWindowLongW(self.hwnd, GWL_EXSTYLE, next_style);
                 if click_through {
-                    // Keep opacity in GPUI; this alpha only enables Win32 hit testing.
-                    let _ = SetLayeredWindowAttributes(self.hwnd, COLORREF(0), 255, LWA_ALPHA);
+                    // Opacity lives in GPUI; this alpha enables Win32 hit testing
+                    // (and carries the acrylic theme's fade on hover).
+                    let _ = SetLayeredWindowAttributes(
+                        self.hwnd,
+                        COLORREF(0),
+                        self.window_alpha,
+                        LWA_ALPHA,
+                    );
                 }
             }
         }
         if self.acrylic {
             self.apply_chrome();
+        }
+    }
+
+    fn apply_window_alpha(&self) {
+        unsafe {
+            let style = GetWindowLongW(self.hwnd, GWL_EXSTYLE);
+            // Only a layered (pass-through) window has a window alpha.
+            if style & WS_EX_LAYERED.0 as i32 != 0 {
+                let _ =
+                    SetLayeredWindowAttributes(self.hwnd, COLORREF(0), self.window_alpha, LWA_ALPHA);
+            }
         }
     }
 

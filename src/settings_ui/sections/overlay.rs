@@ -149,6 +149,13 @@ pub(crate) fn render(
         },
     );
     let dim = form::governed_opacity("overlay-governed", o.enabled, window, cx);
+    let fade_on_hover = controls::toggle(
+        "overlay-fade-on-hover",
+        o.fade_on_hover,
+        window,
+        cx,
+        |app, v, _, cx| app.update_config(cx, |c| c.overlay.fade_on_hover = v),
+    );
     let visibility = choose(
         "overlay-visibility",
         "Visibility",
@@ -223,13 +230,23 @@ pub(crate) fn render(
                 .child(
                     form::block()
                         .child(form::section_heading("When to show", cx))
-                        .child(form::card(cx).row(visibility).reveal(
-                            "overlay-duration-collapse",
-                            o.visibility == "AfterToggle",
-                            duration,
-                            window,
-                            cx,
-                        )),
+                        .child(
+                            form::card(cx)
+                                .row(visibility)
+                                .reveal(
+                                    "overlay-duration-collapse",
+                                    o.visibility == "AfterToggle",
+                                    duration,
+                                    window,
+                                    cx,
+                                )
+                                .row(form::setting_row(
+                                    "Fade out on hover",
+                                    Some("Turns see-through while the pointer is over it. Not in Button mode."),
+                                    fade_on_hover,
+                                    cx,
+                                )),
+                        ),
                 )
                 .child(
                     form::block()

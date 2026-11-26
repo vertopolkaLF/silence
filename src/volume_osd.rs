@@ -112,6 +112,8 @@ pub struct VolumeOsdStyle {
     pub corner_radius: Option<f32>,
     /// Cover, title and artist of the playing track above the meter.
     pub show_media: bool,
+    /// Turns see-through while the pointer is over the card.
+    pub fade_on_hover: bool,
     /// The Custom theme's look.
     pub custom: CustomLook,
 }
@@ -158,6 +160,7 @@ impl Default for VolumeOsdStyle {
             scale: 1.0,
             corner_radius: None,
             show_media: false,
+            fade_on_hover: false,
             custom: CustomLook::default(),
         }
     }
@@ -632,6 +635,31 @@ pub(crate) fn set_card_shown(shown: bool) {
 /// the card counts, not the shadow gutter around it, and never during "Move OSD".
 pub(crate) fn card_hit(point: POINT) -> bool {
     if !CARD_SHOWN.load(Ordering::Relaxed) {
+        return false;
+    }
+    let guard = OSD.lock().unwrap();
+    let Some(osd) = guard.as_ref() else {
+        return false;
+    };
+    if osd.hwnd.0.is_null() || osd.positioning || osd.dragging || !osd.presented {
+        return false;
+    }
+    let Some((x, y, _, _)) = osd.last_surface else {
+        return false;
+    };
+    let left = x + osd.origin.0;
+    let top = y + osd.origin.1;
+    point.x >= left
+        && point.x < left + osd.card_width
+        && point.y >= top
+        && point.y < top + osd.card_height
+}
+
+/// The pointer is over the shown card. Unlike [`card_hit`] this also counts
+/// while the card fades out, so a fade on hover does not snap back mid-exit.
+pub(crate) fn pointer_over_card() -> bool {
+    let mut point = POINT::default();
+    if unsafe { GetCursorPos(&mut point) }.is_err() {
         return false;
     }
     let guard = OSD.lock().unwrap();

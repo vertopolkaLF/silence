@@ -572,6 +572,7 @@ fn volume_osd_style(config: &VolumeConfig) -> volume_osd::VolumeOsdStyle {
         scale: osd.scale.clamp(10, 400) as f32 / 100.0,
         corner_radius: osd.corner_radii.get(&osd.theme).map(|radius| f32::from(*radius)),
         show_media: config.music.enabled && config.music.on_volume_change,
+        fade_on_hover: osd.fade_on_hover,
         custom: volume_osd::CustomLook {
             font: osd.text_font.clone(),
             weight: osd.text_font_weight,

@@ -435,6 +435,10 @@ struct VolumeView {
     hide_wait: Option<Task<()>>,
     ambient_frame: Option<Task<()>>,
     detail_epoch: Instant,
+    /// 1 = solid, `HOVER_ALPHA` = under the pointer with "fade on hover" on.
+    hover: Motion,
+    /// Polls the pointer while "fade on hover" applies (the window is click-through).
+    hover_poll: Option<Task<()>>,
 }
 
 impl VolumeView {
@@ -485,6 +489,8 @@ impl VolumeView {
             hide_wait: None,
             ambient_frame: None,
             detail_epoch: Instant::now(),
+            hover: Motion::new(1.0, super::HOVER_FADE_MS),
+            hover_poll: None,
         }
     }
 
@@ -1123,7 +1129,7 @@ impl Render for VolumeView {
         } else {
             0.0
         };
-        let alpha = if self.surface_ready {
+        let shown = if self.surface_ready {
             self.visibility.value(now)
         } else {
             1.0
@@ -1131,12 +1137,37 @@ impl Render for VolumeView {
         let lingering = if !self.surface_ready {
             false
         } else if slide_theme {
-            alpha > 0.02 || slide < 0.98
+            shown > 0.02 || slide < 0.98
         } else {
-            alpha > 0.02
+            shown > 0.02
         };
         let should_present = self.want_visible || lingering;
-        let moving = self.width.active(now)
+        if !(should_present && self.style.fade_on_hover && !self.positioning) {
+            self.hover_poll = None;
+            self.hover.retarget(1.0, now);
+        } else if self.hover_poll.is_none() {
+            self.hover_poll = Some(cx.spawn(async move |view, cx| {
+                loop {
+                    cx.background_executor()
+                        .timer(super::HOVER_POLL_INTERVAL)
+                        .await;
+                    let over = crate::volume_osd::pointer_over_card();
+                    let updated = view.update(cx, |view, cx| {
+                        let target = if over { super::HOVER_ALPHA } else { 1.0 };
+                        if (view.hover.to - target).abs() > 0.001 {
+                            view.hover.retarget(target, Instant::now());
+                            cx.notify();
+                        }
+                    });
+                    if updated.is_err() {
+                        break;
+                    }
+                }
+            }));
+        }
+        let alpha = shown * self.hover.value(now);
+        let moving = self.hover.active(now)
+            || self.width.active(now)
             || self.height.active(now)
             || self.radius.active(now)
             || self.media_height.active(now)

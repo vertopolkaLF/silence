@@ -275,15 +275,7 @@ fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Setti
             this.child(style::desc("Waiting for Windows permission…", cx))
         })
         .when_some(restart_link, |this, link| this.child(link));
-    div()
-        .flex()
-        .items_start()
-        .justify_between()
-        .gap(px(16.))
-        .px(px(form::ROW_PAD))
-        .py(px(14.))
-        .child(text)
-        .child(toggle)
+    form::setting_row_with(text, toggle)
 }
 
 fn admin_link(
@@ -305,7 +297,11 @@ fn admin_link(
             .child(label),
         pointer,
     )
-    .on_click(cx.listener(move |app, _, window, cx| on_click(app, (), window, cx)))
+    // The link sits inside the switch row; keep its click from flipping it.
+    .on_click(cx.listener(move |app, _, window, cx| {
+        cx.stop_propagation();
+        on_click(app, (), window, cx)
+    }))
     .into_any_element()
 }
 

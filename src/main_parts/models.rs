@@ -1148,6 +1148,9 @@ pub struct OverlayConfig {
     pub corner_radii: std::collections::BTreeMap<String, u8>,
     #[serde(default = "default_overlay_show_border")]
     pub show_border: bool,
+    /// Turns see-through while the pointer is over it (pass-through mode only).
+    #[serde(default = "default_true")]
+    pub fade_on_hover: bool,
     #[serde(default = "default_overlay_behaviour")]
     pub behaviour: String,
     #[serde(default = "default_overlay_single_click")]
@@ -1224,6 +1227,7 @@ impl Default for OverlayConfig {
             border_radius: default_overlay_border_radius(),
             corner_radii: std::collections::BTreeMap::new(),
             show_border: default_overlay_show_border(),
+            fade_on_hover: true,
             behaviour: default_overlay_behaviour(),
             single_click: default_overlay_single_click(),
             double_click: OverlayActionBinding::default(),
@@ -1910,6 +1914,9 @@ pub struct VolumeOsdConfig {
     pub content_opacity: u8,
     #[serde(default = "default_volume_osd_show_border")]
     pub show_border: bool,
+    /// Turns see-through while the pointer is over it.
+    #[serde(default = "default_true")]
+    pub fade_on_hover: bool,
 }
 
 fn default_volume_osd_scale() -> u32 {
@@ -1952,6 +1959,7 @@ impl Default for VolumeOsdConfig {
             background_opacity: default_volume_osd_background_opacity(),
             content_opacity: default_volume_osd_content_opacity(),
             show_border: default_volume_osd_show_border(),
+            fade_on_hover: true,
         }
     }
 }

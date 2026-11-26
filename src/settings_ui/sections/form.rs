@@ -157,6 +157,23 @@ pub(crate) fn setting_row(
     trailing: impl RowControl,
     cx: &App,
 ) -> Div {
+    setting_row_with(
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(2.))
+            .min_w_0()
+            .flex_1()
+            .child(style::label(title))
+            .children(description.map(|text| style::desc(text, cx))),
+        trailing,
+    )
+}
+
+/// [`setting_row`] with a free-form text column (status notes, links under
+/// the description). Clickable children of `text` must stop propagation, or
+/// they also flip the row's switch.
+pub(crate) fn setting_row_with(text: Div, trailing: impl RowControl) -> Div {
     let (control, flip) = trailing.into_row_control();
     let row = div()
         .flex()
@@ -167,16 +184,7 @@ pub(crate) fn setting_row(
         .px(px(ROW_PAD))
         .py(px(10.))
         .flex_shrink_0()
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(2.))
-                .min_w_0()
-                .flex_1()
-                .child(style::label(title))
-                .children(description.map(|text| style::desc(text, cx))),
-        )
+        .child(text)
         .child(control);
     match flip {
         None => row,
