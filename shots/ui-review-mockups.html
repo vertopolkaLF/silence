@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>silence! UI review — 10 worst</title>
+<style>
+  :root {
+    --bg-app: #1a1412;
+    --bg-panel: #241c19;
+    --bg-row: #2c2320;
+    --bg-hover: #352a26;
+    --fg: #f4ece8;
+    --muted: #a89890;
+    --faint: #6e5f58;
+    --accent: #e87840;
+    --accent-soft: rgba(232, 120, 64, 0.18);
+    --accent-text: #f0a878;
+    --ok: #5ecf9a;
+    --danger: #e85a4a;
+    --radius: 12px;
+    --font: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    color: var(--foreground, var(--fg));
+    background: transparent;
+  }
+  .wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .intro {
+    background: var(--card, var(--bg-panel));
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .intro h1 {
+    margin: 0 0 6px;
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .intro p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .issue {
+    background: var(--card, var(--bg-panel));
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .issue-head {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .issue-head h2 {
+    margin: 0 0 4px;
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.25;
+  }
+  .issue-head p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .pane {
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-app);
+    border: 1px solid rgba(255,255,255,0.06);
+    min-height: 210px;
+    position: relative;
+  }
+  .tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border-radius: 999px;
+  }
+  .tag.before { background: rgba(232,90,74,0.9); color: #fff; }
+  .tag.after { background: rgba(94,207,154,0.95); color: #0c1a14; }
+  .shot {
+    width: 100%;
+    height: 210px;
+    object-fit: cover;
+    object-position: left top;
+    display: block;
+    filter: saturate(0.95) contrast(1.02);
+  }
+  .shot.side { object-position: left center; height: 240px; }
+  .shot.hotkeys { object-position: 55% 18%; }
+  .shot.devices { object-position: 70% 8%; }
+  .shot.hold { object-position: 20% 55%; }
+  .shot.auto { object-position: 70% 35%; }
+  .shot.themes { object-position: 60% 12%; }
+  .shot.sounds { object-position: 65% 55%; }
+  .shot.tray { object-position: 20% 42%; }
+  .mock {
+    padding: 14px 12px 12px;
+    height: 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--fg);
+  }
+  .mock.tall { height: 240px; }
+  .mock h3 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-text);
+  }
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+  }
+  .nav-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 7px;
+    color: var(--muted);
+  }
+  .nav-row.on {
+    background: rgba(232,120,64,0.16);
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+  .nav-row .ic {
+    width: 14px; height: 14px; border-radius: 3px;
+    background: currentColor; opacity: 0.45; flex-shrink: 0;
+  }
+  .nav-row.on .ic { opacity: 0.85; background: var(--accent); }
+  .nav-row .grow { flex: 1; min-width: 0; }
+  .chip {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+  .chip.off { background: rgba(255,255,255,0.06); color: var(--faint); }
+  .child {
+    margin-left: 14px;
+    padding-left: 8px;
+    border-left: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .child .nav-row { height: 22px; font-size: 10.5px; }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--bg-row);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .row .lab { font-weight: 600; font-size: 11px; }
+  .row .sub { color: var(--muted); font-size: 9.5px; margin-top: 1px; }
+  .keys { display: flex; gap: 4px; align-items: center; }
+  .key {
+    background: #3a2f2b;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px;
+    padding: 2px 6px;
+    font-size: 9.5px;
+    font-weight: 600;
+  }
+  .seg {
+    display: flex;
+    background: var(--bg-row);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+    width: fit-content;
+  }
+  .seg span {
+    padding: 5px 10px;
+    border-radius: 6px;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 10.5px;
+  }
+  .seg span.on {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+  .fix {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .theme {
+    background: var(--bg-row);
+    border-radius: 8px;
+    padding: 8px;
+    border: 1px solid transparent;
+  }
+  .theme.on { border-color: var(--accent); background: var(--accent-soft); }
+  .theme .prev {
+    height: 36px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #2a2220, #3d2a22);
+    margin-bottom: 5px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .theme .prev .dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent);
+  }
+  .theme b { display: block; font-size: 10.5px; }
+  .theme small { color: var(--muted); font-size: 9px; }
+  .empty-fix {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .hint {
+    margin-top: auto;
+    font-size: 10px;
+    color: var(--faint);
+    line-height: 1.35;
+  }
+  .badge-fix {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-row);
+    border-radius: 6px;
+    padding: 4px 7px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .fix-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .titlebar-mock {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .ghost-btn {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--bg-row);
+    border-radius: 6px;
+    padding: 4px 8px;
+  }
+  .x {
+    width: 22px; height: 22px; border-radius: 5px;
+    background: transparent; color: var(--faint);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+  }
+  .master {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(232,120,64,0.35);
+    border-radius: 9px;
+    padding: 8px 10px;
+  }
+  .master .orb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .toggle {
+    width: 26px; height: 15px; border-radius: 999px;
+    background: var(--accent); position: relative; flex-shrink: 0;
+  }
+  .toggle::after {
+    content: "";
+    position: absolute; top: 2px; left: 12px;
+    width: 11px; height: 11px; border-radius: 50%; background: #fff;
+  }
+  .toggle.off { background: #5a4c46; }
+  .toggle.off::after { left: 2px; }
+  .split {
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 8px;
+    flex: 1;
+    min-height: 0;
+  }
+  .mini-win {
+    background: #161110;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+    height: 100%;
+  }
+  .mini-side {
+    padding: 8px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .fix-line {
+    height: 1px;
+    background: rgba(255,255,255,0.07);
+    margin: 2px 0;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>silence! — 10 worst UI hits</h1>
+    <p>Fixed settings window, real screenshots on the left, proposed cleanup on the right. Same dark Mica-ish language, less click salad.</p>
+  </div>
+
+  <!-- 1 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">1</div>
+      <div>
+        <h2>Sidebar module rows are a click-target landfill</h2>
+        <p>Icon + label + enable toggle + chevron on one 42px row. Expand vs power fight for the same hit area. Looks powerful, feels cursed.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot side" src="C:/Dev/silence_v2/shots/01-hotkeys.png" alt="crowded module rows" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock tall">
+          <h3>Modules as headers, power elsewhere</h3>
+          <div class="mini-win">
+            <div class="mini-side">
+              <div class="nav-row"><span class="ic"></span><span class="grow">Hotkeys</span></div>
+              <div class="nav-row"><span class="ic"></span><span class="grow">Devices</span></div>
+              <div class="group-label" style="margin:6px 8px 2px">Microphone</div>
+              <div class="child">
+                <div class="nav-row on"><span class="ic"></span><span class="grow">Overlay</span></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">Tray</span></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">Hold</span></div>
+              </div>
+              <div class="group-label" style="margin:6px 8px 2px">Volume</div>
+              <div class="child">
+                <div class="nav-row"><span class="ic"></span><span class="grow">Wheel</span></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">OSD</span></div>
+              </div>
+            </div>
+          </div>
+          <p class="hint">Move enable to General → Modules, or a quiet switch on each page’s master strip — not in the nav chrome.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">2</div>
+      <div>
+        <h2>Two pages both named “Tray icon”</h2>
+        <p>Mic tray and Volume tray share the exact label. Brain has to remember which accordion is open. Classic “I swear I was just here” energy.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot tray" src="C:/Dev/silence_v2/shots/07-tray.png" alt="tray icon page" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock">
+          <h3>Disambiguate hard</h3>
+          <div class="nav">
+            <div class="group-label">Microphone</div>
+            <div class="nav-row on"><span class="ic"></span><span class="grow">Mic tray</span></div>
+            <div class="group-label" style="margin-top:8px">Volume</div>
+            <div class="nav-row"><span class="ic"></span><span class="grow">Volume tray</span></div>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <div>
+              <div class="lab">Style</div>
+              <div class="sub">Mic status · Fluent</div>
+            </div>
+            <span class="chip">Mic</span>
+          </div>
+          <p class="hint">Same pattern in page titles: “Mic tray icon” / “Volume tray icon”.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">3</div>
+      <div>
+        <h2>Themes are schizophrenic</h2>
+        <p>Global Themes gallery, then Overlay still has “Theme: Radar” + Browse themes. Two doors to the same closet.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot themes" src="C:/Dev/silence_v2/shots/04-themes.png" alt="themes gallery" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock">
+          <h3>One gallery, deep-link back</h3>
+          <div class="seg"><span class="on">Mic overlay</span><span>Volume OSD</span></div>
+          <div class="grid">
+            <div class="theme on"><div class="prev"><div class="dot"></div></div><b>Radar</b><small>Selected</small></div>
+            <div class="theme"><div class="prev"><div class="dot" style="background:#5ecf9a"></div></div><b>Cute</b><small>Sticker</small></div>
+          </div>
+          <div class="row">
+            <div class="lab">From Overlay → Appearance</div>
+            <span class="ghost-btn">Open Themes ↗</span>
+          </div>
+          <p class="hint">Overlay keeps a read-only “Radar” chip that jumps to Themes. No second browser.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">4</div>
+      <div>
+        <h2>Sounds settings spawn like rabbits</h2>
+        <p>Sounds page owns mute/unmute packs. Hold to mute re-owns mute/unmute + volume with “Default (8-Bit)” spaghetti. Same knobs, two zip codes.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot hold" src="C:/Dev/silence_v2/shots/08-hold.png" alt="hold sounds duplicate" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock">
+          <h3>Hold page = overrides only</h3>
+          <div class="master">
+            <div class="orb"></div>
+            <div class="grow">
+              <div class="lab">Hold to mute</div>
+              <div class="sub">Uses global sounds unless overridden</div>
+            </div>
+            <div class="toggle"></div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="lab">Sound override</div>
+              <div class="sub">Off · inherits 8-Bit @ 10%</div>
+            </div>
+            <div class="toggle off"></div>
+          </div>
+          <div class="row">
+            <div class="lab">Show overlay while held</div>
+            <div class="toggle"></div>
+          </div>
+          <p class="hint">One Sounds page. Hold only asks “override?” — not a second mixer.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">5</div>
+      <div>
+        <h2>Hotkey list reads like a drunk spreadsheet</h2>
+        <p>“any modifiers” is a mile wide, keycaps never share a column, duplicate “Toggle mic state” rows aren’t grouped by action.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot hotkeys" src="C:/Dev/silence_v2/shots/01-hotkeys.png" alt="hotkeys misaligned" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock">
+          <h3>Group · fixed key column</h3>
+          <div class="group-label">Toggle mic</div>
+          <div class="row">
+            <div>
+              <div class="lab">Default</div>
+              <div class="sub">Ignore modifiers</div>
+            </div>
+            <div class="keys"><span class="key" style="opacity:.55">∗</span><span class="key">F23</span></div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="lab">All microphones</div>
+            </div>
+            <div class="keys"><span class="key">Ctrl</span><span class="key">Alt</span><span class="key">F23</span></div>
+          </div>
+          <div class="group-label" style="margin-top:4px">Switch default input</div>
+          <div class="row">
+            <div><div class="lab">HUAWEI Free Buds…</div></div>
+            <div class="keys"><span class="key">Win</span><span class="key">F2</span></div>
+          </div>
+          <p class="hint">Compact “∗” / tooltip for ignore-modifiers. Keys right-aligned in one column.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">6</div>
+      <div>
+        <h2>Hold to mute icon is oven-mitt cosplay</h2>
+        <p>Nav uses oven mitts / heart-mitt energy for a hold-mute action. Cute? Sure. Semantic? Absolute clown shoes.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot" style="object-position:12% 48%" src="C:/Dev/silence_v2/shots/09-automute.png" alt="hold icon in sidebar" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock">
+          <h3>Icon = verb</h3>
+          <div class="badge-fix">
+            <span class="badge">⌫ Hold key · mic off</span>
+            <span class="badge" style="opacity:.4;text-decoration:line-through">oven mitts</span>
+          </div>
+          <div class="nav" style="margin-top:8px">
+            <div class="nav-row"><span class="ic"></span><span class="grow">Overlay</span></div>
+            <div class="nav-row"><span class="ic"></span><span class="grow">Mic tray</span></div>
+            <div class="nav-row on"><span class="ic" style="border-radius:2px;background:var(--accent)"></span><span class="grow">Hold to mute</span><span class="chip">key↓</span></div>
+            <div class="nav-row"><span class="ic"></span><span class="grow">Auto mute</span></div>
+          </div>
+          <p class="hint">Use a hold/press glyph (finger on key, or mic with ↓). Mitts belong in a kitchen app.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">7</div>
+      <div>
+        <h2>Auto mute is a three-row desert</h2>
+        <p>Fixed window, heroic title, then three lonely toggles and a void. Feels like the page forgot to finish loading its personality.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot auto" src="C:/Dev/silence_v2/shots/09-automute.png" alt="empty auto mute" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock">
+          <h3>Fill with consequence, not fluff</h3>
+          <div class="empty-fix">
+            <div class="row">
+              <div><div class="lab">Mute on launch</div><div class="sub">Starts muted</div></div>
+              <div class="toggle off"></div>
+            </div>
+            <div class="row">
+              <div><div class="lab">After inactivity</div><div class="sub">Keyboard / mouse idle</div></div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="key">5 min</span>
+                <div class="toggle"></div>
+              </div>
+            </div>
+            <div class="row" style="background:var(--accent-soft);border:1px dashed rgba(232,120,64,.35)">
+              <div>
+                <div class="lab">Preview</div>
+                <div class="sub">Would mute in ~4:12 if idle continues</div>
+              </div>
+              <span class="chip">live</span>
+            </div>
+            <div class="row">
+              <div class="lab">Play sounds on auto-mute</div>
+              <div class="toggle off"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">8</div>
+      <div>
+        <h2>“Windows sound” makes out with the close button</h2>
+        <p>Devices header parks an external-link action in the same corner as window chrome. Muscle memory goes to kill the app, opens Sound settings instead. Romance from hell.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot devices" src="C:/Dev/silence_v2/shots/02-devices.png" alt="windows sound near close" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock">
+          <h3>Pull actions out of chrome orbit</h3>
+          <div class="titlebar-mock"><div class="x">✕</div></div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-family:var(--display);font-size:18px;font-weight:700">Devices</div>
+          </div>
+          <div class="seg"><span class="on">Output</span><span>Input</span></div>
+          <div class="row">
+            <div>
+              <div class="lab">System sound settings</div>
+              <div class="sub">Opens Windows Sound</div>
+            </div>
+            <span class="ghost-btn">Open ↗</span>
+          </div>
+          <p class="hint">Footer link under the list, or inline under Options — never title-row vs ✕.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">9</div>
+      <div>
+        <h2>Segmented controls stretch like sad chewing gum</h2>
+        <p>Output/Input and Mic overlay/Volume OSD span the full content width with two lonely pills. Looks unfinished, steals vertical budget.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot" style="object-position:65% 14%" src="C:/Dev/silence_v2/shots/02-devices.png" alt="wide segmented" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock">
+          <h3>Hug the content</h3>
+          <div style="font-family:var(--display);font-size:16px;font-weight:700;margin-bottom:4px">Devices</div>
+          <div class="seg">
+            <span class="on">Output</span>
+            <span>Input</span>
+          </div>
+          <div class="row" style="margin-top:4px">
+            <div><div class="lab">HUAWEI Free Buds 5 Pro</div><div class="sub">Default</div></div>
+            <span class="chip">Default</span>
+          </div>
+          <div class="row">
+            <div><div class="lab">Big Sound (Realtek)</div></div>
+            <span class="ghost-btn">Set default</span>
+          </div>
+          <p class="hint">Width = content. Same for Themes scope switch.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="issue">
+    <div class="issue-head">
+      <div class="num">10</div>
+      <div>
+        <h2>Wrong accordion stays open on global pages</h2>
+        <p>You’re on Hotkeys / Devices / Sounds — Volume children still hanging open, chewing the 590px height budget and screaming “modules!” when nobody asked.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="pane">
+        <span class="tag before">Before</span>
+        <img class="shot side" src="C:/Dev/silence_v2/shots/03-sounds.png" alt="volume expanded on sounds" />
+      </div>
+      <div class="pane">
+        <span class="tag after">After</span>
+        <div class="mock tall">
+          <h3>Collapse when you leave the family</h3>
+          <div class="split">
+            <div class="mini-win">
+              <div class="mini-side">
+                <div class="nav-row"><span class="ic"></span><span class="grow">Hotkeys</span></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">Devices</span></div>
+                <div class="nav-row on"><span class="ic"></span><span class="grow">Sounds</span></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">Themes</span></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">Microphone</span><span style="opacity:.4;font-size:9px">›</span></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">Volume</span><span style="opacity:.4;font-size:9px">›</span></div>
+                <div style="flex:1"></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">General</span></div>
+                <div class="nav-row"><span class="ic"></span><span class="grow">About</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="group-label">On Sounds</div>
+              <p class="hint" style="margin-top:6px">Both module groups collapsed. Expand only when a child page is active (or user pins one open).</p>
+              <div class="row" style="margin-top:10px">
+                <div class="lab">Mic sounds</div>
+                <div class="toggle"></div>
+              </div>
+              <div class="row">
+                <div class="lab">Volume tick</div>
+                <div class="toggle off"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

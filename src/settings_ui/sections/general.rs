@@ -46,6 +46,8 @@ pub(crate) struct State {
     confirm_closing: Option<Instant>,
     admin_prompt: Option<AdminPrompt>,
     admin_busy: bool,
+    picking_import: bool,
+    import_error: Option<(String, String)>,
 }
 
 pub(crate) fn render(
@@ -126,36 +128,69 @@ pub(crate) fn render(
         "general-import",
         ButtonKind::Tonal,
         None,
-        Some("Import".into()),
-        false,
+        Some(if app.sections.general.import_error.is_some() {
+            "Choose another file"
+        } else {
+            "Import"
+        }.into()),
+        app.sections.general.picking_import,
         window,
         cx,
-        |_, _, _, cx| {
+        |app, _, _, cx| {
+            if app.sections.general.picking_import {
+                return;
+            }
+            app.sections.general.picking_import = true;
+            cx.notify();
             // Pick the file off the GPUI thread (see Export), then apply it here.
             let pick = cx
                 .background_executor()
                 .spawn(async { crate::choose_settings_file() });
             cx.spawn(async move |this, cx| {
-                let Some(source) = pick.await else {
-                    return;
-                };
-                let _ = this.update(cx, |app, cx| match crate::import_settings(&source) {
-                    Ok(()) => {
-                        app.reload_config(cx);
-                        app.refresh_devices(cx);
+                let source = pick.await;
+                let _ = this.update(cx, |app, cx| {
+                    app.sections.general.picking_import = false;
+                    cx.notify();
+                    let Some(source) = source else { return };
+                    app.sections.general.import_error = None;
+                    match crate::import_settings(&source) {
+                        Ok(()) => {
+                            app.sections.hotkeys.last_removed = None;
+                            app.reload_config(cx);
+                            app.refresh_devices(cx);
+                        }
+                        Err(err) if crate::startup_change_was_cancelled(&err) => {
+                            app.sections.general.admin_prompt =
+                                Some(AdminPrompt::Notice(NOTICE_CANCELLED));
+                            cx.notify();
+                        }
+                        Err(err) => {
+                            let filename = source.file_name().unwrap_or_default().to_string_lossy();
+                            let reason = match err.downcast_ref::<serde_json::Error>() {
+                                Some(json) if json.is_data() => format!(
+                                    "Unsupported setting at line {}, column {}.", json.line(), json.column()
+                                ),
+                                Some(json) => format!(
+                                    "Invalid JSON at line {}, column {}.", json.line(), json.column()
+                                ),
+                                None => err.to_string(),
+                            };
+                            app.sections.general.import_error =
+                                Some((format!("Couldn’t import {filename}"), reason));
+                            eprintln!("failed to import settings: {err:?}");
+                        }
                     }
-                    Err(err) if crate::startup_change_was_cancelled(&err) => {
-                        app.sections.general.admin_prompt =
-                            Some(AdminPrompt::Notice(NOTICE_CANCELLED));
-                        cx.notify();
-                    }
-                    Err(err) => eprintln!("failed to import settings: {err:?}"),
                 });
             })
             .detach();
         },
     )
     .min_w(px(88.));
+    let error = app.sections.general.import_error.as_ref();
+    let error_row = form::row_box().children(error.map(|(title, reason)| {
+        div().child(style::label(title.clone()).text_color(app.palette.danger.hsla()))
+            .child(style::desc(reason.clone(), cx))
+    }));
     // Backup and reset: two cards, one button size, reset set apart as danger.
     let import_export = div()
         .flex()
@@ -179,7 +214,8 @@ pub(crate) fn render(
                             Some("Replaces the current settings with a saved file."),
                             import,
                             cx,
-                        )),
+                        ))
+                        .reveal("general-import-error", error.is_some(), error_row, window, cx),
                 ),
         )
         .child(
@@ -734,6 +770,8 @@ fn confirm_dialog(
         };
         match result {
             Ok(()) => {
+                app.sections.general.import_error = None;
+                app.sections.hotkeys.last_removed = None;
                 app.reload_config(cx);
                 app.refresh_devices(cx);
                 close_confirm(app, cx);

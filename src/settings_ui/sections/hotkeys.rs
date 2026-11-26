@@ -25,6 +25,7 @@ const PANEL_PADDING_X: f32 = 40.;
 
 #[derive(Default)]
 pub(crate) struct State {
+    pub(super) last_removed: Option<(usize, crate::HotkeyBinding)>,
     draft: Option<crate::HotkeyBinding>,
     editing: bool,
     gamepad: bool,
@@ -666,10 +667,16 @@ pub(crate) fn render(
         )
         .tooltip(|_, cx| controls::tooltip("Remove hotkey", cx))
         .on_click(cx.listener(move |app, _, _, cx| {
+            let mut removed = None;
             app.update_config(cx, |c| {
-                c.hotkeys.retain(|b| b.id != remove);
-                sync_legacy_shortcut(c);
-            })
+                if let Some(index) = c.hotkeys.iter().position(|b| b.id == remove) {
+                    removed = Some((index, c.hotkeys.remove(index)));
+                    sync_legacy_shortcut(c);
+                }
+            });
+            if removed.is_some() {
+                app.sections.hotkeys.last_removed = removed;
+            }
         }));
         if index > 0 {
             table = table.child(style::divider(cx));
@@ -696,6 +703,32 @@ pub(crate) fn render(
             pointer,
         ));
     }
+    let removed = app.sections.hotkeys.last_removed.as_ref();
+    let notice = removed.map(|(_, binding)| {
+        let keys = binding.gamepad.as_ref().map_or_else(
+            || binding.shortcut.parts(),
+            |gamepad| gamepad.parts(),
+        );
+        format!("Removed {} · {}", binding.action.label(), keys.join(" + "))
+    });
+    let undo = controls::button(
+        "hotkey-undo", ButtonKind::Tonal, None, Some("Undo".into()), notice.is_none(),
+        window, cx, |app, _, _, cx| {
+            if let Some((index, binding)) = app.sections.hotkeys.last_removed.take() {
+                app.update_config(cx, |c| {
+                    if !c.hotkeys.iter().any(|b| b.id == binding.id) {
+                        c.hotkeys.insert(index.min(c.hotkeys.len()), binding);
+                        sync_legacy_shortcut(c);
+                    }
+                });
+            }
+        },
+    );
+    let undo_row = super::form::collapse(
+        "hotkey-undo-row", notice.is_some(),
+        super::form::setting_row(notice.unwrap_or_default(), None, undo, cx),
+        window, cx,
+    );
     vec![
         div()
             .flex()
@@ -704,6 +737,7 @@ pub(crate) fn render(
             .min_w_0()
             .child(header)
             .child(table)
+            .child(undo_row)
             .into_any_element(),
     ]
 }
