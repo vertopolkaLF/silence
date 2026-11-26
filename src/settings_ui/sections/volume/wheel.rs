@@ -34,18 +34,51 @@ const ZONES: &[(crate::WheelZone, &str, &str, &str)] = &[
     ),
 ];
 
-const CLICKS: &[(&str, &str, &str)] = &[
-    ("None", "None", "close-circle-linear"),
-    ("Popup", "Volume slider popup", "slider-minimalistic-horizontal-linear"),
-    ("ToggleMute", "Mute", "volume-cross-linear"),
-    ("OpenMixer", "Windows volume mixer", "tuning-2-linear"),
-    ("OpenSoundSettings", "Windows sound settings", "settings-linear"),
+/// (key, label, detail, group, icon). Options are listed group by group.
+const CLICKS: &[(&str, &str, &str, Option<&str>, &str)] = &[
+    ("None", "None", "Do nothing", None, "close-circle-linear"),
+    (
+        "Popup",
+        "Volume slider popup",
+        "Flyout with a volume slider",
+        Some("Volume"),
+        "slider-minimalistic-horizontal-linear",
+    ),
+    (
+        "ToggleMute",
+        "Mute",
+        "Toggle mute on the output device",
+        Some("Volume"),
+        "volume-cross-linear",
+    ),
     (
         "NextOutputDevice",
         "Next output device",
+        "Switch to the next speakers or headphones",
+        Some("Volume"),
         "round-transfer-horizontal-linear",
     ),
-    ("OpenSettings", "Open silence! settings", "settings-minimalistic-linear"),
+    (
+        "OpenMixer",
+        "Windows volume mixer",
+        "Per-app volume levels",
+        Some("Windows"),
+        "tuning-2-linear",
+    ),
+    (
+        "OpenSoundSettings",
+        "Windows sound settings",
+        "Sound page in Windows Settings",
+        Some("Windows"),
+        "settings-linear",
+    ),
+    (
+        "OpenSettings",
+        "Open silence! settings",
+        "This window",
+        Some("silence!"),
+        "settings-minimalistic-linear",
+    ),
 ];
 
 pub(crate) fn render(
@@ -153,16 +186,25 @@ fn click_select(
     cx: &mut Context<SettingsApp>,
     write: impl Fn(&mut crate::VolumeClicksConfig, crate::VolumeClickAction) + 'static,
 ) -> Stateful<Div> {
+    let mut options = SelectOptions::new(
+        CLICKS
+            .iter()
+            .map(|(key, label, detail, group, icon)| {
+                let option = SelectOption::new(*key, *label).detail(*detail).icon(*icon);
+                match group {
+                    Some(group) => option.group(*group),
+                    None => option,
+                }
+            })
+            .collect(),
+    )
+    .row(label);
+    // The details explain options inside the menu; the row stays one line.
+    options.show_current_detail = false;
     controls::select(
         id,
         click_key(action),
-        SelectOptions::new(
-            CLICKS
-                .iter()
-                .map(|(key, label, icon)| SelectOption::new(*key, *label).icon(*icon))
-                .collect(),
-        )
-        .row(label),
+        options,
         app,
         window,
         cx,

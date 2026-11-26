@@ -57,10 +57,16 @@ const APP_ICON: f32 = 20.0;
 const DEVICE_GLYPH: f32 = 16.0;
 const RADIUS: f32 = 8.0;
 const APP_STEP: i32 = 2;
+/// One output in the header's device switcher.
+const OUTPUT_ROW_H: f32 = 36.0;
+/// Space between the switcher list and the device row.
+const OUTPUT_PAD: f32 = 4.0;
 
 const APPEAR_MS: u64 = 160;
 const CLOSE_MS: u64 = 130;
 const RESIZE_MS: u64 = 200;
+/// App list fade around an output switch: out, swap the rows, back in.
+const SWAP_FADE_MS: u64 = 90;
 const POLL: Duration = Duration::from_millis(500);
 /// Thumb at rest: a bare accent dot. The ring grows around it on hover.
 const THUMB_DOT: f32 = 12.0;
@@ -134,25 +140,31 @@ impl Layout {
             + DIVIDER_H
     }
 
-    fn card_height(self, apps: usize) -> f32 {
-        let apps = apps.min(self.max_visible_apps());
+    /// `extra`: the open output switcher, which takes room from the apps.
+    fn card_height(self, apps: usize, extra: f32) -> f32 {
+        let apps = apps.min(self.max_visible_apps(extra));
         let list = if apps == 0 {
             0.0
         } else {
             DIVIDER_H + apps as f32 * self.app_row_h()
         };
-        PAD_Y + self.pad_bottom(self.last_row_h(apps)) + self.header_h() + self.device_row_h() + list
+        PAD_Y
+            + self.pad_bottom(self.last_row_h(apps))
+            + self.header_h()
+            + extra
+            + self.device_row_h()
+            + list
     }
 
     /// As many app rows as fit the screen; more only scroll.
-    fn max_visible_apps(self) -> usize {
-        (((max_card_height() - self.fixed_h()) / self.app_row_h()).floor() as usize).max(3)
+    fn max_visible_apps(self, extra: f32) -> usize {
+        (((max_card_height() - self.fixed_h() - extra) / self.app_row_h()).floor() as usize).max(3)
     }
 
     fn track_w(self, target: &Target) -> f32 {
         let labeled = match target {
-            Target::Device => self.device_labeled(),
             Target::App(_) => self.labeled,
+            _ => self.device_labeled(),
         };
         if labeled { TRACK_W_WIDE } else { TRACK_W }
     }
@@ -219,15 +231,18 @@ fn show(anchor: RECT, state: VolumePopupState, cx: &mut App) {
     let Some((handle, hwnd)) = existing.or_else(|| create(cx)) else {
         return;
     };
-    let card_h = handle
+    let region_h = handle
         .update(cx, |view, window, cx| {
             view.set_state(state, cx);
             view.reopen(window, cx);
-            view.window_card_h
+            view.region_card_h
         })
         .ok();
-    match card_h {
-        Some(card_h) => place_later(cx, hwnd, anchor, card_h, true),
+    match region_h {
+        Some(region_h) => {
+            region_later(cx, hwnd, anchor, region_h);
+            place_later(cx, hwnd, anchor, true);
+        }
         None => {
             POPUP.with(|popup| popup.borrow_mut().take());
         }
@@ -238,6 +253,7 @@ fn show(anchor: RECT, state: VolumePopupState, cx: &mut App) {
 /// click only has to move and show it.
 fn create(cx: &mut App) -> Option<(WindowHandle<PopupView>, HWND)> {
     let state = VolumePopupState {
+        device_id: String::new(),
         percent: 0,
         muted: false,
         device_name: String::new(),
@@ -303,15 +319,16 @@ fn create(cx: &mut App) -> Option<(WindowHandle<PopupView>, HWND)> {
 /// [`place`] once GPUI has released the app. `SetWindowPos` delivers
 /// `WM_SIZE` synchronously; inside an update GPUI cannot apply it, keeps the
 /// old viewport and draws the card offset and cropped.
-fn place_later(cx: &App, hwnd: HWND, anchor: RECT, card_h: f32, activate: bool) {
-    cx.spawn(async move |_| place(hwnd, anchor, card_h, activate))
-        .detach();
+fn place_later(cx: &App, hwnd: HWND, anchor: RECT, activate: bool) {
+    cx.spawn(async move |_| place(hwnd, anchor, activate)).detach();
 }
 
-/// Moves (and with `activate`, shows and focuses) the window for a card
-/// `card_h` tall above `anchor`. Never call it inside a GPUI update.
-fn place(hwnd: HWND, anchor: RECT, card_h: f32, activate: bool) {
-    let (x, y, width, height) = crate::volume_popup::placement(anchor, card_h);
+/// Moves (and with `activate`, shows and focuses) the window above
+/// `anchor`. The window is always sized for the tallest card; only the
+/// card inside it and the window region change. Never call it inside a
+/// GPUI update.
+fn place(hwnd: HWND, anchor: RECT, activate: bool) {
+    let (x, y, width, height) = crate::volume_popup::placement(anchor, max_card_height());
     unsafe {
         if activate {
             let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_SHOWWINDOW);
@@ -323,6 +340,19 @@ fn place(hwnd: HWND, anchor: RECT, card_h: f32, activate: bool) {
 }
 
 /// Lightness the Mica wallpaper is blended to (candle-tray's tuning).
+/// [`set_region`] outside the current update, like [`place_later`].
+fn region_later(cx: &App, hwnd: HWND, anchor: RECT, card_h: f32) {
+    cx.spawn(async move |_| set_region(hwnd, anchor, card_h)).detach();
+}
+
+/// Clips the window to a card `card_h` tall (plus its shadow gutter).
+fn set_region(hwnd: HWND, anchor: RECT, card_h: f32) {
+    let align = crate::volume_popup::card_align(anchor);
+    let top = crate::volume_popup::card_top(align, max_card_height(), card_h);
+    // The appear slide moves the card a few pixels; the gutter covers it.
+    crate::volume_popup::set_card_region(hwnd, top, top + card_h);
+}
+
 fn luminosity(light: bool) -> u8 {
     if light { 245 } else { 52 }
 }
@@ -394,6 +424,10 @@ impl Colors {
 enum Target {
     Device,
     App(String),
+    /// Device name header that opens the output switcher.
+    Header,
+    /// An output in the switcher, by endpoint id.
+    Output(String),
 }
 
 impl Target {
@@ -402,6 +436,8 @@ impl Target {
         let name = match self {
             Self::Device => format!("popup-{part}-device"),
             Self::App(key) => format!("popup-{part}-app-{key}"),
+            Self::Header => format!("popup-{part}-header"),
+            Self::Output(id) => format!("popup-{part}-output-{id}"),
         };
         ElementId::Name(name.into())
     }
@@ -429,13 +465,23 @@ struct PopupView {
     hovered_slider: Option<Target>,
     hovered_button: Option<Target>,
     layout: Layout,
+    /// Active outputs, refreshed with the app list.
+    outputs: Vec<crate::PopupOutputDevice>,
+    /// Output switcher under the header is open.
+    switcher_open: bool,
+    /// 0..1: switcher list height, in step with `card_h`.
+    switcher: Motion,
     wheel: f32,
     system: System,
     appear: Motion,
     /// Card height on screen, animated when apps come and go.
     card_h: Motion,
-    /// Card height the window is currently sized for.
-    window_card_h: f32,
+    /// Card height the window region is currently clipped to.
+    region_card_h: f32,
+    /// Output switched: the app list fades out, swaps, fades back in.
+    swapping: bool,
+    /// App list opacity during a swap.
+    list_fade: Motion,
     closing: bool,
     was_active: bool,
     focus: FocusHandle,
@@ -458,7 +504,7 @@ impl PopupView {
             }
         });
         let layout = Layout::load();
-        let height = layout.card_height(0);
+        let height = layout.card_height(0, 0.0);
         Self {
             state,
             local_percent: None,
@@ -468,12 +514,17 @@ impl PopupView {
             hovered_slider: None,
             hovered_button: None,
             layout,
+            outputs: Vec::new(),
+            switcher_open: false,
+            switcher: Motion::new(0.0, RESIZE_MS),
             wheel: 0.0,
             system: System::load(),
             // Created hidden (prewarmed); `reopen` shows it.
             appear: Motion::decelerate(0.0, APPEAR_MS),
             card_h: Motion::new(height, RESIZE_MS),
-            window_card_h: height,
+            region_card_h: height,
+            swapping: false,
+            list_fade: Motion::new(1.0, SWAP_FADE_MS),
             closing: true,
             was_active: false,
             focus: cx.focus_handle(),
@@ -498,6 +549,12 @@ impl PopupView {
 
     fn reopen(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.system = System::load();
+        // Every open starts with the switcher folded.
+        if self.switcher_open {
+            self.switcher_open = false;
+            self.switcher = Motion::new(0.0, RESIZE_MS);
+            self.resize(cx);
+        }
         // Settings can change while the popup is hidden; size for them
         // before it is placed.
         self.apply_layout(cx);
@@ -528,6 +585,11 @@ impl PopupView {
         let layout = Layout::load();
         if layout != self.layout {
             self.layout = layout;
+            // The switcher lives in the header.
+            if !layout.header && self.switcher_open {
+                self.switcher_open = false;
+                self.switcher.retarget(0.0, Instant::now());
+            }
             self.resize(cx);
         }
     }
@@ -538,9 +600,10 @@ impl PopupView {
         let icon_px = (APP_ICON * 2.0) as u32;
         let known: Vec<_> = self.icons.keys().cloned().collect();
         cx.spawn(async move |view, cx| {
-            let (apps, icons) = cx
+            let (apps, icons, outputs) = cx
                 .background_executor()
                 .spawn(async move {
+                    let outputs = crate::popup_output_devices();
                     let apps = volume_sessions::app_volumes();
                     let icons = apps
                         .iter()
@@ -551,10 +614,13 @@ impl PopupView {
                             (path, png)
                         })
                         .collect::<Vec<_>>();
-                    (apps, icons)
+                    (apps, icons, outputs)
                 })
                 .await;
-            let _ = view.update(cx, |view, cx| view.set_apps(apps, icons, cx));
+            let _ = view.update(cx, |view, cx| {
+                view.set_outputs(outputs, cx);
+                view.set_apps(apps, icons, cx);
+            });
         })
         .detach();
     }
@@ -570,7 +636,25 @@ impl PopupView {
             self.icons.insert(path, image);
         }
         let now = Instant::now();
-        let animate = !self.closing;
+        if self.swapping {
+            // Swap only once the old rows are faded out.
+            let wait = (self.list_fade.value(now) * SWAP_FADE_MS as f32).ceil() as u64;
+            if wait > 0 && self.list_fade.active(now) {
+                cx.spawn(async move |view, cx| {
+                    cx.background_executor()
+                        .timer(Duration::from_millis(wait))
+                        .await;
+                    let _ = view.update(cx, |view, cx| view.set_apps(apps, Vec::new(), cx));
+                })
+                .detach();
+                return;
+            }
+            self.swapping = false;
+            self.list_fade.retarget(1.0, now);
+            cx.notify();
+        }
+        // Rows coming in with a swap ride its fade, not their own.
+        let animate = !self.closing && !self.list_fade.active(now);
         let live_before = self.live_apps();
         let mut rows = Vec::with_capacity(apps.len());
         for app in apps {
@@ -629,6 +713,48 @@ impl PopupView {
         }
     }
 
+    fn set_outputs(&mut self, outputs: Vec<crate::PopupOutputDevice>, cx: &mut Context<Self>) {
+        if outputs == self.outputs {
+            return;
+        }
+        let count_changed = outputs.len() != self.outputs.len();
+        self.outputs = outputs;
+        if count_changed && self.switcher_open {
+            self.resize(cx);
+        }
+        cx.notify();
+    }
+
+    /// Full height of the open switcher list.
+    fn switcher_full_h(&self) -> f32 {
+        if self.layout.header && !self.outputs.is_empty() {
+            self.outputs.len() as f32 * OUTPUT_ROW_H + OUTPUT_PAD
+        } else {
+            0.0
+        }
+    }
+
+    fn set_switcher(&mut self, open: bool, cx: &mut Context<Self>) {
+        if self.switcher_open == open {
+            return;
+        }
+        self.switcher_open = open;
+        self.switcher
+            .retarget(if open { 1.0 } else { 0.0 }, Instant::now());
+        self.resize(cx);
+    }
+
+    fn pick_output(&mut self, id: &str, cx: &mut Context<Self>) {
+        if !self.outputs.iter().any(|output| output.is_default && output.id == id) {
+            // The check moves now; name and level follow once Windows switched.
+            for output in &mut self.outputs {
+                output.is_default = output.id == id;
+            }
+            crate::request_popup_output_device(id.to_string());
+        }
+        self.set_switcher(false, cx);
+    }
+
     fn live_apps(&self) -> usize {
         self.apps.iter().filter(|row| !row.leaving).count()
     }
@@ -636,7 +762,8 @@ impl PopupView {
     /// Animates the card to fit the rows. The window grows at once and
     /// shrinks after the card has, so the animation is never clipped.
     fn resize(&mut self, cx: &mut Context<Self>) {
-        let target = self.layout.card_height(self.live_apps());
+        let extra = if self.switcher_open { self.switcher_full_h() } else { 0.0 };
+        let target = self.layout.card_height(self.live_apps(), extra);
         let now = Instant::now();
         if self.closing {
             self.card_h = Motion::new(target, RESIZE_MS);
@@ -646,24 +773,22 @@ impl PopupView {
         let Some(hwnd) = popup_hwnd() else {
             return;
         };
-        if target >= self.window_card_h || self.closing {
+        if target >= self.region_card_h || self.closing {
             self.shrink = None;
-            self.window_card_h = target;
-            if !self.closing {
-                place_later(cx, hwnd, crate::volume_popup::last_anchor(), target, false);
-            }
+            self.region_card_h = target;
+            region_later(cx, hwnd, crate::volume_popup::last_anchor(), target);
         } else {
             self.shrink = Some(cx.spawn(async move |view, cx| {
                 cx.background_executor()
                     .timer(Duration::from_millis(RESIZE_MS + 20))
                     .await;
                 let open = view.update(cx, |view, _| {
-                    view.window_card_h = target;
+                    view.region_card_h = target;
                     !view.closing
                 });
                 // Outside the update; see `place_later`.
                 if open.unwrap_or(false) {
-                    place(hwnd, crate::volume_popup::last_anchor(), target, false);
+                    set_region(hwnd, crate::volume_popup::last_anchor(), target);
                 }
             }));
         }
@@ -674,7 +799,17 @@ impl PopupView {
         if self.dragging != Some(Target::Device) {
             self.local_percent = None;
         }
+        let switched = !self.state.device_id.is_empty()
+            && !state.device_id.is_empty()
+            && state.device_id != self.state.device_id;
         self.state = state;
+        if switched && !self.closing {
+            // The new device has other sessions: swap the whole list behind
+            // one fade instead of collapsing and growing row by row.
+            self.swapping = true;
+            self.list_fade.retarget(0.0, Instant::now());
+            self.refresh_apps(cx);
+        }
         self.apply_layout(cx);
         cx.notify();
     }
@@ -737,6 +872,7 @@ impl PopupView {
                     cx.notify();
                 }
             }
+            Target::Header | Target::Output(_) => {}
         }
     }
 
@@ -917,16 +1053,28 @@ impl PopupView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
-        let hovered = self.hovered_button.as_ref() == Some(&target);
-        let hover = anim::tween(window, cx, target.key("button"), hovered as u8 as f32, HOVER);
-        let hover_target = target.clone();
-        div()
-            .id(id)
+        self.hoverable(id, target, colors, window, cx)
             .size(px(BUTTON))
             .flex_shrink_0()
             .flex()
             .items_center()
             .justify_center()
+    }
+
+    /// Rounded element whose background fades in on hover.
+    fn hoverable(
+        &self,
+        id: ElementId,
+        target: Target,
+        colors: &Colors,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let hovered = self.hovered_button.as_ref() == Some(&target);
+        let hover = anim::tween(window, cx, target.key("button"), hovered as u8 as f32, HOVER);
+        let hover_target = target.clone();
+        div()
+            .id(id)
             .rounded(px(4.))
             .when(hover > 0.0, |d| {
                 d.bg(Rgba {
@@ -1061,6 +1209,164 @@ impl PopupView {
         .on_scroll_wheel(cx.listener(|view, event: &ScrollWheelEvent, _, cx| {
             view.on_device_wheel(event, cx)
         }))
+    }
+
+    /// Device name over the device row; a click folds the output switcher
+    /// out under it.
+    fn header(
+        &self,
+        open: f32,
+        colors: &Colors,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
+        // Down chevron sinks away as the up one rises in: reads as a flip.
+        let chevron = |code: u32, opacity: f32, dy: f32| {
+            div()
+                .absolute()
+                .left_0()
+                .top(px(dy))
+                .size_full()
+                .opacity(opacity)
+                .child(glyph_box(
+                    char::from_u32(code).unwrap_or(' '),
+                    10.0,
+                    12.0,
+                    colors.secondary,
+                ))
+        };
+        let button = self
+            .hoverable("popup-header".into(), Target::Header, colors, window, cx)
+            .w_full()
+            .h(px(HEADER_H - 2.0))
+            // Text starts at the icons' left edge.
+            .pl(px((BUTTON - APP_ICON) / 2.0))
+            .pr(px((BUTTON - 12.0) / 2.0))
+            .flex()
+            .items_center()
+            .gap(px(GAP))
+            .on_click(cx.listener(|view, _, _, cx| {
+                let open = !view.switcher_open;
+                view.set_switcher(open, cx);
+            }))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .text_size(px(13.))
+                    .font_weight(FontWeight(600.))
+                    .text_color(colors.text)
+                    .child(self.device_name()),
+            )
+            .child(
+                div()
+                    .relative()
+                    .flex_shrink_0()
+                    .size(px(12.))
+                    .child(chevron(0xE70D, 1.0 - open, 3.0 * open))
+                    .child(chevron(0xE70E, open, 3.0 * (1.0 - open))),
+            );
+        div()
+            .h(px(HEADER_H))
+            .flex_shrink_0()
+            .pl(px(PAD_LEFT))
+            .pr(px(PAD_RIGHT))
+            .flex()
+            .items_center()
+            .child(button)
+    }
+
+    /// Output list between the header and the device row, `open` of its
+    /// full height.
+    fn switcher(
+        &self,
+        open: f32,
+        colors: &Colors,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
+        let mut list = div()
+            .flex_shrink_0()
+            .h(px(self.switcher_full_h() * open))
+            .overflow_hidden()
+            .opacity(open * open)
+            .flex()
+            .flex_col();
+        for output in &self.outputs {
+            let target = Target::Output(output.id.clone());
+            let selected = anim::tween(
+                window,
+                cx,
+                target.key("selected"),
+                output.is_default as u8 as f32,
+                HOVER,
+            );
+            let glyph = match output.kind {
+                crate::volume_osd::DeviceKind::Headphones => 0xE7F6,
+                crate::volume_osd::DeviceKind::Display => 0xE7F4,
+                crate::volume_osd::DeviceKind::Microphone => 0xE720,
+                _ => 0xE7F5,
+            };
+            let id = output.id.clone();
+            let button = self
+                .hoverable(target.key("output"), target.clone(), colors, window, cx)
+                .size_full()
+                .relative()
+                .flex()
+                .items_center()
+                .on_click(cx.listener(move |view, _, _, cx| view.pick_output(&id, cx)))
+                // Fluent's selection pill, growing in from its middle.
+                .child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top(px((OUTPUT_ROW_H - 16.0 * selected) / 2.0))
+                        .w(px(3.))
+                        .h(px(16.0 * selected))
+                        .rounded_full()
+                        .bg(colors.fill),
+                )
+                .child(glyph_box(
+                    char::from_u32(glyph).unwrap_or(' '),
+                    DEVICE_GLYPH,
+                    BUTTON,
+                    colors.text,
+                ))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .pl(px(GAP))
+                        .pr(px(GAP))
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .text_size(px(13.))
+                        .text_color(colors.text)
+                        .child(output.name.clone()),
+                );
+            list = list.child(
+                div()
+                    .h(px(OUTPUT_ROW_H))
+                    .flex_shrink_0()
+                    .pl(px(PAD_LEFT))
+                    .pr(px(PAD_RIGHT))
+                    .child(
+                        div()
+                            .size_full()
+                            .rounded(px(4.))
+                            .bg(Rgba {
+                                a: colors.hover.a * 0.7 * selected,
+                                ..colors.hover
+                            })
+                            .child(button),
+                    ),
+            );
+        }
+        list
     }
 
     fn app_row(
@@ -1230,10 +1536,24 @@ impl Render for PopupView {
         let colors = Colors::load(self.system);
         let t = self.appear.value(now).clamp(0.0, 1.0);
         let height = self.card_h.value(now);
+        // The window stays full height; the card moves inside it, sliding
+        // in from the taskbar side.
+        let align = crate::volume_popup::card_align(crate::volume_popup::last_anchor());
+        let slide = match align {
+            crate::volume_popup::CardAlign::Start => -8.0,
+            _ => 8.0,
+        } * (1.0 - t);
+        let card_y = crate::volume_popup::card_top(align, max_card_height(), height) + slide;
         self.apps
             .retain(|row| !(row.leaving && !row.presence.active(now)));
         let rows_moving = self.apps.iter().any(|row| row.presence.active(now));
-        if self.appear.active(now) || self.card_h.active(now) || rows_moving {
+        let switcher_open = self.switcher.value(now).clamp(0.0, 1.0);
+        if self.appear.active(now)
+            || self.card_h.active(now)
+            || self.switcher.active(now)
+            || self.list_fade.active(now)
+            || rows_moving
+        {
             window.request_animation_frame();
         }
 
@@ -1241,11 +1561,9 @@ impl Render for PopupView {
         let glass = match &mut self.backdrop {
             Some(backdrop) if backdrop.usable() => {
                 let scale = window.scale_factor();
-                let viewport_h = window.viewport_size().height.as_f32();
-                let top = viewport_h - GUTTER - height + 8.0 * (1.0 - t);
                 backdrop.set_luminosity(luminosity(self.system.light));
                 backdrop.update(
-                    [GUTTER * scale, top * scale, CARD_W * scale, height * scale],
+                    [GUTTER * scale, card_y * scale, CARD_W * scale, height * scale],
                     RADIUS * scale,
                     t,
                 );
@@ -1258,20 +1576,30 @@ impl Render for PopupView {
             None
         } else {
             let (monitor, card) =
-                crate::volume_popup::card_screen_rect(crate::volume_popup::last_anchor(), self.card_h.to);
+                crate::volume_popup::card_screen_rect(
+                crate::volume_popup::last_anchor(),
+                self.card_h.to,
+                max_card_height(),
+            );
             super::mica::crop(monitor, card)
         };
         if !glass && mica.is_none() && super::mica::pending() {
             window.request_animation_frame();
         }
 
-        let list_h = height - self.layout.fixed_h();
+        let switcher_h = if self.layout.header {
+            self.switcher_full_h() * switcher_open
+        } else {
+            0.0
+        };
+        let list_h = height - self.layout.fixed_h() - switcher_h;
         let mut list = div()
             .id("popup-apps")
             .flex()
             .flex_col()
             .flex_shrink_0()
             .h(px(list_h.max(0.)))
+            .opacity(self.list_fade.value(now).clamp(0.0, 1.0))
             .overflow_y_scroll();
         let row_h = self.layout.app_row_h();
         for index in 0..self.apps.len() {
@@ -1293,8 +1621,9 @@ impl Render for PopupView {
             .id("popup-card")
             .w(px(CARD_W))
             .h(px(height))
-            .relative()
-            .top(px(8.0 * (1.0 - t)))
+            .absolute()
+            .left(px(GUTTER))
+            .top(px(card_y))
             .opacity(t)
             .rounded(px(RADIUS))
             .shadow(vec![BoxShadow {
@@ -1344,23 +1673,9 @@ impl Render for PopupView {
             }
         }
         if self.layout.header {
-            content = content.child(
-                // Starts at the icons' left edge.
-                div()
-                    .h(px(HEADER_H))
-                    .flex_shrink_0()
-                    .pl(px(PAD_LEFT + (BUTTON - APP_ICON) / 2.0))
-                    .pr(px(PAD_RIGHT))
-                    .flex()
-                    .items_center()
-                    .text_size(px(13.))
-                    .font_weight(FontWeight(600.))
-                    .text_color(colors.text)
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .child(self.device_name()),
-            );
+            content = content
+                .child(self.header(switcher_open, &colors, window, cx))
+                .child(self.switcher(switcher_open, &colors, window, cx));
         }
         content = content.child(device_row);
         if let Some(list) = list {
@@ -1383,10 +1698,7 @@ impl Render for PopupView {
             .id("popup-root")
             .track_focus(&self.focus)
             .size_full()
-            .p(px(GUTTER))
-            .flex()
-            .flex_col()
-            .justify_end()
+            .relative()
             .on_mouse_move(cx.listener(|view, event: &MouseMoveEvent, _, cx| {
                 if let Some(target) = view.dragging.clone() {
                     if event.pressed_button == Some(MouseButton::Left) {
@@ -1406,6 +1718,7 @@ impl Render for PopupView {
             )
             .on_key_down(cx.listener(|view, event: &KeyDownEvent, _, cx| {
                 match event.keystroke.key.as_str() {
+                    "escape" if view.switcher_open => view.set_switcher(false, cx),
                     "escape" => view.close(cx),
                     "up" | "right" => {
                         view.local_percent = None;

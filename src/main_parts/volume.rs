@@ -317,6 +317,7 @@ pub fn cycle_output_device(forward: bool) -> Result<()> {
 
 pub(crate) fn popup_state(state: &OutputVolumeState) -> volume_popup::VolumePopupState {
     volume_popup::VolumePopupState {
+        device_id: state.device_id.clone(),
         percent: output_percent(state),
         muted: state.muted,
         device_name: output_display_name(state),
@@ -346,6 +347,56 @@ pub(crate) fn request_popup_step(steps: i32) {
 
 pub(crate) fn request_popup_mute() {
     post_volume_popup(2, 0);
+}
+
+/// One active output endpoint, named as the user chose to see names.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PopupOutputDevice {
+    pub id: String,
+    pub name: String,
+    pub kind: volume_osd::DeviceKind,
+    pub is_default: bool,
+}
+
+/// Active output devices for the popup's switcher. Safe off the tray
+/// thread: it joins the thread's COM apartment itself.
+pub(crate) fn popup_output_devices() -> Vec<PopupOutputDevice> {
+    let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+    let mode = STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .advanced
+        .audio_device_name_display
+        .clone();
+    let mut devices: Vec<_> = render_devices()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|device| PopupOutputDevice {
+            kind: output_device_kind(&format!("{} {}", device.name, device.system_name)),
+            name: device.display_name(&mode),
+            id: device.id,
+            is_default: device.is_default,
+        })
+        .collect();
+    devices.sort_by(|left, right| {
+        left.name
+            .to_lowercase()
+            .cmp(&right.name.to_lowercase())
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    devices
+}
+
+/// Makes `id` the default output for every role. Runs on its own thread so
+/// the popup never waits on the audio service; the switch comes back to the
+/// popup through `on_output_device_changed`.
+pub(crate) fn request_popup_output_device(id: String) {
+    std::thread::spawn(move || {
+        let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        if let Err(err) = set_default_render_device(&id) {
+            eprintln!("volume popup: switching output failed: {err:?}");
+        }
+    });
 }
 
 pub(crate) fn handle_volume_popup_request(kind: usize, value: isize) {

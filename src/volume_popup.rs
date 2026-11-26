@@ -25,13 +25,16 @@ use windows::Win32::{
 /// Card width in logical pixels, without the shadow gutter. The height
 /// depends on how many apps are playing (see the GPUI view).
 pub(crate) const CARD_W: f32 = 360.0;
-/// Transparent margin around the card for its shadow.
-pub(crate) const GUTTER: f32 = 18.0;
+/// Transparent margin around the card for its shadow. Wide enough that the
+/// shadow's blur fades out before the window edge instead of being cut.
+pub(crate) const GUTTER: f32 = 36.0;
 /// Space between the card and the taskbar.
 const TASKBAR_GAP: f32 = 6.0;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct VolumePopupState {
+    /// Default output's endpoint id; a change means the device switched.
+    pub device_id: String,
     pub percent: u8,
     pub muted: bool,
     pub device_name: String,
@@ -144,10 +147,68 @@ pub(crate) fn last_anchor() -> RECT {
     *ANCHOR.lock().unwrap()
 }
 
+/// Where the card sits inside the (always full-height) window: against the
+/// taskbar edge the icon lives on.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum CardAlign {
+    Start,
+    Center,
+    End,
+}
+
+pub(crate) fn card_align(anchor: RECT) -> CardAlign {
+    let monitor = unsafe { MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST) };
+    let mut info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    let _ = unsafe { GetMonitorInfoW(monitor, &mut info) };
+    let work = info.rcWork;
+    if anchor.top >= work.bottom - 1 {
+        CardAlign::End
+    } else if anchor.bottom <= work.top + 1 {
+        CardAlign::Start
+    } else {
+        CardAlign::Center
+    }
+}
+
+/// Window-relative top of a card `card_h` tall in a window sized for
+/// `window_card_h` (logical pixels).
+pub(crate) fn card_top(align: CardAlign, window_card_h: f32, card_h: f32) -> f32 {
+    GUTTER
+        + match align {
+            CardAlign::Start => 0.0,
+            CardAlign::Center => (window_card_h - card_h) / 2.0,
+            CardAlign::End => window_card_h - card_h,
+        }
+}
+
+/// Limits the window's visible and clickable area to the card plus its
+/// shadow gutter (`top..bottom`, logical, window-relative), so the empty
+/// part of the tall window neither shows nor eats clicks. Changing the
+/// region never resizes the swap chain, so it cannot flicker.
+pub(crate) fn set_card_region(hwnd: HWND, top: f32, bottom: f32) {
+    use windows::Win32::{
+        Graphics::Gdi::{CreateRectRgn, SetWindowRgn},
+        UI::HiDpi::GetDpiForWindow,
+    };
+    let scale = unsafe { GetDpiForWindow(hwnd) }.max(96) as f32 / 96.0;
+    let width = ((CARD_W + GUTTER * 2.0) * scale).ceil() as i32;
+    let top = ((top - GUTTER).max(0.0) * scale).floor() as i32;
+    let bottom = ((bottom + GUTTER) * scale).ceil() as i32;
+    unsafe {
+        let region = CreateRectRgn(0, top, width, bottom);
+        // The window owns the region from here on.
+        let _ = SetWindowRgn(hwnd, region, true);
+    }
+}
+
 /// Monitor rectangle and the card's own rectangle (physical pixels, screen
-/// coordinates, without the shadow gutter) for a card `card_h` tall.
-pub(crate) fn card_screen_rect(anchor: RECT, card_h: f32) -> (RECT, RECT) {
-    let (x, y, width, height) = placement(anchor, card_h);
+/// coordinates, without the shadow gutter) for a card `card_h` tall in a
+/// window sized for `window_card_h`.
+pub(crate) fn card_screen_rect(anchor: RECT, card_h: f32, window_card_h: f32) -> (RECT, RECT) {
+    let (x, y, width, _) = placement(anchor, window_card_h);
     let monitor = unsafe { MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST) };
     let mut info = MONITORINFO {
         cbSize: size_of::<MONITORINFO>() as u32,
@@ -157,14 +218,16 @@ pub(crate) fn card_screen_rect(anchor: RECT, card_h: f32) -> (RECT, RECT) {
     let mut dpi_x = 96u32;
     let mut dpi_y = 96u32;
     let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
-    let gutter = (GUTTER * dpi_x.max(96) as f32 / 96.0).round() as i32;
+    let scale = dpi_x.max(96) as f32 / 96.0;
+    let gutter = (GUTTER * scale).round() as i32;
+    let top = y + (card_top(card_align(anchor), window_card_h, card_h) * scale).round() as i32;
     (
         info.rcMonitor,
         RECT {
             left: x + gutter,
-            top: y + gutter,
+            top,
             right: x + width - gutter,
-            bottom: y + height - gutter,
+            bottom: top + (card_h * scale).round() as i32,
         },
     )
 }

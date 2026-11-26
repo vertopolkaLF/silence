@@ -206,6 +206,7 @@ fn option_copy(
     detail: bool,
     current: bool,
     dense: bool,
+    ink: crate::settings_ui::color::Oklch,
     p: crate::settings_ui::theme::Palette,
 ) -> Div {
     div()
@@ -226,7 +227,7 @@ fn option_copy(
                     400.
                 }))
                 .line_height(relative(1.18))
-                .text_color(p.text.hsla())
+                .text_color(ink.hsla())
                 .when(!current, |this| this.line_clamp(2))
                 .when(!detail || option.detail.is_none(), |this| {
                     this.relative().top(px(-1.))
@@ -667,7 +668,7 @@ pub(crate) fn select(
                 .min_w_0()
                 .when_some(previous.filter(|_| exiting < 1.), |this, old| {
                     this.child(
-                        option_copy(&old, options.show_current_detail, true, false, p)
+                        option_copy(&old, options.show_current_detail, true, false, p.text, p)
                             .absolute()
                             .top(px(-14. * exiting))
                             .opacity(1. - exiting),
@@ -675,7 +676,7 @@ pub(crate) fn select(
                 })
                 .when_some(current.clone(), |this, current| {
                     this.child(
-                        option_copy(&current, options.show_current_detail, true, false, p)
+                        option_copy(&current, options.show_current_detail, true, false, p.text, p)
                             .relative()
                             .top(px(14. * (1. - entering)))
                             .opacity(entering),
@@ -863,6 +864,10 @@ pub(crate) fn select(
 
 /// Width of the popover a card-row select opens.
 const ROW_MENU_WIDTH: f32 = 280.;
+/// Wider popover for card-row options that carry a detail line.
+const ROW_MENU_RICH_WIDTH: f32 = 330.;
+/// Tall enough to show a grouped, detailed list without scrolling.
+const ROW_MENU_MAX_HEIGHT: f32 = 460.;
 
 fn menu(
     id: &SharedString,
@@ -884,23 +889,32 @@ fn menu(
     // already surface-2, so the popover is one step above it, and its rows
     // are the size of the row's own text.
     let row = options.row_label.is_some();
-    // The row popover is tinted from the accent like the window behind it,
-    // so it reads as a warmer, lifted piece of the same material instead of
-    // a grey slab. It stays opaque: it floats over other rows.
+    // Options with a detail line get an icon tile and a taller row.
+    let rich = row && options.options.iter().any(|o| o.detail.is_some());
+    let max_height = if rich { ROW_MENU_MAX_HEIGHT } else { 280. };
+    // The row popover borrows only a trace of the accent hue, so it reads as
+    // the same warm material as the window, one step lifted. Colour is left
+    // for the chosen option. It stays opaque: it floats over other rows.
     let menu_bg = if row {
-        p.accent.relative(if p.mica { 25. } else { 24. }, 0.24)
+        p.accent.relative(if p.mica { 26. } else { 25. }, 0.1)
     } else {
         p.select_menu_bg
     };
     let highlight_bg = if row {
-        mix_pct(p.text, 7., menu_bg)
+        mix_pct(p.text, 6., menu_bg)
     } else {
         p.surface_3
     };
-    // The chosen option sits on a faint accent wash; hovering it deepens it.
-    let selected_bg = mix_pct(p.accent, 14., menu_bg);
-    let selected_hover_bg = mix_pct(p.accent, 20., menu_bg);
-    let row_height = if row { 36. } else { 44. };
+    let tile_bg = mix_pct(p.text, 6., menu_bg);
+    let tile_selected_bg = mix_pct(p.accent, 18., menu_bg);
+    let divider = mix_pct(p.text, 8., menu_bg);
+    let row_height = if rich {
+        44.
+    } else if row {
+        36.
+    } else {
+        44.
+    };
     // Popover padding; row radius stays concentric with the 14px shell.
     let inset = if row { 5. } else { 6. };
     let mut rows = Vec::<AnyElement>::new();
@@ -911,6 +925,18 @@ fn menu(
         if option.group_label != group {
             group = option.group_label.clone();
             if let Some(group) = &group {
+                if row && !rows.is_empty() {
+                    desired_height += 9.;
+                    rows.push(
+                        div()
+                            .flex_shrink_0()
+                            .mx(px(inset + 6.))
+                            .my(px(4.))
+                            .h(px(1.))
+                            .bg(divider.hsla())
+                            .into_any_element(),
+                    );
+                }
                 desired_height += 27.;
                 rows.push(
                     div()
@@ -931,7 +957,13 @@ fn menu(
             selected_child = rows.len();
         }
         desired_height += row_height
-            + if option.detail.is_some() { 9. } else if row { 1. } else { 4. };
+            + if row {
+                1.
+            } else if option.detail.is_some() {
+                9.
+            } else {
+                4.
+            };
         let selected = option.value == *value;
         let key = ElementId::from((ElementId::from(id.clone()), option.value.clone()));
         let (pointer, hover, _) = hover_tween(key.clone(), window, cx);
@@ -943,24 +975,17 @@ fn menu(
             anim::UI,
         )
         .max(hover);
-        // Full-size menus mark the chosen option by a check and brighter
-        // text only. The row popover also gives it an accent wash, and keeps
-        // icons quiet until their row is chosen or pointed at.
-        let bg = if row {
-            if selected {
-                lerp(selected_bg, selected_hover_bg, highlight)
-            } else {
-                lerp(TRANSPARENT, highlight_bg, highlight)
-            }
-        } else {
-            lerp(TRANSPARENT, highlight_bg, highlight)
-        };
+        // The chosen option is marked by accent ink (icon, label, check), never
+        // a filled row; pointing at any option gives it a neutral wash. Row
+        // popovers keep icons quiet until their option is chosen.
+        let bg = lerp(TRANSPARENT, highlight_bg, highlight);
         let lit = highlight.max(selected as u8 as f32);
-        let icon_color = if row {
-            lerp(p.muted, p.accent_text, lit)
-        } else {
+        let icon_color = if selected || !row {
             p.accent_text
+        } else {
+            lerp(p.muted, p.text, highlight)
         };
+        let label_color = if row && selected { p.accent_text } else { p.text };
         let choose_state = state.clone();
         let choose_id = id.clone();
         let choose_value = option.value.clone();
@@ -993,18 +1018,37 @@ fn menu(
                         .pr(px(if row { 12. } else { 10. }))
                         .flex()
                         .items_center()
-                        .gap(px(if row { 10. } else { 12. }))
+                        .gap(px(if rich {
+                            11.
+                        } else if row {
+                            10.
+                        } else {
+                            12.
+                        }))
                         .cursor_pointer()
                         .when_some(option.icon.clone(), |this, name| {
-                            this.child(
-                                svg()
-                                    .path(icon(&name))
-                                    .size(px(if row { 17. } else { 18. }))
-                                    .flex_shrink_0()
-                                    .text_color(icon_color.hsla()),
-                            )
+                            let glyph = svg()
+                                .path(icon(&name))
+                                .size(px(if row { 17. } else { 18. }))
+                                .flex_shrink_0()
+                                .text_color(icon_color.hsla());
+                            if rich {
+                                this.child(
+                                    div()
+                                        .size(px(32.))
+                                        .flex_shrink_0()
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .rounded(px(8.))
+                                        .bg(if selected { tile_selected_bg } else { tile_bg }.hsla())
+                                        .child(glyph),
+                                )
+                            } else {
+                                this.child(glyph)
+                            }
                         })
-                        .child(option_copy(&option, true, false, row, p))
+                        .child(option_copy(&option, true, false, row, label_color, p))
                         .when(selected, |this| {
                             this.child(
                                 svg()
@@ -1102,11 +1146,11 @@ fn menu(
     let desired_height = state
         .read(cx)
         .menu_height
-        .unwrap_or(desired_height.min(280.));
+        .unwrap_or(desired_height.min(max_height));
     let down = below >= desired_height || (below >= desired_height.min(140.) && below >= above);
     let height = desired_height.min(if down { below } else { above }).max(1.);
     let width = if row {
-        ROW_MENU_WIDTH.min(f32::from(bounds.size.width))
+        (if rich { ROW_MENU_RICH_WIDTH } else { ROW_MENU_WIDTH }).min(f32::from(bounds.size.width))
     } else {
         f32::from(bounds.size.width)
     }
@@ -1269,7 +1313,7 @@ fn menu(
                                 f32::from(last.bottom() - first.top()) + inset * 2.
                             })
                             .unwrap_or(52.);
-                        content_state.update(cx, |s, _| s.menu_height = Some(measured.min(280.)));
+                        content_state.update(cx, |s, _| s.menu_height = Some(measured.min(max_height)));
                         window.request_animation_frame();
                     }
                 })
