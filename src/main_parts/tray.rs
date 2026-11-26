@@ -1306,7 +1306,7 @@ fn handle_tray_device_command(command_id: usize) {
 fn handle_tray_menu_command(command_id: usize) {
     match command_id {
         ID_MENU_TOGGLE => toggle_mute(),
-        ID_MENU_DEVICES => open_devices_window(),
+        ID_MENU_DEVICES => open_tray_audio_devices(false),
         ID_MENU_SETTINGS => open_settings_window(),
         ID_MENU_INSTALL_UPDATE => run_update_now_action(),
         ID_MENU_EXIT => {
@@ -1368,6 +1368,17 @@ fn open_settings_window() {
     }
 
     launch_settings_window(None);
+}
+
+fn open_tray_audio_devices(input: bool) {
+    let target = STATE.lock().unwrap().advanced.tray_devices_target.clone();
+    if target == TRAY_DEVICES_TARGET_WINDOWS {
+        if let Err(err) = open_audio_device_control_panel(input) {
+            eprintln!("failed to open Windows sound control panel: {err:?}");
+        }
+    } else {
+        open_devices_window();
+    }
 }
 
 fn open_devices_window() {

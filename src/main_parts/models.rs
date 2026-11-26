@@ -796,6 +796,8 @@ pub struct AdvancedSettings {
     pub show_disconnected_devices: bool,
     #[serde(default)]
     pub separate_communication_device: bool,
+    #[serde(default = "default_tray_devices_target")]
+    pub tray_devices_target: String,
 }
 
 impl Default for AdvancedSettings {
@@ -812,8 +814,16 @@ impl Default for AdvancedSettings {
             show_disabled_devices: default_show_disabled_devices(),
             show_disconnected_devices: false,
             separate_communication_device: false,
+            tray_devices_target: default_tray_devices_target(),
         }
     }
+}
+
+pub const TRAY_DEVICES_TARGET_APP: &str = "app";
+pub const TRAY_DEVICES_TARGET_WINDOWS: &str = "windows";
+
+fn default_tray_devices_target() -> String {
+    TRAY_DEVICES_TARGET_APP.to_string()
 }
 
 fn default_show_disabled_devices() -> bool {

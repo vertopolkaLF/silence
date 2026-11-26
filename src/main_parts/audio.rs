@@ -71,6 +71,17 @@ fn mic_using_apps() -> Result<Vec<MicUsingApp>> {
     mic_using_apps_filtered(&[])
 }
 
+fn is_own_executable_name(exe_name: &str) -> bool {
+    static OWN_EXE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    let own = OWN_EXE.get_or_init(|| {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+    });
+    own.as_deref()
+        .is_some_and(|name| exe_name.eq_ignore_ascii_case(name))
+}
+
 fn mic_using_apps_filtered(ignored_apps: &[String]) -> Result<Vec<MicUsingApp>> {
     let mut apps = active_capture_session_process_ids()?
         .into_iter()
@@ -80,7 +91,8 @@ fn mic_using_apps_filtered(ignored_apps: &[String]) -> Result<Vec<MicUsingApp>> 
                 .exe_name
                 .clone()
                 .unwrap_or_else(|| unknown_process_name(pid));
-            if is_process_image_ignored(&exe_name, ignored_apps) {
+            if is_own_executable_name(&exe_name) || is_process_image_ignored(&exe_name, ignored_apps)
+            {
                 return None;
             }
             Some(MicUsingApp {
@@ -1078,7 +1090,7 @@ fn audio_device_name_propvariant(name: &str) -> Result<PROPVARIANT> {
     Ok(value)
 }
 
-fn open_audio_device_control_panel(input: bool) -> Result<()> {
+pub(crate) fn open_audio_device_control_panel(input: bool) -> Result<()> {
     let tab = if input { "1" } else { "0" };
     Command::new("rundll32.exe")
         .args(["shell32.dll,Control_RunDLL", &format!("mmsys.cpl,,{tab}")])

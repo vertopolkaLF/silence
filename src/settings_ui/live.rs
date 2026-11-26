@@ -133,7 +133,7 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
             cx.background_executor()
                 .timer(Duration::from_millis(50))
                 .await;
-            let active_ids: Option<Vec<String>> = this
+            let active_ids: Option<(Vec<String>, Vec<String>)> = this
                 .read_with(cx, |app, _| {
                     if app.nav.displayed_tab != super::shell::nav::SettingsTab::Devices {
                         return None;
@@ -142,9 +142,11 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
                 })
                 .ok()
                 .flatten();
-            let Some(ids) = active_ids else {
+            let Some((ids, input_ids)) = active_ids else {
+                crate::audio_devices::sync_capture_meter_streams(&[]);
                 continue;
             };
+            crate::audio_devices::sync_capture_meter_streams(&input_ids);
             if ids.is_empty() {
                 continue;
             }
@@ -158,6 +160,7 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
                 }
             });
             if alive.is_err() {
+                crate::audio_devices::sync_capture_meter_streams(&[]);
                 break;
             }
         }

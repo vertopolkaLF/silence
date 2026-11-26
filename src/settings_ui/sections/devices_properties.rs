@@ -6,7 +6,6 @@
 use crate::audio_devices::{self, DeviceEntry, DeviceProperties, ListenError};
 use crate::settings_ui::{
     SettingsApp,
-    anim::{self, Easing, Transition},
     assets::icon,
     color::{TRANSPARENT, lerp, mix_pct},
     controls::{
@@ -17,13 +16,12 @@ use crate::settings_ui::{
 };
 use gpui::{prelude::*, *};
 
-const SLIDE: Transition = Transition::new(220, Easing::Bezier(0.22, 1., 0.36, 1.));
-
 pub(crate) fn render(
     app: &mut SettingsApp,
     entry: DeviceEntry,
     props: DeviceProperties,
     listen_access_denied: bool,
+    spatial_error: Option<String>,
     peak: f32,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
@@ -41,15 +39,6 @@ pub(crate) fn render(
     let subtitle = entry.subtitle(&mode);
     let id = entry.id.clone();
     let input = entry.input;
-
-    let entrance = anim::tween_from(
-        window,
-        cx,
-        SharedString::from(format!("device-props-enter-{id}")),
-        0.,
-        1.,
-        SLIDE,
-    );
 
     // Header: Back button + Windows properties link
     let back_id = ElementId::from("device-props-back");
@@ -84,7 +73,8 @@ pub(crate) fn render(
         back_ptr,
     )
     .on_click(cx.listener(|app, _, _, cx| {
-        app.sections.devices.close_properties();
+        let snapshot = app.snapshot.clone();
+        app.sections.devices.close_properties_with(&snapshot);
         cx.notify();
     }));
 
@@ -283,8 +273,9 @@ pub(crate) fn render(
             controls::track_pointer(
                 div()
                     .id(btn_id)
-                    .size(px(28.))
-                    .rounded(px(7.))
+                    .size(px(24.))
+                    .my(px(-2.))
+                    .rounded(px(6.))
                     .flex_shrink_0()
                     .flex()
                     .items_center()
@@ -299,7 +290,7 @@ pub(crate) fn render(
                     .child(
                         svg()
                             .path(icon("pen-linear"))
-                            .size(px(15.))
+                            .size(px(14.))
                             .text_color(lerp(p.muted, p.text, r_hover).hsla()),
                     ),
                 r_ptr,
@@ -322,6 +313,7 @@ pub(crate) fn render(
             .child(
                 div()
                     .text_size(px(16.))
+                    .line_height(px(20.))
                     .font_weight(FontWeight(700.))
                     .text_ellipsis()
                     .child(title),
@@ -377,12 +369,13 @@ pub(crate) fn render(
                 .flex_col()
                 .min_w_0()
                 .flex_1()
-                .gap(px(2.))
+                .gap(px(3.))
                 .child(title_block)
                 .when_some(subtitle, |this, sub| {
                     this.child(
                         div()
                             .text_size(px(12.5))
+                            .line_height(px(16.))
                             .text_color(p.muted.hsla())
                             .text_ellipsis()
                             .child(sub),
@@ -470,7 +463,19 @@ pub(crate) fn render(
                 let scalar = (val as f32 / 100.0).clamp(0.0, 1.0);
                 if audio_devices::set_device_volume(&vol_id_cb, scalar).is_ok() {
                     if let Some(open) = app.sections.devices.open_properties_mut() {
+                        let prev_master = open.props.volume;
                         open.props.volume = scalar;
+                        if open.props.channel_volumes.len() == 2 {
+                            if prev_master > 0.001 {
+                                let ratio = scalar / prev_master;
+                                for ch in &mut open.props.channel_volumes {
+                                    *ch = (*ch * ratio).clamp(0.0, 1.0);
+                                }
+                            } else {
+                                open.props.channel_volumes[0] = scalar;
+                                open.props.channel_volumes[1] = scalar;
+                            }
+                        }
                     }
                     cx.notify();
                 }
@@ -495,8 +500,9 @@ pub(crate) fn render(
 
         let mut levels_card = form::card(cx).row(meter_row).row(volume_row);
 
-        // Stereo balance (L / R)
-        if props.channel_count == 2 {
+        // Stereo balance (L / R) — shown only when the endpoint actually supports
+        // independent per-channel volume control.
+        if props.supports_balance {
             let bal_pct = (props.balance * 100.0).round().clamp(-100.0, 100.0);
             let bal_label = if bal_pct.abs() < 1.0 {
                 "Center".to_string()
@@ -704,7 +710,11 @@ pub(crate) fn render(
 
         if listen_access_denied {
             let win_id_notice = id.clone();
+            let btn_id = ElementId::from("props-listen-open-win");
+            let (b_ptr, b_hover, b_press) = controls::hover_tween(btn_id.clone(), window, cx);
             let notice = div()
+                .w_full()
+                .min_w_0()
                 .flex()
                 .items_center()
                 .justify_between()
@@ -712,28 +722,42 @@ pub(crate) fn render(
                 .px(px(form::ROW_PAD))
                 .py(px(12.))
                 .bg(mix_pct(p.danger, 10., TRANSPARENT).hsla())
+                .when(props.mic_boost.is_none() && props.mic_agc.is_none(), |this| {
+                    this.rounded_bl(px(14.)).rounded_br(px(14.))
+                })
                 .child(
                     div()
+                        .flex_1()
+                        .min_w_0()
                         .text_size(px(12.5))
+                        .line_height(relative(1.35))
                         .text_color(p.text.hsla())
                         .child("Windows denied permission to change Listen to this device without administrator rights."),
                 )
                 .child(
-                    div()
-                        .id("props-listen-open-win")
-                        .px(px(10.))
-                        .py(px(5.))
-                        .rounded(px(7.))
-                        .flex_shrink_0()
-                        .cursor_pointer()
-                        .bg(p.surface_3.hsla())
-                        .text_size(px(12.))
-                        .font_weight(FontWeight(600.))
-                        .text_color(p.text.hsla())
-                        .child("Open Windows properties")
-                        .on_click(cx.listener(move |_, _, _, _| {
-                            let _ = crate::open_audio_device_properties(&win_id_notice, true);
-                        })),
+                    controls::track_pointer(
+                        div()
+                            .id(btn_id)
+                            .px(px(10.))
+                            .py(px(6.))
+                            .rounded(px(8.))
+                            .flex_shrink_0()
+                            .cursor_pointer()
+                            .bg(lerp(
+                                lerp(p.surface_3, p.surface_color[4], b_hover),
+                                p.surface_2,
+                                b_press,
+                            )
+                            .hsla())
+                            .text_size(px(12.))
+                            .font_weight(FontWeight(600.))
+                            .text_color(p.text.hsla())
+                            .child("Open Windows properties"),
+                        b_ptr,
+                    )
+                    .on_click(cx.listener(move |_, _, _, _| {
+                        let _ = crate::open_audio_device_properties(&win_id_notice, true);
+                    })),
                 );
             input_card = input_card.row(notice);
         }
@@ -796,6 +820,139 @@ pub(crate) fn render(
             form::block()
                 .child(form::section_heading("Input", cx))
                 .child(input_card),
+        );
+    }
+
+    // 2.5 Enhancements & Spatial audio (when active)
+    if props.active && (props.enhancements_enabled.is_some() || props.spatial_supported) {
+        let mut fx_card = form::card(cx);
+
+        if let Some(enh_on) = props.enhancements_enabled {
+            let enh_dev_id = id.clone();
+            let enh_toggle = controls::toggle(
+                SharedString::from(format!("props-enhancements-{id}")),
+                enh_on,
+                window,
+                cx,
+                move |app, value, _, cx| {
+                    if audio_devices::set_device_enhancements(&enh_dev_id, value).is_ok() {
+                        if let Some(open) = app.sections.devices.open_properties_mut() {
+                            open.props.enhancements_enabled = Some(value);
+                        }
+                        cx.notify();
+                    }
+                },
+            );
+            fx_card = fx_card.row(form::setting_row(
+                "Audio enhancements",
+                Some("Enable system audio effects and APO processing for this device"),
+                enh_toggle,
+                cx,
+            ));
+        }
+
+        if props.spatial_supported && !props.spatial_options.is_empty() {
+            let spatial_opts: Vec<SelectOption> = props
+                .spatial_options
+                .iter()
+                .map(|o| {
+                    SelectOption::new(o.id.clone(), o.label.clone())
+                        .icon("headphones-round-sound-linear")
+                })
+                .collect();
+            let mut select_opts = SelectOptions::new(spatial_opts).row("Spatial sound");
+            select_opts.show_current_detail = false;
+            let spatial_dev_id = id.clone();
+            let spatial_select = controls::select(
+                format!("props-spatial-{id}"),
+                props.spatial_current.clone(),
+                select_opts,
+                app,
+                window,
+                cx,
+                move |app, value, _, cx| {
+                    match audio_devices::set_device_spatial_audio(&spatial_dev_id, &value) {
+                        Ok(()) => {
+                            if let Some(open) = app.sections.devices.open_properties_mut() {
+                                open.props.spatial_current = value.to_string();
+                                open.spatial_error = None;
+                            }
+                            cx.notify();
+                        }
+                        Err(msg) => {
+                            if let Some(open) = app.sections.devices.open_properties_mut() {
+                                open.spatial_error = Some(msg);
+                            }
+                            cx.notify();
+                        }
+                    }
+                },
+            );
+            fx_card = fx_card.row(spatial_select);
+
+            if let Some(err_msg) = spatial_error {
+                let win_id_spatial = id.clone();
+                let btn_id = ElementId::from("props-spatial-open-win");
+                let (b_ptr, b_hover, b_press) = controls::hover_tween(btn_id.clone(), window, cx);
+                let notice = div()
+                    .w_full()
+                    .min_w_0()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(px(12.))
+                    .px(px(form::ROW_PAD))
+                    .py(px(12.))
+                    .rounded_bl(px(14.))
+                    .rounded_br(px(14.))
+                    .bg(mix_pct(p.danger, 10., TRANSPARENT).hsla())
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(px(12.5))
+                            .line_height(relative(1.35))
+                            .text_color(p.text.hsla())
+                            .child(err_msg),
+                    )
+                    .child(
+                        controls::track_pointer(
+                            div()
+                                .id(btn_id)
+                                .px(px(10.))
+                                .py(px(6.))
+                                .rounded(px(8.))
+                                .flex_shrink_0()
+                                .cursor_pointer()
+                                .bg(lerp(
+                                    lerp(p.surface_3, p.surface_color[4], b_hover),
+                                    p.surface_2,
+                                    b_press,
+                                )
+                                .hsla())
+                                .text_size(px(12.))
+                                .font_weight(FontWeight(600.))
+                                .text_color(p.text.hsla())
+                                .child("Open Windows properties"),
+                            b_ptr,
+                        )
+                        .on_click(cx.listener(move |_, _, _, _| {
+                            let _ = crate::open_audio_device_properties(&win_id_spatial, false);
+                        })),
+                    );
+                fx_card = fx_card.row(notice);
+            }
+        }
+
+        let heading = if props.spatial_supported {
+            "Enhancements & Spatial sound"
+        } else {
+            "Enhancements"
+        };
+        sections_col = sections_col.child(
+            form::block()
+                .child(form::section_heading(heading, cx))
+                .child(fx_card),
         );
     }
 
@@ -941,9 +1098,6 @@ pub(crate) fn render(
     }
 
     div()
-        .relative()
-        .left(px(22. * (1. - entrance)))
-        .opacity(entrance)
         .flex()
         .flex_col()
         .max_w(px(720.))

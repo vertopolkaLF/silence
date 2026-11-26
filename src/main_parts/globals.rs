@@ -71,11 +71,17 @@ struct IPolicyConfigVtbl {
     SetProcessingPeriod: unsafe extern "system" fn(*mut c_void, PCWSTR, *const i64) -> HRESULT,
     GetShareMode: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut c_void) -> HRESULT,
     SetShareMode: unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void) -> HRESULT,
-    GetPropertyValue:
-        unsafe extern "system" fn(*mut c_void, PCWSTR, *const c_void, *mut PROPVARIANT) -> HRESULT,
+    GetPropertyValue: unsafe extern "system" fn(
+        *mut c_void,
+        PCWSTR,
+        i32,
+        *const c_void,
+        *mut PROPVARIANT,
+    ) -> HRESULT,
     SetPropertyValue: unsafe extern "system" fn(
         *mut c_void,
         PCWSTR,
+        i32,
         *const c_void,
         *const PROPVARIANT,
     ) -> HRESULT,

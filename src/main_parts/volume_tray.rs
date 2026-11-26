@@ -555,7 +555,7 @@ mod volume_mixer {
 
 /// Classic Sound control panel on the Playback tab.
 fn open_audio_devices() {
-    open_devices_window();
+    open_tray_audio_devices(false);
 }
 
 fn open_sound_settings() {
@@ -572,16 +572,18 @@ fn open_volume_settings_window() {
 }
 
 fn show_volume_tray_menu(hwnd: HWND) {
-    let (name_display, muted) = {
+    let (name_display, muted, ungroup_devices) = {
         let state = STATE.lock().unwrap();
         (
             state.advanced.audio_device_name_display.clone(),
             state.output_volume.muted,
+            state.advanced.ungroup_tray_devices,
         )
     };
     let output_devices = render_devices().unwrap_or_default();
     let title = format!("silence! - v{}", env!("CARGO_PKG_VERSION"));
     let title_w = wide(&title);
+    let output_w = wide("Default output");
     let mixer_w = wide("Volume mixer");
     let devices_w = wide("Audio devices");
     let sound_w = wide("Sound settings");
@@ -604,10 +606,41 @@ fn show_volume_tray_menu(hwnd: HWND) {
         );
         append_device_menu_item(menu, ID_MENU_VOLUME_MUTE, "Mute output", muted);
         let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
-        {
+        if ungroup_devices {
             let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
             commands.clear();
             append_output_device_menu(menu, &output_devices, &name_display, &mut commands);
+        } else {
+            let output_menu = CreatePopupMenu().unwrap_or_default();
+            {
+                let mut commands = TRAY_DEVICE_COMMANDS.lock().unwrap();
+                commands.clear();
+                append_output_device_menu(
+                    output_menu,
+                    &output_devices,
+                    &name_display,
+                    &mut commands,
+                );
+            }
+            let _ = AppendMenuW(
+                menu,
+                MENU_ITEM_FLAGS(0x0000_0010),
+                output_menu.0 as usize,
+                PCWSTR(output_w.as_ptr()),
+            );
+            if let Some(bitmap) = create_menu_svg_bitmap(
+                include_str!("../../assets/icons/volume-loud-linear.svg"),
+                icon_color,
+            ) {
+                let _ = SetMenuItemBitmaps(
+                    menu,
+                    3,
+                    MENU_ITEM_FLAGS(0x0000_0400),
+                    bitmap,
+                    bitmap,
+                );
+                bitmaps.push(bitmap);
+            }
         }
         let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(0x0000_0800), 0, PCWSTR(null()));
         let _ = AppendMenuW(

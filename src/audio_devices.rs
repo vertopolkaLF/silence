@@ -4,16 +4,20 @@
 
 use anyhow::{Context, Result};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     f32::consts::TAU,
     ffi::c_void,
     mem::size_of,
     ptr::null_mut,
-    sync::Mutex,
+    sync::{Mutex, OnceLock},
     thread,
     time::Duration,
 };
 use windows::{
+    Media::Audio::{
+        SetDefaultSpatialAudioFormatStatus, SpatialAudioDeviceConfiguration,
+        SpatialAudioFormatSubtype,
+    },
     Win32::{
         Foundation::{E_ACCESSDENIED, S_OK},
         Media::Audio::{
@@ -32,7 +36,7 @@ use windows::{
         },
         UI::Shell::PropertiesSystem::{IPropertyStore, PROPERTYKEY},
     },
-    core::{GUID, Interface, PCWSTR, PROPVARIANT},
+    core::{GUID, HSTRING, Interface, PCWSTR, PROPVARIANT},
 };
 
 const WAVE_FORMAT_IEEE_FLOAT_TAG: u16 = 3;
@@ -62,6 +66,17 @@ const PKEY_LISTEN_ENABLED: PROPERTYKEY = PROPERTYKEY {
     fmtid: GUID::from_u128(0x24dbb0fc_9311_4b3d_9cf0_18ff155639d4),
     pid: 1,
 };
+
+// Audio Enhancements (SysFx): 0 = enabled, 1 = disabled (stored in FxProperties).
+const PKEY_AUDIO_ENDPOINT_DISABLE_SYSFX: PROPERTYKEY = PROPERTYKEY {
+    fmtid: GUID::from_u128(0x1da5d803_d492_4edd_8c23_e0c0ffee7f0e),
+    pid: 5,
+};
+
+// APO registration property keys in FxProperties (`PKEY_FX_*` / `PKEY_CompositeFX_*`).
+// A device only actually supports Audio Enhancements when at least one APO CLSID is registered.
+const FX_APO_FMTID: GUID = GUID::from_u128(0xd04e05a6_594b_4fb6_a80d_01af5eed7d1d);
+const FX_APO_PIDS: &[u32] = &[1, 2, 3, 5, 6, 7, 13, 14, 15];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeviceState {
@@ -248,6 +263,12 @@ pub struct MicBoostInfo {
     pub current_db: f32,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpatialAudioOption {
+    pub id: String,
+    pub label: String,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DeviceProperties {
     pub id: String,
@@ -257,12 +278,17 @@ pub struct DeviceProperties {
     pub muted: bool,
     pub channel_count: u32,
     pub channel_volumes: Vec<f32>,
+    pub supports_balance: bool,
     /// Stereo balance in `-1.0..=1.0` (`-1.0` = full left, `0.0` = center, `1.0` = full right).
     pub balance: f32,
     pub current_format: Option<AudioFormatOption>,
     pub supported_formats: Vec<AudioFormatOption>,
     pub allow_exclusive: Option<bool>,
     pub exclusive_priority: Option<bool>,
+    pub enhancements_enabled: Option<bool>,
+    pub spatial_supported: bool,
+    pub spatial_current: String,
+    pub spatial_options: Vec<SpatialAudioOption>,
     pub listen_enabled: Option<bool>,
     pub listen_target_id: String,
     pub mic_boost: Option<MicBoostInfo>,
@@ -389,6 +415,96 @@ pub fn set_device_enabled(device_id: &str, enabled: bool) -> Result<()> {
     crate::set_endpoint_visibility(device_id, enabled)
 }
 
+/// Keeps lightweight silent WASAPI capture streams open for visible input
+/// devices so `IAudioMeterInformation::GetPeakValue()` reports live levels
+/// even when no other app is recording from the microphone.
+/// Pass an empty slice to stop and release all capture streams immediately.
+pub fn sync_capture_meter_streams(input_ids: &[String]) {
+    static TX: OnceLock<flume::Sender<Vec<String>>> = OnceLock::new();
+    static LAST: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    {
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if *last == input_ids {
+            return;
+        }
+        *last = input_ids.to_vec();
+    }
+
+    let tx = TX.get_or_init(|| {
+        let (tx, rx) = flume::unbounded::<Vec<String>>();
+        thread::spawn(move || capture_meter_worker(rx));
+        tx
+    });
+    let _ = tx.send(input_ids.to_vec());
+}
+
+fn capture_meter_worker(rx: flume::Receiver<Vec<String>>) {
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+    }
+    let mut active: HashMap<String, IAudioClient> = HashMap::new();
+    while let Ok(mut desired) = rx.recv() {
+        // Coalesce rapid updates to the latest desired set.
+        while let Ok(newer) = rx.try_recv() {
+            desired = newer;
+        }
+        let wanted: HashSet<&str> = desired.iter().map(String::as_str).collect();
+        active.retain(|id, client| {
+            if wanted.contains(id.as_str()) {
+                true
+            } else {
+                unsafe {
+                    let _ = client.Stop();
+                }
+                false
+            }
+        });
+        for id in desired {
+            if active.contains_key(&id) {
+                continue;
+            }
+            if let Ok(client) = start_silent_capture_stream(&id) {
+                active.insert(id, client);
+            }
+        }
+    }
+    for (_, client) in active {
+        unsafe {
+            let _ = client.Stop();
+        }
+    }
+}
+
+fn start_silent_capture_stream(device_id: &str) -> Result<IAudioClient> {
+    let id_w = crate::wide(device_id);
+    unsafe {
+        let enumerator = crate::audio_device_enumerator()?;
+        let device = enumerator
+            .GetDevice(PCWSTR(id_w.as_ptr()))
+            .context("get capture device for meter")?;
+        if device.GetState().ok() != Some(DEVICE_STATE_ACTIVE) {
+            anyhow::bail!("capture device not active");
+        }
+        let client: IAudioClient = device
+            .Activate(CLSCTX_ALL, None)
+            .context("activate capture audio client")?;
+        let mix_ptr = client.GetMixFormat().context("get capture mix format")?;
+        let init_res = client.Initialize(
+            AUDCLNT_SHAREMODE_SHARED,
+            0,
+            1_000_000, // 100ms buffer
+            0,
+            mix_ptr,
+            None,
+        );
+        CoTaskMemFree(Some(mix_ptr as *const c_void));
+        init_res.context("initialize capture meter stream")?;
+        client.Start().context("start capture meter stream")?;
+        Ok(client)
+    }
+}
+
 /// Samples current peak audio level (`0.0..=1.0`) for each requested active
 /// device ID. Safe to call from a background polling task.
 pub fn sample_peak_levels(ids: &[String]) -> HashMap<String, f32> {
@@ -429,7 +545,7 @@ pub fn read_device_properties(device_id: &str, input: bool) -> Result<DeviceProp
             .context("get audio device")?;
         let active = device.GetState().ok() == Some(DEVICE_STATE_ACTIVE);
 
-        let (volume, muted, channel_count, channel_volumes, balance) = if active {
+        let (volume, muted, channel_count, channel_volumes, supports_balance, balance) = if active {
             match device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) {
                 Ok(ep_vol) => {
                     let master = ep_vol.GetMasterVolumeLevelScalar().unwrap_or(1.0);
@@ -439,13 +555,14 @@ pub fn read_device_properties(device_id: &str, input: bool) -> Result<DeviceProp
                     for ch in 0..count {
                         channels.push(ep_vol.GetChannelVolumeLevelScalar(ch).unwrap_or(master));
                     }
+                    let supports_bal = !input && endpoint_supports_balance(&device, &ep_vol, count);
                     let balance = compute_stereo_balance(&channels);
-                    (master, muted, count, channels, balance)
+                    (master, muted, count, channels, supports_bal, balance)
                 }
-                Err(_) => (1.0, false, 0, Vec::new(), 0.0),
+                Err(_) => (1.0, false, 0, Vec::new(), false, 0.0),
             }
         } else {
-            (1.0, false, 0, Vec::new(), 0.0)
+            (1.0, false, 0, Vec::new(), false, 0.0)
         };
 
         let current_format = read_device_format(device_id);
@@ -487,6 +604,18 @@ pub fn read_device_properties(device_id: &str, input: bool) -> Result<DeviceProp
             (None, None)
         };
 
+        let enhancements_enabled = if active {
+            read_device_enhancements(device_id)
+        } else {
+            None
+        };
+
+        let (spatial_supported, spatial_current, spatial_options) = if !input && active {
+            read_device_spatial_audio(device_id)
+        } else {
+            (false, String::new(), Vec::new())
+        };
+
         Ok(DeviceProperties {
             id: device_id.to_string(),
             input,
@@ -495,11 +624,16 @@ pub fn read_device_properties(device_id: &str, input: bool) -> Result<DeviceProp
             muted,
             channel_count,
             channel_volumes,
+            supports_balance,
             balance,
             current_format,
             supported_formats,
             allow_exclusive,
             exclusive_priority,
+            enhancements_enabled,
+            spatial_supported,
+            spatial_current,
+            spatial_options,
             listen_enabled,
             listen_target_id,
             mic_boost,
@@ -673,6 +807,214 @@ pub fn set_device_mic_agc(device_id: &str, enabled: bool) -> Result<()> {
         agc.SetEnabled(enabled, None).context("set mic AGC")?;
     }
     Ok(())
+}
+
+fn read_device_enhancements(device_id: &str) -> Option<bool> {
+    let id_w = crate::wide(device_id);
+    unsafe {
+        let policy: crate::IPolicyConfig =
+            CoCreateInstance(&crate::CLSID_POLICY_CONFIG_CLIENT, None, CLSCTX_ALL).ok()?;
+        let has_apo = FX_APO_PIDS.iter().any(|&pid| {
+            let key = PROPERTYKEY {
+                fmtid: FX_APO_FMTID,
+                pid,
+            };
+            let mut pv = PROPVARIANT::new();
+            let hr = (Interface::vtable(&policy).GetPropertyValue)(
+                Interface::as_raw(&policy),
+                PCWSTR(id_w.as_ptr()),
+                1, // bFxStore = TRUE
+                &key as *const PROPERTYKEY as *const c_void,
+                &mut pv,
+            );
+            hr.is_ok() && !pv.is_empty()
+        });
+        if !has_apo {
+            return None;
+        }
+        let mut pv = PROPVARIANT::new();
+        let hr = (Interface::vtable(&policy).GetPropertyValue)(
+            Interface::as_raw(&policy),
+            PCWSTR(id_w.as_ptr()),
+            1, // bFxStore = TRUE
+            &PKEY_AUDIO_ENDPOINT_DISABLE_SYSFX as *const PROPERTYKEY as *const c_void,
+            &mut pv,
+        );
+        if hr.is_err() {
+            return None;
+        }
+        if pv.is_empty() {
+            return Some(true);
+        }
+        let disabled = u32::try_from(&pv).unwrap_or(0) != 0;
+        Some(!disabled)
+    }
+}
+
+pub fn set_device_enhancements(device_id: &str, enabled: bool) -> Result<()> {
+    let id_w = crate::wide(device_id);
+    let pv = PROPVARIANT::from(u32::from(!enabled));
+    unsafe {
+        let policy: crate::IPolicyConfig =
+            CoCreateInstance(&crate::CLSID_POLICY_CONFIG_CLIENT, None, CLSCTX_ALL)
+                .context("create policy config client")?;
+        (Interface::vtable(&policy).SetPropertyValue)(
+            Interface::as_raw(&policy),
+            PCWSTR(id_w.as_ptr()),
+            1, // bFxStore = TRUE
+            &PKEY_AUDIO_ENDPOINT_DISABLE_SYSFX as *const PROPERTYKEY as *const c_void,
+            &pv,
+        )
+        .ok()
+        .context("set audio enhancements")?;
+    }
+    Ok(())
+}
+
+fn winrt_render_device_id(mmdevice_id: &str) -> HSTRING {
+    HSTRING::from(format!(
+        r"\\?\SWD#MMDEVAPI#{mmdevice_id}#{{e6327cad-dcec-4949-ae8a-991e976a79d2}}"
+    ))
+}
+
+fn known_spatial_subtypes() -> Vec<(String, &'static str)> {
+    let candidates: [(windows::core::Result<HSTRING>, &'static str); 7] = [
+        (
+            SpatialAudioFormatSubtype::WindowsSonic(),
+            "Windows Sonic for Headphones",
+        ),
+        (
+            SpatialAudioFormatSubtype::DolbyAtmosForHeadphones(),
+            "Dolby Atmos for Headphones",
+        ),
+        (
+            SpatialAudioFormatSubtype::DolbyAtmosForHomeTheater(),
+            "Dolby Atmos for Home Theater",
+        ),
+        (
+            SpatialAudioFormatSubtype::DolbyAtmosForSpeakers(),
+            "Dolby Atmos for built-in speakers",
+        ),
+        (
+            SpatialAudioFormatSubtype::DTSHeadphoneX(),
+            "DTS Headphone:X",
+        ),
+        (SpatialAudioFormatSubtype::DTSXUltra(), "DTS:X Ultra"),
+        (
+            SpatialAudioFormatSubtype::DTSXForHomeTheater(),
+            "DTS:X for Home Theater",
+        ),
+    ];
+    candidates
+        .into_iter()
+        .filter_map(|(res, label)| {
+            let id = res.ok()?.to_string();
+            if id.is_empty() { None } else { Some((id, label)) }
+        })
+        .collect()
+}
+
+const SPATIAL_OFF_GUID: &str = "{00000000-0000-0000-0000-000000000000}";
+
+fn is_spatial_off(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case(SPATIAL_OFF_GUID)
+        || trimmed.eq_ignore_ascii_case("00000000-0000-0000-0000-000000000000")
+}
+
+fn read_device_spatial_audio(device_id: &str) -> (bool, String, Vec<SpatialAudioOption>) {
+    let winrt_id = winrt_render_device_id(device_id);
+    let Ok(cfg) = SpatialAudioDeviceConfiguration::GetForDeviceId(&winrt_id) else {
+        return (false, String::new(), Vec::new());
+    };
+    let supported = cfg.IsSpatialAudioSupported().unwrap_or(false);
+    if !supported {
+        return (false, String::new(), Vec::new());
+    }
+    let active_raw = cfg
+        .ActiveSpatialAudioFormat()
+        .ok()
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+    let active = if is_spatial_off(&active_raw) {
+        String::new()
+    } else {
+        active_raw
+    };
+
+    let sonic_id = SpatialAudioFormatSubtype::WindowsSonic()
+        .ok()
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
+    let mut options = vec![SpatialAudioOption {
+        id: String::new(),
+        label: "Off".to_string(),
+    }];
+    for (subtype_id, label) in known_spatial_subtypes() {
+        let is_active = !active.is_empty() && active.eq_ignore_ascii_case(&subtype_id);
+        let is_sonic = !sonic_id.is_empty() && subtype_id.eq_ignore_ascii_case(&sonic_id);
+        if is_active || (is_sonic && cfg.IsSpatialAudioFormatSupported(&HSTRING::from(&subtype_id)).unwrap_or(false)) {
+            options.push(SpatialAudioOption {
+                id: subtype_id,
+                label: label.to_string(),
+            });
+        }
+    }
+    if !active.is_empty()
+        && !options
+            .iter()
+            .any(|o| o.id.eq_ignore_ascii_case(&active))
+    {
+        options.push(SpatialAudioOption {
+            id: active.clone(),
+            label: "Active".to_string(),
+        });
+    }
+    let current = options
+        .iter()
+        .find(|o| o.id.eq_ignore_ascii_case(&active))
+        .map(|o| o.id.clone())
+        .unwrap_or_default();
+    (true, current, options)
+}
+
+pub fn set_device_spatial_audio(
+    device_id: &str,
+    subtype: &str,
+) -> std::result::Result<(), String> {
+    let winrt_id = winrt_render_device_id(device_id);
+    let cfg = SpatialAudioDeviceConfiguration::GetForDeviceId(&winrt_id)
+        .map_err(|_| "Spatial audio is unavailable for this device.".to_string())?;
+    let wire_subtype = if is_spatial_off(subtype) {
+        SPATIAL_OFF_GUID
+    } else {
+        subtype
+    };
+    let op = cfg
+        .SetDefaultSpatialAudioFormatAsync(&HSTRING::from(wire_subtype))
+        .map_err(|_| "Windows rejected the spatial audio change.".to_string())?;
+    let result = op
+        .get()
+        .map_err(|_| "Windows rejected the spatial audio change.".to_string())?;
+    match result.Status().unwrap_or(SetDefaultSpatialAudioFormatStatus::UnknownError) {
+        SetDefaultSpatialAudioFormatStatus::Succeeded => Ok(()),
+        SetDefaultSpatialAudioFormatStatus::AccessDenied => Err(
+            "Windows denied permission to change Spatial sound from this app. Use Windows properties."
+                .to_string(),
+        ),
+        SetDefaultSpatialAudioFormatStatus::LicenseExpired => {
+            Err("The license for this spatial audio format has expired.".to_string())
+        }
+        SetDefaultSpatialAudioFormatStatus::LicenseNotValidForAudioEndpoint => {
+            Err("This spatial audio license is not valid for this device.".to_string())
+        }
+        SetDefaultSpatialAudioFormatStatus::NotSupportedOnAudioEndpoint => {
+            Err("This spatial audio format is not supported on this device.".to_string())
+        }
+        _ => Err("Could not switch spatial audio format on this device.".to_string()),
+    }
 }
 
 static TEST_TONE_LOCK: Mutex<()> = Mutex::new(());
@@ -1101,6 +1443,71 @@ unsafe fn find_mic_agc_control(device: &IMMDevice) -> Option<IAudioAutoGainContr
         }
     }
     None
+}
+
+const ENDPOINT_HARDWARE_SUPPORT_VOLUME: u32 = 0x0000_0001;
+
+/// True when a stereo render endpoint actually supports independent L/R channel
+/// attenuation (software-mixed endpoints always do; hardware-volume endpoints
+/// like Bluetooth AVRCP only do when their topology `IAudioVolumeLevel` node
+/// exposes >= 2 channels).
+unsafe fn endpoint_supports_balance(
+    device: &IMMDevice,
+    ep_vol: &IAudioEndpointVolume,
+    ep_channels: u32,
+) -> bool {
+    if ep_channels != 2 {
+        return false;
+    }
+    let hw_support = unsafe { ep_vol.QueryHardwareSupport().unwrap_or(0) };
+    if (hw_support & ENDPOINT_HARDWARE_SUPPORT_VOLUME) == 0 {
+        return true;
+    }
+    let parts = unsafe { walk_outgoing_parts(device) };
+    for part in parts {
+        if let Some(vol) = unsafe { activate_part::<IAudioVolumeLevel>(&part) } {
+            if let Ok(ch) = unsafe { vol.GetChannelCount() } {
+                return ch >= 2;
+            }
+        }
+    }
+    false
+}
+
+unsafe fn walk_outgoing_parts(device: &IMMDevice) -> Vec<IPart> {
+    let Ok(topology) = (unsafe { device.Activate::<IDeviceTopology>(CLSCTX_ALL, None) }) else {
+        return Vec::new();
+    };
+    let Ok(connector) = (unsafe { topology.GetConnector(0) }) else {
+        return Vec::new();
+    };
+    let Ok(connected) = (unsafe { connector.GetConnectedTo() }) else {
+        return Vec::new();
+    };
+    let Ok(root_part) = connected.cast::<IPart>() else {
+        return Vec::new();
+    };
+
+    let mut result = Vec::new();
+    let mut stack = vec![root_part];
+    let mut visited = 0usize;
+    while let Some(part) = stack.pop() {
+        if visited > 64 {
+            break;
+        }
+        visited += 1;
+        if let Ok(outgoing) = unsafe { part.EnumPartsOutgoing() } {
+            if let Ok(count) = unsafe { outgoing.GetCount() } {
+                for i in 0..count {
+                    if let Ok(next) = unsafe { outgoing.GetPart(i) } {
+                        stack.push(next);
+                    }
+                }
+            }
+        }
+        result.push(part);
+    }
+    result
 }
 
 unsafe fn walk_incoming_parts(device: &IMMDevice) -> Vec<IPart> {

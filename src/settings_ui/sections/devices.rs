@@ -18,7 +18,15 @@ use crate::settings_ui::{
     theme::Palette,
 };
 use gpui::{prelude::*, *};
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::HashMap,
+    rc::Rc,
+    time::{Duration, Instant},
+};
+
+const VIEW_SLIDE_DURATION: Duration = Duration::from_millis(240);
+const TAB_SLIDE_DURATION: Duration = Duration::from_millis(210);
+const SLIDE_EASE: Easing = Easing::Bezier(0.22, 1., 0.36, 1.);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum DeviceFlowTab {
@@ -48,6 +56,7 @@ pub(crate) struct OpenDevice {
     pub input: bool,
     pub props: DeviceProperties,
     pub listen_access_denied: bool,
+    pub spatial_error: Option<String>,
     pub renaming: bool,
     pub rename_draft: String,
     pub rename_input: Option<Entity<TextInput>>,
@@ -61,12 +70,32 @@ struct ContextMenu {
     position: Point<Pixels>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ViewSlideDirection {
+    Enter,
+    Exit,
+}
+
+struct ViewTransition {
+    direction: ViewSlideDirection,
+    started_at: Instant,
+    outgoing_props: Option<(DeviceEntry, DeviceProperties, bool, Option<String>, f32)>,
+}
+
+struct TabSlide {
+    from: DeviceFlowTab,
+    to: DeviceFlowTab,
+    started_at: Instant,
+}
+
 #[derive(Default)]
 pub(crate) struct State {
     active_tab: DeviceFlowTab,
+    tab_slide: Option<TabSlide>,
     rows: HashMap<String, Rename>,
     peaks: HashMap<String, f32>,
     open_device: Option<OpenDevice>,
+    view_transition: Option<ViewTransition>,
     context_menu: Option<ContextMenu>,
 }
 
@@ -87,17 +116,53 @@ impl State {
                 input,
                 props,
                 listen_access_denied: false,
+                spatial_error: None,
                 renaming: false,
                 rename_draft: String::new(),
                 rename_input: None,
                 rename_focus_pending: false,
                 rename_generation: 0,
             });
+            self.view_transition = Some(ViewTransition {
+                direction: ViewSlideDirection::Enter,
+                started_at: Instant::now(),
+                outgoing_props: None,
+            });
+        }
+    }
+
+    pub(crate) fn close_properties_with(&mut self, snapshot: &SettingsSnapshot) {
+        let outgoing = self.open_device.take().and_then(|o| {
+            let entry = if o.input {
+                snapshot
+                    .all_input_devices
+                    .iter()
+                    .find(|d| d.id == o.id)
+                    .cloned()
+            } else {
+                snapshot
+                    .all_output_devices
+                    .iter()
+                    .find(|d| d.id == o.id)
+                    .cloned()
+            }?;
+            let peak = self.peaks.get(&o.id).copied().unwrap_or(0.0);
+            Some((entry, o.props, o.listen_access_denied, o.spatial_error, peak))
+        });
+        if outgoing.is_some() {
+            self.view_transition = Some(ViewTransition {
+                direction: ViewSlideDirection::Exit,
+                started_at: Instant::now(),
+                outgoing_props: outgoing,
+            });
+        } else {
+            self.view_transition = None;
         }
     }
 
     pub(crate) fn close_properties(&mut self) {
         self.open_device = None;
+        self.view_transition = None;
     }
 
     pub(crate) fn refresh_open_properties(&mut self) {
@@ -109,23 +174,35 @@ impl State {
         }
     }
 
-    /// Returns active device IDs currently visible on screen for peak metering.
-    pub(crate) fn metered_device_ids(&self, snapshot: &SettingsSnapshot) -> Vec<String> {
+    /// Returns `(all_metered_ids, active_input_ids_needing_capture_stream)` for
+    /// the devices currently visible on screen.
+    pub(crate) fn metered_device_ids(
+        &self,
+        snapshot: &SettingsSnapshot,
+    ) -> (Vec<String>, Vec<String>) {
         if let Some(open) = &self.open_device {
-            return if open.props.active {
-                vec![open.id.clone()]
-            } else {
-                Vec::new()
-            };
+            if !open.props.active {
+                return (Vec::new(), Vec::new());
+            }
+            let ids = vec![open.id.clone()];
+            let inputs = if open.input { ids.clone() } else { Vec::new() };
+            return (ids, inputs);
         }
         let list = match self.active_tab {
             DeviceFlowTab::Output => &snapshot.all_output_devices,
             DeviceFlowTab::Input => &snapshot.all_input_devices,
         };
-        list.iter()
+        let ids: Vec<String> = list
+            .iter()
             .filter(|d| d.state.is_active())
             .map(|d| d.id.clone())
-            .collect()
+            .collect();
+        let inputs = if self.active_tab == DeviceFlowTab::Input {
+            ids.clone()
+        } else {
+            Vec::new()
+        };
+        (ids, inputs)
     }
 
     /// Smoothly blends sampled peaks (instant attack, gentle decay). Returns
@@ -164,49 +241,152 @@ pub(crate) fn render(
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
 ) -> Vec<AnyElement> {
-    // If a device properties sub-view is open, render it directly.
-    if let Some((open_id, open_input, props, listen_denied)) = app
+    // Advance bidirectional List <-> Properties slide transition.
+    let view_anim = if let Some(vt) = app.sections.devices.view_transition.as_ref() {
+        let raw = (vt.started_at.elapsed().as_secs_f32() / VIEW_SLIDE_DURATION.as_secs_f32())
+            .clamp(0., 1.);
+        if raw < 1. {
+            window.request_animation_frame();
+            Some((vt.direction, SLIDE_EASE.apply(raw), vt.outgoing_props.clone()))
+        } else {
+            app.sections.devices.view_transition = None;
+            None
+        }
+    } else {
+        None
+    };
+
+    // Resolve open device properties if present.
+    let open_props = app
         .sections
         .devices
         .open_device
         .as_ref()
-        .map(|o| (o.id.clone(), o.input, o.props.clone(), o.listen_access_denied))
-    {
-        let entry = if open_input {
-            app.snapshot
-                .all_input_devices
-                .iter()
-                .find(|d| d.id == open_id)
-                .cloned()
-        } else {
-            app.snapshot
-                .all_output_devices
-                .iter()
-                .find(|d| d.id == open_id)
-                .cloned()
-        };
-        if let Some(entry) = entry {
-            let peak = app
-                .sections
-                .devices
-                .peaks
-                .get(&open_id)
-                .copied()
-                .unwrap_or(0.0);
-            return vec![super::devices_properties::render(
-                app,
-                entry,
-                props,
-                listen_denied,
-                peak,
-                window,
-                cx,
-            )];
-        } else {
-            app.sections.devices.close_properties();
+        .map(|o| {
+            (
+                o.id.clone(),
+                o.input,
+                o.props.clone(),
+                o.listen_access_denied,
+                o.spatial_error.clone(),
+            )
+        })
+        .and_then(|(open_id, open_input, props, listen_denied, spatial_err)| {
+            let entry = if open_input {
+                app.snapshot
+                    .all_input_devices
+                    .iter()
+                    .find(|d| d.id == open_id)
+                    .cloned()
+            } else {
+                app.snapshot
+                    .all_output_devices
+                    .iter()
+                    .find(|d| d.id == open_id)
+                    .cloned()
+            };
+            if let Some(entry) = entry {
+                let peak = app
+                    .sections
+                    .devices
+                    .peaks
+                    .get(&open_id)
+                    .copied()
+                    .unwrap_or(0.0);
+                Some((entry, props, listen_denied, spatial_err, peak))
+            } else {
+                app.sections.devices.close_properties();
+                None
+            }
+        });
+
+    if let Some((entry, props, listen_denied, spatial_err, peak)) = open_props {
+        let props_el = super::devices_properties::render(
+            app,
+            entry,
+            props,
+            listen_denied,
+            spatial_err,
+            peak,
+            window,
+            cx,
+        );
+        if let Some((ViewSlideDirection::Enter, eased, _)) = view_anim {
+            let list_el = render_list_view(app, window, cx);
+            return vec![
+                div()
+                    .relative()
+                    .max_w(px(720.))
+                    .w_full()
+                    .child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left(px(-32. * eased))
+                            .w_full()
+                            .opacity(1. - eased)
+                            .child(list_el),
+                    )
+                    .child(
+                        div()
+                            .relative()
+                            .left(px(40. * (1. - eased)))
+                            .opacity(eased)
+                            .child(props_el),
+                    )
+                    .into_any_element(),
+            ];
         }
+        return vec![props_el];
     }
 
+    let list_el = render_list_view(app, window, cx);
+    if let Some((ViewSlideDirection::Exit, eased, Some((entry, props, listen_denied, spatial_err, peak)))) =
+        view_anim
+    {
+        let outgoing_el = super::devices_properties::render(
+            app,
+            entry,
+            props,
+            listen_denied,
+            spatial_err,
+            peak,
+            window,
+            cx,
+        );
+        return vec![
+            div()
+                .relative()
+                .max_w(px(720.))
+                .w_full()
+                .child(
+                    div()
+                        .relative()
+                        .left(px(-32. * (1. - eased)))
+                        .opacity(eased)
+                        .child(list_el),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left(px(40. * eased))
+                        .w_full()
+                        .opacity(1. - eased)
+                        .child(outgoing_el),
+                )
+                .into_any_element(),
+        ];
+    }
+
+    vec![list_el]
+}
+
+fn render_list_view(
+    app: &mut SettingsApp,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+) -> AnyElement {
     let mode = app
         .snapshot
         .config
@@ -217,9 +397,19 @@ pub(crate) fn render(
     let split_comm = app.snapshot.config.advanced.separate_communication_device;
     let active_tab = app.sections.devices.active_tab;
 
-    let current_devices: Vec<DeviceEntry> = match active_tab {
-        DeviceFlowTab::Output => app.snapshot.all_output_devices.clone(),
-        DeviceFlowTab::Input => app.snapshot.all_input_devices.clone(),
+    // Advance Output <-> Input slide transition.
+    let tab_anim = if let Some(ts) = app.sections.devices.tab_slide.as_ref() {
+        let raw = (ts.started_at.elapsed().as_secs_f32() / TAB_SLIDE_DURATION.as_secs_f32())
+            .clamp(0., 1.);
+        if raw < 1. {
+            window.request_animation_frame();
+            Some((ts.from, ts.to, SLIDE_EASE.apply(raw)))
+        } else {
+            app.sections.devices.tab_slide = None;
+            None
+        }
+    } else {
+        None
     };
 
     // Unplugged/hidden rows lose their inline rename editor.
@@ -242,8 +432,14 @@ pub(crate) fn render(
         cx,
         |app, value, _, cx| {
             let next = DeviceFlowTab::from_str(&value);
-            if app.sections.devices.active_tab != next {
+            let prev = app.sections.devices.active_tab;
+            if prev != next {
                 app.sections.devices.active_tab = next;
+                app.sections.devices.tab_slide = Some(TabSlide {
+                    from: prev,
+                    to: next,
+                    started_at: Instant::now(),
+                });
                 app.sections.devices.context_menu = None;
                 cx.notify();
             }
@@ -251,12 +447,13 @@ pub(crate) fn render(
     )
     .mb(px(14.));
 
-    let empty_text = match active_tab {
-        DeviceFlowTab::Output => "No output devices found",
-        DeviceFlowTab::Input => "No input devices found",
+    let devices_for = |tab: DeviceFlowTab, snap: &SettingsSnapshot| match tab {
+        DeviceFlowTab::Output => (snap.all_output_devices.clone(), "No output devices found"),
+        DeviceFlowTab::Input => (snap.all_input_devices.clone(), "No input devices found"),
     };
 
-    let list_block = device_list(
+    let (current_devices, empty_text) = devices_for(active_tab, &app.snapshot);
+    let incoming_list = device_list(
         empty_text,
         current_devices,
         &mode,
@@ -266,6 +463,92 @@ pub(crate) fn render(
         window,
         cx,
     );
+
+    let measured_h_state =
+        window.use_keyed_state("devices-list-height-measure", cx, |_, _| 0f32);
+    let measured_h = *measured_h_state.read(cx);
+    let measured_h_cb = measured_h_state.clone();
+
+    let incoming_measured = div()
+        .w_full()
+        .child(incoming_list.w_full().flex_shrink_0())
+        .on_children_prepainted(move |bounds, _, cx| {
+            if let Some(b) = bounds.first() {
+                let h = b.size.height.as_f32();
+                measured_h_cb.update(cx, |old, cx| {
+                    if (*old - h).abs() > 0.5 {
+                        *old = h;
+                        cx.notify();
+                    }
+                });
+            }
+        });
+
+    let inner_list: AnyElement = if let Some((from_tab, to_tab, eased)) = tab_anim
+        && from_tab != to_tab
+    {
+        let (out_devices, out_empty) = devices_for(from_tab, &app.snapshot);
+        let outgoing_list = device_list(
+            out_empty,
+            out_devices,
+            &mode,
+            rename_allowed,
+            split_comm,
+            app,
+            window,
+            cx,
+        );
+        // Output (left) -> Input (right): outgoing moves left, incoming enters from right.
+        let dir = if to_tab == DeviceFlowTab::Input { 1. } else { -1. };
+        div()
+            .relative()
+            .w_full()
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left(px(-28. * dir * eased))
+                    .w_full()
+                    .opacity(1. - eased)
+                    .child(outgoing_list),
+            )
+            .child(
+                div()
+                    .relative()
+                    .left(px(28. * dir * (1. - eased)))
+                    .opacity(eased)
+                    .child(incoming_measured),
+            )
+            .into_any_element()
+    } else {
+        incoming_measured.into_any_element()
+    };
+
+    let list_block: AnyElement = if measured_h > 0.5 {
+        let animated_h = anim::tween(
+            window,
+            cx,
+            "devices-list-height-anim",
+            measured_h,
+            Transition::new(220, SLIDE_EASE),
+        );
+        let animating = (animated_h - measured_h).abs() > 0.5 || tab_anim.is_some();
+        div()
+            .relative()
+            .w_full()
+            .flex_shrink_0()
+            .h(px(animated_h))
+            .when(animating, |d| d.overflow_hidden())
+            .child(inner_list)
+            .into_any_element()
+    } else {
+        div()
+            .relative()
+            .w_full()
+            .flex_shrink_0()
+            .child(inner_list)
+            .into_any_element()
+    };
 
     // Options card
     let mut name_options = SelectOptions::new(vec![
@@ -334,59 +617,126 @@ pub(crate) fn render(
         },
     );
 
+    let tray_target = app.snapshot.config.advanced.tray_devices_target.clone();
+    let mut tray_target_options = SelectOptions::new(vec![
+        SelectOption::new(crate::TRAY_DEVICES_TARGET_APP, "silence! Devices")
+            .icon("headphones-round-sound-linear"),
+        SelectOption::new(crate::TRAY_DEVICES_TARGET_WINDOWS, "Windows Sound")
+            .icon("microsoft-windows"),
+    ])
+    .row("Tray sound devices opens");
+    tray_target_options.show_current_detail = false;
+    let tray_target_select = controls::select(
+        "devices-tray-target",
+        tray_target,
+        tray_target_options,
+        app,
+        window,
+        cx,
+        |app, value, _, cx| {
+            app.update_config(cx, |c| {
+                c.advanced.tray_devices_target = value.to_string()
+            })
+        },
+    );
+
+    let p = app.palette;
+    let win_btn_id = ElementId::from("devices-open-windows-sound");
+    let (win_ptr, win_hover, win_press) = controls::hover_tween(win_btn_id.clone(), window, cx);
+    let win_input = active_tab == DeviceFlowTab::Input;
+    let win_sound_btn = controls::track_pointer(
+        div()
+            .id(win_btn_id)
+            .h(px(32.))
+            .px(px(11.))
+            .rounded(px(8.))
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .cursor_pointer()
+            .bg(lerp(
+                lerp(mix_pct(p.text, 5.5, TRANSPARENT), p.surface_3, win_hover),
+                p.surface_2,
+                win_press,
+            )
+            .hsla())
+            .text_size(px(12.5))
+            .font_weight(FontWeight(600.))
+            .text_color(lerp(p.muted, p.text, win_hover).hsla())
+            .child("Windows sound")
+            .child(
+                svg()
+                    .path(icon("square-arrow-right-up-linear"))
+                    .size(px(14.))
+                    .text_color(lerp(p.muted, p.text, win_hover).hsla()),
+            ),
+        win_ptr,
+    )
+    .on_click(cx.listener(move |_, _, _, _| {
+        let _ = crate::open_audio_device_control_panel(win_input);
+    }))
+    .into_any_element();
+
     let context_menu = render_context_menu(app, &mode, rename_allowed, split_comm, window, cx);
 
-    vec![
-        div()
-            .flex()
-            .flex_col()
-            .max_w(px(720.))
-            .w_full()
-            .child(super::form::page_title("Devices", None))
-            .child(tab_switch)
-            .child(list_block)
-            .child(
-                super::form::block()
-                    .mt(px(super::form::SECTION_GAP))
-                    .child(super::form::section_heading("Options", cx))
-                    .child(
-                        super::form::card(cx)
-                            .row(name_select)
-                            .row(super::form::setting_row(
-                                "Show disabled devices",
-                                Some("Include manually disabled devices so you can re-enable them here"),
-                                show_disabled_toggle,
-                                cx,
-                            ))
-                            .row(super::form::setting_row(
-                                "Show disconnected devices",
-                                Some("Include unplugged ports and offline Bluetooth devices"),
-                                show_disconnected_toggle,
-                                cx,
-                            ))
-                            .row(super::form::setting_row(
-                                "Separate communication device",
-                                Some("Set default audio and default communications devices independently"),
-                                split_comm_toggle,
-                                cx,
-                            ))
-                            .row(super::form::setting_row(
-                                "Ungroup devices in tray menu",
-                                None,
-                                ungroup_toggle,
-                                cx,
-                            ))
-                            .row(super::form::setting_row(
-                                "Keep Bluetooth headphones in high quality",
-                                Some("Turns off hands-free mode, so calls can't drop sound to mono. The headset's own mic stops working"),
-                                handsfree_toggle,
-                                cx,
-                            )),
-                    ),
-            )
-            .children(context_menu)
-            .into_any_element(),
-    ]
+    div()
+        .flex()
+        .flex_col()
+        .max_w(px(720.))
+        .w_full()
+        .child(super::form::page_title("Devices", Some(win_sound_btn)))
+        .child(tab_switch)
+        .child(list_block)
+        .child(
+            super::form::block()
+                .mt(px(super::form::SECTION_GAP))
+                .child(super::form::section_heading("Options", cx))
+                .child(
+                    super::form::card(cx)
+                        .row(name_select)
+                        .row(super::form::setting_row(
+                            "Show disabled devices",
+                            Some("Include manually disabled devices so you can re-enable them here"),
+                            show_disabled_toggle,
+                            cx,
+                        ))
+                        .row(super::form::setting_row(
+                            "Show disconnected devices",
+                            Some("Include unplugged ports and offline Bluetooth devices"),
+                            show_disconnected_toggle,
+                            cx,
+                        ))
+                        .row(super::form::setting_row(
+                            "Separate communication device",
+                            Some("Set default audio and default communications devices independently"),
+                            split_comm_toggle,
+                            cx,
+                        ))
+                        .row(super::form::setting_row(
+                            "Ungroup devices in tray menu",
+                            None,
+                            ungroup_toggle,
+                            cx,
+                        )),
+                ),
+        )
+        .child(
+            super::form::block()
+                .mt(px(super::form::SECTION_GAP))
+                .child(super::form::section_heading("Advanced", cx))
+                .child(
+                    super::form::card(cx)
+                        .row(tray_target_select)
+                        .row(super::form::setting_row(
+                            "Keep Bluetooth headphones in high quality",
+                            Some("Turns off hands-free mode, so calls can't drop sound to mono. The headset's own mic stops working"),
+                            handsfree_toggle,
+                            cx,
+                        )),
+                ),
+        )
+        .children(context_menu)
+        .into_any_element()
 }
 
 fn device_list(
