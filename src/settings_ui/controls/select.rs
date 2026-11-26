@@ -1327,12 +1327,12 @@ fn menu(
                 .absolute()
                 .top(px(0.))
                 .w_full()
-                .h(px(40.))
+                .h(px(28.))
                 .rounded_t(px(14.))
                 .opacity(top_shadow)
                 .bg(linear_gradient(
                     180.,
-                    linear_color_stop(p.accent.opacity(0.14).hsla(), 0.),
+                    linear_color_stop(menu_bg.opacity(0.94).hsla(), 0.),
                     linear_color_stop(TRANSPARENT.hsla(), 1.),
                 )),
         )
@@ -1341,12 +1341,12 @@ fn menu(
                 .absolute()
                 .bottom(px(0.))
                 .w_full()
-                .h(px(40.))
+                .h(px(28.))
                 .rounded_b(px(14.))
                 .opacity(bottom_shadow)
                 .bg(linear_gradient(
                     0.,
-                    linear_color_stop(p.accent.opacity(0.14).hsla(), 0.),
+                    linear_color_stop(menu_bg.opacity(0.94).hsla(), 0.),
                     linear_color_stop(TRANSPARENT.hsla(), 1.),
                 )),
         )

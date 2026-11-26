@@ -388,3 +388,112 @@ pub(crate) fn button(
         element.on_click(cx.listener(move |app, _, window, cx| on_click(app, (), window, cx)))
     }
 }
+
+/// Number field with quick − / + buttons on either side, one pill on the
+/// card. The buttons step by one and stop at the bounds; typing still works.
+/// The input should be created with `centered: true`.
+pub(crate) fn stepper(
+    id: impl Into<ElementId>,
+    input: &gpui::Entity<TextInput>,
+    value: u64,
+    min: u64,
+    max: u64,
+    disabled: bool,
+    window: &mut Window,
+    cx: &mut Context<SettingsApp>,
+    on_step: impl Fn(&mut SettingsApp, bool, &mut Window, &mut Context<SettingsApp>) + 'static,
+) -> Div {
+    let id: ElementId = id.into();
+    let p = palette(cx);
+    let focused = !disabled && gpui::Focusable::focus_handle(input.read(cx), cx).is_focused(window);
+    let focus = anim::tween(window, cx, (id.clone(), "focus"), focused as u8 as f32, UI);
+    let on_step = std::rc::Rc::new(on_step);
+    let step_button = |up: bool, window: &mut Window, cx: &mut Context<SettingsApp>| {
+        let key = ElementId::from((id.clone(), if up { "plus" } else { "minus" }));
+        let enabled = !disabled && if up { value < max } else { value > min };
+        let (pointer, hover, press) = hover_tween(key.clone(), window, cx);
+        let lit = if enabled { hover } else { 0. };
+        let press = if enabled { press } else { 0. };
+        let fg = if enabled {
+            lerp(p.muted, p.text, lit)
+        } else {
+            p.faint
+        };
+        let on_step = on_step.clone();
+        let button = div()
+            .id(key)
+            .size(px(26.))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(px(6.))
+            .bg(lerp(TRANSPARENT, p.surface_hover, lit).hsla())
+            .when(enabled, |this| this.cursor_pointer())
+            .child(
+                svg()
+                    .path(icon(if up { "plus-linear" } else { "minus-linear" }))
+                    .size(px(13.))
+                    .with_transformation(Transformation::scale(size(
+                        1. - 0.12 * press,
+                        1. - 0.12 * press,
+                    )))
+                    .text_color(fg.hsla()),
+            );
+        let button = track_pointer(button, pointer)
+            // Keep the click off the row (a switch row would flip).
+            .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation());
+        if enabled {
+            button.on_click(cx.listener(move |app, _, window, cx| {
+                cx.stop_propagation();
+                on_step(app, up, window, cx);
+            }))
+        } else {
+            button
+        }
+    };
+    let minus = step_button(false, window, cx);
+    let plus = step_button(true, window, cx);
+    let (pointer, hover, _) = hover_tween((id.clone(), "field"), window, cx);
+    let field = track_pointer(
+        text_input_container((id.clone(), "field"), input)
+            .w(px(40.))
+            .h_full()
+            .text_size(px(14.))
+            .font_weight(FontWeight(600.))
+            .text_color(p.text.hsla())
+            .rounded(px(6.))
+            .bg(lerp(TRANSPARENT, p.surface_hover, 0.5 * hover * (!disabled) as u8 as f32).hsla())
+            .when(disabled, |this| this.cursor_not_allowed()),
+        pointer,
+    );
+    div()
+        .h(px(32.))
+        .flex()
+        .items_center()
+        .gap(px(1.))
+        .px(px(3.))
+        .flex_shrink_0()
+        .rounded(px(9.))
+        .bg(p.surface_3.hsla())
+        .shadow(vec![
+            BoxShadow {
+                color: p.focus.opacity(focus).hsla(),
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(0.),
+                spread_radius: px(1.),
+                inset: true,
+            },
+            BoxShadow {
+                color: crate::settings_ui::color::mix_pct(p.focus, 22. * focus, TRANSPARENT)
+                    .hsla(),
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(0.),
+                spread_radius: px(2.),
+                inset: false,
+            },
+        ])
+        .child(minus)
+        .child(field)
+        .child(plus)
+}

@@ -2,7 +2,7 @@
 use crate::settings_ui::{
     SettingsApp, anim,
     assets::icon,
-    color::{TRANSPARENT, lerp, mix_pct},
+    color::{lerp, mix_pct},
     controls::{self, RangeOptions},
     style,
 };
@@ -235,9 +235,9 @@ pub(crate) fn master_switch(
         .px(px(14.))
         .py(px(12.))
         .rounded(px(14.))
-        .border_1()
-        .border_color(lerp(TRANSPARENT, mix_pct(p.accent, 34., TRANSPARENT), t).hsla())
-        .bg(lerp(p.surface_2, p.accent_soft, t).hsla())
+        // The strip stays card-colored: the accent disc and "On" carry the
+        // state, so an enabled page is not one big orange block.
+        .bg(p.surface_2.hsla())
         .child(
             div()
                 .size(px(34.))
@@ -431,7 +431,7 @@ pub(crate) fn collapse(
 }
 
 /// Choice card: preview above its label, cards share the row. The selected
-/// card is filled and outlined in the accent.
+/// card takes a warm tint, a lift and an accent label.
 pub(crate) fn choice_card(
     id: SharedString,
     label: &'static str,
@@ -475,15 +475,15 @@ pub(crate) fn choice_card(
             .gap(px(8.))
             .px(px(8.))
             .rounded(px(12.))
-            .border_1()
-            .border_color(lerp(TRANSPARENT, p.accent, active).hsla())
-            // One step above the card these sit on.
+            // One step above the card these sit on. No outline: the chosen
+            // tile takes a warm tint and lifts off the card.
             .bg(lerp(
                 lerp(p.surface_3, p.surface_hover, hover),
-                p.accent_soft,
+                lerp(mix_pct(p.accent, 16., p.surface_3), mix_pct(p.accent, 22., p.surface_3), hover),
                 active,
             )
             .hsla())
+            .shadow(selected_lift(active, p))
             .cursor_pointer()
             .child(
                 div()
@@ -504,7 +504,7 @@ pub(crate) fn choice_card(
                     .font_weight(FontWeight(600.))
                     .whitespace_nowrap()
                     .text_ellipsis()
-                    .text_color(lerp(p.muted, p.text, active.max(hover)).hsla())
+                    .text_color(lerp(lerp(p.muted, p.text, hover), p.accent_text, active).hsla())
                     .child(label),
             ),
         pointer,
@@ -516,6 +516,27 @@ pub(crate) fn choice_card(
         }
     }))
     .on_click(cx.listener(move |app, _, _, cx| on_select(app, cx)))
+}
+
+/// Inset top light plus a soft drop: what marks a chosen tile instead of an
+/// outline.
+fn selected_lift(active: f32, p: crate::settings_ui::theme::Palette) -> Vec<BoxShadow> {
+    vec![
+        BoxShadow {
+            color: hsla(0., 0., 1., 0.06 * active),
+            offset: point(px(0.), px(1.)),
+            blur_radius: px(0.),
+            spread_radius: px(0.),
+            inset: true,
+        },
+        BoxShadow {
+            color: p.shadow_medium.opacity(active).hsla(),
+            offset: point(px(0.), px(2.)),
+            blur_radius: px(6.),
+            spread_radius: px(0.),
+            inset: false,
+        },
+    ]
 }
 
 /// Square icon option. Its name lives in the tooltip and, when selected, in
@@ -558,15 +579,15 @@ fn icon_tile(
             .items_center()
             .justify_center()
             .rounded(px(12.))
-            .border_1()
-            .border_color(lerp(TRANSPARENT, p.accent, active).hsla())
-            // One step above the card these sit on.
+            // One step above the card these sit on. No outline: the chosen
+            // tile takes a warm tint and lifts off the card.
             .bg(lerp(
                 lerp(p.surface_3, p.surface_hover, hover),
-                p.accent_soft,
+                lerp(mix_pct(p.accent, 16., p.surface_3), mix_pct(p.accent, 22., p.surface_3), hover),
                 active,
             )
             .hsla())
+            .shadow(selected_lift(active, p))
             .cursor_pointer()
             .child(preview),
         pointer,

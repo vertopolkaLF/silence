@@ -145,7 +145,9 @@ pub(crate) fn render(
             |app, _, _, cx| {
                 app.update_config(cx, |config| config.hold_to_mute.volume_override = None)
             },
-        );
+        )
+        // Same corners as the bar it ends.
+        .rounded(px(10.));
         let mute = sounds::sound_picker(
             "hold-mute",
             "Mute sound",

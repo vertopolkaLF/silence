@@ -31,6 +31,8 @@ pub(crate) struct TextInputOptions {
     pub max_length: Option<usize>,
     /// Accept ASCII digits, clamp on Enter/blur (empty commits to min).
     pub numeric: Option<NumericInput>,
+    /// Center the text while it fits (stepper values).
+    pub centered: bool,
     /// Optional caller overrides; the shell supplies all other text/layout styles.
     pub placeholder_color: Option<gpui::Hsla>,
     pub caret_color: Option<gpui::Hsla>,
@@ -947,7 +949,13 @@ impl Element for TextElement {
             .selection_color
             .unwrap_or(palette(cx).accent.opacity(0.3).hsla());
         let max_scroll = (line.width() - bounds.size.width + CARET_WIDTH).max(px(0.));
-        let scroll_x = if !input.content.is_empty() && input.focus_handle.is_focused(window) {
+        // A negative scroll centers a line that fits; hit testing and the
+        // caret already subtract it.
+        let centered = input.options.centered
+            && line.width() + CARET_WIDTH <= bounds.size.width;
+        let scroll_x = if centered {
+            -(bounds.size.width - line.width()) / 2.
+        } else if !input.content.is_empty() && input.focus_handle.is_focused(window) {
             input
                 .scroll_x
                 .max(cursor_pos - bounds.size.width + CARET_WIDTH)

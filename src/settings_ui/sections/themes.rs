@@ -3,7 +3,7 @@
 use crate::settings_ui::{
     SettingsApp, anim,
     assets::icon,
-    color::{TRANSPARENT, lerp},
+    color::lerp,
     controls::{self, SegmentedToggleOption, segmented_toggle},
     shell::nav::SettingsTab,
     style::{self, BLOCK_GAP},
@@ -369,8 +369,7 @@ fn tile(
             .flex()
             .flex_col()
             .rounded(px(14.))
-            .border_1()
-            .border_color(lerp(TRANSPARENT, p.accent, active).hsla())
+            // The check badge marks the chosen theme; no outline.
             .bg(lerp(
                 lerp(p.surface_2, p.surface_hover, hover),
                 p.accent_soft,

@@ -68,7 +68,14 @@ struct ContextMenu {
     device_id: String,
     input: bool,
     position: Point<Pixels>,
+    opened_at: Instant,
+    /// Set when the menu starts fading out; it is dropped once the fade ends.
+    closing_at: Option<Instant>,
 }
+
+/// Fast enough to never stand between a click and the next one.
+const MENU_OPEN: Duration = Duration::from_millis(130);
+const MENU_CLOSE: Duration = Duration::from_millis(90);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ViewSlideDirection {
@@ -100,6 +107,15 @@ pub(crate) struct State {
 }
 
 impl State {
+    /// Fades the context menu out instead of dropping it mid-frame.
+    fn dismiss_menu(&mut self) {
+        if let Some(menu) = self.context_menu.as_mut()
+            && menu.closing_at.is_none()
+        {
+            menu.closing_at = Some(Instant::now());
+        }
+    }
+
     pub(crate) fn open_properties(&self) -> Option<&OpenDevice> {
         self.open_device.as_ref()
     }
@@ -831,7 +847,7 @@ fn device_row(
     is_first: bool,
     is_last: bool,
     mode: &str,
-    rename_allowed: bool,
+    _rename_allowed: bool,
     split_comm: bool,
     app: &mut SettingsApp,
     window: &mut Window,
@@ -1192,28 +1208,6 @@ fn device_row(
             )
         });
 
-        let rename_slot = anim::tween(
-            window,
-            cx,
-            (key.clone(), "rename-slot"),
-            (rename_allowed && !editing) as u8 as f32,
-            UI,
-        );
-        let rename_id = entry.id.clone();
-        let rename_orig = entry.name.clone();
-        let rename = (rename_allowed && !editing).then(|| {
-            action(
-                (key.clone(), "rename"),
-                "pen-linear",
-                "Rename",
-                ActionKind::Normal,
-                false,
-                window,
-                cx,
-                move |app, _, cx| start_rename(app, &rename_id, &rename_orig, cx),
-            )
-        });
-
         let chevron = div()
             .size(px(28.))
             .flex()
@@ -1236,15 +1230,6 @@ fn device_row(
             .child(default_pill)
             .children(comm_btn)
             .children(favorite)
-            .when(rename_slot > 0., |this| {
-                this.child(
-                    div()
-                        .w(px(38. * rename_slot))
-                        .overflow_hidden()
-                        .opacity(rename_slot)
-                        .children(rename),
-                )
-            })
             .child(chevron)
     } else if is_disabled {
         let enable_id = ElementId::from((key.clone(), "enable"));
@@ -1395,6 +1380,8 @@ fn device_row(
                 device_id: ctx_id.clone(),
                 input: ctx_input,
                 position: event.position,
+                opened_at: Instant::now(),
+                closing_at: None,
             });
             cx.notify();
         }),
@@ -1437,7 +1424,7 @@ fn compact_peak_meter(peak: f32, p: Palette) -> Div {
 
 fn render_context_menu(
     app: &mut SettingsApp,
-    _mode: &str,
+    mode: &str,
     rename_allowed: bool,
     split_comm: bool,
     window: &mut Window,
@@ -1447,6 +1434,26 @@ fn render_context_menu(
     let device_id = menu_state.device_id.clone();
     let input = menu_state.input;
     let pos = menu_state.position;
+    // Open: fade in while dropping 6px from the pointer. Close: a quicker
+    // fade back up, then the menu is gone.
+    let reveal = match menu_state.closing_at {
+        Some(at) => {
+            let raw = at.elapsed().as_secs_f32() / MENU_CLOSE.as_secs_f32();
+            if raw >= 1. {
+                app.sections.devices.context_menu = None;
+                return None;
+            }
+            window.request_animation_frame();
+            1. - Easing::Ease.apply(raw)
+        }
+        None => {
+            let raw = menu_state.opened_at.elapsed().as_secs_f32() / MENU_OPEN.as_secs_f32();
+            if raw < 1. {
+                window.request_animation_frame();
+            }
+            Easing::Bezier(0.22, 1., 0.36, 1.).apply(raw.min(1.))
+        }
+    };
 
     let entry = if input {
         app.snapshot
@@ -1463,55 +1470,66 @@ fn render_context_menu(
     }?;
 
     let p = app.palette;
-    let mut items: Vec<AnyElement> = Vec::new();
+    // The same lifted, warm material as the card-row select popover.
+    let menu_bg = p.accent.relative(if p.mica { 26. } else { 25. }, 0.1);
+    let active = entry.state.is_active();
+    let disabled = entry.state.is_disabled();
 
-    if entry.state.is_active() && !entry.is_default {
-        let id = entry.id.clone();
-        items.push(ctx_item(
-            "ctx-default",
-            "check-mark",
-            "Set as default",
-            false,
-            window,
-            cx,
-            move |app, _, cx| {
-                let _ = audio_devices::set_default_device(&id, split_comm);
-                app.sections.devices.context_menu = None;
-                app.refresh_devices(cx);
-            },
-        ));
-    }
+    // Three groups: use the device, manage it, switch it off.
+    let mut group_use: Vec<AnyElement> = Vec::new();
+    let mut group_manage: Vec<AnyElement> = Vec::new();
+    let mut group_state: Vec<AnyElement> = Vec::new();
 
-    if entry.state.is_active() && split_comm && !entry.is_default_comm {
+    if active && !entry.input {
         let id = entry.id.clone();
-        items.push(ctx_item(
-            "ctx-comm",
-            "phone-linear",
-            "Set as default communication",
-            false,
-            window,
-            cx,
-            move |app, _, cx| {
-                let _ = audio_devices::set_default_comm_device(&id);
-                app.sections.devices.context_menu = None;
-                app.refresh_devices(cx);
-            },
-        ));
-    }
-
-    if entry.state.is_active() && !entry.input {
-        let id = entry.id.clone();
-        items.push(ctx_item(
+        group_use.push(ctx_item(
             "ctx-test",
             "play-circle-linear",
-            "Test",
-            false,
+            "Play test sound",
+            CtxTone::Normal,
+            menu_bg,
             window,
             cx,
             move |app, _, cx| {
                 let _ = audio_devices::play_test_tone(&id);
-                app.sections.devices.context_menu = None;
+                app.sections.devices.dismiss_menu();
                 cx.notify();
+            },
+        ));
+    }
+
+    if active && !entry.is_default {
+        let id = entry.id.clone();
+        group_use.push(ctx_item(
+            "ctx-default",
+            "check-circle-linear",
+            "Set as default",
+            CtxTone::Normal,
+            menu_bg,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = audio_devices::set_default_device(&id, split_comm);
+                app.sections.devices.dismiss_menu();
+                app.refresh_devices(cx);
+            },
+        ));
+    }
+
+    if active && split_comm && !entry.is_default_comm {
+        let id = entry.id.clone();
+        group_use.push(ctx_item(
+            "ctx-comm",
+            "phone-linear",
+            "Set for communication",
+            CtxTone::Normal,
+            menu_bg,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = audio_devices::set_default_comm_device(&id);
+                app.sections.devices.dismiss_menu();
+                app.refresh_devices(cx);
             },
         ));
     }
@@ -1519,60 +1537,30 @@ fn render_context_menu(
     if rename_allowed {
         let id = entry.id.clone();
         let orig = entry.name.clone();
-        items.push(ctx_item(
+        group_manage.push(ctx_item(
             "ctx-rename",
             "pen-linear",
             "Rename",
-            false,
+            CtxTone::Normal,
+            menu_bg,
             window,
             cx,
             move |app, _, cx| {
-                app.sections.devices.context_menu = None;
+                app.sections.devices.dismiss_menu();
                 start_rename(app, &id, &orig, cx);
             },
         ));
     }
 
-    if entry.state.is_active() {
-        let id = entry.id.clone();
-        items.push(ctx_item(
-            "ctx-disable",
-            "forbidden-circle-linear",
-            "Disable",
-            true,
-            window,
-            cx,
-            move |app, _, cx| {
-                let _ = audio_devices::set_device_enabled(&id, false);
-                app.sections.devices.context_menu = None;
-                app.refresh_devices(cx);
-            },
-        ));
-    } else if entry.state.is_disabled() {
-        let id = entry.id.clone();
-        items.push(ctx_item(
-            "ctx-enable",
-            "check-circle-bold",
-            "Enable",
-            false,
-            window,
-            cx,
-            move |app, _, cx| {
-                let _ = audio_devices::set_device_enabled(&id, true);
-                app.sections.devices.context_menu = None;
-                app.refresh_devices(cx);
-            },
-        ));
-    }
-
-    if entry.state.is_active() || entry.state.is_disabled() {
+    if active || disabled {
         let id = entry.id.clone();
         let inp = entry.input;
-        items.push(ctx_item(
+        group_manage.push(ctx_item(
             "ctx-props",
             "tuning-2-linear",
             "Properties",
-            false,
+            CtxTone::Normal,
+            menu_bg,
             window,
             cx,
             move |app, _, cx| {
@@ -1585,48 +1573,215 @@ fn render_context_menu(
     {
         let id = entry.id.clone();
         let inp = entry.input;
-        items.push(ctx_item(
+        group_manage.push(ctx_item(
             "ctx-win-props",
             "square-arrow-right-up-linear",
-            "Open Windows properties",
-            false,
+            "Windows properties",
+            CtxTone::Normal,
+            menu_bg,
             window,
             cx,
             move |app, _, cx| {
                 let _ = crate::open_audio_device_properties(&id, inp);
-                app.sections.devices.context_menu = None;
+                app.sections.devices.dismiss_menu();
                 cx.notify();
             },
         ));
     }
 
-    let menu_w = 224.0_f32;
-    let menu_h = (items.len() as f32) * 34.0 + 12.0;
+    if active {
+        let id = entry.id.clone();
+        group_state.push(ctx_item(
+            "ctx-disable",
+            "forbidden-circle-linear",
+            "Disable device",
+            CtxTone::Danger,
+            menu_bg,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = audio_devices::set_device_enabled(&id, false);
+                app.sections.devices.dismiss_menu();
+                app.refresh_devices(cx);
+            },
+        ));
+    } else if disabled {
+        let id = entry.id.clone();
+        group_state.push(ctx_item(
+            "ctx-enable",
+            "check-circle-linear",
+            "Enable device",
+            CtxTone::Accent,
+            menu_bg,
+            window,
+            cx,
+            move |app, _, cx| {
+                let _ = audio_devices::set_device_enabled(&id, true);
+                app.sections.devices.dismiss_menu();
+                app.refresh_devices(cx);
+            },
+        ));
+    }
+
+    const INSET: f32 = 5.;
+    const ITEM_H: f32 = 32.;
+    const SEP_H: f32 = 9.;
+    const HEADER_H: f32 = 48.;
+    let divider = mix_pct(p.text, 8., menu_bg);
+    let separator = || {
+        div()
+            .flex_shrink_0()
+            .mx(px(6.))
+            .my(px(4.))
+            .h(px(1.))
+            .bg(divider.hsla())
+            .into_any_element()
+    };
+
+    // The device the menu acts on, so its actions read in context.
+    let status = if !active && !disabled {
+        "Disconnected"
+    } else if disabled {
+        "Disabled"
+    } else if entry.is_default {
+        if entry.input { "Default input" } else { "Default output" }
+    } else if entry.input {
+        "Input"
+    } else {
+        "Output"
+    };
+    let lit = entry.is_default && active;
+    let header = div()
+        .flex_shrink_0()
+        .h(px(HEADER_H))
+        .px(px(5.))
+        .flex()
+        .items_center()
+        .gap(px(10.))
+        .child(
+            div()
+                .size(px(32.))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(9.))
+                .bg(if lit {
+                    mix_pct(p.accent, 18., menu_bg)
+                } else {
+                    mix_pct(p.text, 6., menu_bg)
+                }
+                .hsla())
+                .child(
+                    svg()
+                        .path(icon(entry.icon_name()))
+                        .size(px(17.))
+                        .text_color(if lit { p.accent_text } else { p.muted }.hsla()),
+                ),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .min_w_0()
+                .flex_1()
+                .child(
+                    div()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight(650.))
+                        .line_height(relative(1.3))
+                        .text_color(p.text.hsla())
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .child(entry.display_name(mode)),
+                )
+                .child(
+                    div()
+                        .text_size(px(11.5))
+                        .line_height(relative(1.3))
+                        .text_color(if lit { p.accent_text } else { p.muted }.hsla())
+                        .child(status),
+                ),
+        );
+
+    let mut items: Vec<AnyElement> = vec![header.into_any_element(), separator()];
+    let mut menu_h = INSET * 2. + HEADER_H + SEP_H;
+    let groups = [group_use, group_manage, group_state]
+        .into_iter()
+        .filter(|group| !group.is_empty())
+        .collect::<Vec<_>>();
+    let group_count = groups.len();
+    for (index, group) in groups.into_iter().enumerate() {
+        menu_h += group.len() as f32 * (ITEM_H + 1.);
+        items.extend(group);
+        if index + 1 < group_count {
+            menu_h += SEP_H;
+            items.push(separator());
+        }
+    }
+
+    let menu_w = 236.0_f32;
     let vp = window.viewport_size();
     let left = pos.x.as_f32().min((vp.width.as_f32() - menu_w - 12.0).max(8.0));
     let top = pos.y.as_f32().min((vp.height.as_f32() - menu_h - 12.0).max(8.0));
 
     let menu = div()
         .id("devices-context-menu")
+        .relative()
+        .top(px(-6. * (1. - reveal)))
         .w(px(menu_w))
-        .p(px(6.))
-        .rounded(px(12.))
-        .bg(p.select_menu_bg.hsla())
-        .border_1()
-        .border_color(p.border_strong.hsla())
-        .shadow(vec![BoxShadow {
-            color: p.shadow_medium.hsla(),
-            offset: point(px(0.), px(8.)),
-            blur_radius: px(24.),
-            spread_radius: px(0.),
-            inset: false,
-        }])
+        .p(px(INSET))
+        .rounded(px(14.))
+        .bg(menu_bg.hsla())
+        .opacity(reveal)
+        // No border: a hairline inset ring and a lit top edge define the
+        // shape and two drop shadows lift it, as on the select popover.
+        .shadow(vec![
+            BoxShadow {
+                color: hsla(0., 0., 1., 0.055),
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(0.),
+                spread_radius: px(1.),
+                inset: true,
+            },
+            BoxShadow {
+                color: hsla(0., 0., 1., 0.05),
+                offset: point(px(0.), px(1.)),
+                blur_radius: px(0.),
+                spread_radius: px(0.),
+                inset: true,
+            },
+            BoxShadow {
+                color: hsla(0., 0., 0., 0.28 * reveal),
+                offset: point(px(0.), px(2.)),
+                blur_radius: px(6.),
+                spread_radius: px(0.),
+                inset: false,
+            },
+            BoxShadow {
+                color: hsla(0., 0., 0., 0.42 * reveal),
+                offset: point(px(0.), px(16.)),
+                blur_radius: px(40.),
+                spread_radius: px(-4.),
+                inset: false,
+            },
+        ])
         .flex()
         .flex_col()
-        .gap(px(2.))
-        .on_mouse_down_out(cx.listener(|app, _, _, cx| {
-            if app.sections.devices.context_menu.is_some() {
-                app.sections.devices.context_menu = None;
+        .gap(px(1.))
+        .occlude()
+        .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+        .on_mouse_down_out(cx.listener(|app, event: &MouseDownEvent, _, cx| {
+            // A right-click on another row opens its menu on this same event;
+            // that menu sits at this very position and must stay open.
+            if app
+                .sections
+                .devices
+                .context_menu
+                .as_ref()
+                .is_some_and(|menu| menu.position != event.position)
+            {
+                app.sections.devices.dismiss_menu();
                 cx.notify();
             }
         }))
@@ -1639,37 +1794,67 @@ fn render_context_menu(
     )
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CtxTone {
+    Normal,
+    Accent,
+    Danger,
+}
+
 fn ctx_item(
     id: &'static str,
     icon_name: &'static str,
     label: &'static str,
-    danger: bool,
+    tone: CtxTone,
+    menu_bg: crate::settings_ui::color::Oklch,
     window: &mut Window,
     cx: &mut Context<SettingsApp>,
     on_click: impl Fn(&mut SettingsApp, &mut Window, &mut Context<SettingsApp>) + 'static,
 ) -> AnyElement {
     let p = palette(cx);
     let el_id = ElementId::from(id);
-    let (ptr, hover, _) = controls::hover_tween(el_id.clone(), window, cx);
-    let fg = if danger {
-        lerp(p.danger, p.danger_hover, hover)
-    } else {
-        p.text
+    let pointer = anim::pointer(window, cx, (el_id.clone(), "pointer"));
+    let state = *pointer.read(cx);
+    // Menus answer the pointer faster than page controls do.
+    let hover = anim::tween(
+        window,
+        cx,
+        (el_id.clone(), "hover"),
+        state.hovered as u8 as f32,
+        Transition::new(80, Easing::Ease),
+    );
+    let press = anim::tween(
+        window,
+        cx,
+        (el_id.clone(), "press"),
+        state.pressed as u8 as f32,
+        Transition::new(60, Easing::Ease),
+    );
+    let (fg, icon_fg, wash) = match tone {
+        CtxTone::Danger => (
+            lerp(p.danger, p.danger_hover, hover),
+            lerp(p.danger, p.danger_hover, hover),
+            mix_pct(p.danger, 16., menu_bg),
+        ),
+        CtxTone::Accent => (p.accent_text, p.accent_text, mix_pct(p.accent, 16., menu_bg)),
+        CtxTone::Normal => (
+            p.text,
+            lerp(p.muted, p.text, hover),
+            mix_pct(p.text, 7., menu_bg),
+        ),
     };
-    let bg = if danger {
-        lerp(TRANSPARENT, mix_pct(p.danger, 14., TRANSPARENT), hover)
-    } else {
-        lerp(TRANSPARENT, p.surface_3, hover)
-    };
+    let bg = lerp(lerp(menu_bg, wash, hover), mix_pct(p.text, 4., wash), press);
     controls::track_pointer(
         div()
             .id(el_id)
             .h(px(32.))
-            .px(px(10.))
-            .rounded(px(8.))
+            .flex_shrink_0()
+            .pl(px(9.))
+            .pr(px(10.))
+            .rounded(px(9.))
             .flex()
             .items_center()
-            .gap(px(9.))
+            .gap(px(10.))
             .cursor_pointer()
             .bg(bg.hsla())
             .text_size(px(13.))
@@ -1678,22 +1863,31 @@ fn ctx_item(
             .child(
                 svg()
                     .path(icon(icon_name))
-                    .size(px(15.))
-                    .text_color(if danger { fg } else { lerp(p.muted, p.text, hover) }.hsla()),
+                    .size(px(16.))
+                    .flex_shrink_0()
+                    .text_color(icon_fg.hsla()),
             )
             .child(label),
-        ptr,
+        pointer,
     )
     .on_click(cx.listener(move |app, _, window, cx| {
         cx.stop_propagation();
-        on_click(app, window, cx);
+        // A fading menu no longer takes clicks.
+        let open = app
+            .sections
+            .devices
+            .context_menu
+            .as_ref()
+            .is_some_and(|menu| menu.closing_at.is_none());
+        if open {
+            on_click(app, window, cx);
+        }
     }))
     .into_any_element()
 }
 
 #[derive(Clone, Copy)]
 enum ActionKind {
-    Normal,
     /// Star toggle; `true` while the device is a favorite.
     Favorite(bool),
     /// Communication default toggle; `true` while this device is the default comm device.
@@ -1756,7 +1950,6 @@ fn action(
         }
         ActionKind::Commit => p.success,
         ActionKind::Cancel => lerp(p.danger, p.danger_hover, hover),
-        _ => lerp(p.muted, p.text, if disabled { 0. } else { hover }),
     };
     let bg = match kind {
         ActionKind::Comm(true) => lerp(p.accent_soft, mix_pct(p.accent, 22., TRANSPARENT), hover),

@@ -115,9 +115,10 @@ fn build(
 ) -> Stateful<Div> {
     let id = id.into();
     let p = palette(cx);
-    // The compact bar sits on a card, so its track is one step above it.
+    // The compact bar sits on a card, so its track is one step above it. It
+    // is as tall as a button, so a Reset after it lines up.
     let (height, radius, thumb_height, inset, track) = if compact {
-        (36., 10., 26., 12., p.surface_3)
+        (38., 10., 26., 12., p.surface_3)
     } else {
         (40., 12., 30., 18., p.surface_2)
     };

@@ -5,7 +5,7 @@ use crate::settings_ui::{
     SettingsApp,
     anim::{self, Easing, Transition},
     assets::icon,
-    color::lerp,
+    color::{TRANSPARENT, lerp},
     controls::{self, ButtonKind, RangeOptions, SelectOption, SelectOptions},
     style,
 };
@@ -356,7 +356,7 @@ pub(crate) fn sound_picker(
         muted,
         playback_volume,
         context,
-        38.,
+        36.,
         app,
         window,
         cx,
@@ -393,6 +393,10 @@ fn preview_button(
     let playing =
         context.preview(app).playing.as_deref() == Some(preview_key(&selection, muted).as_str());
     let p = app.palette;
+    // The card-row icon button, as on hotkey rows: transparent until hovered,
+    // a muted line icon. While playing the icon turns to an accent pause.
+    let (_, hover, _) = controls::hover_tween(SharedString::from(id.clone()), window, cx);
+    let fg = if playing { p.accent_text } else { p.muted };
     controls::button(
         id,
         ButtonKind::Icon,
@@ -407,12 +411,14 @@ fn preview_button(
     )
     .w(px(size))
     .h(px(size))
+    .bg(lerp(TRANSPARENT, p.surface_3, hover).hsla())
+    .shadow(Vec::new())
     .tooltip(move |_, cx| controls::tooltip(title.clone(), cx))
     .child(
         svg()
-            .path(icon(if playing { "pause-bold" } else { "play-bold" }))
-            .size(px(if size == 38. { 17. } else { 15. }))
-            .text_color(p.muted.hsla()),
+            .path(icon(if playing { "pause-linear" } else { "play-linear" }))
+            .size(px(18.))
+            .text_color(fg.hsla()),
     )
 }
 
@@ -576,7 +582,7 @@ fn library(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settings
             true,
             app.snapshot.config.sound_settings.volume.min(100),
             SoundContext::Sounds,
-            34.,
+            36.,
             app,
             window,
             cx,
@@ -584,7 +590,7 @@ fn library(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settings
         let p = app.palette;
         let (_, hover, _) =
             controls::hover_tween(SharedString::from(format!("{id}-remove")), window, cx);
-        let fg = lerp(p.muted, p.danger_hover, hover).hsla();
+        let fg = lerp(p.muted, p.danger, hover).hsla();
         let remove_title = format!("Remove {}", row.sound.original_file_name);
         let remove = controls::button(
             format!("{id}-remove"),
@@ -596,9 +602,10 @@ fn library(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Settings
             cx,
             move |app, _, _, cx| remove_sound(app, &row.sound.id, cx),
         )
-        .w(px(34.))
-        .h(px(34.))
-        .bg(lerp(p.surface_2, p.surface_danger_hover, hover).hsla())
+        .w(px(36.))
+        .h(px(36.))
+        .bg(lerp(TRANSPARENT, p.surface_3, hover).hsla())
+        .shadow(Vec::new())
         .text_color(fg)
         .tooltip(move |_, cx| controls::tooltip(remove_title.clone(), cx))
         .child(

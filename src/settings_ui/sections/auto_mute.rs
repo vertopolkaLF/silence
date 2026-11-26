@@ -3,7 +3,6 @@ use super::form;
 use crate::settings_ui::{
     SettingsApp,
     anim::{self, UI},
-    color::{TRANSPARENT, lerp},
     controls::{self, NumericInput, TextInput, TextInputEvent, TextInputOptions},
     style,
 };
@@ -29,6 +28,30 @@ fn apply_minutes(app: &mut SettingsApp, value: &str, cx: &mut Context<SettingsAp
             app.update_config(cx, |c| c.auto_mute.after_inactivity_minutes = value);
         }
     }
+}
+
+/// One minute up or down, from the − / + buttons or the arrow keys.
+fn step_minutes(app: &mut SettingsApp, up: bool, window: &mut Window, cx: &mut Context<SettingsApp>) {
+    let old = app
+        .snapshot
+        .config
+        .auto_mute
+        .after_inactivity_minutes
+        .clamp(MIN_MINUTES, MAX_MINUTES);
+    let value = if up {
+        (old + 1).min(MAX_MINUTES)
+    } else {
+        (old - 1).max(MIN_MINUTES)
+    };
+    let value = value.to_string();
+    app.sections.auto_mute.minutes = value.clone();
+    apply_minutes(app, &value, cx);
+    cx.defer_in(window, move |app, _, cx| {
+        if let Some(input) = &app.sections.auto_mute.input {
+            input.update(cx, |input, cx| input.set_value(value, cx));
+        }
+    });
+    cx.notify();
 }
 
 pub(crate) fn render(
@@ -57,6 +80,7 @@ pub(crate) fn render(
                 min: u64::from(MIN_MINUTES),
                 max: u64::from(MAX_MINUTES),
             }),
+            centered: true,
             ..Default::default()
         },
         window,
@@ -92,25 +116,7 @@ pub(crate) fn render(
                     apply_minutes(app, &value, cx);
                 }
                 TextInputEvent::Up | TextInputEvent::Down => {
-                    let old = app
-                        .snapshot
-                        .config
-                        .auto_mute
-                        .after_inactivity_minutes
-                        .clamp(MIN_MINUTES, MAX_MINUTES);
-                    let value = if matches!(event, TextInputEvent::Up) {
-                        (old + 1).min(MAX_MINUTES)
-                    } else {
-                        (old - 1).max(MIN_MINUTES)
-                    };
-                    let value = value.to_string();
-                    app.sections.auto_mute.minutes = value.clone();
-                    apply_minutes(app, &value, cx);
-                    cx.defer_in(window, move |app, _, cx| {
-                        if let Some(input) = &app.sections.auto_mute.input {
-                            input.update(cx, |input, cx| input.set_value(value, cx));
-                        }
-                    });
+                    step_minutes(app, matches!(event, TextInputEvent::Up), window, cx);
                 }
                 TextInputEvent::Escape => {
                     let value = app
@@ -133,7 +139,6 @@ pub(crate) fn render(
         },
     );
     app.sections.auto_mute.input = Some(input.clone());
-    let p = app.palette;
     let disabled = anim::tween(
         window,
         cx,
@@ -141,28 +146,16 @@ pub(crate) fn render(
         (!enabled) as u8 as f32,
         UI,
     );
-    let focus = anim::tween(
+    let number = controls::stepper(
+        "auto-mute-number",
+        &input,
+        u64::from(minutes),
+        u64::from(MIN_MINUTES),
+        u64::from(MAX_MINUTES),
+        !enabled,
         window,
         cx,
-        "auto-mute-number-focus",
-        (enabled && app.sections.auto_mute.focused) as u8 as f32,
-        UI,
-    );
-    let (pointer, hover, _) = controls::hover_tween("auto-mute-number", window, cx);
-    let number = controls::track_pointer(
-        controls::text_input_container("auto-mute-number", &input)
-            .w(px(64.))
-            .h(px(32.))
-            .px(px(10.))
-            .rounded(px(8.))
-            .text_size(px(14.))
-            .font_weight(FontWeight(600.))
-            .border_1()
-            .border_color(lerp(TRANSPARENT, p.focus, focus).hsla())
-            .bg(lerp(p.surface_3, p.surface_hover, hover * (1. - disabled)).hsla())
-            .text_color(p.text.hsla())
-            .when(!enabled, |this| this.cursor_not_allowed()),
-        pointer,
+        |app, up, window, cx| step_minutes(app, up, window, cx),
     );
     let startup = controls::toggle(
         "auto-mute-startup",
