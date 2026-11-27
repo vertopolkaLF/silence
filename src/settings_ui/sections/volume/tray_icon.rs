@@ -234,7 +234,9 @@ fn skin_card(
         selected as u8 as f32,
         UI,
     );
-    let ink = lerp(p.muted, p.accent, active).hsla();
+    // Same tween keys as the card itself, so the glyph tracks the label.
+    let (_, hover, _) = crate::settings_ui::controls::hover_tween(id.clone(), window, cx);
+    let ink = lerp(lerp(p.muted, p.text, hover), p.accent_text, active).hsla();
     let preview = skin_preview(skin, 0.66, false, ink, p.danger.hsla());
     form::choice_card(id, label, selected, preview, window, cx, move |app, cx| {
         app.update_config(cx, |config| config.volume.tray_icon.skin = skin);
