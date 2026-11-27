@@ -46,6 +46,11 @@ pub(crate) struct SettingsSnapshot {
     pub muted: bool,
 }
 
+fn snapshot_mute(config: &crate::Config) -> Result<bool> {
+    let device = crate::indicator_device_id(&config.advanced.indicator_device, &config.hotkeys);
+    crate::mic_mute_state(device.as_deref())
+}
+
 impl SettingsSnapshot {
     fn load() -> Self {
         let config = crate::load_config().unwrap_or_default();
@@ -69,7 +74,7 @@ impl SettingsSnapshot {
             mic_using_apps: crate::current_mic_using_apps(),
             overlay_displays: crate::overlay_displays(),
             system_fonts: crate::system_fonts(),
-            muted: crate::mic_mute_state(None).unwrap_or(false),
+            muted: snapshot_mute(&config).unwrap_or(false),
             config,
         }
     }
@@ -102,6 +107,7 @@ pub(crate) struct SettingsApp {
     pub closing: Option<std::time::Instant>,
     /// Set when the welcome sequence hands over to the main screen.
     pub main_intro: Option<std::time::Instant>,
+    config_error: Option<String>,
     _tasks: Vec<gpui::Task<()>>,
 }
 
@@ -132,6 +138,7 @@ impl SettingsApp {
             pending_hotkey_modal_after_nav: None,
             closing: None,
             main_intro: None,
+            config_error: None,
             _tasks: Vec::new(),
         };
         app._tasks.extend(live::start(window, cx));
@@ -141,7 +148,7 @@ impl SettingsApp {
             });
         }
         if settings_should_start_update() {
-            sections::about::check(&mut app, true, cx);
+            sections::about::check(&mut app, cx);
         } else {
             app._tasks.push(check_for_update(cx));
         }
@@ -156,16 +163,28 @@ impl SettingsApp {
         cx: &mut Context<Self>,
         update: impl FnOnce(&mut crate::Config),
     ) {
-        let mut config = crate::load_config().unwrap_or_else(|_| self.snapshot.config.clone());
-        let mica_was_enabled = crate::effective_settings_mica_enabled(&config);
-        update(&mut config);
-        crate::normalize_hotkeys(&mut config.hotkeys);
-        crate::normalize_overlay_config(&mut config.overlay);
-        crate::normalize_tray_icon_config(&mut config.tray_icon);
-        crate::normalize_volume_config(&mut config.volume);
-        crate::merge_volume_custom_sounds(&mut config);
-        let _ = crate::save_config(&config);
-        crate::apply_live_config(&config, crate::config_modified_time());
+        let mica_was_enabled = self.palette.mica;
+        let result = crate::config_transaction(|config| {
+            update(config);
+            crate::normalize_hotkeys(&mut config.hotkeys);
+            crate::normalize_overlay_config(&mut config.overlay);
+            crate::normalize_tray_icon_config(&mut config.tray_icon);
+            crate::normalize_volume_config(&mut config.volume);
+            crate::merge_volume_custom_sounds(config);
+            Ok(())
+        });
+        let (config, modified) = match result {
+            Ok(saved) => saved,
+            Err(err) => {
+                self.config_error = Some(format!("Could not save settings. {err:#}"));
+                cx.notify();
+                return;
+            }
+        };
+        self.config_error = None;
+        crate::apply_live_config(&config, modified);
+        crate::rebind_settings_audio_notifications();
+        self.snapshot.muted = snapshot_mute(&config).unwrap_or(self.snapshot.muted);
         let mica = crate::effective_settings_mica_enabled(&config);
         let devices_filter_changed = config.advanced.show_disabled_devices
             != self.snapshot.config.advanced.show_disabled_devices
@@ -183,10 +202,14 @@ impl SettingsApp {
 
     /// Re-reads the config from disk (after import/reset or a tray change).
     pub fn reload_config(&mut self, cx: &mut Context<Self>) {
+        let modified = crate::config_modified_time();
         if let Ok(config) = crate::load_config() {
             let mica = crate::effective_settings_mica_enabled(&config);
             let changed_mica = mica != self.palette.mica;
             if self.snapshot.config != config {
+                crate::apply_live_config(&config, modified);
+                crate::rebind_settings_audio_notifications();
+                self.snapshot.muted = snapshot_mute(&config).unwrap_or(self.snapshot.muted);
                 let devices_filter_changed = config.advanced.show_disabled_devices
                     != self.snapshot.config.advanced.show_disabled_devices
                     || config.advanced.show_disconnected_devices
@@ -302,6 +325,18 @@ impl Render for SettingsApp {
             .opacity(1. - ease)
             .child(body)
             .child(shell::titlebar::render(self, window, cx))
+            .children(self.config_error.as_ref().map(|error| {
+                div()
+                    .absolute()
+                    .bottom(px(20.))
+                    .left(px(24.))
+                    .right(px(24.))
+                    .px(px(14.))
+                    .py(px(10.))
+                    .rounded(px(8.))
+                    .bg(palette.window_bg.hsla())
+                    .child(error.clone())
+            }))
             .children(
                 self.snapshot
                     .config

@@ -299,13 +299,6 @@ pub(crate) fn indicator_device_id(setting: &str, hotkeys: &[HotkeyBinding]) -> O
     }
 }
 
-fn target_mute_state(device_id: Option<&str>) -> Result<bool> {
-    if is_all_microphones_target(device_id) {
-        return current_mute_state();
-    }
-    mic_mute_state(device_id.filter(|id| !id.is_empty()))
-}
-
 fn set_mute_to_inverse(device_id: Option<&str>) -> Result<bool> {
     change_capture_mute(device_id, None)
 }
@@ -324,6 +317,8 @@ fn change_capture_mute(device_id: Option<&str>, requested: Option<bool>) -> Resu
             };
             attempted = Some(next);
             set_all_capture_devices_mute(next)?;
+            clear_inactivity_auto_mute_flag();
+            STATE.lock().unwrap().pending_hold_remutes.clear();
             return Ok(next);
         }
         let (volume, id) = capture_volume_with_id(device_id.filter(|id| !id.is_empty()))?;
@@ -333,6 +328,12 @@ fn change_capture_mute(device_id: Option<&str>, requested: Option<bool>) -> Resu
         };
         attempted = Some(next);
         apply_capture_mute(&volume, &id, next)?;
+        let mut state = STATE.lock().unwrap();
+        state.pending_hold_remutes.remove(&id);
+        if state.auto_muted_endpoint.as_deref() == Some(id.as_str()) {
+            state.auto_muted_endpoint = None;
+            state.auto_mute_cursor_position = POINT::default();
+        }
         Ok(next)
     })();
     match &result {
@@ -358,60 +359,27 @@ fn set_capture_endpoint_mute(volume: &IAudioEndpointVolume, muted: bool) -> Resu
 }
 
 fn apply_capture_mute(volume: &IAudioEndpointVolume, device_id: &str, muted: bool) -> Result<()> {
-    unsafe {
-        if !capture_volume_zero_mute_enabled() {
-            set_capture_endpoint_mute(volume, muted)?;
-            return Ok(());
-        }
-
-        if muted {
-            let was_muted = volume.GetMute()?.as_bool();
-            if !was_muted {
-                let scalar = volume.GetMasterVolumeLevelScalar().unwrap_or(1.0);
-                ensure_premute_capture_volume(device_id, scalar);
-            } else if let Ok(scalar) = volume.GetMasterVolumeLevelScalar()
-                && scalar > f32::EPSILON
-            {
-                ensure_premute_capture_volume(device_id, scalar);
-            }
-            set_capture_endpoint_mute(volume, true)?;
-            volume.SetMasterVolumeLevelScalar(0.0, null())?;
-        } else {
-            set_capture_endpoint_mute(volume, false)?;
-            let restore = take_premute_capture_volume(device_id).or_else(|| {
-                match volume.GetMasterVolumeLevelScalar() {
-                    Ok(current) if current <= f32::EPSILON => Some(1.0),
-                    _ => None,
-                }
-            });
-            if let Some(scalar) = restore {
-                volume.SetMasterVolumeLevelScalar(scalar, null())?;
-            }
-        }
+    set_capture_endpoint_mute(volume, muted)?;
+    let gain_result = if muted && capture_volume_zero_mute_enabled() {
+        enforce_capture_mute_volume(device_id, volume).map(|_| ())
+    } else if !muted {
+        restore_premute_capture_volume(device_id, volume)
+    } else {
+        Ok(())
+    };
+    if let Err(err) = gain_result {
+        eprintln!("failed to update microphone gain: {err:#}");
     }
     Ok(())
 }
 
-fn enforce_default_capture_mute_volume() -> Result<bool> {
-    if !capture_volume_zero_mute_enabled() {
-        return current_mute_state();
-    }
-
-    let (volume, id) = capture_volume_with_id(None)?;
-    let muted = enforce_capture_mute_volume(&id, &volume)?;
-
-    match active_capture_device_volumes() {
-        Ok(volumes) => {
-            for (id, volume) in volumes {
-                if let Err(err) = enforce_capture_mute_volume(&id, &volume) {
-                    eprintln!("failed to enforce capture mute volume: {err:?}");
-                }
-            }
+fn enforce_capture_mute_volumes() -> Result<()> {
+    for (id, volume) in active_capture_device_volumes()? {
+        if let Err(err) = enforce_capture_mute_volume(&id, &volume) {
+            eprintln!("failed to enforce capture mute volume: {err:#}");
         }
-        Err(err) => eprintln!("failed to enumerate capture devices for mute enforcement: {err:?}"),
     }
-
-    Ok(muted)
+    Ok(())
 }
 
 fn enforce_capture_mute_volume(device_id: &str, volume: &IAudioEndpointVolume) -> Result<bool> {
@@ -422,8 +390,8 @@ fn enforce_capture_mute_volume(device_id: &str, volume: &IAudioEndpointVolume) -
 
         let scalar = volume.GetMasterVolumeLevelScalar()?;
         if scalar > f32::EPSILON {
-            ensure_premute_capture_volume(device_id, scalar);
             volume.SetMasterVolumeLevelScalar(0.0, null())?;
+            ensure_premute_capture_volume(device_id, scalar);
         }
     }
     Ok(true)
@@ -431,7 +399,7 @@ fn enforce_capture_mute_volume(device_id: &str, volume: &IAudioEndpointVolume) -
 
 fn sync_capture_volume_zero_mute_setting(enabled: bool) -> Result<()> {
     if enabled {
-        enforce_default_capture_mute_volume()?;
+        enforce_capture_mute_volumes()?;
     } else {
         restore_all_premute_capture_volumes()?;
     }
@@ -439,26 +407,28 @@ fn sync_capture_volume_zero_mute_setting(enabled: bool) -> Result<()> {
 }
 
 fn restore_all_premute_capture_volumes() -> Result<()> {
-    for (id, volume) in active_capture_device_volumes()? {
-        restore_premute_capture_volume(&id, &volume)?;
+    if CAPTURE_PREMUTE_VOLUMES.lock().unwrap().is_empty() {
+        return Ok(());
     }
-    Ok(())
+    let mut first_error = None;
+    for (id, volume) in active_capture_device_volumes()? {
+        if let Err(err) = restore_premute_capture_volume(&id, &volume) {
+            first_error.get_or_insert(err);
+        }
+    }
+    first_error.map_or(Ok(()), Err)
 }
 
 fn restore_premute_capture_volume(device_id: &str, volume: &IAudioEndpointVolume) -> Result<()> {
-    let restore = take_premute_capture_volume(device_id).or_else(|| unsafe {
-        match volume.GetMasterVolumeLevelScalar() {
-            Ok(current) if current <= f32::EPSILON => Some(1.0),
-            _ => None,
-        }
-    });
-
-    if let Some(scalar) = restore {
+    let mut saved = CAPTURE_PREMUTE_VOLUMES
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
+    if let Some(&scalar) = saved.get(device_id) {
         unsafe {
             volume.SetMasterVolumeLevelScalar(scalar, null())?;
         }
+        saved.remove(device_id);
     }
-
     Ok(())
 }
 
@@ -475,13 +445,6 @@ fn ensure_premute_capture_volume(device_id: &str, scalar: f32) {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .entry(device_id.to_string())
         .or_insert(scalar);
-}
-
-fn take_premute_capture_volume(device_id: &str) -> Option<f32> {
-    CAPTURE_PREMUTE_VOLUMES
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .remove(device_id)
 }
 
 fn hotkey_volume_target_percent(target: Option<&str>, fallback: u8) -> u8 {
@@ -507,6 +470,14 @@ fn change_output_volume_from_hotkey(target: Option<&str>, direction: i32) -> Res
 
 fn set_output_volume_percent(percent: u8) -> Result<()> {
     set_output_volume(f32::from(percent.min(100)) / 100.0)
+}
+
+fn prune_finished_audio() {
+    if let Ok(mut audio) = AUDIO_ENGINE.try_lock()
+        && let Some(audio) = audio.as_mut()
+    {
+        audio.prune_finished_sinks();
+    }
 }
 
 fn play_mute_sound(muted: bool) {
@@ -899,7 +870,22 @@ fn is_all_microphones_target(device_id: Option<&str>) -> bool {
 fn capture_volume_with_id(device_id: Option<&str>) -> Result<(IAudioEndpointVolume, String)> {
     unsafe {
         let enumerator = audio_device_enumerator()?;
-        let device = capture_device(&enumerator, device_id)?;
+        let device = if let Some(id) = device_id {
+            let wide_id = wide(id);
+            let device = enumerator.GetDevice(PCWSTR(wide_id.as_ptr()))?;
+            let endpoint: windows::Win32::Media::Audio::IMMEndpoint = device.cast()?;
+            anyhow::ensure!(
+                endpoint.GetDataFlow()? == eCapture,
+                "device is not a capture endpoint"
+            );
+            anyhow::ensure!(
+                device.GetState()? == DEVICE_STATE_ACTIVE,
+                "microphone is inactive"
+            );
+            device
+        } else {
+            capture_device(&enumerator, None)?
+        };
         let id = endpoint_device_id(&device)?;
         let volume = device
             .Activate(CLSCTX_ALL, None)
@@ -964,12 +950,12 @@ fn active_capture_device_volumes() -> Result<Vec<(String, IAudioEndpointVolume)>
         let mut volumes = Vec::with_capacity(count as usize);
 
         for index in 0..count {
-            let device = collection.Item(index).context("get capture endpoint")?;
-            let id = endpoint_device_id(&device)?;
-            let volume = device
-                .Activate(CLSCTX_ALL, None)
-                .context("activate endpoint volume")?;
-            volumes.push((id, volume));
+            let Ok(device) = collection.Item(index) else {
+                continue;
+            };
+            if let (Ok(id), Ok(volume)) = (endpoint_device_id(&device), device.Activate(CLSCTX_ALL, None)) {
+                volumes.push((id, volume));
+            }
         }
 
         Ok(volumes)
@@ -1100,21 +1086,8 @@ pub(crate) fn open_audio_device_control_panel(input: bool) -> Result<()> {
 }
 
 fn set_default_audio_device(device_id: &str) -> Result<()> {
-    let device_id = wide(device_id);
-    unsafe {
-        let policy: IPolicyConfig = CoCreateInstance(&CLSID_POLICY_CONFIG_CLIENT, None, CLSCTX_ALL)
-            .context("create policy config client")?;
-        for role in [eConsole, eMultimedia, eCommunications] {
-            (Interface::vtable(&policy).SetDefaultEndpoint)(
-                Interface::as_raw(&policy),
-                PCWSTR(device_id.as_ptr()),
-                role,
-            )
-            .ok()
-            .context("set default audio endpoint")?;
-        }
-    }
-    Ok(())
+    let separate = STATE.lock().unwrap().advanced.separate_communication_device;
+    audio_devices::set_default_device(device_id, separate)
 }
 
 fn toggle_default_audio_device(

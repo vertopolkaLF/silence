@@ -158,7 +158,7 @@ impl Layout {
 
     /// As many app rows as fit the screen; more only scroll.
     fn max_visible_apps(self, extra: f32) -> usize {
-        (((max_card_height() - self.fixed_h() - extra) / self.app_row_h()).floor() as usize).max(3)
+        ((max_card_height() - self.fixed_h() - extra) / self.app_row_h()).floor() as usize
     }
 
     fn track_w(self, target: &Target) -> f32 {
@@ -170,31 +170,8 @@ impl Layout {
     }
 }
 
-/// The card may grow to the primary work area's height. The window is
-/// created this tall (GPUI never grows a window past its first size) and
-/// shrunk to fit.
 fn max_card_height() -> f32 {
-    static HEIGHT: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
-    *HEIGHT.get_or_init(|| {
-        use windows::Win32::UI::{
-            HiDpi::GetDpiForSystem,
-            WindowsAndMessaging::{
-                SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
-            },
-        };
-        let mut work = RECT::default();
-        let _ = unsafe {
-            SystemParametersInfoW(
-                SPI_GETWORKAREA,
-                0,
-                Some((&mut work as *mut RECT).cast()),
-                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
-            )
-        };
-        let scale = unsafe { GetDpiForSystem() }.max(96) as f32 / 96.0;
-        let work_h = (work.bottom - work.top) as f32 / scale;
-        (work_h - 2.0 * GUTTER - 24.0).max(240.0)
-    })
+    crate::volume_popup::max_card_height(crate::volume_popup::last_anchor())
 }
 
 thread_local! {
@@ -235,7 +212,9 @@ fn show(anchor: RECT, state: VolumePopupState, cx: &mut App) {
         .update(cx, |view, window, cx| {
             view.set_state(state, cx);
             view.reopen(window, cx);
+            view.resize(cx);
             view.region_card_h
+                .min(crate::volume_popup::max_card_height(anchor))
         })
         .ok();
     match region_h {
@@ -328,7 +307,8 @@ fn place_later(cx: &App, hwnd: HWND, anchor: RECT, activate: bool) {
 /// card inside it and the window region change. Never call it inside a
 /// GPUI update.
 fn place(hwnd: HWND, anchor: RECT, activate: bool) {
-    let (x, y, width, height) = crate::volume_popup::placement(anchor, max_card_height());
+    let (x, y, width, height) =
+        crate::volume_popup::placement(anchor, crate::volume_popup::max_card_height(anchor));
     unsafe {
         if activate {
             let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_SHOWWINDOW);
@@ -348,7 +328,8 @@ fn region_later(cx: &App, hwnd: HWND, anchor: RECT, card_h: f32) {
 /// Clips the window to a card `card_h` tall (plus its shadow gutter).
 fn set_region(hwnd: HWND, anchor: RECT, card_h: f32) {
     let align = crate::volume_popup::card_align(anchor);
-    let top = crate::volume_popup::card_top(align, max_card_height(), card_h);
+    let top =
+        crate::volume_popup::card_top(align, crate::volume_popup::max_card_height(anchor), card_h);
     // The appear slide moves the card a few pixels; the gutter covers it.
     crate::volume_popup::set_card_region(hwnd, top, top + card_h);
 }
@@ -460,6 +441,9 @@ struct PopupView {
     /// Device level while dragging, ahead of the tray's confirmation.
     local_percent: Option<u8>,
     apps: Vec<AppRow>,
+    next_apps_refresh: u64,
+    applied_apps_refresh: u64,
+    output_epoch: u64,
     icons: HashMap<std::path::PathBuf, Option<Arc<Image>>>,
     dragging: Option<Target>,
     hovered_slider: Option<Target>,
@@ -509,6 +493,9 @@ impl PopupView {
             state,
             local_percent: None,
             apps: Vec::new(),
+            next_apps_refresh: 0,
+            applied_apps_refresh: 0,
+            output_epoch: 0,
             icons: HashMap::new(),
             dragging: None,
             hovered_slider: None,
@@ -597,6 +584,10 @@ impl PopupView {
     /// Reads the app sessions (and new icons) off the UI thread.
     fn refresh_apps(&mut self, cx: &mut Context<Self>) {
         self.apply_layout(cx);
+        self.next_apps_refresh += 1;
+        let refresh = self.next_apps_refresh;
+        let output_epoch = self.output_epoch;
+        let endpoint = self.state.device_id.clone();
         let icon_px = (APP_ICON * 2.0) as u32;
         let known: Vec<_> = self.icons.keys().cloned().collect();
         cx.spawn(async move |view, cx| {
@@ -604,7 +595,9 @@ impl PopupView {
                 .background_executor()
                 .spawn(async move {
                     let outputs = crate::popup_output_devices();
-                    let apps = volume_sessions::app_volumes();
+                    let apps = volume_sessions::app_volumes(
+                        (!endpoint.is_empty()).then_some(endpoint.as_str()),
+                    );
                     let icons = apps
                         .iter()
                         .filter_map(|app| app.icon_path.clone())
@@ -618,8 +611,10 @@ impl PopupView {
                 })
                 .await;
             let _ = view.update(cx, |view, cx| {
-                view.set_outputs(outputs, cx);
-                view.set_apps(apps, icons, cx);
+                if view.output_epoch == output_epoch && refresh >= view.applied_apps_refresh {
+                    view.set_outputs(outputs, cx);
+                    view.set_apps(apps, icons, output_epoch, refresh, cx);
+                }
             });
         })
         .detach();
@@ -629,8 +624,16 @@ impl PopupView {
         &mut self,
         apps: Vec<AppVolume>,
         icons: Vec<(std::path::PathBuf, Option<Arc<Vec<u8>>>)>,
+        output_epoch: u64,
+        refresh: u64,
         cx: &mut Context<Self>,
     ) {
+        if self.output_epoch != output_epoch || refresh < self.applied_apps_refresh {
+            return;
+        }
+        self.applied_apps_refresh = refresh;
+        self.icons
+            .retain(|path, _| apps.iter().any(|app| app.icon_path.as_ref() == Some(path)));
         for (path, png) in icons {
             let image = png.map(|png| Arc::new(Image::from_bytes(ImageFormat::Png, (*png).clone())));
             self.icons.insert(path, image);
@@ -644,7 +647,9 @@ impl PopupView {
                     cx.background_executor()
                         .timer(Duration::from_millis(wait))
                         .await;
-                    let _ = view.update(cx, |view, cx| view.set_apps(apps, Vec::new(), cx));
+                    let _ = view.update(cx, |view, cx| {
+                        view.set_apps(apps, Vec::new(), output_epoch, refresh, cx)
+                    });
                 })
                 .detach();
                 return;
@@ -762,8 +767,15 @@ impl PopupView {
     /// Animates the card to fit the rows. The window grows at once and
     /// shrinks after the card has, so the animation is never clipped.
     fn resize(&mut self, cx: &mut Context<Self>) {
-        let extra = if self.switcher_open { self.switcher_full_h() } else { 0.0 };
-        let target = self.layout.card_height(self.live_apps(), extra);
+        let extra = if self.switcher_open {
+            self.switcher_full_h()
+        } else {
+            0.0
+        };
+        let target = self
+            .layout
+            .card_height(self.live_apps(), extra)
+            .min(max_card_height());
         let now = Instant::now();
         if self.closing {
             self.card_h = Motion::new(target, RESIZE_MS);
@@ -799,9 +811,12 @@ impl PopupView {
         if self.dragging != Some(Target::Device) {
             self.local_percent = None;
         }
-        let switched = !self.state.device_id.is_empty()
-            && !state.device_id.is_empty()
-            && state.device_id != self.state.device_id;
+        let switched = state.device_id != self.state.device_id;
+        if switched {
+            self.output_epoch += 1;
+            self.dragging = None;
+            self.local_percent = None;
+        }
         self.state = state;
         if switched && !self.closing {
             // The new device has other sessions: swap the whole list behind
@@ -865,10 +880,11 @@ impl PopupView {
             }
             Target::App(key) => {
                 if let Some(row) = self.apps.iter_mut().find(|row| &row.app.key == key)
+                    && row.app.endpoint_id == self.state.device_id
                     && row.local_percent.unwrap_or(row.app.percent) != percent
                 {
                     row.local_percent = Some(percent);
-                    volume_sessions::set_app_volume(key, percent);
+                    volume_sessions::set_app_volume(&row.app.endpoint_id, key, percent);
                     cx.notify();
                 }
             }
@@ -900,20 +916,23 @@ impl PopupView {
         let steps = self.wheel_steps(event);
         if steps != 0
             && let Some(row) = self.apps.iter_mut().find(|row| row.app.key == key)
+            && row.app.endpoint_id == self.state.device_id
         {
             let current = i32::from(row.local_percent.unwrap_or(row.app.percent));
             let percent = (current + steps * APP_STEP).clamp(0, 100) as u8;
             row.local_percent = Some(percent);
-            volume_sessions::set_app_volume(key, percent);
+            volume_sessions::set_app_volume(&row.app.endpoint_id, key, percent);
             cx.notify();
         }
         cx.stop_propagation();
     }
 
     fn toggle_app_mute(&mut self, key: &str, cx: &mut Context<Self>) {
-        if let Some(row) = self.apps.iter_mut().find(|row| row.app.key == key) {
+        if let Some(row) = self.apps.iter_mut().find(|row| row.app.key == key)
+            && row.app.endpoint_id == self.state.device_id
+        {
             row.app.muted = !row.app.muted;
-            volume_sessions::set_app_mute(key, row.app.muted);
+            volume_sessions::set_app_mute(&row.app.endpoint_id, key, row.app.muted);
             cx.notify();
         }
     }
@@ -1535,7 +1554,7 @@ impl Render for PopupView {
         let now = Instant::now();
         let colors = Colors::load(self.system);
         let t = self.appear.value(now).clamp(0.0, 1.0);
-        let height = self.card_h.value(now);
+        let height = self.card_h.value(now).min(max_card_height());
         // The window stays full height; the card moves inside it, sliding
         // in from the taskbar side.
         let align = crate::volume_popup::card_align(crate::volume_popup::last_anchor());

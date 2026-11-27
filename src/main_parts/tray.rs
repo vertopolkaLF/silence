@@ -540,6 +540,7 @@ fn refresh_tray_tip() {
     } else {
         format!("silence!: microphone on ({primary_shortcut})")
     };
+    drop(state);
     write_packed_wide_buf(std::ptr::addr_of_mut!(nid.szTip), &tip);
     unsafe {
         let _ = Shell_NotifyIconW(NIM_MODIFY, &nid);
@@ -711,6 +712,10 @@ unsafe extern "system" fn main_wnd_proc(
             }
             LRESULT(0)
         }
+        WM_INPUT_DEVICE_CHANGE => {
+            bt_media::forget_raw_input_device(lparam);
+            LRESULT(0)
+        }
         WM_INPUT => {
             for event in bt_media::handle_raw_input(lparam) {
                 handle_bt_media_event(event);
@@ -742,7 +747,7 @@ unsafe extern "system" fn main_wnd_proc(
             LRESULT(0)
         }
         WM_UPDATE_NOW => {
-            launch_settings_window(Some("--about-update"));
+            open_update_settings();
             LRESULT(0)
         }
         WM_EXIT_ALL => {
@@ -762,6 +767,7 @@ unsafe extern "system" fn main_wnd_proc(
             LRESULT(0)
         }
         WM_AUDIO_ENDPOINT_CHANGED => {
+            restore_reconnected_hold_endpoints();
             ensure_audio_notification_registration();
             refresh_mute_state();
             audio_endpoints_changed_in_background();
@@ -836,6 +842,11 @@ unsafe extern "system" fn main_wnd_proc(
             refresh_volume_tray();
             LRESULT(0)
         }
+        WM_ENDSESSION if wparam.0 != 0 => {
+            release_all_hold_hotkeys();
+            let _ = restore_all_premute_capture_volumes();
+            LRESULT(0)
+        }
         WM_DESTROY => {
             unsafe { PostQuitMessage(0) };
             LRESULT(0)
@@ -881,7 +892,7 @@ fn show_tray_menu(hwnd: HWND) {
         let input_w = wide("Default Input");
         let mic_apps_w = wide("Apps that use mic");
         let settings_w = wide("Open Settings");
-        let install_update_w = wide("Install Update");
+        let install_update_w = wide("View update");
         let exit_w = wide("Exit");
         let input_devices = capture_devices().unwrap_or_default();
         let output_devices = if show_output_devices {
@@ -1408,9 +1419,6 @@ fn launch_settings_window(tab_arg: Option<&str>) {
     // with a file dialog, not an Explorer drop target, so an elevated settings
     // window does not lose a drag-drop. Keeping it elevated also lets shortcut
     // capture see keys while an administrator window is focused.
-    if tab_arg == Some("--about-update") {
-        close_settings_window();
-    }
     let mut command = Command::new(exe);
     command.arg("--settings");
     if let Some(tab_arg) = tab_arg {
@@ -1458,16 +1466,14 @@ fn post_close_settings_window() {
     }
 }
 
-fn close_settings_window() {
-    let title = wide(SETTINGS_WINDOW_TITLE);
-    let Ok(hwnd) = (unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) }) else {
-        return;
-    };
-    if hwnd.0.is_null() {
-        return;
-    }
-    unsafe {
-        let _ = SendMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
+fn open_update_settings() {
+    if focus_settings_window() {
+        let title = wide(SETTINGS_WINDOW_TITLE);
+        if let Ok(hwnd) = unsafe { FindWindowW(PCWSTR(null()), PCWSTR(title.as_ptr())) } {
+            post_audio_window_message(hwnd, WM_UPDATE_NOW);
+        }
+    } else {
+        launch_settings_window(Some("--about-update"));
     }
 }
 

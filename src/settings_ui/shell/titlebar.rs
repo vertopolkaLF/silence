@@ -143,7 +143,7 @@ fn update_pill(window: &mut Window, cx: &mut Context<SettingsApp>) -> impl IntoE
         .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(cx.listener(|app, _, _, cx| {
             app.nav.select(super::nav::SettingsTab::About);
-            crate::settings_ui::sections::about::check(app, true, cx);
+            cx.notify();
         }))
         .child(
             svg()

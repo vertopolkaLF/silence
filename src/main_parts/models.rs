@@ -905,9 +905,10 @@ struct AppState {
     mouse_buttons_down: HashSet<u32>,
     gamepad_inputs_down: HashSet<GamepadInput>,
     gamepad_hotkeys_down: HashSet<String>,
-    active_hold_hotkeys: HashMap<String, ActiveHoldHotkey>,
+    active_hold_hotkeys: Vec<ActiveHoldHotkey>,
+    pending_hold_remutes: HashSet<String>,
     last_auto_mute_input_tick: u32,
-    auto_muted_by_inactivity: bool,
+    auto_muted_endpoint: Option<String>,
     auto_mute_cursor_position: POINT,
     config_modified: Option<SystemTime>,
     mic_in_use: bool,
@@ -926,6 +927,8 @@ struct AudioNotificationRegistration {
     render_device_id: Option<String>,
     render_device_name: Option<String>,
     render_generation: u64,
+    properties_volume: Option<(String, IAudioEndpointVolume)>,
+    properties_callback: IAudioEndpointVolumeCallback,
 }
 
 impl AudioNotificationRegistration {
@@ -941,7 +944,7 @@ impl AudioNotificationRegistration {
                 .context("register audio endpoint notification callback")?;
         }
 
-        let mut registration = Self {
+        Ok(Self {
             hwnd,
             enumerator,
             endpoint_callback,
@@ -953,19 +956,21 @@ impl AudioNotificationRegistration {
             render_device_id: None,
             render_device_name: None,
             render_generation: 0,
-        };
-
-        if let Err(err) = registration.rebind_indicator_capture_volume() {
-            registration.unregister_endpoint_callback();
-            return Err(err);
-        }
-
-        Ok(registration)
+            properties_volume: None,
+            properties_callback: windows_core::ComObject::new(AudioEndpointVolumeSink { hwnd })
+                .into_interface(),
+        })
     }
 
     fn rebind_indicator_capture_volume(&mut self) -> Result<()> {
         let indicator_id = current_indicator_device_id();
-        let device = unsafe { capture_device(&self.enumerator, indicator_id.as_deref())? };
+        let device = match unsafe { capture_device(&self.enumerator, indicator_id.as_deref()) } {
+            Ok(device) => device,
+            Err(err) => {
+                self.unregister_volume_callback();
+                return Err(err);
+            }
+        };
         let device_id = unsafe { endpoint_device_id(&device)? };
         if self.device_id.as_deref() == Some(device_id.as_str()) {
             return Ok(());
@@ -997,9 +1002,37 @@ impl AudioNotificationRegistration {
     }
 
     fn shutdown(mut self) {
+        self.clear_properties_volume();
         self.unregister_render_volume_callback();
         self.unregister_volume_callback();
         self.unregister_endpoint_callback();
+    }
+
+    fn clear_properties_volume(&mut self) {
+        if let Some((_, volume)) = self.properties_volume.take() {
+            unsafe {
+                let _ = volume.UnregisterControlChangeNotify(&self.properties_callback);
+            }
+        }
+    }
+
+    fn watch_properties_volume(&mut self, id: Option<&str>) -> Result<()> {
+        if self.properties_volume.as_ref().map(|(id, _)| id.as_str()) == id {
+            return Ok(());
+        }
+        self.clear_properties_volume();
+        if let Some(id) = id {
+            let wide_id = wide(id);
+            let volume: IAudioEndpointVolume = unsafe {
+                let device = self.enumerator.GetDevice(PCWSTR(wide_id.as_ptr()))?;
+                device.Activate(CLSCTX_ALL, None)?
+            };
+            unsafe {
+                volume.RegisterControlChangeNotify(&self.properties_callback)?;
+            }
+            self.properties_volume = Some((id.to_owned(), volume));
+        }
+        Ok(())
     }
 
     fn unregister_volume_callback(&mut self) {
@@ -1097,8 +1130,8 @@ impl windows::Win32::Media::Audio::IMMNotificationClient_Impl for AudioDeviceNot
 
 #[derive(Clone, Debug)]
 struct ActiveHoldHotkey {
-    target: Option<String>,
-    previous_muted: bool,
+    id: String,
+    endpoints: Vec<(String, bool)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2363,9 +2396,10 @@ impl Default for AppState {
             mouse_buttons_down: HashSet::new(),
             gamepad_inputs_down: HashSet::new(),
             gamepad_hotkeys_down: HashSet::new(),
-            active_hold_hotkeys: HashMap::new(),
+            active_hold_hotkeys: Vec::new(),
+            pending_hold_remutes: HashSet::new(),
             last_auto_mute_input_tick: 0,
-            auto_muted_by_inactivity: false,
+            auto_muted_endpoint: None,
             auto_mute_cursor_position: POINT::default(),
             config_modified: config_modified_time(),
             mic_in_use: false,

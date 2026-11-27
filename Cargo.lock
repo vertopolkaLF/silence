@@ -3878,6 +3878,7 @@ name = "silence"
 version = "3.0.0"
 dependencies = [
  "anyhow",
+ "base64",
  "flume",
  "futures-util",
  "gilrs",

@@ -55,7 +55,32 @@ VIAddVersionKey "CompanyName" "${PUBLISHER}"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
+!macro RemoveLegacyStartupTask
+    ; Refuse to replace or remove the EXE while a legacy elevated task points at it.
+    SetRegView 64
+    ReadRegStr $2 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\silence!\silence-elevated" "Id"
+    SetRegView lastused
+    StrCmp $2 "" 0 legacy_delete
+    IfFileExists "$SYSDIR\Tasks\silence!\silence-elevated" 0 legacy_query
+    Goto legacy_delete
+legacy_query:
+    nsExec::ExecToStack '"$SYSDIR\schtasks.exe" /Query /TN "\silence!\silence-elevated"'
+    Pop $0
+    Pop $1
+    StrCmp $0 "0" 0 legacy_done
+legacy_delete:
+    nsExec::ExecToStack '"$SYSDIR\schtasks.exe" /Delete /F /TN "\silence!\silence-elevated"'
+    Pop $0
+    Pop $1
+    StrCmp $0 "0" legacy_done
+    MessageBox MB_ICONSTOP|MB_OK "Could not remove the legacy elevated startup task. Run this program as administrator and try again." /SD IDOK
+    SetErrorLevel 1
+    Abort
+legacy_done:
+!macroend
+
 Section "Install"
+    !insertmacro RemoveLegacyStartupTask
     Call RemoveSilenceV1
     nsExec::ExecToLog 'taskkill.exe /f /im "silence.exe"'
 
@@ -122,12 +147,11 @@ Function RemoveSilenceV1
 FunctionEnd
 
 Section "Uninstall"
+    !insertmacro RemoveLegacyStartupTask
     nsExec::ExecToLog 'taskkill.exe /f /im "silence.exe"'
     RMDir /r "$INSTDIR"
     RMDir /r "$SMPROGRAMS\silence!"
     Delete "$DESKTOP\silence!.lnk"
     DeleteRegValue SHCTX "Software\Microsoft\Windows\CurrentVersion\Run" "silence!"
-    ; Highest-privileges logon task. Non-admin uninstall may fail to delete it.
-    nsExec::ExecToLog 'schtasks.exe /Delete /F /TN "\silence!\silence-elevated"'
     DeleteRegKey SHCTX "${UNINSTALL_KEY}"
 SectionEnd

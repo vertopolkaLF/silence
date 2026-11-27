@@ -17,9 +17,12 @@ static LAST_KEYBOARD_VOLUME_KEY_MILLIS: AtomicU64 = AtomicU64::new(0);
 static MEDIA_KEY_HELD: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 /// Button whose press on the volume OSD was swallowed; its release is too.
 static OSD_CLICK_HELD: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static TASKBAR_APP_WHEEL: AtomicBool = AtomicBool::new(false);
+static WHEEL_FULLSCREEN: RwLock<Option<wheel_volume::FullscreenSnapshot>> = RwLock::new(None);
 static WHEEL_ZONE: AtomicU8 = AtomicU8::new(0);
 static TRAY_HWND: AtomicIsize = AtomicIsize::new(0);
-static LAST_HOOK_MILLIS: AtomicU64 = AtomicU64::new(0);
+static LAST_KEYBOARD_HOOK_MILLIS: AtomicU64 = AtomicU64::new(0);
+static LAST_MOUSE_HOOK_MILLIS: AtomicU64 = AtomicU64::new(0);
 static HOOK_CLOCK: Lazy<Instant> = Lazy::new(Instant::now);
 /// Latest `WheelTargets::icon_hidden_in_overflow` from the tray UI thread.
 ///
@@ -28,7 +31,7 @@ static HOOK_CLOCK: Lazy<Instant> = Lazy::new(Instant::now);
 static VOLUME_ICON_HIDDEN_IN_OVERFLOW: AtomicBool = AtomicBool::new(false);
 static WHEEL_TARGETS: Lazy<RwLock<wheel_volume::WheelTargets>> =
     Lazy::new(|| RwLock::new(wheel_volume::WheelTargets::new()));
-static PENDING_WHEELS: Lazy<Mutex<VecDeque<(i32, i32, i16)>>> =
+static PENDING_WHEELS: Lazy<Mutex<VecDeque<i16>>> =
     Lazy::new(|| Mutex::new(VecDeque::with_capacity(32)));
 static WHEEL_ACCUMULATOR: Lazy<Mutex<wheel_volume::WheelAccumulator>> =
     Lazy::new(|| Mutex::new(wheel_volume::WheelAccumulator::new()));
@@ -36,17 +39,22 @@ static WHEEL_ACCUMULATOR: Lazy<Mutex<wheel_volume::WheelAccumulator>> =
 /// Called once the hidden window exists, before the low-level hooks are installed.
 fn mark_tray_input_hooks_ready() {
     TRAY_VOLUME_HOOKS.store(true, Ordering::Relaxed);
-    note_hook_event();
+    reset_hook_health();
     sync_volume_input_runtime();
 }
 
-fn note_hook_event() {
+fn note_hook_event(timestamp: &AtomicU64) {
     let millis = HOOK_CLOCK.elapsed().as_millis();
-    LAST_HOOK_MILLIS.store(millis.min(u128::from(u64::MAX)) as u64, Ordering::Relaxed);
+    timestamp.store(millis.min(u128::from(u64::MAX)) as u64, Ordering::Relaxed);
 }
 
-fn last_hook_event() -> Instant {
-    *HOOK_CLOCK + Duration::from_millis(LAST_HOOK_MILLIS.load(Ordering::Relaxed))
+fn reset_hook_health() {
+    note_hook_event(&LAST_KEYBOARD_HOOK_MILLIS);
+    note_hook_event(&LAST_MOUSE_HOOK_MILLIS);
+}
+
+fn last_hook_event(timestamp: &AtomicU64) -> Instant {
+    *HOOK_CLOCK + Duration::from_millis(timestamp.load(Ordering::Relaxed))
 }
 
 fn tray_hwnd() -> HWND {
@@ -74,7 +82,7 @@ fn hook_wheel_zone() -> wheel_volume::WheelZone {
 fn wheel_targets_refresh_wanted() -> bool {
     TRAY_VOLUME_HOOKS.load(Ordering::Relaxed)
         && VOLUME_MODULE_ON.load(Ordering::Relaxed)
-        && WHEEL_ZONE.load(Ordering::Relaxed) != 0
+        && (WHEEL_ZONE.load(Ordering::Relaxed) != 0 || TASKBAR_APP_WHEEL.load(Ordering::Relaxed))
 }
 
 fn wheel_refresh_ms() -> u32 {
@@ -103,6 +111,8 @@ fn sync_volume_input_runtime() {
             state.volume.music.clone(),
         )
     };
+    let was_refreshing = wheel_targets_refresh_wanted();
+    TASKBAR_APP_WHEEL.store(module_on && app_buttons, Ordering::Relaxed);
     taskbar_apps::configure(module_on && app_buttons, step);
     let music_on = module_on && music.enabled;
     MUSIC_KEYS_ON.store(
@@ -114,8 +124,6 @@ fn sync_volume_input_runtime() {
         media_session::start();
     }
     let zone_code = wheel_zone_code(zone);
-    let was_refreshing =
-        VOLUME_MODULE_ON.load(Ordering::Relaxed) && WHEEL_ZONE.load(Ordering::Relaxed) != 0;
     VOLUME_MODULE_ON.store(module_on, Ordering::Relaxed);
     VOLUME_OSD_ENABLED.store(osd_enabled, Ordering::Relaxed);
     WHEEL_ZONE.store(zone_code, Ordering::Relaxed);
@@ -137,7 +145,7 @@ fn sync_volume_input_runtime() {
 
     // `SetTimer` restarts the countdown, so leave a running timer alone when an
     // unrelated setting is saved. Rects still refresh on the 1s tick.
-    let refresh = module_on && zone_code != 0;
+    let refresh = module_on && (zone_code != 0 || app_buttons);
     unsafe {
         if refresh && !was_refreshing {
             let _ = SetTimer(hwnd, ID_WHEEL_REFRESH_TIMER, wheel_refresh_ms(), None);
@@ -160,6 +168,11 @@ fn sync_volume_input_runtime() {
 /// should call this again after `NIM_ADD` / `NIM_MODIFY` on [`ID_VOLUME_TRAY`].
 fn refresh_wheel_targets_now() {
     if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
+        return;
+    }
+    let fullscreen = wheel_volume::FullscreenSnapshot::read();
+    *WHEEL_FULLSCREEN.write().unwrap() = Some(fullscreen);
+    if WHEEL_ZONE.load(Ordering::Relaxed) == 0 {
         return;
     }
     let mut next = wheel_volume::WheelTargets::new();
@@ -197,7 +210,9 @@ fn taskbar_app_wheel(message: u32, lparam: LPARAM) -> bool {
         return false;
     }
     match wheel_volume::decode_wheel(message, lparam) {
-        Some((pt, delta, false)) => taskbar_apps::wheel(pt, delta),
+        Some((pt, delta, false)) if !wheel_blocked_by_fullscreen(pt) => {
+            taskbar_apps::wheel(pt, delta)
+        }
         _ => false,
     }
 }
@@ -214,7 +229,7 @@ fn volume_wheel_should_swallow(message: u32, lparam: LPARAM) -> bool {
     let Some((pt, delta, injected)) = wheel_volume::decode_wheel(message, lparam) else {
         return false;
     };
-    if injected {
+    if injected || wheel_blocked_by_fullscreen(pt) {
         return false;
     }
     let Ok(targets) = WHEEL_TARGETS.try_read() else {
@@ -224,35 +239,32 @@ fn volume_wheel_should_swallow(message: u32, lparam: LPARAM) -> bool {
         return false;
     }
     drop(targets);
-    enqueue_wheel(pt.x, pt.y, delta)
+    enqueue_wheel(delta)
 }
 
-fn enqueue_wheel(x: i32, y: i32, delta: i16) -> bool {
+fn wheel_blocked_by_fullscreen(point: POINT) -> bool {
+    WHEEL_FULLSCREEN.try_read().map_or(true, |snapshot| {
+        snapshot.is_none_or(|snapshot| snapshot.blocks(point))
+    })
+}
+
+fn enqueue_wheel(delta: i16) -> bool {
+    let hwnd = tray_hwnd();
+    if hwnd.0.is_null() {
+        return false;
+    }
     let Ok(mut pending) = PENDING_WHEELS.try_lock() else {
         return false;
     };
-    pending.push_back((x, y, delta));
-    drop(pending);
-
-    let hwnd = tray_hwnd();
-    if hwnd.0.is_null() {
-        pop_pending_wheel();
+    pending.push_back(delta);
+    if unsafe { PostMessageW(hwnd, WM_VOLUME_WHEEL, WPARAM(0), LPARAM(0)) }.is_err() {
+        pending.pop_back();
         return false;
     }
-    let posted = unsafe { PostMessageW(hwnd, WM_VOLUME_WHEEL, WPARAM(0), LPARAM(0)).is_ok() };
-    if !posted {
-        pop_pending_wheel();
-    }
-    posted
+    true
 }
 
-fn pop_pending_wheel() {
-    if let Ok(mut pending) = PENDING_WHEELS.try_lock() {
-        pending.pop_back();
-    }
-}
-
-fn drain_pending_wheels() -> Vec<(i32, i32, i16)> {
+fn drain_pending_wheels() -> Vec<i16> {
     match PENDING_WHEELS.lock() {
         Ok(mut pending) => pending.drain(..).collect(),
         Err(poisoned) => poisoned.into_inner().drain(..).collect(),
@@ -264,13 +276,8 @@ fn handle_volume_wheel_message() {
     if !volume_module_enabled() {
         return;
     }
-    // Do not hold `WHEEL_ACCUMULATOR` across the fullscreen query. That call
-    // can pump, and this handler would deadlock itself on the same thread.
     let mut steps = 0i32;
-    for (x, y, delta) in pending {
-        if wheel_volume::fullscreen_blocks_wheel(POINT { x, y }) {
-            continue;
-        }
+    for delta in pending {
         let mut accumulator = WHEEL_ACCUMULATOR
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -464,49 +471,59 @@ fn maintain_low_level_hooks() {
     if !TRAY_VOLUME_HOOKS.load(Ordering::Relaxed) {
         return;
     }
-    if wheel_volume::should_reinstall_hook(last_hook_event()) {
-        // Hooks belong to the thread that installs them: reinstall there.
-        let thread = INPUT_HOOK_THREAD.load(Ordering::Acquire);
-        if thread == 0 {
-            return;
-        }
-        if unsafe { PostThreadMessageW(thread, WM_REINSTALL_HOOKS, WPARAM(0), LPARAM(0)) }.is_err() {
-            eprintln!("failed to ask the input hook thread to reinstall hooks");
-        }
-        // Do not ask again on every tick while that request is pending.
-        note_hook_event();
+    let keyboard_stale =
+        wheel_volume::should_reinstall_hook(last_hook_event(&LAST_KEYBOARD_HOOK_MILLIS));
+    let mouse_stale = wheel_volume::should_reinstall_hook(last_hook_event(&LAST_MOUSE_HOOK_MILLIS));
+    let thread = INPUT_HOOK_THREAD.load(Ordering::Acquire);
+    if thread == 0 || (!keyboard_stale && !mouse_stale) {
+        return;
+    }
+    // Only restart the quiet hook. Keeping the peer installed avoids dropping
+    // input on an active keyboard while the mouse is idle, and vice versa.
+    let flags = WPARAM(usize::from(keyboard_stale) | (usize::from(mouse_stale) << 1));
+    if unsafe { PostThreadMessageW(thread, WM_REINSTALL_HOOKS, flags, LPARAM(0)) }.is_err() {
+        eprintln!("failed to ask the input hook thread to reinstall hooks");
+    }
+    if keyboard_stale {
+        note_hook_event(&LAST_KEYBOARD_HOOK_MILLIS);
+    }
+    if mouse_stale {
+        note_hook_event(&LAST_MOUSE_HOOK_MILLIS);
     }
 }
 
-fn reinstall_low_level_hooks() {
-    let (keyboard, mouse) = {
-        let state = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        (state.hook, state.mouse_hook)
-    };
-    unsafe {
-        if !keyboard.0.is_null() {
-            let _ = UnhookWindowsHookEx(keyboard);
-        }
-        if !mouse.0.is_null() {
-            let _ = UnhookWindowsHookEx(mouse);
-        }
-    }
+fn reinstall_low_level_hooks(flags: WPARAM) {
     let instance = match unsafe { GetModuleHandleW(None) } {
         Ok(instance) => instance,
         Err(err) => {
             eprintln!("failed to reinstall low-level hooks: {err:?}");
-            note_hook_event();
             return;
         }
     };
-    if let Err(err) = install_keyboard_hook(instance.into()) {
-        eprintln!("failed to reinstall keyboard hook: {err:?}");
+    let (keyboard, mouse) = {
+        let mut state = STATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let keyboard = (flags.0 & 1 != 0).then(|| std::mem::take(&mut state.hook));
+        let mouse = (flags.0 & 2 != 0).then(|| std::mem::take(&mut state.mouse_hook));
+        (keyboard, mouse)
+    };
+    for (hook, install) in [
+        (
+            keyboard,
+            install_keyboard_hook as fn(HINSTANCE) -> Result<()>,
+        ),
+        (mouse, install_mouse_hook as fn(HINSTANCE) -> Result<()>),
+    ] {
+        if let Some(hook) = hook {
+            if !hook.0.is_null() {
+                let _ = unsafe { UnhookWindowsHookEx(hook) };
+            }
+            if let Err(err) = install(instance.into()) {
+                eprintln!("failed to reinstall low-level hook: {err:#}");
+            }
+        }
     }
-    if let Err(err) = install_mouse_hook(instance.into()) {
-        eprintln!("failed to reinstall mouse hook: {err:?}");
-    }
-    // A failed install must not retry on every 1s tick while the user is active.
-    note_hook_event();
 }
 
 /// `arm` is already "own change, module on, sound enabled, not muted".

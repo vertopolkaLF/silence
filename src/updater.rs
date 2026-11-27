@@ -1,24 +1,19 @@
 //! In-place updates from GitHub Releases portable zip assets.
-//!
-//! Portable copies and installer-based installs update the same way: the
-//! package is downloaded and unpacked to a temp folder, then a hidden helper
-//! waits for silence! to exit, copies the files over the current install
-//! folder and starts it again.
 
 use std::{
     fs,
-    io::copy,
+    io::{Read, Seek, Write, copy},
+    os::windows::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
         Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    thread,
-    time::Duration,
 };
 
 use anyhow::{Context, Result};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use futures_util::StreamExt;
 use once_cell::sync::Lazy;
 use semver::Version;
@@ -30,7 +25,6 @@ use zip::ZipArchive;
 const GITHUB_API_ROOT: &str = "https://api.github.com/repos";
 const DEFAULT_UPDATE_REPO: &str = "vertopolkaLF/silence";
 const USER_AGENT: &str = concat!("silence-updater/", env!("CARGO_PKG_VERSION"));
-const RELEASES_URL: &str = "https://github.com/vertopolkaLF/silence/releases/latest";
 const APP_EXE: &str = "silence.exe";
 /// Uninstall entry written by the NSIS installer (`bundle.identifier`).
 const UNINSTALL_KEY: &str =
@@ -125,6 +119,7 @@ pub async fn check_for_update() -> Result<UpdateCheck> {
 pub async fn check_for_update_with_config(config: UpdateConfig) -> Result<UpdateCheck> {
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
+        .https_only(true)
         .build()
         .context("create update http client")?;
     let release = client
@@ -145,19 +140,18 @@ pub async fn check_for_update_with_config(config: UpdateConfig) -> Result<Update
 pub async fn download_update(
     update: &UpdateInfo,
     mut on_progress: impl FnMut(f32),
-) -> Result<PathBuf> {
-    let target_dir = update_run_dir();
-    if tokio::fs::try_exists(&target_dir).await.unwrap_or(false) {
-        let _ = tokio::fs::remove_dir_all(&target_dir).await;
-    }
-    tokio::fs::create_dir_all(&target_dir)
-        .await
-        .context("create update temp directory")?;
-    let final_path = target_dir.join("package.zip");
-    let part_path = final_path.with_extension("zip.part");
+) -> Result<DownloadedUpdate> {
+    require_standard_update()?;
+    let expected = update
+        .sha256
+        .as_deref()
+        .context("release package has no valid SHA-256")?;
+    let run = DownloadedUpdate::new()?;
+    let part_path = run.directory.join("package.zip");
 
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
+        .https_only(true)
         .build()
         .context("create download http client")?;
     let response = client
@@ -172,7 +166,10 @@ pub async fn download_update(
         .unwrap_or(update.asset_size)
         .max(1);
     let mut stream = response.bytes_stream();
-    let mut file = tokio::fs::File::create(&part_path)
+    let mut file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&part_path)
         .await
         .context("create partial update package")?;
     let mut hasher = Sha256::new();
@@ -193,131 +190,152 @@ pub async fn download_update(
         downloaded > 0 && (update.asset_size == 0 || downloaded == update.asset_size),
         "downloaded update size mismatch"
     );
-    if let Some(expected) = &update.sha256 {
-        anyhow::ensure!(
-            hex(&hasher.finalize()).eq_ignore_ascii_case(expected),
-            "update package checksum mismatch"
-        );
-    }
-    tokio::fs::rename(&part_path, &final_path)
-        .await
-        .context("finalize update package")?;
+    anyhow::ensure!(
+        hex(&hasher.finalize()).eq_ignore_ascii_case(expected),
+        "update package checksum mismatch"
+    );
     on_progress(100.0);
-    Ok(final_path)
+    Ok(run)
 }
 
-pub fn cleanup_downloads_after_startup() {
-    thread::spawn(|| {
-        thread::sleep(Duration::from_secs(10));
-        let target_dir = update_temp_dir();
-        if let Err(err) = fs::remove_dir_all(&target_dir) {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                eprintln!(
-                    "failed to cleanup update downloads {}: {err:?}",
-                    target_dir.display()
-                );
-            }
+pub struct DownloadedUpdate {
+    directory: PathBuf,
+    handed_off: bool,
+}
+
+impl DownloadedUpdate {
+    fn new() -> Result<Self> {
+        let id = unsafe { windows::Win32::System::Com::CoCreateGuid()? };
+        let directory = std::env::temp_dir().join(format!("silence-update-{id:?}"));
+        fs::create_dir(&directory).context("create update directory")?;
+        Ok(Self {
+            directory,
+            handed_off: false,
+        })
+    }
+}
+
+impl Drop for DownloadedUpdate {
+    fn drop(&mut self) {
+        if !self.handed_off {
+            let _ = fs::remove_dir_all(&self.directory);
         }
-    });
+    }
+}
+
+fn require_standard_update() -> Result<()> {
+    anyhow::ensure!(
+        crate::in_app_updates_allowed()?,
+        "Use View release to update when silence! is running as administrator or has a legacy elevated startup task."
+    );
+    Ok(())
 }
 
 /// Unpacks the downloaded package and hands it to a hidden helper that
 /// replaces the install folder once silence! has exited. The caller must exit
 /// all silence! processes right after this returns.
-pub fn install_update(update: &UpdateInfo, package: &Path) -> Result<()> {
+pub fn install_update(update: &UpdateInfo, mut package: DownloadedUpdate) -> Result<()> {
+    require_standard_update()?;
     if INSTALLING.swap(true, Ordering::Relaxed) {
         anyhow::bail!("update installation is already running");
     }
-    let result = stage_update(update, package);
-    if result.is_err() {
+    let result = stage_update(update, &package);
+    if result.is_ok() {
+        package.handed_off = true;
+    } else {
         INSTALLING.store(false, Ordering::Relaxed);
     }
     result
 }
 
-fn stage_update(update: &UpdateInfo, package: &Path) -> Result<()> {
+fn stage_update(update: &UpdateInfo, package: &DownloadedUpdate) -> Result<()> {
     let install_dir = install_dir()?;
-    if !dir_writable(&install_dir) {
-        let _ = open_release_page(&update.release_url);
-        anyhow::bail!(
-            "{} is not writable, download the update from the release page",
-            install_dir.display()
-        );
-    }
-
-    let run_dir = package
-        .parent()
-        .context("update package has no parent directory")?;
-    let extracted = run_dir.join("extracted");
-    if extracted.exists() {
-        fs::remove_dir_all(&extracted).context("clear previous update extraction")?;
-    }
-    let payload = extract_package(package, &extracted)?;
+    let expected = update
+        .sha256
+        .as_deref()
+        .context("release package has no valid SHA-256")?;
+    // Deny writes and replacement while checking and reading the same archive.
+    let mut file = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1) // FILE_SHARE_READ
+        .open(package.directory.join("package.zip"))
+        .context("open downloaded update")?;
+    let mut hasher = Sha256::new();
+    copy(&mut Read::by_ref(&mut file), &mut hasher).context("verify downloaded update")?;
     anyhow::ensure!(
-        payload.join(APP_EXE).is_file(),
-        "update package does not contain {APP_EXE}"
+        hex(&hasher.finalize()).eq_ignore_ascii_case(expected),
+        "update package checksum mismatch"
     );
+    file.rewind().context("rewind verified update")?;
 
-    let script_path = run_dir.join("apply-update.ps1");
-    fs::write(
-        &script_path,
-        helper_script(&install_dir, &payload, &update.version),
-    )
-    .context("write update helper script")?;
-    spawn_hidden_helper(&script_path)
+    let staged = package.directory.join(APP_EXE);
+    let executable_hash = extract_executable(file, &staged)?;
+    let marker = serde_json::to_string(&crate::LastUpdateNotification {
+        version: update.version.clone(),
+        release_url: update.release_url.clone(),
+        shown: false,
+    })?;
+    let script = helper_script(
+        &install_dir,
+        &package.directory,
+        &update.version,
+        &marker,
+        &executable_hash,
+    );
+    spawn_hidden_helper(&script)
 }
 
-fn helper_script(install_dir: &Path, payload: &Path, version: &str) -> String {
+fn helper_script(
+    install_dir: &Path,
+    source_dir: &Path,
+    version: &str,
+    marker: &str,
+    executable_hash: &str,
+) -> String {
     format!(
         r#"$ErrorActionPreference = 'Stop'
 $install = '{install}'
 $source = '{source}'
 $exe = Join-Path $install '{APP_EXE}'
 $version = '{version}'
-
-# Settings and the background app are separate processes of the same exe.
-$deadline = (Get-Date).AddSeconds(20)
-while ($true) {{
-    $running = @(Get-Process -Name 'silence' -ErrorAction SilentlyContinue |
-        Where-Object {{ $_.Path -and ($_.Path -ieq $exe) }})
-    if ($running.Count -eq 0) {{ break }}
-    if ((Get-Date) -gt $deadline) {{
-        $running | Stop-Process -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 500
-        break
-    }}
-    Start-Sleep -Milliseconds 250
-}}
-
+$markerJson = '{marker}'
+$expectedHash = '{executable_hash}'
+$next = Join-Path $install ('.silence-update-' + [guid]::NewGuid() + '.exe')
+$backup = $next + '.bak'
+$lock = [System.Threading.Mutex]::new($false, 'Local\SilenceV2Update')
+$owned = $false
+$exited = $false
 try {{
-    $attempt = 0
-    while ($true) {{
+    try {{ $owned = $lock.WaitOne(0) }} catch [System.Threading.AbandonedMutexException] {{ $owned = $true }}
+    if (!$owned) {{ return }}
+
+    $deadline = (Get-Date).AddSeconds(20)
+    while (@(Get-Process -Name 'silence' -ErrorAction SilentlyContinue |
+        Where-Object {{ $_.Path -and ($_.Path -ieq $exe) }}).Count -gt 0) {{
+        if ((Get-Date) -gt $deadline) {{ throw 'silence! did not exit before the update timeout' }}
+        Start-Sleep -Milliseconds 250
+    }}
+    $exited = $true
+
+    [IO.File]::Copy((Join-Path $source '{APP_EXE}'), $next)
+    if ((Get-FileHash -LiteralPath $next -Algorithm SHA256).Hash -ine $expectedHash) {{
+        throw 'Staged executable checksum mismatch'
+    }}
+    for ($attempt = 1; ; $attempt++) {{
         try {{
-            Get-ChildItem -LiteralPath $source -Force | ForEach-Object {{
-                Copy-Item -LiteralPath $_.FullName -Destination $install -Recurse -Force
-            }}
+            [IO.File]::Replace($next, $exe, $backup)
             break
-        }} catch {{
-            $attempt++
-            if ($attempt -ge 10) {{ throw }}
-            Start-Sleep -Milliseconds 500
+        }} catch [System.IO.IOException] {{
+            if ($attempt -ge 10 -or !(Test-Path -LiteralPath $next) -or
+                !(Test-Path -LiteralPath $exe) -or (Test-Path -LiteralPath $backup)) {{ throw }}
+            Start-Sleep -Milliseconds 250
         }}
     }}
 
-    # Bundled asset names carry content hashes; drop the ones this release no longer ships.
-    $newAssets = Join-Path $source 'assets'
-    $oldAssets = Join-Path $install 'assets'
-    if ((Test-Path -LiteralPath $newAssets) -and (Test-Path -LiteralPath $oldAssets)) {{
-        $oldRoot = (Get-Item -LiteralPath $oldAssets).FullName.TrimEnd('\')
-        Get-ChildItem -LiteralPath $oldRoot -File -Recurse -Force | ForEach-Object {{
-            $relative = $_.FullName.Substring($oldRoot.Length).TrimStart('\')
-            if (-not (Test-Path -LiteralPath (Join-Path $newAssets $relative))) {{
-                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
-            }}
-        }}
-    }}
+    $stateDir = Join-Path $env:APPDATA 'SilenceV2'
+    [IO.Directory]::CreateDirectory($stateDir) | Out-Null
+    [IO.File]::WriteAllText((Join-Path $stateDir 'last_update.json'), $markerJson)
 
-    # Keep "Installed apps" in sync when this folder is the installer's install.
     $key = '{UNINSTALL_KEY}'
     $entry = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
     if ($entry -and $entry.InstallLocation -and
@@ -325,37 +343,46 @@ try {{
         Set-ItemProperty -LiteralPath $key -Name DisplayVersion -Value $version
     }}
 }} catch {{
-    # The "updated" toast must not show for an update that did not apply.
-    $marker = Join-Path $env:APPDATA 'SilenceV2\last_update.json'
-    Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+    # ReplaceFile can leave the original at the backup path on a partial failure.
+    if (!(Test-Path -LiteralPath $exe) -and (Test-Path -LiteralPath $backup)) {{
+        [IO.File]::Move($backup, $exe)
+    }}
     $log = Join-Path $env:TEMP 'silence-update-error.log'
     "$(Get-Date -Format o) $($_ | Out-String)" | Add-Content -LiteralPath $log -Encoding utf8
 }} finally {{
-    Start-Process -FilePath $exe -WorkingDirectory $install
+    Remove-Item -LiteralPath $next -Force -ErrorAction SilentlyContinue
+    if ($exited -and (Test-Path -LiteralPath $exe)) {{
+        Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+        Start-Process -FilePath $exe -WorkingDirectory $install
+    }}
+    if ($owned) {{ $lock.ReleaseMutex() }}
+    $lock.Dispose()
+    Remove-Item -LiteralPath $source -Recurse -Force -ErrorAction SilentlyContinue
 }}
 "#,
         install = ps_quote(&install_dir.display().to_string()),
-        source = ps_quote(&payload.display().to_string()),
+        source = ps_quote(&source_dir.display().to_string()),
         version = ps_quote(version.trim_start_matches(['v', 'V'])),
+        marker = ps_quote(marker),
     )
 }
 
 #[cfg(windows)]
-fn spawn_hidden_helper(script_path: &Path) -> Result<()> {
+fn spawn_hidden_helper(script: &str) -> Result<()> {
     use std::os::windows::process::CommandExt;
 
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-    Command::new("powershell")
+    let utf16le: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    Command::new(crate::system_exe(r"WindowsPowerShell\v1.0\powershell.exe"))
         .args([
             "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
+            "-NonInteractive",
             "-WindowStyle",
             "Hidden",
-            "-File",
+            "-EncodedCommand",
         ])
-        .arg(script_path)
+        .arg(STANDARD.encode(utf16le))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -366,7 +393,7 @@ fn spawn_hidden_helper(script_path: &Path) -> Result<()> {
 }
 
 #[cfg(not(windows))]
-fn spawn_hidden_helper(_script_path: &Path) -> Result<()> {
+fn spawn_hidden_helper(_script: &str) -> Result<()> {
     anyhow::bail!("in-place updates are only supported on Windows")
 }
 
@@ -375,52 +402,51 @@ fn ps_quote(value: &str) -> String {
     value.replace('\'', "''")
 }
 
-fn open_release_page(url: &str) -> Result<()> {
-    let url = if url.trim().is_empty() {
-        RELEASES_URL
-    } else {
-        url
-    };
-    Command::new("explorer")
-        .arg(url)
-        .spawn()
-        .map(|_| ())
-        .context("open release page")
-}
-
-/// Extracts `archive` into `destination` and returns the folder holding the
-/// app files (the archive may wrap them in a single top-level folder).
-fn extract_package(archive: &Path, destination: &Path) -> Result<PathBuf> {
-    let file = fs::File::open(archive).with_context(|| format!("open {}", archive.display()))?;
+/// Releases ship an embedded executable, optionally inside one wrapper directory.
+fn extract_executable(file: fs::File, target: &Path) -> Result<String> {
     let mut archive = ZipArchive::new(file).context("open update package")?;
+    let mut matches = Vec::new();
     for index in 0..archive.len() {
-        let mut entry = archive
+        let entry = archive
             .by_index(index)
             .context("read update package entry")?;
-        let Some(relative) = entry.enclosed_name() else {
-            continue;
-        };
-        let target = destination.join(relative);
-        if entry.is_dir() {
-            fs::create_dir_all(&target).with_context(|| format!("create {}", target.display()))?;
-            continue;
+        if entry.is_file()
+            && let Some(path) = entry.enclosed_name()
+            && path.components().count() <= 2
+            && path
+                .file_name()
+                .is_some_and(|name| name.eq_ignore_ascii_case(APP_EXE))
+        {
+            matches.push(index);
         }
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+    }
+    anyhow::ensure!(
+        matches.len() == 1,
+        "update package must contain exactly one {APP_EXE}"
+    );
+    let mut entry = archive
+        .by_index(matches[0])
+        .context("read update executable")?;
+    let mut output = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(target)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 64 * 1024];
+    loop {
+        let read = entry
+            .read(&mut buffer)
+            .context("extract update executable")?;
+        if read == 0 {
+            break;
         }
-        let mut output =
-            fs::File::create(&target).with_context(|| format!("create {}", target.display()))?;
-        copy(&mut entry, &mut output).with_context(|| format!("extract {}", target.display()))?;
+        output
+            .write_all(&buffer[..read])
+            .context("write staged executable")?;
+        hasher.update(&buffer[..read]);
     }
-
-    let mut entries = fs::read_dir(destination)
-        .with_context(|| format!("read {}", destination.display()))?
-        .filter_map(Result::ok)
-        .collect::<Vec<_>>();
-    if entries.len() == 1 && entries[0].file_type().is_ok_and(|kind| kind.is_dir()) {
-        return Ok(entries.remove(0).path());
-    }
-    Ok(destination.to_path_buf())
+    output.sync_all().context("flush update executable")?;
+    Ok(hex(&hasher.finalize()))
 }
 
 fn install_dir() -> Result<PathBuf> {
@@ -428,25 +454,6 @@ fn install_dir() -> Result<PathBuf> {
     exe.parent()
         .map(Path::to_path_buf)
         .context("executable has no parent directory")
-}
-
-fn dir_writable(dir: &Path) -> bool {
-    let probe = dir.join(".silence-update-write-test");
-    match fs::write(&probe, b"") {
-        Ok(()) => {
-            let _ = fs::remove_file(&probe);
-            true
-        }
-        Err(_) => false,
-    }
-}
-
-fn update_temp_dir() -> PathBuf {
-    std::env::temp_dir().join("silence-updater")
-}
-
-fn update_run_dir() -> PathBuf {
-    update_temp_dir().join(format!("run-{}", std::process::id()))
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -581,6 +588,8 @@ mod tests {
             Path::new(r"C:\Users\O'Neil\silence"),
             Path::new(r"C:\Temp\payload"),
             "v2.5.0",
+            "{}",
+            "digest",
         );
         assert!(script.contains(r"$install = 'C:\Users\O''Neil\silence'"));
         assert!(script.contains("$version = '2.5.0'"));

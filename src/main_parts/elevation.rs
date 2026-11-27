@@ -1,24 +1,4 @@
-// Elevated startup and the single-instance handover.
-//
-// Low-level hooks (WH_KEYBOARD_LL / WH_MOUSE_LL) are not called while a
-// higher-integrity window is focused, unless this process is elevated too.
-// "Run as administrator" does two jobs:
-//
-// - this session: relaunch the current exe with the `runas` verb, or drop back
-//   to medium integrity through Explorer's IShellDispatch2;
-// - next sign-in: a Task Scheduler logon task with HighestAvailable instead of
-//   the HKCU Run key. The task is registered once, so later sign-ins do not
-//   show UAC.
-//
-// ITaskService is the in-process API for the same task, and it is the worse
-// fit here. RegisterTaskDefinition with TASK_RUNLEVEL_HIGHEST returns access
-// denied from a medium-integrity process, and COM does not raise a UAC prompt
-// by itself. Doing it in-process would still need an elevated helper.
-// `schtasks /Create /XML` launched with ShellExecuteExW and the runas verb is
-// that helper: one consent dialog, a process handle, and ERROR_CANCELLED when
-// the user dismisses it. An already-elevated process skips runas and runs
-// schtasks directly. The XML (not the schtasks flags) is what turns off the
-// battery, idle, and 72-hour execution limits.
+// Explicit elevation, ordinary logon startup, and single-instance handover.
 
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::sync::OnceLock;
@@ -26,7 +6,7 @@ use std::sync::OnceLock;
 use windows::core::{BSTR, VARIANT};
 use windows::Win32::System::Com::{IDispatch, IServiceProvider};
 use windows::Win32::{
-        Foundation::{ERROR_CANCELLED, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0, WAIT_TIMEOUT},
+    Foundation::{ERROR_CANCELLED, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0, WAIT_TIMEOUT},
     Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation},
     System::{
         SystemInformation::GetSystemDirectoryW,
@@ -84,14 +64,9 @@ pub(crate) fn startup_change_was_cancelled(err: &anyhow::Error) -> bool {
 /// saving `config.json`, and Explorer's `TaskbarCreated` broadcast.
 pub(crate) fn allow_cross_process_window_messages(hwnd: HWND) {
     const MESSAGES: &[u32] = &[
-        WM_TOGGLE_MUTE,
-        WM_MUTE,
-        WM_UNMUTE,
         WM_OPEN_SETTINGS,
         WM_OPEN_DEVICES,
         WM_UPDATE_NOW,
-        WM_WHATS_NEW,
-        WM_EXIT_ALL,
         WM_CONFIG_CHANGED,
         WM_VOLUME_OSD_PREVIEW,
         WM_VOLUME_OSD_POSITIONING,
@@ -124,6 +99,14 @@ pub(crate) fn running_as_administrator() -> bool {
 }
 
 pub(crate) fn current_process_is_elevated() -> bool {
+    process_elevation().unwrap_or(false)
+}
+
+pub(crate) fn in_app_updates_allowed() -> Result<bool> {
+    Ok(!process_elevation()? && !running_as_administrator() && !elevated_task_exists())
+}
+
+fn process_elevation() -> Result<bool> {
     token_is_elevated(unsafe { GetCurrentProcess() })
 }
 
@@ -141,93 +124,69 @@ fn tray_process_is_elevated() -> Option<bool> {
     unsafe {
         let _ = CloseHandle(process);
     }
-    Some(elevated)
+    elevated.ok()
 }
 
-fn token_is_elevated(process: HANDLE) -> bool {
+fn token_is_elevated(process: HANDLE) -> Result<bool> {
     unsafe {
         let mut token = HANDLE::default();
-        if OpenProcessToken(process, TOKEN_QUERY, &mut token).is_err() {
-            return false;
-        }
+        OpenProcessToken(process, TOKEN_QUERY, &mut token).context("open process token")?;
         let mut elevation = TOKEN_ELEVATION::default();
         let mut returned = 0u32;
-        let ok = GetTokenInformation(
+        let result = GetTokenInformation(
             token,
             TokenElevation,
             Some(&mut elevation as *mut TOKEN_ELEVATION as *mut c_void),
             size_of::<TOKEN_ELEVATION>() as u32,
             &mut returned,
-        )
-        .is_ok();
+        );
         let _ = CloseHandle(token);
-        ok && elevation.TokenIsElevated != 0
+        result.context("read process elevation")?;
+        Ok(elevation.TokenIsElevated != 0)
     }
 }
 
-/// `true` when applying this pair would show a UAC prompt.
-pub(crate) fn startup_sync_needs_consent(launch: bool, admin: bool) -> bool {
-    if current_process_is_elevated() {
-        return false;
-    }
-    (launch && admin) || elevated_task_exists()
+/// Only deletion of the legacy elevated task may need consent.
+pub(crate) fn startup_sync_needs_consent() -> bool {
+    !current_process_is_elevated() && elevated_task_exists()
 }
 
-/// Make the Run key and the elevated logon task match the two settings.
-///
-/// Cancelling UAC leaves both registrations untouched and returns
-/// [`StartupCancelled`].
-pub(crate) fn sync_startup_registration(launch: bool, admin: bool) -> Result<()> {
-    let want_task = launch && admin;
-    if want_task {
-        create_elevated_task()?;
-        remove_run_key()?;
-        return Ok(());
+pub(crate) fn sync_startup_registration(launch: bool) -> Result<()> {
+    if elevated_task_exists() {
+        run_schtasks(&[
+            "/Delete".to_string(),
+            "/F".to_string(),
+            "/TN".to_string(),
+            ELEVATED_TASK_NAME.to_string(),
+        ])?;
     }
-    remove_elevated_task()?;
-    if launch {
-        write_run_key()?;
-    } else {
-        remove_run_key()?;
-    }
-    Ok(())
+    sync_run_key(launch)
 }
 
-/// Tray startup. Never prompts. An elevated tray repairs the task itself;
-/// a normal tray only fixes the Run key the installer rewrites on upgrade.
 pub(crate) fn ensure_startup_registration() {
     let Ok(config) = load_config() else {
         return;
     };
     let launch = config.startup.launch_on_startup;
-    let admin = config.startup.run_as_administrator;
     let result = if current_process_is_elevated() {
-        sync_startup_registration(launch, admin)
+        sync_startup_registration(launch)
     } else {
-        reconcile_startup_without_elevation(launch, admin)
+        sync_run_key(launch)
     };
     if let Err(err) = result {
         eprintln!("startup registration reconcile failed: {err:?}");
     }
 }
 
-fn reconcile_startup_without_elevation(launch: bool, admin: bool) -> Result<()> {
-    if launch && admin {
-        if elevated_task_exists() {
-            remove_run_key()?;
-        }
-        return Ok(());
-    }
+fn sync_run_key(launch: bool) -> Result<()> {
     if launch {
-        write_run_key()?;
+        write_run_key()
     } else {
-        remove_run_key()?;
+        remove_run_key()
     }
-    Ok(())
 }
 
-/// Replace the running instance with an elevated one. The new process reads
-/// `run_as_administrator` and registers the logon task without a second prompt.
+/// Replace the running instance with an elevated one after UAC consent.
 pub(crate) fn relaunch_elevated() -> Result<()> {
     let exe = std::env::current_exe().context("locate current executable")?;
     shell_execute(&exe, ARG_REPLACE, Some("runas"), false, SW_SHOWNORMAL.0)?;
@@ -241,7 +200,10 @@ pub(crate) fn relaunch_elevated() -> Result<()> {
 /// the new process is the normal user token. No UAC prompt.
 pub(crate) fn relaunch_unelevated() -> Result<()> {
     let exe = std::env::current_exe().context("locate current executable")?;
-    launch_via_shell_dispatch(&exe, ARG_REPLACE)
+    launch_via_shell_dispatch(&exe, ARG_REPLACE)?;
+    // The replacement cannot send this command across the integrity boundary.
+    let _ = post_exit_to_running_instance();
+    Ok(())
 }
 
 /// Own `SilenceV2BackgroundApp`, or signal the instance that already owns it.
@@ -292,39 +254,31 @@ fn post_exit_to_running_instance() -> bool {
     unsafe { PostMessageW(hwnd, WM_EXIT_ALL, WPARAM(0), LPARAM(0)).is_ok() }
 }
 
-fn create_elevated_task() -> Result<()> {
-    let xml = write_task_xml()?;
-    let args = [
-        "/Create".to_string(),
-        "/F".to_string(),
-        "/TN".to_string(),
-        ELEVATED_TASK_NAME.to_string(),
-        "/XML".to_string(),
-        xml.0.display().to_string(),
-    ];
-    let result = run_schtasks(&args);
-    drop(xml);
-    result
-}
-
-fn remove_elevated_task() -> Result<()> {
-    if !elevated_task_exists() {
-        return Ok(());
-    }
-    run_schtasks(&[
-        "/Delete".to_string(),
-        "/F".to_string(),
-        "/TN".to_string(),
-        ELEVATED_TASK_NAME.to_string(),
-    ])
-}
-
 fn elevated_task_exists() -> bool {
-    Command::new(schtasks_exe())
-        .args(["/Query", "/TN", ELEVATED_TASK_NAME])
-        .creation_flags_no_window()
-        .output()
-        .is_ok_and(|output| output.status.success())
+    let task_file = system_exe("Tasks").join(ELEVATED_TASK_NAME.trim_start_matches('\\'));
+    let task_cache = format!(
+        r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree{ELEVATED_TASK_NAME}"
+    );
+    let task_cache = wide(&task_cache);
+    let mut size = 0;
+    let cached = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            PCWSTR(task_cache.as_ptr()),
+            w!("Id"),
+            RRF_RT_REG_SZ | windows::Win32::System::Registry::RRF_SUBKEY_WOW6464KEY,
+            None,
+            None,
+            Some(&mut size),
+        )
+    } == ERROR_SUCCESS;
+    task_file.exists()
+        || cached
+        || Command::new(schtasks_exe())
+            .args(["/Query", "/TN", ELEVATED_TASK_NAME])
+            .creation_flags_no_window()
+            .output()
+            .is_ok_and(|output| output.status.success())
 }
 
 fn run_schtasks(args: &[String]) -> Result<()> {
@@ -361,101 +315,6 @@ fn run_schtasks_elevated(args: &[String]) -> Result<()> {
         return Ok(());
     }
     anyhow::bail!("schtasks exited with {code}")
-}
-
-struct TaskXmlFile(PathBuf);
-
-impl Drop for TaskXmlFile {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
-    }
-}
-
-fn write_task_xml() -> Result<TaskXmlFile> {
-    let user = current_user_sam().context("current user for the elevated startup task")?;
-    let exe = std::env::current_exe().context("locate current executable for the elevated task")?;
-    let xml = task_xml(&user, &exe.to_string_lossy());
-    let path = std::env::temp_dir().join(format!(
-        "silence-elevated-task-{}.xml",
-        std::process::id()
-    ));
-    let mut bytes = vec![0xFF, 0xFE];
-    for unit in xml.encode_utf16() {
-        bytes.extend_from_slice(&unit.to_le_bytes());
-    }
-    fs::write(&path, bytes).context("write elevated startup task xml")?;
-    Ok(TaskXmlFile(path))
-}
-
-fn task_xml(user: &str, exe: &str) -> String {
-    let user = xml_escape(user);
-    let exe = xml_escape(exe);
-    format!(
-        r#"<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>Start silence! at sign-in with administrator rights so hotkeys work while an administrator app is focused.</Description>
-  </RegistrationInfo>
-  <Triggers>
-    <LogonTrigger>
-      <Enabled>true</Enabled>
-      <UserId>{user}</UserId>
-    </LogonTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id="Author">
-      <UserId>{user}</UserId>
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <AllowHardTerminate>true</AllowHardTerminate>
-    <StartWhenAvailable>false</StartWhenAvailable>
-    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
-    <IdleSettings>
-      <StopOnIdleEnd>false</StopOnIdleEnd>
-      <RestartOnIdle>false</RestartOnIdle>
-    </IdleSettings>
-    <AllowStartOnDemand>true</AllowStartOnDemand>
-    <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
-    <RunOnlyIfIdle>false</RunOnlyIfIdle>
-    <WakeToRun>false</WakeToRun>
-    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
-    <Priority>4</Priority>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>{exe}</Command>
-    </Exec>
-  </Actions>
-</Task>
-"#
-    )
-}
-
-fn current_user_sam() -> Option<String> {
-    let user = std::env::var("USERNAME").ok()?;
-    let user = user.trim();
-    if user.is_empty() {
-        return None;
-    }
-    match std::env::var("USERDOMAIN") {
-        Ok(domain) if !domain.trim().is_empty() => Some(format!("{}\\{user}", domain.trim())),
-        _ => Some(user.to_string()),
-    }
-}
-
-fn xml_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
 
 fn write_run_key() -> Result<()> {
@@ -607,7 +466,7 @@ fn schtasks_exe() -> PathBuf {
     system_exe("schtasks.exe")
 }
 
-fn system_exe(name: &str) -> PathBuf {
+pub(crate) fn system_exe(name: &str) -> PathBuf {
     let mut buffer = [0u16; 260];
     let len = unsafe { GetSystemDirectoryW(Some(&mut buffer[..])) } as usize;
     if len == 0 || len >= buffer.len() {

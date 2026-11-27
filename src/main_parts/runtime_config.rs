@@ -1,4 +1,5 @@
 fn refresh_runtime_state() {
+    prune_finished_audio();
     reload_config_if_changed();
     evaluate_auto_mute_inactivity();
     refresh_mute_state();
@@ -34,20 +35,19 @@ fn refresh_mute_state() {
     if !microphone_module_enabled() {
         return;
     }
-    let states = enforce_default_capture_mute_volume()
-        .and_then(|default_muted| Ok((default_muted, indicator_mute_state()?)));
-    let (default_muted, muted) = match states {
-        Ok(states) => states,
+    if capture_volume_zero_mute_enabled() {
+        let _ = enforce_capture_mute_volumes();
+    } else {
+        let _ = restore_all_premute_capture_volumes();
+    }
+    let muted = match indicator_mute_state() {
+        Ok(muted) => muted,
         Err(err) => {
             eprintln!("failed to refresh microphone mute state: {err:?}");
             ensure_audio_notification_registration();
             return;
         }
     };
-    // Inactivity auto-mute acts on the Windows default, whichever device the indicators show.
-    if !default_muted && STATE.lock().unwrap().auto_muted_by_inactivity {
-        clear_inactivity_auto_mute_flag();
-    }
     let changed = STATE.lock().unwrap().muted != muted;
     if changed {
         set_global_mute_state(muted, true);
@@ -65,14 +65,20 @@ fn evaluate_auto_mute_inactivity() {
         return;
     }
 
-    if STATE.lock().unwrap().auto_muted_by_inactivity && !current_mute_state().unwrap_or(true) {
+    let auto_muted = STATE.lock().unwrap().auto_muted_endpoint.clone();
+    if let Some(id) = auto_muted.as_deref()
+        && capture_volume_with_id(Some(id))
+            .and_then(|(volume, _)| Ok(unsafe { volume.GetMute()?.as_bool() }))
+            .is_ok_and(|muted| !muted)
+    {
         clear_inactivity_auto_mute_flag();
     }
 
-    if STATE.lock().unwrap().auto_muted_by_inactivity
-        && settings.unmute_on_activity
-        && try_auto_unmute_from_mouse_movement()
-    {
+    if settings.unmute_on_activity && try_auto_unmute_from_mouse_movement() {
+        return;
+    }
+
+    if STATE.lock().unwrap().auto_muted_endpoint.is_some() {
         return;
     }
 
@@ -100,23 +106,27 @@ fn evaluate_auto_mute_inactivity() {
 }
 
 fn apply_auto_mute(play_sound: bool, from_inactivity: bool) -> Result<()> {
-    let current = current_mute_state().inspect_err(|err| report_mute_failure(Some(true), err))?;
-    if current {
+    let result = (|| -> Result<_> {
+        let (volume, id) = capture_volume_with_id(None)?;
+        if unsafe { volume.GetMute()?.as_bool() } {
+            return Ok(None);
+        }
+        apply_capture_mute(&volume, &id, true)?;
+        Ok(Some(id))
+    })();
+    let Some(id) = result.inspect_err(|err| report_mute_failure(Some(true), err))? else {
         return Ok(());
-    }
-
-    let target_muted = set_mute(None, true)?;
+    };
     {
         let mut state = STATE.lock().unwrap();
-        if from_inactivity {
-            state.auto_muted_by_inactivity = true;
-            state.auto_mute_cursor_position = get_cursor_position_or_default();
+        state.auto_muted_endpoint = from_inactivity.then_some(id);
+        state.auto_mute_cursor_position = if from_inactivity {
+            get_cursor_position_or_default()
         } else {
-            state.auto_muted_by_inactivity = false;
-            state.auto_mute_cursor_position = POINT::default();
-        }
+            POINT::default()
+        };
     }
-    set_global_mute_state(indicator_mute_state().unwrap_or(target_muted), true);
+    set_global_mute_state(indicator_mute_state().unwrap_or(true), true);
 
     if play_sound {
         play_auto_mute_sound();
@@ -127,12 +137,25 @@ fn apply_auto_mute(play_sound: bool, from_inactivity: bool) -> Result<()> {
 
 fn try_auto_unmute_from_mouse_movement() -> bool {
     let current_position = get_cursor_position_or_default();
-    let initial_position = STATE.lock().unwrap().auto_mute_cursor_position;
+    let (endpoint, initial_position) = {
+        let state = STATE.lock().unwrap();
+        let Some(endpoint) = state.auto_muted_endpoint.clone() else {
+            return false;
+        };
+        if state
+            .active_hold_hotkeys
+            .iter()
+            .any(|hold| hold.endpoints.iter().any(|(id, _)| *id == endpoint))
+        {
+            return false;
+        }
+        (endpoint, state.auto_mute_cursor_position)
+    };
     if current_position.x == initial_position.x && current_position.y == initial_position.y {
         return false;
     }
 
-    match set_mute(None, false) {
+    match set_mute(Some(&endpoint), false) {
         Ok(target_muted) if !target_muted => {
             clear_inactivity_auto_mute_flag();
             set_global_mute_state(indicator_mute_state().unwrap_or(false), true);
@@ -148,16 +171,16 @@ fn try_auto_unmute_from_mouse_movement() -> bool {
 
 fn clear_inactivity_auto_mute_flag() {
     let mut state = STATE.lock().unwrap();
-    state.auto_muted_by_inactivity = false;
+    state.auto_muted_endpoint = None;
     state.auto_mute_cursor_position = POINT::default();
 }
 
 fn reset_auto_mute_monitoring_state() {
     let mut state = STATE.lock().unwrap();
-    if !state.auto_muted_by_inactivity && state.last_auto_mute_input_tick == 0 {
+    if state.auto_muted_endpoint.is_none() && state.last_auto_mute_input_tick == 0 {
         return;
     }
-    state.auto_muted_by_inactivity = false;
+    state.auto_muted_endpoint = None;
     state.last_auto_mute_input_tick = 0;
     state.auto_mute_cursor_position = POINT::default();
 }
@@ -194,12 +217,10 @@ fn get_last_input_tick() -> u32 {
 
 fn reload_config_if_changed() {
     let modified = config_modified_time();
-    let state = STATE.lock().unwrap();
-    if modified == state.config_modified {
+    if modified == STATE.lock().unwrap().config_modified {
         return;
     }
     if let Ok(config) = load_config() {
-        drop(state);
         apply_live_config(&config, modified);
     }
 }
@@ -364,14 +385,84 @@ fn add_migrated_custom_sound(
     id
 }
 
-fn save_config(config: &Config) -> Result<()> {
+fn config_transaction(
+    update: impl FnOnce(&mut Config) -> Result<()>,
+) -> Result<(Config, Option<SystemTime>)> {
+    write_config_transaction(|| {
+        let mut config = load_config()?;
+        update(&mut config)?;
+        Ok(config)
+    })
+}
+
+fn replace_config(config: Config) -> Result<(Config, Option<SystemTime>)> {
+    write_config_transaction(|| Ok(config))
+}
+
+fn write_config_transaction(
+    build: impl FnOnce() -> Result<Config>,
+) -> Result<(Config, Option<SystemTime>)> {
+    use std::os::windows::fs::OpenOptionsExt;
+
     let path = config_path()?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, serde_json::to_string_pretty(config)?)?;
+    let parent = path
+        .parent()
+        .context("settings file has no parent directory")?;
+    fs::create_dir_all(parent)?;
+    let deadline = Instant::now() + Duration::from_millis(500);
+    let lock_path = parent.join("config.lock");
+    let lock = loop {
+        match fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .share_mode(0)
+            .open(&lock_path)
+        {
+            Ok(lock) => break lock,
+            Err(err)
+                if matches!(err.raw_os_error(), Some(32 | 33)) && Instant::now() < deadline =>
+            {
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(err) => return Err(err).context("lock settings for writing"),
+        }
+    };
+    let config = build()?;
+    write_json_atomically(&path, &config)?;
+    let modified = config_modified_time();
+    drop(lock);
     notify_config_changed();
-    Ok(())
+    Ok((config, modified))
+}
+
+fn write_json_atomically(path: &Path, value: &impl Serialize) -> Result<()> {
+    use std::io::Write;
+    use windows::Win32::Storage::FileSystem::{
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+    };
+    let id = unsafe { windows::Win32::System::Com::CoCreateGuid()? };
+    let temp = path.with_extension(format!("{id:?}.tmp"));
+    let mut file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temp)?;
+    let written = serde_json::to_writer_pretty(&mut file, value)
+        .context("serialize settings")
+        .and_then(|()| Ok(file.flush()?))
+        .and_then(|()| Ok(file.sync_all()?));
+    drop(file);
+    let result = written.and_then(|()| unsafe {
+        MoveFileExW(
+            PCWSTR(wide_path(&temp).as_ptr()),
+            PCWSTR(wide_path(path).as_ptr()),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+        .context("replace settings file")
+    });
+    if result.is_err() {
+        let _ = fs::remove_file(temp);
+    }
+    result
 }
 
 /// Shows a modal save dialog and writes the config there. Blocks until the
@@ -405,12 +496,9 @@ pub fn import_settings(source: &Path) -> Result<()> {
     config.welcome_completed = true;
     config.hotkeys_paused = false;
     config.welcome_hotkey_trial = false;
-    sync_startup_registration(
-        config.startup.launch_on_startup,
-        config.startup.run_as_administrator,
-    )?;
-    save_config(&config)?;
-    apply_live_config(&config, config_modified_time());
+    sync_startup_registration(config.startup.launch_on_startup)?;
+    let (config, modified) = replace_config(config)?;
+    apply_live_config(&config, modified);
     Ok(())
 }
 
@@ -419,70 +507,69 @@ pub fn import_settings(source: &Path) -> Result<()> {
 /// whenever no editor can be open (tray startup without a settings window,
 /// settings startup).
 pub(crate) fn clear_stale_hotkey_pause() -> Result<()> {
-    let mut config = load_config()?;
-    if !config.hotkeys_paused {
+    if !load_config()?.hotkeys_paused {
         return Ok(());
     }
-    config.hotkeys_paused = false;
-    save_config(&config)?;
-    apply_live_config(&config, config_modified_time());
+    let (config, modified) = config_transaction(|config| {
+        config.hotkeys_paused = false;
+        Ok(())
+    })?;
+    apply_live_config(&config, modified);
     Ok(())
 }
 
 pub fn complete_welcome() -> Result<()> {
-    let mut config = load_config().unwrap_or_default();
-    config.welcome_completed = true;
-    config.hotkeys_paused = false;
-    config.welcome_hotkey_trial = false;
-    save_config(&config)?;
-    apply_live_config(&config, config_modified_time());
+    let (config, modified) = config_transaction(|config| {
+        config.welcome_completed = true;
+        config.hotkeys_paused = false;
+        config.welcome_hotkey_trial = false;
+        Ok(())
+    })?;
+    apply_live_config(&config, modified);
     Ok(())
 }
 
 pub fn set_welcome_toggle_shortcut(shortcut: Shortcut) -> Result<()> {
-    let mut config = load_config().unwrap_or_default();
-    let shortcut = shortcut.normalized();
-    if let Some(binding) = config
-        .hotkeys
-        .iter_mut()
-        .find(|binding| binding.action == HotkeyAction::ToggleMute && binding.gamepad.is_none())
-    {
-        binding.shortcut = shortcut.clone();
-        binding.gamepad = None;
-        binding.target = None;
-        binding.target_name = None;
-        binding.target_2 = None;
-        binding.target_2_name = None;
-    } else {
-        config.hotkeys.insert(
-            0,
-            HotkeyBinding {
-                action: HotkeyAction::ToggleMute,
-                shortcut: shortcut.clone(),
-                gamepad: None,
-                target: None,
-                target_name: None,
-                target_2: None,
-                target_2_name: None,
-                ..HotkeyBinding::default()
-            },
-        );
-    }
-    config.shortcut = shortcut;
-    normalize_hotkeys(&mut config.hotkeys);
-    save_config(&config)?;
-    apply_live_config(&config, config_modified_time());
+    let (config, modified) =
+        config_transaction(|config| {
+            let shortcut = shortcut.normalized();
+            if let Some(binding) = config.hotkeys.iter_mut().find(|binding| {
+                binding.action == HotkeyAction::ToggleMute && binding.gamepad.is_none()
+            }) {
+                binding.shortcut = shortcut.clone();
+                binding.gamepad = None;
+                binding.target = None;
+                binding.target_name = None;
+                binding.target_2 = None;
+                binding.target_2_name = None;
+            } else {
+                config.hotkeys.insert(
+                    0,
+                    HotkeyBinding {
+                        action: HotkeyAction::ToggleMute,
+                        shortcut: shortcut.clone(),
+                        gamepad: None,
+                        target: None,
+                        target_name: None,
+                        target_2: None,
+                        target_2_name: None,
+                        ..HotkeyBinding::default()
+                    },
+                );
+            }
+            config.shortcut = shortcut;
+            normalize_hotkeys(&mut config.hotkeys);
+            Ok(())
+        })?;
+    apply_live_config(&config, modified);
     Ok(())
 }
 
 pub fn reset_settings() -> Result<()> {
     let config = Config::default();
-    sync_startup_registration(
-        config.startup.launch_on_startup,
-        config.startup.run_as_administrator,
-    )?;
-    save_config(&config)?;
-    apply_live_config(&config, config_modified_time());
+    sync_startup_registration(config.startup.launch_on_startup)?;
+    let (config, modified) = replace_config(config)?;
+    apply_live_config(&config, modified);
     Ok(())
 }
 
@@ -504,6 +591,10 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
         indicator_device_id(&state.advanced.indicator_device, &state.hotkeys)
             != indicator_device_id(&config.advanced.indicator_device, &config.hotkeys);
     let microphone_was_enabled = state.modules.microphone;
+    let bindings_changed = state.hotkeys != config.hotkeys
+        || state.hotkeys_paused != config.hotkeys_paused
+        || state.welcome_completed != config.welcome_completed
+        || state.welcome_hotkey_trial != config.welcome_hotkey_trial;
     state.shortcut = config.shortcut.clone();
     state.hotkeys = config.hotkeys.clone();
     state.hotkeys_paused = config.hotkeys_paused;
@@ -517,24 +608,30 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
     state.volume = config.volume.clone();
     state.welcome_completed = config.welcome_completed;
     state.welcome_hotkey_trial = config.welcome_hotkey_trial;
-    state.modifiers = ModifierState::default();
     state.config_modified = modified;
-    state.shortcut_down = false;
-    state.hotkeys_down.clear();
-    state.gamepad_inputs_down.clear();
-    state.gamepad_hotkeys_down.clear();
+    if bindings_changed {
+        state.modifiers = current_modifier_state();
+        state.shortcut_down = false;
+        state.hotkeys_down.clear();
+        state.mouse_buttons_down.clear();
+        state.gamepad_inputs_down.clear();
+        state.gamepad_hotkeys_down.clear();
+    }
     if !auto_mute_monitoring_enabled(&state.auto_mute) {
         state.last_auto_mute_input_tick = 0;
-        state.auto_muted_by_inactivity = false;
+        state.auto_muted_endpoint = None;
         state.auto_mute_cursor_position = POINT::default();
     }
     let hwnd = state.hwnd;
     drop(state);
+    if bindings_changed {
+        release_all_hold_hotkeys();
+    }
     if indicator_device_changed {
         // Rebind mute notifications and republish the state on the tray thread.
         post_audio_window_message(hwnd, WM_AUDIO_ENDPOINT_CHANGED);
     }
-    if gamepad_monitoring_needed(true) {
+    if !hwnd.0.is_null() && gamepad_monitoring_needed(true) {
         ensure_gamepad_monitors(true);
     }
     sync_microphone_module(microphone_was_enabled);
@@ -542,13 +639,14 @@ pub(crate) fn apply_live_config(config: &Config, modified: Option<SystemTime>) {
         // Tray process only; the settings process has no OSD.
         apply_volume_osd_config(config);
         if handsfree_block_changed {
-            sync_bluetooth_handsfree_setting(config.advanced.block_bluetooth_handsfree);
+            queue_bluetooth_handsfree_sync();
         }
     }
     sync_volume_tray_icon();
     prime_sound_assets(&config.sound_settings);
     sync_volume_input_runtime();
-    if volume_zero_mute_changed
+    if !hwnd.0.is_null()
+        && volume_zero_mute_changed
         && config.modules.microphone
         && let Err(err) = sync_capture_volume_zero_mute_setting(
             config.advanced.set_mic_volume_to_zero_on_mute,
@@ -565,10 +663,10 @@ fn hotkeys_blocked(state: &AppState) -> bool {
 fn sync_microphone_module(was_enabled: bool) {
     let enabled = microphone_module_enabled();
     if was_enabled && !enabled {
-        let auto_muted = STATE.lock().unwrap().auto_muted_by_inactivity;
+        let auto_muted = STATE.lock().unwrap().auto_muted_endpoint.clone();
         release_all_hold_hotkeys();
-        if auto_muted {
-            match set_mute(None, false) {
+        if let Some(id) = auto_muted {
+            match set_mute(Some(&id), false) {
                 Ok(target_muted) => {
                     let muted = indicator_mute_state().unwrap_or(target_muted);
                     STATE.lock().unwrap().muted = muted;

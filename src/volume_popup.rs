@@ -246,12 +246,17 @@ pub(crate) fn placement(anchor: RECT, card_h: f32) -> (i32, i32, i32, i32) {
     let mut dpi_y = 96u32;
     let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
     let scale = dpi_x.max(96) as f32 / 96.0;
-    let width = ((CARD_W + GUTTER * 2.0) * scale).round() as i32;
-    let height = ((card_h + GUTTER * 2.0) * scale).round() as i32;
+    let width =
+        (((CARD_W + GUTTER * 2.0) * scale).round() as i32).min((work.right - work.left).max(1));
+    let height =
+        (((card_h + GUTTER * 2.0) * scale).round() as i32).min((work.bottom - work.top).max(1));
     let gutter = (GUTTER * scale).round() as i32;
     let gap = (TASKBAR_GAP * scale).round() as i32;
     let center_x = (anchor.left + anchor.right) / 2;
-    let x = (center_x - width / 2).clamp(work.left - gutter, work.right - width + gutter);
+    let x = (center_x - width / 2).clamp(
+        work.left - gutter,
+        (work.right - width + gutter).max(work.left - gutter),
+    );
     let y = if anchor.top >= work.bottom - 1 {
         // Bottom taskbar: card bottom sits `gap` above the work area.
         work.bottom - gap - height + gutter
@@ -259,10 +264,33 @@ pub(crate) fn placement(anchor: RECT, card_h: f32) -> (i32, i32, i32, i32) {
         work.top + gap - gutter
     } else {
         // Side taskbar or unknown: center on the icon vertically.
-        ((anchor.top + anchor.bottom) / 2 - height / 2)
-            .clamp(work.top - gutter, work.bottom - height + gutter)
+        ((anchor.top + anchor.bottom) / 2 - height / 2).clamp(
+            work.top - gutter,
+            (work.bottom - height + gutter).max(work.top - gutter),
+        )
     };
+    let y = y.clamp(
+        work.top - gutter,
+        (work.bottom - height + gutter).max(work.top - gutter),
+    );
     (x, y, width, height)
+}
+
+pub(crate) fn max_card_height(anchor: RECT) -> f32 {
+    let monitor = unsafe { MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST) };
+    let mut info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    if !unsafe { GetMonitorInfoW(monitor, &mut info).as_bool() } {
+        return 240.0;
+    }
+    let mut dpi_x = 96;
+    let mut dpi_y = 96;
+    let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
+    let scale = dpi_y.max(96) as f32 / 96.0;
+    let work_height = (info.rcWork.bottom - info.rcWork.top) as f32 / scale;
+    (work_height - 2.0 * GUTTER - TASKBAR_GAP).max(1.0)
 }
 
 /// Fallback anchor: a small square under the cursor.

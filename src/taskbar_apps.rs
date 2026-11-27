@@ -31,8 +31,8 @@ use windows::{
         Storage::Packaging::Appx::GetApplicationUserModelId,
         System::{
             Com::{
-                CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
-                CoTaskMemFree, StructuredStorage::PropVariantToBSTR,
+                CLSCTX_INPROC_SERVER, CoCreateInstance, CoTaskMemFree,
+                StructuredStorage::PropVariantToBSTR,
             },
             Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
         },
@@ -196,7 +196,9 @@ pub fn wheel(pt: POINT, delta: i16) -> bool {
 }
 
 fn run(receiver: mpsc::Receiver<Msg>) {
-    let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+    let Ok(_com) = crate::ComApartment::join_mta() else {
+        return;
+    };
     let automation: Option<IUIAutomation> =
         unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }.ok();
     let condition = automation.as_ref().and_then(|automation| unsafe {
@@ -300,7 +302,7 @@ impl Windows {
 }
 
 fn scan(automation: &IUIAutomation, condition: &IUIAutomationCondition) {
-    let live: Vec<(String, String)> = volume_sessions::app_volumes()
+    let live: Vec<(String, String)> = volume_sessions::app_volumes(None)
         .into_iter()
         .filter(|app| !app.system)
         .map(|app| (app.key, app.name))

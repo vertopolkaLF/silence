@@ -19,7 +19,7 @@ use crate::volume_osd::MediaAction;
 use gpui::{Image, ImageFormat};
 use once_cell::sync::Lazy;
 use std::{
-    sync::{Arc, Mutex, Once},
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -33,7 +33,7 @@ use windows::{
     Storage::Streams::DataReader,
     Win32::System::{
         SystemInformation::GetSystemTimeAsFileTime,
-        WinRT::{RO_INIT_MULTITHREADED, RoInitialize},
+        WinRT::{RO_INIT_MULTITHREADED, RoInitialize, RoUninitialize},
     },
 };
 
@@ -94,24 +94,35 @@ enum Wake {
 static WAKE: Lazy<Mutex<Option<flume::Sender<Wake>>>> = Lazy::new(|| Mutex::new(None));
 /// The last read track and whether it plays, for the settings preview.
 static LATEST: Lazy<Mutex<Option<(Arc<NowPlaying>, bool)>>> = Lazy::new(|| Mutex::new(None));
-static START: Once = Once::new();
 
 /// Start watching media sessions. Later calls are free.
 pub fn start() {
-    START.call_once(|| {
-        let (wake, woken) = flume::unbounded();
-        *WAKE.lock().unwrap() = Some(wake.clone());
-        let spawned = thread::Builder::new()
-            .name("silence-media-session".into())
-            .spawn(move || {
-                if let Err(error) = watch(wake, woken) {
-                    eprintln!("media session watcher: {error:#}");
+    let mut active = WAKE.lock().unwrap();
+    if active.is_some() {
+        return;
+    }
+    let (wake, woken) = flume::unbounded();
+    let worker_wake = wake.clone();
+    let spawned = thread::Builder::new()
+        .name("silence-media-session".into())
+        .spawn(move || {
+            loop {
+                match watch(&worker_wake, &woken) {
+                    Ok(()) => break,
+                    Err(error) => {
+                        publish(None);
+                        eprintln!("media session watcher: {error:#}");
+                        thread::sleep(Duration::from_secs(2));
+                        while woken.try_recv().is_ok() {}
+                    }
                 }
-            });
-        if let Err(error) = spawned {
-            eprintln!("media session watcher: {error:#}");
-        }
-    });
+            }
+            *WAKE.lock().unwrap() = None;
+        });
+    match spawned {
+        Ok(_) => *active = Some(wake),
+        Err(error) => eprintln!("media session watcher: {error:#}"),
+    }
 }
 
 /// Drop duplicate transport notifications arriving within this window across
@@ -208,22 +219,37 @@ struct CoverCache {
     cover: Option<Arc<Image>>,
 }
 
-fn watch(wake: flume::Sender<Wake>, woken: flume::Receiver<Wake>) -> windows::core::Result<()> {
+struct WinRtApartment;
+
+impl Drop for WinRtApartment {
+    fn drop(&mut self) {
+        unsafe { RoUninitialize() };
+    }
+}
+
+fn watch(wake: &flume::Sender<Wake>, woken: &flume::Receiver<Wake>) -> windows::core::Result<()> {
     unsafe { RoInitialize(RO_INIT_MULTITHREADED)? };
+    let _apartment = WinRtApartment;
     let manager = Manager::RequestAsync()?.get()?;
 
     let sessions_wake = wake.clone();
-    manager.SessionsChanged(&TypedEventHandler::new(move |_, _| {
+    let sessions_token = manager.SessionsChanged(&TypedEventHandler::new(move |_, _| {
         let _ = sessions_wake.send(Wake::Sessions);
         Ok(())
     }))?;
     let current_wake = wake.clone();
-    manager.CurrentSessionChanged(&TypedEventHandler::new(move |_, _| {
+    let current_token = match manager.CurrentSessionChanged(&TypedEventHandler::new(move |_, _| {
         let _ = current_wake.send(Wake::Changed);
         Ok(())
-    }))?;
+    })) {
+        Ok(token) => token,
+        Err(err) => {
+            let _ = manager.RemoveSessionsChanged(sessions_token);
+            return Err(err);
+        }
+    };
 
-    let mut subscriptions = subscribe(&manager, &wake);
+    let mut subscriptions = subscribe(&manager, wake);
     let mut cache = CoverCache {
         key: String::new(),
         cover: None,
@@ -277,7 +303,7 @@ fn watch(wake: flume::Sender<Wake>, woken: flume::Receiver<Wake>) -> windows::co
         }
         if resubscribe {
             unsubscribe(&mut subscriptions);
-            subscriptions = subscribe(&manager, &wake);
+            subscriptions = subscribe(&manager, wake);
         }
 
         let next = read_current(&manager, &mut cache);
@@ -311,6 +337,9 @@ fn watch(wake: flume::Sender<Wake>, woken: flume::Receiver<Wake>) -> windows::co
         }
         current = next;
     }
+    unsubscribe(&mut subscriptions);
+    let _ = manager.RemoveCurrentSessionChanged(current_token);
+    let _ = manager.RemoveSessionsChanged(sessions_token);
     Ok(())
 }
 
@@ -449,12 +478,17 @@ fn subscribe(manager: &Manager, wake: &flume::Sender<Wake>) -> Vec<Subscription>
                 }))
                 .ok()?;
             let properties_wake = wake.clone();
-            let properties = session
-                .MediaPropertiesChanged(&TypedEventHandler::new(move |_, _| {
+            let properties =
+                match session.MediaPropertiesChanged(&TypedEventHandler::new(move |_, _| {
                     let _ = properties_wake.send(Wake::Changed);
                     Ok(())
-                }))
-                .ok()?;
+                })) {
+                    Ok(token) => token,
+                    Err(_) => {
+                        let _ = session.RemovePlaybackInfoChanged(playback);
+                        return None;
+                    }
+                };
             Some(Subscription {
                 session,
                 playback,

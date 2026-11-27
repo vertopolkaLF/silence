@@ -127,6 +127,7 @@ impl State {
     pub(crate) fn open_device_properties(&mut self, id: String, input: bool) {
         self.context_menu = None;
         if let Ok(props) = audio_devices::read_device_properties(&id, input) {
+            crate::watch_settings_device_properties(Some(&id));
             self.open_device = Some(OpenDevice {
                 id,
                 input,
@@ -148,6 +149,7 @@ impl State {
     }
 
     pub(crate) fn close_properties_with(&mut self, snapshot: &SettingsSnapshot) {
+        crate::watch_settings_device_properties(None);
         let outgoing = self.open_device.take().and_then(|o| {
             let entry = if o.input {
                 snapshot
@@ -177,17 +179,22 @@ impl State {
     }
 
     pub(crate) fn close_properties(&mut self) {
+        crate::watch_settings_device_properties(None);
         self.open_device = None;
         self.view_transition = None;
     }
 
-    pub(crate) fn refresh_open_properties(&mut self) {
+    pub(crate) fn refresh_open_properties(&mut self) -> bool {
         let Some(open) = self.open_device.as_mut() else {
-            return;
+            return false;
         };
-        if let Ok(props) = audio_devices::read_device_properties(&open.id, open.input) {
+        if let Ok(props) = audio_devices::read_device_properties(&open.id, open.input)
+            && open.props != props
+        {
             open.props = props;
+            return true;
         }
+        false
     }
 
     /// Returns `(all_metered_ids, active_input_ids_needing_capture_stream)` for

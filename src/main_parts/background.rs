@@ -14,6 +14,7 @@ static AUDIO_JOBS: Lazy<Mutex<Option<flume::Sender<AudioJob>>>> = Lazy::new(|| M
 enum AudioJob {
     /// Capture endpoints were added, removed or changed default.
     EndpointsChanged,
+    HandsfreeChanged,
     /// Re-read "microphone in use" now instead of at the next poll.
     MicInUse,
 }
@@ -114,6 +115,7 @@ fn run_audio_worker(jobs: flume::Receiver<AudioJob>) {
                             // A device that came or went may change use state.
                             poll_now = true;
                         }
+                        AudioJob::HandsfreeChanged => enforce_bluetooth_handsfree_block(),
                         AudioJob::MicInUse => {
                             poll_now = true;
                             last_in_use = None;

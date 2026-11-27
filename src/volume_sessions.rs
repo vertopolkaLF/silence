@@ -24,9 +24,7 @@ use windows::{
             ISimpleAudioVolume, MMDeviceEnumerator, eConsole, eRender,
         },
         Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW},
-        System::Com::{
-            CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree,
-        },
+        System::Com::{CLSCTX_ALL, CoCreateInstance, CoTaskMemFree},
         UI::{
             Shell::SHDefExtractIconW,
             WindowsAndMessaging::{DI_NORMAL, DestroyIcon, DrawIconEx, HICON},
@@ -40,8 +38,9 @@ pub const SYSTEM_KEY: &str = "system";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppVolume {
-    /// Stable per app: exe path (lowercase), `pid:<n>`, or [`SYSTEM_KEY`].
+    /// Stable per app: exe path, session instance, or System Sounds.
     pub key: String,
+    pub endpoint_id: String,
     pub name: String,
     /// Exe the icon comes from; `None` for System Sounds or unknown apps.
     pub icon_path: Option<PathBuf>,
@@ -59,26 +58,33 @@ struct Session {
     volume: ISimpleAudioVolume,
 }
 
-fn join_com() {
-    // Fails harmlessly when the thread already has an apartment.
-    let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-}
-
-fn sessions() -> Vec<Session> {
-    join_com();
+fn sessions(endpoint_id: Option<&str>) -> (String, Vec<Session>) {
     let Ok(enumerator) = (unsafe {
         CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL)
     }) else {
-        return Vec::new();
+        return (String::new(), Vec::new());
     };
-    let Ok(device) = (unsafe { enumerator.GetDefaultAudioEndpoint(eRender, eConsole) }) else {
-        return Vec::new();
+    let device = unsafe {
+        match endpoint_id {
+            Some(id) => {
+                let id = HSTRING::from(id);
+                enumerator.GetDevice(&id)
+            }
+            None => enumerator.GetDefaultAudioEndpoint(eRender, eConsole),
+        }
     };
-    let Ok(manager) = (unsafe { device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None) }) else {
-        return Vec::new();
+    let Ok(device) = device else {
+        return (String::new(), Vec::new());
+    };
+    let Ok(endpoint_id) = (unsafe { crate::endpoint_device_id(&device) }) else {
+        return (String::new(), Vec::new());
+    };
+    let Ok(manager) = (unsafe { device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None) })
+    else {
+        return (String::new(), Vec::new());
     };
     let Ok(list) = (unsafe { manager.GetSessionEnumerator() }) else {
-        return Vec::new();
+        return (String::new(), Vec::new());
     };
     let count = unsafe { list.GetCount() }.unwrap_or(0);
     let mut out = Vec::new();
@@ -106,13 +112,26 @@ fn sessions() -> Vec<Session> {
             })
             .filter(|name| !name.is_empty() && !name.starts_with('@'))
             .unwrap_or_default();
-        let path = if system { None } else { pid_path(pid) };
+        let instance = unsafe { control.GetSessionInstanceIdentifier() }
+            .ok()
+            .map(|id| unsafe {
+                let instance = id.to_string().unwrap_or_default();
+                CoTaskMemFree(Some(id.0 as _));
+                instance
+            })
+            .filter(|id| !id.is_empty());
+        let path = if system {
+            None
+        } else {
+            session_process_path(instance.as_deref(), pid)
+        };
         let key = if system {
             SYSTEM_KEY.to_string()
         } else if let Some(path) = &path {
             path.to_string_lossy().to_lowercase()
         } else {
-            format!("pid:{pid}")
+            let Some(instance) = instance else { continue };
+            format!("session:{instance}")
         };
         out.push(Session {
             key,
@@ -123,13 +142,17 @@ fn sessions() -> Vec<Session> {
             volume,
         });
     }
-    out
+    (endpoint_id, out)
 }
 
 /// Apps with a live audio session on the default output, System Sounds first.
-pub fn app_volumes() -> Vec<AppVolume> {
+pub fn app_volumes(endpoint_id: Option<&str>) -> Vec<AppVolume> {
+    let Ok(_com) = crate::ComApartment::join_mta() else {
+        return Vec::new();
+    };
+    let (endpoint_id, sessions) = sessions(endpoint_id);
     let mut apps: Vec<AppVolume> = Vec::new();
-    for session in sessions() {
+    for session in sessions {
         if apps.iter().any(|app| app.key == session.key) {
             continue;
         }
@@ -144,6 +167,7 @@ pub fn app_volumes() -> Vec<AppVolume> {
         };
         apps.push(AppVolume {
             key: session.key,
+            endpoint_id: endpoint_id.clone(),
             name,
             icon_path: session.path,
             percent: (level.clamp(0.0, 1.0) * 100.0).round() as u8,
@@ -162,7 +186,7 @@ pub fn app_volumes() -> Vec<AppVolume> {
 /// Writes waiting for the worker: per app, the latest volume and mute.
 #[derive(Default)]
 struct Pending {
-    writes: HashMap<String, (Option<u8>, Option<bool>)>,
+    endpoints: HashMap<String, HashMap<String, (Option<u8>, Option<bool>)>>,
 }
 
 static PENDING: Lazy<(Mutex<Pending>, std::sync::Condvar)> = Lazy::new(|| {
@@ -176,34 +200,44 @@ static PENDING: Lazy<(Mutex<Pending>, std::sync::Condvar)> = Lazy::new(|| {
 /// Applies queued writes off the caller's thread. A burst of slider moves
 /// collapses into one write of the last value.
 fn write_worker() {
+    let Ok(_com) = crate::ComApartment::join_mta() else {
+        return;
+    };
     loop {
         let writes = {
             let (lock, ready) = &*PENDING;
             let mut pending = lock.lock().unwrap();
-            while pending.writes.is_empty() {
+            while pending.endpoints.is_empty() {
                 pending = ready.wait(pending).unwrap();
             }
-            std::mem::take(&mut pending.writes)
+            std::mem::take(&mut pending.endpoints)
         };
-        for session in sessions() {
-            let Some((percent, muted)) = writes.get(&session.key) else {
-                continue;
-            };
-            if let Some(percent) = percent {
-                let level = f32::from((*percent).min(100)) / 100.0;
-                let _ = unsafe { session.volume.SetMasterVolume(level, std::ptr::null()) };
-            }
-            if let Some(muted) = muted {
-                let _ = unsafe { session.volume.SetMute(*muted, std::ptr::null()) };
+        for (endpoint, writes) in writes {
+            for session in sessions(Some(&endpoint)).1 {
+                let Some((percent, muted)) = writes.get(&session.key) else {
+                    continue;
+                };
+                if let Some(percent) = percent {
+                    let level = f32::from((*percent).min(100)) / 100.0;
+                    let _ = unsafe { session.volume.SetMasterVolume(level, std::ptr::null()) };
+                }
+                if let Some(muted) = muted {
+                    let _ = unsafe { session.volume.SetMute(*muted, std::ptr::null()) };
+                }
             }
         }
     }
 }
 
-fn queue_write(key: &str, percent: Option<u8>, muted: Option<bool>) {
+fn queue_write(endpoint: &str, key: &str, percent: Option<u8>, muted: Option<bool>) {
     let (lock, ready) = &*PENDING;
     let mut pending = lock.lock().unwrap();
-    let entry = pending.writes.entry(key.to_string()).or_default();
+    let entry = pending
+        .endpoints
+        .entry(endpoint.to_string())
+        .or_default()
+        .entry(key.to_string())
+        .or_default();
     if percent.is_some() {
         entry.0 = percent;
     }
@@ -214,12 +248,12 @@ fn queue_write(key: &str, percent: Option<u8>, muted: Option<bool>) {
 }
 
 /// Sets an app's volume without blocking: the write happens on a worker.
-pub fn set_app_volume(key: &str, percent: u8) {
-    queue_write(key, Some(percent), None);
+pub fn set_app_volume(endpoint: &str, key: &str, percent: u8) {
+    queue_write(endpoint, key, Some(percent), None);
 }
 
-pub fn set_app_mute(key: &str, muted: bool) {
-    queue_write(key, None, Some(muted));
+pub fn set_app_mute(endpoint: &str, key: &str, muted: bool) {
+    queue_write(endpoint, key, None, Some(muted));
 }
 
 /// Moves the apps behind `keys` by `steps` notches of `step` percent, onto
@@ -227,7 +261,9 @@ pub fn set_app_mute(key: &str, muted: bool) {
 /// Writes directly, so the next notch reads the new level: call it off the
 /// UI thread. `None` when none of them has a session any more.
 pub fn step_app_volume(keys: &[String], steps: i32, step: u8) -> Option<AppVolume> {
-    let matching: Vec<Session> = sessions()
+    let _com = crate::ComApartment::join_mta().ok()?;
+    let (endpoint_id, sessions) = sessions(None);
+    let matching: Vec<Session> = sessions
         .into_iter()
         .filter(|session| !session.system && keys.contains(&session.key))
         .collect();
@@ -254,6 +290,7 @@ pub fn step_app_volume(keys: &[String], steps: i32, step: u8) -> Option<AppVolum
     };
     Some(AppVolume {
         key: first.key.clone(),
+        endpoint_id,
         name,
         icon_path: first.path.clone(),
         percent: target as u8,
@@ -288,22 +325,24 @@ mod tests {
     }
 }
 
-static PID_PATHS: Lazy<Mutex<HashMap<u32, Option<PathBuf>>>> =
+const CACHE_LIMIT: usize = 256;
+static SESSION_PATHS: Lazy<Mutex<HashMap<String, PathBuf>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-/// Exe path per process id, cached: opening every process on each poll and
-/// write is the slow part of listing sessions.
-fn pid_path(pid: u32) -> Option<PathBuf> {
-    if let Some(path) = PID_PATHS.lock().unwrap().get(&pid) {
-        return path.clone();
+fn session_process_path(instance: Option<&str>, pid: u32) -> Option<PathBuf> {
+    let Some(instance) = instance else {
+        return crate::process_image_path(pid);
+    };
+    if let Some(path) = SESSION_PATHS.lock().unwrap().get(instance).cloned() {
+        return Some(path);
     }
-    let path = crate::process_image_path(pid);
-    let mut paths = PID_PATHS.lock().unwrap();
-    if paths.len() > 512 {
+    let path = crate::process_image_path(pid)?;
+    let mut paths = SESSION_PATHS.lock().unwrap();
+    if paths.len() >= CACHE_LIMIT {
         paths.clear();
     }
-    paths.insert(pid, path.clone());
-    path
+    paths.insert(instance.to_owned(), path.clone());
+    Some(path)
 }
 
 static NAMES: Lazy<Mutex<HashMap<PathBuf, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
@@ -323,7 +362,11 @@ fn app_name(pid: u32, path: Option<&Path>) -> String {
                 .map(|stem| stem.to_string_lossy().into_owned())
                 .unwrap_or_else(|| format!("Process {pid}"))
         });
-    NAMES.lock().unwrap().insert(path.to_path_buf(), name.clone());
+    let mut names = NAMES.lock().unwrap();
+    if names.len() >= CACHE_LIMIT {
+        names.clear();
+    }
+    names.insert(path.to_path_buf(), name.clone());
     name
 }
 
@@ -381,7 +424,11 @@ pub fn app_icon_png(path: &Path, size: u32) -> Option<Arc<Vec<u8>>> {
         return icon.clone();
     }
     let icon = extract_icon(path, size).map(Arc::new);
-    ICONS.lock().unwrap().insert(key, icon.clone());
+    let mut icons = ICONS.lock().unwrap();
+    if icons.len() >= CACHE_LIMIT {
+        icons.clear();
+    }
+    icons.insert(key, icon.clone());
     icon
 }
 

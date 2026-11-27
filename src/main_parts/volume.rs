@@ -361,7 +361,9 @@ pub(crate) struct PopupOutputDevice {
 /// Active output devices for the popup's switcher. Safe off the tray
 /// thread: it joins the thread's COM apartment itself.
 pub(crate) fn popup_output_devices() -> Vec<PopupOutputDevice> {
-    let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+    let Ok(_com) = ComApartment::join_mta() else {
+        return Vec::new();
+    };
     let mode = STATE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -392,7 +394,9 @@ pub(crate) fn popup_output_devices() -> Vec<PopupOutputDevice> {
 /// popup through `on_output_device_changed`.
 pub(crate) fn request_popup_output_device(id: String) {
     std::thread::spawn(move || {
-        let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        let Ok(_com) = ComApartment::join_mta() else {
+            return;
+        };
         if let Err(err) = set_default_render_device(&id) {
             eprintln!("volume popup: switching output failed: {err:?}");
         }
@@ -715,14 +719,14 @@ pub(crate) fn save_moved_volume_osd() {
     let Some((display, x, y)) = volume_osd::take_moved_position() else {
         return;
     };
-    let Ok(mut config) = load_config() else {
-        return;
-    };
-    config.volume.osd.display = display;
-    config.volume.osd.position_x = x;
-    config.volume.osd.position_y = y;
-    if save_config(&config).is_ok() {
-        apply_live_config(&config, config_modified_time());
+    match config_transaction(|config| {
+        config.volume.osd.display = display;
+        config.volume.osd.position_x = x;
+        config.volume.osd.position_y = y;
+        Ok(())
+    }) {
+        Ok((config, modified)) => apply_live_config(&config, modified),
+        Err(err) => eprintln!("failed to save volume OSD position: {err:#}"),
     }
 }
 

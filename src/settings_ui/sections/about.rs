@@ -79,8 +79,8 @@ fn set_update(app: &mut SettingsApp, state: UpdateState) {
     app.sections.about.update = state;
 }
 
-/// Manual check, or check-and-install for `--about-update` / the titlebar pill.
-pub(crate) fn check(app: &mut SettingsApp, install: bool, cx: &mut Context<SettingsApp>) {
+/// Check for updates and let the user choose whether to install.
+pub(crate) fn check(app: &mut SettingsApp, cx: &mut Context<SettingsApp>) {
     if app.sections.about.busy() {
         return;
     }
@@ -97,9 +97,6 @@ pub(crate) fn check(app: &mut SettingsApp, install: bool, cx: &mut Context<Setti
         let _ = this.update(cx, |app, cx| {
             app.sections.about.checking_started = None;
             match result {
-                Ok(crate::updater::UpdateCheck::Available(update)) if install => {
-                    download(app, update, cx)
-                }
                 Ok(crate::updater::UpdateCheck::Available(update)) => {
                     set_update(app, UpdateState::Available(update))
                 }
@@ -124,8 +121,7 @@ fn download(
     let (sender, receiver) = flume::unbounded();
     live::runtime().spawn(async move {
         let progress_sender = sender.clone();
-        // The shared helper persists the release notification, launches the
-        // installer, exits the other app processes, then exits this process.
+        // The shared helper stages the update and requests a graceful shutdown.
         let install_sender = sender.clone();
         let result = crate::download_and_install_update_with_status(
             update,
@@ -439,7 +435,8 @@ fn status_row(
     let checking = matches!(state, UpdateState::Checking);
     let available = matches!(state, UpdateState::Available(_));
     let downloading = matches!(state, UpdateState::Downloading(_) | UpdateState::Installing);
-    let initial = !available && !downloading;
+    let failed = matches!(state, UpdateState::Failed(_));
+    let initial = !available && !failed && !downloading;
 
     let (title, detail): (String, Option<String>) = match state {
         UpdateState::Idle => ("Ready to check for updates".into(), None),
@@ -495,8 +492,8 @@ fn status_row(
     );
     let (release_layer, release_opacity) = layer(
         "about-release-layer",
-        available,
-        if available {
+        available || failed,
+        if available || failed {
             0.
         } else if downloading {
             -10.
@@ -519,6 +516,8 @@ fn status_row(
         "about-actions-width",
         if available {
             RELEASE_W + 8. + INSTALL_W
+        } else if failed {
+            RELEASE_W + 8. + CHECK_W
         } else if downloading {
             PROGRESS_W
         } else {
@@ -543,7 +542,7 @@ fn status_row(
                 if !app.sections.about.busy()
                     && !matches!(app.sections.about.update, UpdateState::Available(_))
                 {
-                    check(app, false, cx);
+                    check(app, cx);
                 }
             },
         )
@@ -572,17 +571,19 @@ fn status_row(
             "about-install",
             ButtonKind::Primary,
             None,
-            Some("Update".into()),
+            Some(if failed { "Check for updates" } else { "Update" }.into()),
             false,
             window,
             cx,
             |app, _, _, cx| {
-                if let UpdateState::Available(update) = app.sections.about.update.clone() {
-                    download(app, update, cx);
+                match app.sections.about.update.clone() {
+                    UpdateState::Available(update) => download(app, update, cx),
+                    UpdateState::Failed(_) => check(app, cx),
+                    _ => {}
                 }
             },
         )
-        .w(px(INSTALL_W));
+        .w(px(if failed { CHECK_W } else { INSTALL_W }));
         slot = slot.child(release_layer.child(release).child(install));
     }
     let progress = match state {
@@ -693,6 +694,13 @@ fn layer(
 /// context ("latest GitHub release response") means nothing to a person.
 fn failure_text(error: &anyhow::Error) -> String {
     eprintln!("update failed: {error:?}");
+    if error.to_string().starts_with("Use View release") {
+        return error.to_string();
+    }
+    if error.to_string().contains("SHA-256") || error.to_string().contains("checksum") {
+        return "Could not verify the update package. Open the release page to check the download."
+            .into();
+    }
     let http = error
         .chain()
         .find_map(|cause| cause.downcast_ref::<reqwest::Error>());

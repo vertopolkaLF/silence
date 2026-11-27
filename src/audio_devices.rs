@@ -30,10 +30,7 @@ use windows::{
             WAVEFORMATEXTENSIBLE, WAVEFORMATEXTENSIBLE_0, eCapture, eCommunications, eConsole,
             eMultimedia, eRender,
         },
-        System::Com::{
-            CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree,
-            STGM_READ, STGM_READWRITE,
-        },
+        System::Com::{CLSCTX_ALL, CoCreateInstance, CoTaskMemFree, STGM_READ, STGM_READWRITE},
         UI::Shell::PropertiesSystem::{IPropertyStore, PROPERTYKEY},
     },
     core::{GUID, HSTRING, Interface, PCWSTR, PROPVARIANT},
@@ -440,9 +437,9 @@ pub fn sync_capture_meter_streams(input_ids: &[String]) {
 }
 
 fn capture_meter_worker(rx: flume::Receiver<Vec<String>>) {
-    unsafe {
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-    }
+    let Ok(_com) = crate::ComApartment::join_mta() else {
+        return;
+    };
     let mut active: HashMap<String, IAudioClient> = HashMap::new();
     while let Ok(mut desired) = rx.recv() {
         // Coalesce rapid updates to the latest desired set.
@@ -512,8 +509,10 @@ pub fn sample_peak_levels(ids: &[String]) -> HashMap<String, f32> {
     if ids.is_empty() {
         return peaks;
     }
+    let Ok(_com) = crate::ComApartment::join_mta() else {
+        return peaks;
+    };
     unsafe {
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
         let Ok(enumerator) = crate::audio_device_enumerator() else {
             return peaks;
         };
@@ -1033,8 +1032,8 @@ pub fn play_test_tone(device_id: &str) -> Result<()> {
 }
 
 fn play_test_tone_blocking(device_id: &str) -> Result<()> {
+    let _com = crate::ComApartment::join_mta()?;
     unsafe {
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
         let enumerator = crate::audio_device_enumerator()?;
         let id_w = crate::wide(device_id);
         let device = enumerator

@@ -1,28 +1,8 @@
-fn write_last_update_notification(update: &updater::UpdateInfo) -> Result<()> {
-    let marker = LastUpdateNotification {
-        version: update.version.clone(),
-        release_url: update.release_url.clone(),
-        shown: false,
-    };
-    let path = last_update_notification_path()?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, serde_json::to_string_pretty(&marker)?)?;
-    Ok(())
-}
-
-fn clear_last_update_notification() {
-    if let Ok(path) = last_update_notification_path() {
-        let _ = fs::remove_file(path);
-    }
-}
-
 fn maybe_show_updated_notification() {
     let Ok(Some(mut marker)) = read_last_update_notification() else {
         return;
     };
-    if marker.shown {
+    if marker.shown || marker.version != updater::current_version_text() {
         return;
     }
 
@@ -152,11 +132,7 @@ fn show_update_notification(update: &updater::UpdateInfo) {
         .duration(winrt_toast::ToastDuration::Long)
         .launch("view-update")
         .action(
-            winrt_toast::Action::new("Update now", "silence://update-now", "button")
-                .with_activation_type(winrt_toast::content::action::ActivationType::Protocol),
-        )
-        .action(
-            winrt_toast::Action::new("View Release", "silence://view-update", "button")
+            winrt_toast::Action::new("View update", "silence://view-update", "button")
                 .with_activation_type(winrt_toast::content::action::ActivationType::Protocol),
         );
 
@@ -297,13 +273,12 @@ pub fn set_overlay_positioning(active: bool) -> Option<OverlayConfig> {
 }
 
 pub(crate) fn save_overlay_position(position_x: f64, position_y: f64) {
-    let mut config = load_config().unwrap_or_default();
-    config.overlay.position_x = position_x;
-    config.overlay.position_y = position_y;
-    let _ = save_config(&config);
-
-    let mut state = STATE.lock().unwrap();
-    state.overlay.position_x = position_x;
-    state.overlay.position_y = position_y;
-    state.config_modified = config_modified_time();
+    match config_transaction(|config| {
+        config.overlay.position_x = position_x;
+        config.overlay.position_y = position_y;
+        Ok(())
+    }) {
+        Ok((config, modified)) => apply_live_config(&config, modified),
+        Err(err) => eprintln!("failed to save overlay position: {err:#}"),
+    }
 }

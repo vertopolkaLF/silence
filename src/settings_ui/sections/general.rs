@@ -27,9 +27,8 @@ pub(crate) enum AdminPrompt {
     Notice(&'static str),
 }
 
-const ADMIN_CAPTION: &str = "Lets the wheel, media keys and hotkeys work while an administrator app is focused. Asks for permission once.";
-const NOTICE_CANCELLED: &str =
-    "Windows permission was cancelled, so the setting was not changed.";
+const ADMIN_CAPTION: &str = "Lets the wheel, media keys and hotkeys work while an administrator app is focused. Windows asks for permission when you restart as administrator.";
+const NOTICE_CANCELLED: &str = "Windows permission was cancelled, so the setting was not changed.";
 const NOTICE_FAILED: &str =
     "silence! could not update the startup task, so the setting was not changed.";
 const NOTICE_RESTART_CANCELLED: &str =
@@ -238,7 +237,6 @@ pub(crate) fn render(
 }
 
 fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<SettingsApp>) -> Div {
-    let launch = app.snapshot.config.startup.launch_on_startup;
     let admin = app.snapshot.config.startup.run_as_administrator;
     let elevated = crate::running_as_administrator();
     let busy = app.sections.general.admin_busy;
@@ -300,12 +298,6 @@ fn admin_card(app: &mut SettingsApp, window: &mut Window, cx: &mut Context<Setti
                     .text_color(palette.accent_text.hsla())
                     .child("Running as administrator"),
             )
-        })
-        .when(!launch, |this| {
-            this.child(style::desc(
-                "Launch with Windows is off, so this only changes the current session until you turn launch on.",
-                cx,
-            ))
         })
         .when(busy, |this| {
             this.child(style::desc("Waiting for Windows permission…", cx))
@@ -372,12 +364,12 @@ fn run_startup_sync(
     cx: &mut Context<SettingsApp>,
 ) {
     app.sections.general.admin_prompt = None;
-    if !crate::startup_sync_needs_consent(launch, admin) {
+    if !crate::startup_sync_needs_consent() {
         finish_startup_sync(
             app,
             launch,
             admin,
-            crate::sync_startup_registration(launch, admin),
+            crate::sync_startup_registration(launch),
             afterward,
             cx,
         );
@@ -386,7 +378,7 @@ fn run_startup_sync(
     app.sections.general.admin_busy = true;
     let task = cx
         .background_executor()
-        .spawn(async move { crate::sync_startup_registration(launch, admin) });
+        .spawn(async move { crate::sync_startup_registration(launch) });
     cx.spawn(async move |this, cx| {
         let result = task.await;
         let _ = this.update(cx, |app, cx| {
@@ -560,16 +552,11 @@ fn admin_dialog(
     cx: &mut Context<SettingsApp>,
 ) -> Option<AnyElement> {
     let prompt = app.sections.general.admin_prompt?;
-    let launch = app.snapshot.config.startup.launch_on_startup;
     let palette = app.palette;
     let (title, body) = match prompt {
-        AdminPrompt::Enable if launch => (
-            "Run as administrator?",
-            "Restart silence! so the wheel, media keys and hotkeys work while an administrator app is focused. Windows asks for permission once. Next sign-in waits until you log on again.",
-        ),
         AdminPrompt::Enable => (
             "Run as administrator?",
-            "Restart silence! so this session runs as administrator. Launch with Windows is off, so this does not come back after you sign in.",
+            "Restart silence! so the wheel, media keys and hotkeys work while an administrator app is focused. Launch with Windows uses standard permissions.",
         ),
         AdminPrompt::RestartUnelevated => (
             "Restart without administrator rights?",
@@ -578,7 +565,6 @@ fn admin_dialog(
         AdminPrompt::Notice(text) => ("silence!", text),
     };
     let secondary_label = match prompt {
-        AdminPrompt::Enable if launch => "Next sign-in",
         AdminPrompt::Enable => "Not now",
         AdminPrompt::RestartUnelevated => "Later",
         AdminPrompt::Notice(_) => "OK",
@@ -601,15 +587,9 @@ fn admin_dialog(
         false,
         window,
         cx,
-        move |app, _, _, cx| match prompt {
-            AdminPrompt::Enable => {
-                let launch = app.snapshot.config.startup.launch_on_startup;
-                run_startup_sync(app, launch, true, None, cx);
-            }
-            AdminPrompt::RestartUnelevated | AdminPrompt::Notice(_) => {
-                app.sections.general.admin_prompt = None;
-                cx.notify();
-            }
+        |app, _, _, cx| {
+            app.sections.general.admin_prompt = None;
+            cx.notify();
         },
     );
     let primary = primary.map(|label| {

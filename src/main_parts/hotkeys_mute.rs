@@ -12,7 +12,7 @@ fn exit_all_processes() {
 }
 
 unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    note_hook_event();
+    note_hook_event(&LAST_KEYBOARD_HOOK_MILLIS);
     if code < 0 {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
@@ -27,10 +27,8 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     // The settings recorder pauses hotkeys (`hotkeys_paused`) and the welcome
     // flow has not finished yet. Both must still receive volume keys, so do
     // not swallow here.
-    if {
-        let state = STATE.lock().unwrap();
-        hotkeys_blocked(&state)
-    } {
+    let blocked = hotkeys_blocked(&STATE.lock().unwrap());
+    if blocked && !is_up {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
@@ -124,14 +122,11 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
             hotkey.shortcut.vk == vk && state.hotkeys_down.contains(&hotkey.id)
         });
         for hotkey in released {
-            if shortcut_is_alt_space(&hotkey.shortcut) {
-                suppress_key = true;
-            }
-            state.hotkeys_down.remove(&hotkey.id);
-            if hotkey.action.is_hold() {
-                actions.push(HotkeyRequest::ReleaseHold {
-                    id: hotkey.id.clone(),
-                });
+            if state.hotkeys_down.remove(&hotkey.id) {
+                suppress_key |= shortcut_is_alt_space(&hotkey.shortcut);
+                if hotkey.action.is_hold() {
+                    actions.push(HotkeyRequest::ReleaseHold { id: hotkey.id });
+                }
             }
         }
         if state.shortcut.vk == vk {
@@ -147,6 +142,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         }
     }
 
+    if blocked {
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
     observe_media_transport_key(vk, is_down, is_up);
     if swallow_volume_media_key(vk, is_down, is_up, hotkey_claimed) {
         return LRESULT(1);
@@ -211,7 +209,7 @@ fn normalized_keyboard_vk(vk: u32, scan_code: u32, flags: u32) -> u32 {
 }
 
 unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    note_hook_event();
+    note_hook_event(&LAST_MOUSE_HOOK_MILLIS);
     if code < 0 {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
@@ -261,7 +259,8 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
     let mut actions = Vec::new();
     {
         let mut state = STATE.lock().unwrap();
-        if hotkeys_blocked(&state) {
+        if hotkeys_blocked(&state) && down {
+            drop(state);
             return unsafe { CallNextHookEx(None, code, wparam, lparam) };
         }
 
@@ -542,9 +541,11 @@ fn run_hotkey_action(action: HotkeyRequest) {
         HotkeyRequest::ToggleMute { target } => toggle_mute_target(target.as_deref()),
         HotkeyRequest::SetMute { target, muted } => set_mute_target(target.as_deref(), muted),
         HotkeyRequest::StartHold { id, target, muted } => {
-            start_hold_hotkey(&id, target, muted);
+            start_hold_hotkey(&id, target.as_deref(), Some(muted));
         }
-        HotkeyRequest::StartHoldToggle { id, target } => start_hold_toggle_hotkey(&id, target),
+        HotkeyRequest::StartHoldToggle { id, target } => {
+            start_hold_hotkey(&id, target.as_deref(), None)
+        }
         HotkeyRequest::ReleaseHold { id } => release_hold_hotkey(&id),
         HotkeyRequest::SetDefaultInput { target } => {
             if let Some(device_id) = target {
@@ -605,8 +606,9 @@ fn release_all_hold_hotkeys() {
         .lock()
         .unwrap()
         .active_hold_hotkeys
-        .keys()
-        .cloned()
+        .iter()
+        .rev()
+        .map(|hold| hold.id.clone())
         .collect();
     for id in ids {
         release_hold_hotkey(&id);
@@ -662,76 +664,158 @@ fn apply_startup_auto_mute() {
     }
 }
 
-fn start_hold_hotkey(id: &str, target: Option<String>, muted: bool) {
-    let previous_muted = match target_mute_state(target.as_deref()) {
-        Ok(previous_muted) => previous_muted,
-        Err(err) => {
-            eprintln!("failed to read hold hotkey state: {err:?}");
-            report_mute_failure(Some(muted), &err);
+fn start_hold_hotkey(id: &str, target: Option<&str>, requested: Option<bool>) {
+    {
+        let state = STATE.lock().unwrap();
+        let down = state.hotkeys_down.contains(id) || state.gamepad_hotkeys_down.contains(id);
+        let same_binding = state.hotkeys.iter().any(|binding| {
+            binding.id == id
+                && binding.target.as_deref() == target
+                && matches!(
+                    (binding.action, requested),
+                    (HotkeyAction::HoldToMute, Some(true))
+                        | (HotkeyAction::HoldToUnmute, Some(false))
+                        | (HotkeyAction::HoldToToggle, None)
+                )
+        });
+        if hotkeys_blocked(&state)
+            || !down
+            || !same_binding
+            || state.active_hold_hotkeys.iter().any(|hold| hold.id == id)
+        {
             return;
         }
-    };
-
-    match set_mute(target.as_deref(), muted) {
-        Ok(target_muted) => {
-            {
-                let mut state = STATE.lock().unwrap();
-                state.active_hold_hotkeys.insert(
-                    id.to_string(),
-                    ActiveHoldHotkey {
-                        target,
-                        previous_muted,
-                    },
-                );
-            }
-
-            let changed = previous_muted != target_muted;
-            if changed {
-                play_hold_to_mute_sound(target_muted);
-            }
-            let show_overlay = STATE.lock().unwrap().hold_to_mute.show_overlay;
-            let global_muted = indicator_mute_state().unwrap_or(target_muted);
-            set_global_mute_state(global_muted, changed && show_overlay);
-        }
-        Err(err) => eprintln!("failed to apply hold hotkey mute state: {err:?}"),
     }
-}
-
-fn start_hold_toggle_hotkey(id: &str, target: Option<String>) {
-    let previous_muted = match target_mute_state(target.as_deref()) {
-        Ok(previous_muted) => previous_muted,
+    let target = target.filter(|id| !id.is_empty());
+    let result = (|| -> Result<_> {
+        if is_all_microphones_target(target) {
+            let muted = match requested {
+                Some(muted) => muted,
+                None => !current_mute_state()?,
+            };
+            return Ok((muted, active_capture_device_volumes()?));
+        }
+        let (volume, endpoint_id) = capture_volume_with_id(target)?;
+        let muted = match requested {
+            Some(muted) => muted,
+            None => !unsafe { volume.GetMute()? }.as_bool(),
+        };
+        Ok((muted, vec![(endpoint_id, volume)]))
+    })();
+    let (muted, volumes) = match result {
+        Ok(targets) => targets,
         Err(err) => {
-            eprintln!("failed to read hold toggle hotkey state: {err:?}");
-            report_mute_failure(None, &err);
+            report_mute_failure(requested, &err);
             return;
         }
     };
-    start_hold_hotkey(id, target, !previous_muted);
+
+    let mut changed = false;
+    let mut endpoints = Vec::new();
+    for (endpoint_id, volume) in volumes {
+        let result = (|| -> Result<bool> {
+            let previous = unsafe { volume.GetMute()?.as_bool() };
+            // Remember even a no-op so overlapping holds retain their intent.
+            endpoints.push((endpoint_id.clone(), previous));
+            if previous != muted {
+                apply_capture_mute(&volume, &endpoint_id, muted)?;
+            }
+            Ok(previous != muted)
+        })();
+        match result {
+            Ok(did_change) => changed |= did_change,
+            Err(err) => report_mute_failure(Some(muted), &err),
+        }
+    }
+    if !endpoints.is_empty() {
+        STATE
+            .lock()
+            .unwrap()
+            .active_hold_hotkeys
+            .push(ActiveHoldHotkey {
+                id: id.to_string(),
+                endpoints,
+            });
+    }
+    publish_hold_mute_state(muted, changed);
 }
 
 fn release_hold_hotkey(id: &str) {
-    let active_hold = {
+    let restore = {
         let mut state = STATE.lock().unwrap();
-        state.active_hold_hotkeys.remove(id)
-    };
-    let Some(active_hold) = active_hold else {
-        return;
-    };
-
-    let current_muted =
-        target_mute_state(active_hold.target.as_deref()).unwrap_or(active_hold.previous_muted);
-    match set_mute(active_hold.target.as_deref(), active_hold.previous_muted) {
-        Ok(target_muted) => {
-            let changed = current_muted != target_muted;
-            if changed {
-                play_hold_to_mute_sound(target_muted);
+        let Some(index) = state
+            .active_hold_hotkeys
+            .iter()
+            .position(|hold| hold.id == id)
+        else {
+            return;
+        };
+        let hold = state.active_hold_hotkeys.remove(index);
+        let mut restore = Vec::new();
+        for (endpoint, previous) in hold.endpoints {
+            // A newer hold still owns this endpoint. Pass down the original
+            // state so releasing it also works when keys are released out of order.
+            let successor = state.active_hold_hotkeys[index..]
+                .iter_mut()
+                .flat_map(|hold| &mut hold.endpoints)
+                .find(|(id, _)| *id == endpoint);
+            if let Some((_, original)) = successor {
+                *original = previous;
+            } else {
+                restore.push((endpoint, previous));
             }
-            let show_overlay = STATE.lock().unwrap().hold_to_mute.show_overlay;
-            let global_muted = indicator_mute_state().unwrap_or(target_muted);
-            set_global_mute_state(global_muted, changed && show_overlay);
         }
-        Err(err) => eprintln!("failed to restore hold hotkey mute state: {err:?}"),
+        restore
+    };
+    let mut changed = None;
+    for (endpoint, previous) in restore {
+        match restore_hold_endpoint(&endpoint, previous) {
+            Ok(true) => changed = Some(previous),
+            Ok(false) => {}
+            Err(err) => {
+                // A device unplugged during push-to-talk may remember its open
+                // state. Remute on reconnect. Never unmute a returning device.
+                if previous {
+                    STATE
+                        .lock()
+                        .unwrap()
+                        .pending_hold_remutes
+                        .insert(endpoint.clone());
+                }
+                eprintln!("failed to restore hold microphone {endpoint}: {err:#}");
+            }
+        }
     }
+    if let Some(muted) = changed {
+        publish_hold_mute_state(muted, true);
+    }
+}
+
+fn restore_hold_endpoint(endpoint: &str, previous: bool) -> Result<bool> {
+    let (volume, id) = capture_volume_with_id(Some(endpoint))?;
+    if unsafe { volume.GetMute()?.as_bool() } == previous {
+        return Ok(false);
+    }
+    apply_capture_mute(&volume, &id, previous)?;
+    Ok(true)
+}
+
+fn restore_reconnected_hold_endpoints() {
+    let endpoints = STATE.lock().unwrap().pending_hold_remutes.clone();
+    for id in endpoints {
+        if restore_hold_endpoint(&id, true).is_ok() {
+            STATE.lock().unwrap().pending_hold_remutes.remove(&id);
+        }
+    }
+}
+
+fn publish_hold_mute_state(muted: bool, changed: bool) {
+    if changed {
+        play_hold_to_mute_sound(muted);
+    }
+    let show_overlay = STATE.lock().unwrap().hold_to_mute.show_overlay;
+    let global_muted = indicator_mute_state().unwrap_or(muted);
+    set_global_mute_state(global_muted, changed && show_overlay);
 }
 
 fn set_global_mute_state(muted: bool, trigger_overlay: bool) {
@@ -810,12 +894,8 @@ pub async fn download_and_install_update_with_status(
     on_installing: impl FnOnce(),
 ) -> Result<()> {
     let package = updater::download_update(&update, on_progress).await?;
-    write_last_update_notification(&update)?;
     on_installing();
-    if let Err(err) = updater::install_update(&update, &package) {
-        clear_last_update_notification();
-        return Err(err);
-    }
+    updater::install_update(&update, package)?;
     request_exit_all_processes();
     std::process::exit(0);
 }

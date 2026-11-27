@@ -21,9 +21,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     env, fs, io,
     mem::size_of,
-    os::windows::process::CommandExt,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use windows::{
@@ -31,20 +29,25 @@ use windows::{
         Foundation::{CloseHandle, ERROR_ACCESS_DENIED, ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_ITEMS, ERROR_SUCCESS, HANDLE, WIN32_ERROR},
         Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation},
         System::{
-            Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS},
+            Com::{CLSCTX_INPROC_SERVER, CoCreateInstance, IPersistFile, STGM_READ},
+            Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+                TH32CS_SNAPPROCESS,
+            },
             Registry::{
                 HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_64KEY, RRF_RT_REG_DWORD, RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ,
                 RegCloseKey, RegDeleteKeyValueW, RegEnumKeyExW, RegEnumValueW, RegGetValueW, RegOpenKeyExW, RegSetKeyValueW,
             },
+            TaskScheduler::{IExecAction, IRegisteredTask, ITaskFolder, ITaskService, TASK_ENUM_HIDDEN, TaskScheduler},
             Threading::{OpenProcess, OpenProcessToken, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE, QueryFullProcessImageNameW, TerminateProcess},
         },
+        UI::Shell::{CommandLineToArgvW, IShellLinkW, SLGP_RAWPATH, ShellLink},
     },
-    core::{PCWSTR, PWSTR},
+    core::{BSTR, Interface, PCWSTR, PWSTR, VARIANT},
 };
 
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const BACKUP_KEY: &str = r"Software\silence!\Volume2AutostartBackup";
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const UNINSTALL_KEY: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
 const UNINSTALL_KEY_WOW64: &str = r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall";
 
@@ -516,8 +519,14 @@ pub fn read_volume2_config(path: impl AsRef<Path>) -> io::Result<Volume2Imported
 /// write needs elevation. This function is not called by detection or by tests.
 pub fn disable_volume2_autostart(autostart: &Volume2Autostart) -> Result<DisabledVolume2Autostart, Volume2ImportError> {
     match autostart {
-        Volume2Autostart::RunKey { hive, value_name, command: _ } => disable_run_value(*hive, value_name),
-        Volume2Autostart::ScheduledTask { task_name, command: _ } => disable_scheduled_task(task_name),
+        Volume2Autostart::RunKey {
+            hive,
+            value_name,
+            command,
+        } => disable_run_value(*hive, value_name, command),
+        Volume2Autostart::ScheduledTask { task_name, command } => {
+            disable_scheduled_task(task_name, command)
+        }
         Volume2Autostart::StartupFile { path } => disable_startup_file(path),
     }
 }
@@ -1212,114 +1221,84 @@ fn find_config_path(installed_exe: Option<&Path>) -> Option<PathBuf> {
     ordered.into_iter().flatten().find(|path| path.is_file())
 }
 
+fn task_scheduler_root() -> windows::core::Result<ITaskFolder> {
+    unsafe {
+        let service: ITaskService = CoCreateInstance(&TaskScheduler, None, CLSCTX_INPROC_SERVER)?;
+        let empty = VARIANT::new();
+        service.Connect(&empty, &empty, &empty, &empty)?;
+        service.GetFolder(&BSTR::from(r"\"))
+    }
+}
+
 fn scheduled_tasks() -> Vec<Volume2Autostart> {
-    let mut tasks = scheduled_tasks_from_schtasks_output(&schtasks_list_output());
-    tasks.extend(scheduled_tasks_on_disk());
-    tasks
-}
-
-fn schtasks_list_output() -> String {
-    let Ok(output) = Command::new("schtasks").args(["/query", "/fo", "LIST", "/v"]).creation_flags(CREATE_NO_WINDOW).output() else {
-        return String::new();
+    let Ok(_com) = crate::ComApartment::join_mta() else {
+        return Vec::new();
     };
-    decode_command_output(&output.stdout)
-}
-
-fn scheduled_tasks_from_schtasks_output(text: &str) -> Vec<Volume2Autostart> {
-    let mut tasks = Vec::new();
-    let mut task_name: Option<String> = None;
-    let mut command: Option<String> = None;
-    let flush = |task_name: &mut Option<String>, command: &mut Option<String>, tasks: &mut Vec<Volume2Autostart>| {
-        if let (Some(name), Some(cmd)) = (task_name.take(), command.take()) {
-            if command_is_volume2(&cmd) {
-                tasks.push(Volume2Autostart::ScheduledTask { task_name: name, command: cmd });
-            }
-        } else {
-            task_name.take();
-            command.take();
-        }
+    let Ok(root) = task_scheduler_root() else {
+        return Vec::new();
     };
-    for line in text.lines() {
-        if line.trim().is_empty() {
-            flush(&mut task_name, &mut command, &mut tasks);
-            continue;
-        }
-        let Some((key, value)) = line.split_once(':') else {
-            continue;
-        };
-        let key = key.trim().to_ascii_lowercase().replace(' ', "");
-        let value = value.trim();
-        if key == "taskname" {
-            if task_name.is_some() {
-                flush(&mut task_name, &mut command, &mut tasks);
+    let mut stack = vec![root];
+    let mut found = Vec::new();
+    unsafe {
+        while let Some(folder) = stack.pop() {
+            if let Ok(children) = folder.GetFolders(0) {
+                for index in 1..=children.Count().unwrap_or(0) {
+                    if let Ok(child) = children.get_Item(&VARIANT::from(index)) {
+                        stack.push(child);
+                    }
+                }
             }
-            task_name = Some(value.to_string());
-        } else if key == "tasktorun" {
-            command = Some(value.to_string());
+            if let Ok(tasks) = folder.GetTasks(TASK_ENUM_HIDDEN.0) {
+                for index in 1..=tasks.Count().unwrap_or(0) {
+                    let Ok(task) = tasks.get_Item(&VARIANT::from(index)) else {
+                        continue;
+                    };
+                    if task.Enabled().is_ok_and(|enabled| enabled.0 != 0)
+                        && let Ok(Some(command)) = scheduled_volume2_command(&task)
+                        && let Ok(path) = task.Path()
+                    {
+                        found.push(Volume2Autostart::ScheduledTask {
+                            task_name: path.to_string(),
+                            command,
+                        });
+                    }
+                }
+            }
         }
     }
-    flush(&mut task_name, &mut command, &mut tasks);
-    tasks
+    found
 }
 
-fn scheduled_tasks_on_disk() -> Vec<Volume2Autostart> {
-    let root = PathBuf::from(r"C:\Windows\System32\Tasks");
-    let mut tasks = Vec::new();
-    let mut stack = vec![root.clone()];
-    while let Some(dir) = stack.pop() {
-        let Ok(entries) = fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-                continue;
-            }
-            let Ok(bytes) = fs::read(&path) else {
-                continue;
+fn scheduled_volume2_command(task: &IRegisteredTask) -> windows::core::Result<Option<String>> {
+    unsafe {
+        let actions = task.Definition()?.Actions()?;
+        let mut count = 0;
+        actions.Count(&mut count)?;
+        if count == 0 {
+            return Ok(None);
+        }
+        let mut executables = Vec::new();
+        for index in 1..=count {
+            let action = actions.get_Item(index)?;
+            let Ok(exec) = action.cast::<IExecAction>() else {
+                return Ok(None);
             };
-            if bytes.len() > 1_048_576 || !bytes_contain_volume2_exe(&bytes) {
-                continue;
+            let mut path = BSTR::new();
+            exec.Path(&mut path)?;
+            let path = path.to_string();
+            if !is_volume2_executable(path.trim().trim_matches('"')) {
+                return Ok(None);
             }
-            let text = decode_command_output(&bytes);
-            let command_node = xml_text(&text, "Command").unwrap_or_else(|| "Volume2.exe".to_string());
-            let arguments = xml_text(&text, "Arguments").unwrap_or_default();
-            let command = if arguments.is_empty() { command_node } else { format!("{command_node} {arguments}") };
-            tasks.push(Volume2Autostart::ScheduledTask {
-                task_name: task_name_from_path(&root, &path),
-                command,
+            let mut arguments = BSTR::new();
+            exec.Arguments(&mut arguments)?;
+            executables.push(if arguments.is_empty() {
+                path
+            } else {
+                format!("{path} {arguments}")
             });
         }
+        Ok(Some(executables.join("\n")))
     }
-    tasks
-}
-
-fn bytes_contain_volume2_exe(bytes: &[u8]) -> bool {
-    let lower = bytes.iter().map(|byte| byte.to_ascii_lowercase()).collect::<Vec<_>>();
-    let utf8 = b"volume2.exe";
-    if lower.windows(utf8.len()).any(|window| window == utf8) {
-        return true;
-    }
-    let utf16 = "volume2.exe".encode_utf16().flat_map(|unit| unit.to_le_bytes()).collect::<Vec<_>>();
-    lower.windows(utf16.len()).any(|window| window == utf16)
-}
-
-fn xml_text(text: &str, tag: &str) -> Option<String> {
-    let start = format!("<{tag}>");
-    let end = format!("</{tag}>");
-    let index = text.find(&start)?;
-    let rest = &text[index + start.len()..];
-    let end_index = rest.find(&end)?;
-    Some(rest[..end_index].trim().to_string())
-}
-
-fn task_name_from_path(root: &Path, file: &Path) -> String {
-    let relative = file.strip_prefix(root).unwrap_or(file);
-    let mut name = String::from("\\");
-    let parts = relative.components().map(|component| component.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>();
-    name.push_str(&parts.join("\\"));
-    name
 }
 
 fn dedupe_tasks(locations: &mut Vec<Volume2Autostart>) {
@@ -1330,8 +1309,33 @@ fn dedupe_tasks(locations: &mut Vec<Volume2Autostart>) {
     });
 }
 
+fn is_volume2_executable(path: &str) -> bool {
+    Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("volume2.exe"))
+}
+
 fn command_is_volume2(command: &str) -> bool {
-    command.to_ascii_lowercase().contains("volume2.exe")
+    use windows::Win32::Foundation::{HLOCAL, LocalFree};
+    let command = command.trim();
+    if command.is_empty() {
+        return false;
+    }
+    let command = crate::wide(command);
+    let mut count = 0;
+    unsafe {
+        let argv = CommandLineToArgvW(PCWSTR(command.as_ptr()), &mut count);
+        if argv.is_null() {
+            return false;
+        }
+        let matches = count > 0
+            && (*argv)
+                .to_string()
+                .is_ok_and(|path| is_volume2_executable(&path));
+        let _ = LocalFree(HLOCAL(argv.cast()));
+        matches
+    }
 }
 
 fn run_key_autostarts() -> Vec<Volume2Autostart> {
@@ -1380,17 +1384,39 @@ fn startup_dirs() -> Vec<PathBuf> {
 }
 
 fn is_volume2_startup_file(path: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-        return false;
-    };
-    let lower = name.to_ascii_lowercase();
-    if lower.starts_with("volume2pm") {
-        return false;
+    if path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("lnk"))
+    {
+        return startup_shortcut_target(path).is_some_and(|target| is_volume2_executable(&target));
     }
-    lower.starts_with("volume2") && (lower.ends_with(".lnk") || lower.ends_with(".exe"))
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(is_volume2_executable)
 }
 
-fn disable_run_value(hive: RegistryHive, value_name: &str) -> Result<DisabledVolume2Autostart, Volume2ImportError> {
+fn startup_shortcut_target(path: &Path) -> Option<String> {
+    let _com = crate::ComApartment::join_mta().ok()?;
+    let path = crate::wide_path(path);
+    unsafe {
+        let shortcut: IShellLinkW =
+            CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?;
+        let persist = shortcut.cast::<IPersistFile>().ok()?;
+        persist.Load(PCWSTR(path.as_ptr()), STGM_READ).ok()?;
+        let mut target = [0u16; 1024];
+        shortcut
+            .GetPath(&mut target, std::ptr::null_mut(), SLGP_RAWPATH.0 as u32)
+            .ok()?;
+        let len = target.iter().position(|ch| *ch == 0)?;
+        Some(String::from_utf16_lossy(&target[..len]))
+    }
+}
+
+fn disable_run_value(
+    hive: RegistryHive,
+    value_name: &str,
+    expected: &str,
+) -> Result<DisabledVolume2Autostart, Volume2ImportError> {
     let command = match reg_get_sz(hive.hkey(), RUN_KEY, value_name) {
         RegRead::Found(command) => command,
         RegRead::Missing => {
@@ -1408,6 +1434,9 @@ fn disable_run_value(hive: RegistryHive, value_name: &str) -> Result<DisabledVol
         }
     };
 
+    if command != expected || !command_is_volume2(&command) {
+        return Err(autostart_changed(value_name));
+    }
     let backup_value = format!("{}_{value_name}", hive.label());
     match reg_get_sz(hive.hkey(), BACKUP_KEY, &backup_value) {
         RegRead::Found(existing) if existing != command => {
@@ -1430,6 +1459,13 @@ fn disable_run_value(hive: RegistryHive, value_name: &str) -> Result<DisabledVol
     let source = format!("{}\\{RUN_KEY}", hive.label());
     if let Err(error) = write_backup(hive, &backup_value, &command, &source) {
         return Err(error);
+    }
+    if reg_get_sz(hive.hkey(), RUN_KEY, value_name)
+        .found()
+        .as_deref()
+        != Some(&command)
+    {
+        return Err(autostart_changed(value_name));
     }
     let status = reg_delete_value(hive.hkey(), RUN_KEY, value_name);
     if status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND {
@@ -1495,26 +1531,44 @@ fn admin_required_run(hive: RegistryHive, value_name: &str, action: &str) -> Vol
     }
 }
 
-fn disable_scheduled_task(task_name: &str) -> Result<DisabledVolume2Autostart, Volume2ImportError> {
-    let output = Command::new("schtasks")
-        .args(["/Change", "/TN", task_name, "/DISABLE"])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .map_err(|error| Volume2ImportError::Failed {
-            message: format!("Could not run schtasks to disable \"{task_name}\": {error}. The task was not changed."),
-        })?;
-    if output.status.success() {
-        return Ok(DisabledVolume2Autostart::DisabledScheduledTask { task_name: task_name.to_string() });
+fn autostart_changed(name: &str) -> Volume2ImportError {
+    Volume2ImportError::NotFound {
+        message: format!(
+            "Autostart entry {name:?} is no longer the detected Volume² entry. Nothing was disabled."
+        ),
     }
-    let detail = format!("{}{}", decode_command_output(&output.stdout), decode_command_output(&output.stderr));
-    let lower = detail.to_ascii_lowercase();
-    if lower.contains("denied") || lower.contains("отказ") || lower.contains("0x80070005") {
-        return Err(Volume2ImportError::AdminRequired {
-            message: format!("Disabling scheduled task \"{task_name}\" needs administrator rights. The task was not changed. {detail}"),
-        });
+}
+
+fn disable_scheduled_task(
+    task_name: &str,
+    expected: &str,
+) -> Result<DisabledVolume2Autostart, Volume2ImportError> {
+    let _com = crate::ComApartment::join_mta().map_err(|err| Volume2ImportError::Failed {
+        message: format!("Could not initialize Task Scheduler. {err:#}"),
+    })?;
+    let task_error = |err: windows::core::Error| {
+        if err.code() == windows::core::HRESULT::from_win32(ERROR_ACCESS_DENIED.0) {
+            Volume2ImportError::AdminRequired {
+                message: format!("Administrator rights are needed to change task {task_name:?}."),
+            }
+        } else {
+            Volume2ImportError::Failed {
+                message: format!("Could not change scheduled task {task_name:?}. {err}"),
+            }
+        }
+    };
+    let root = task_scheduler_root().map_err(task_error)?;
+    let task = unsafe { root.GetTask(&BSTR::from(task_name)) }.map_err(task_error)?;
+    if scheduled_volume2_command(&task)
+        .map_err(task_error)?
+        .as_deref()
+        != Some(expected)
+    {
+        return Err(autostart_changed(task_name));
     }
-    Err(Volume2ImportError::Failed {
-        message: format!("schtasks could not disable \"{task_name}\". The task was not changed. {detail}"),
+    unsafe { task.SetEnabled(windows::Win32::Foundation::VARIANT_FALSE) }.map_err(task_error)?;
+    Ok(DisabledVolume2Autostart::DisabledScheduledTask {
+        task_name: task_name.to_string(),
     })
 }
 
@@ -1523,6 +1577,9 @@ fn disable_startup_file(path: &Path) -> Result<DisabledVolume2Autostart, Volume2
         return Err(Volume2ImportError::NotFound {
             message: format!("Startup file {} is already gone. Nothing was changed.", path.display()),
         });
+    }
+    if !is_volume2_startup_file(path) {
+        return Err(autostart_changed(&path.display().to_string()));
     }
     let mut destination = path.as_os_str().to_os_string();
     destination.push(".disabled-by-silence");
@@ -1689,16 +1746,6 @@ fn enum_value_names(key: HKEY) -> Vec<String> {
 
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
-}
-
-fn decode_command_output(bytes: &[u8]) -> String {
-    if bytes.starts_with(&[0xFF, 0xFE]) {
-        return decode_utf16_le(&bytes[2..]).unwrap_or_default();
-    }
-    if bytes.len() >= 4 && bytes.len() % 2 == 0 && bytes[1] == 0 && bytes[3] == 0 {
-        return decode_utf16_le(bytes).unwrap_or_default();
-    }
-    String::from_utf8_lossy(bytes).into_owned()
 }
 
 #[cfg(test)]
@@ -1898,26 +1945,15 @@ mod tests {
     }
 
     #[test]
-    fn finds_a_volume2_scheduled_task_and_ignores_other_tasks() {
-        let text = "\n\
-TaskName:                             \\Activation-Renewal\n\
-Task To Run:                          %ProgramFiles%\\Activation-Renewal\\Activation_task.cmd Task\n\
-\n\
-TaskName:                             \\Volume2\n\
-Status:                               Ready\n\
-Task To Run:                          \"C:\\Program Files\\Volume2\\Volume2.exe\" /autorun\n\
-\n\
-TaskName:                             \\Volume Controller\n\
-Task To Run:                          C:\\Program Files\\Elgato\\Volume Controller\\watcher.exe\n";
-        let tasks = scheduled_tasks_from_schtasks_output(text);
-        assert_eq!(tasks.len(), 1);
-        match &tasks[0] {
-            Volume2Autostart::ScheduledTask { task_name, command } => {
-                assert_eq!(task_name, "\\Volume2");
-                assert!(command_is_volume2(command));
-            }
-            other => panic!("unexpected {other:?}"),
-        }
+    fn recognizes_only_the_volume2_executable_in_a_run_command() {
+        assert!(command_is_volume2(
+            r#""C:\Program Files\Volume2\Volume2.exe" /autorun"#
+        ));
+        assert!(command_is_volume2("Volume2.exe /autorun"));
+        assert!(!command_is_volume2(
+            r#"C:\Tools\other.exe "C:\Volume2\Volume2.exe""#
+        ));
+        assert!(!command_is_volume2("not-volume2.exe"));
     }
 
     /// Live read of this machine. Does not disable autostart and does not stop Volume².

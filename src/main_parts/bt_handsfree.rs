@@ -30,31 +30,26 @@ fn bluetooth_handsfree_block_enabled() -> bool {
     STATE.lock().unwrap().advanced.block_bluetooth_handsfree
 }
 
-/// Called on startup and on every endpoint change in the tray process.
-fn enforce_bluetooth_handsfree_block() {
-    if !bluetooth_handsfree_block_enabled() {
-        return;
-    }
-    if let Err(err) = disable_bluetooth_handsfree_endpoints() {
-        eprintln!("failed to disable Bluetooth hands-free endpoints: {err:?}");
+/// Queue the setting and topology changes on the same audio worker.
+fn queue_bluetooth_handsfree_sync() {
+    if !send_audio_job(AudioJob::HandsfreeChanged) {
+        enforce_bluetooth_handsfree_block();
     }
 }
 
-/// Called when the setting is toggled.
-fn sync_bluetooth_handsfree_setting(enabled: bool) {
-    let result = if enabled {
+fn enforce_bluetooth_handsfree_block() {
+    let result = if bluetooth_handsfree_block_enabled() {
         disable_bluetooth_handsfree_endpoints()
     } else {
         restore_bluetooth_handsfree_endpoints()
     };
     if let Err(err) = result {
-        eprintln!("failed to sync Bluetooth hands-free setting: {err:?}");
+        eprintln!("failed to sync Bluetooth hands-free setting: {err:#}");
     }
 }
 
 fn disable_bluetooth_handsfree_endpoints() -> Result<()> {
     let mut disabled = load_handsfree_disabled_ids();
-    let mut remembered = false;
     let mut first_error = None;
     for (id, state) in bluetooth_handsfree_endpoints()? {
         // Only live endpoints. A disabled one is done; touching a not-present
@@ -64,20 +59,18 @@ fn disable_bluetooth_handsfree_endpoints() -> Result<()> {
         {
             continue;
         }
-        match set_endpoint_visibility(&id, false) {
-            Ok(()) => {
-                if !disabled.contains(&id) {
-                    disabled.push(id);
-                    remembered = true;
-                }
-            }
-            Err(err) => {
-                first_error.get_or_insert(err);
-            }
+        let newly_remembered = !disabled.contains(&id);
+        if newly_remembered {
+            disabled.push(id.clone());
+            save_handsfree_disabled_ids(&disabled)?;
         }
-    }
-    if remembered {
-        save_handsfree_disabled_ids(&disabled)?;
+        if let Err(err) = set_endpoint_visibility(&id, false) {
+            if newly_remembered {
+                disabled.pop();
+                save_handsfree_disabled_ids(&disabled)?;
+            }
+            first_error.get_or_insert(err);
+        }
     }
     match first_error {
         Some(err) => Err(err),
@@ -93,11 +86,8 @@ fn restore_bluetooth_handsfree_endpoints() -> Result<()> {
     let mut kept = Vec::new();
     for id in disabled {
         if let Err(err) = set_endpoint_visibility(&id, true) {
-            // Keep it so the next "off" can retry, unless the endpoint is gone.
-            if endpoint_exists(&id) {
-                eprintln!("failed to re-enable hands-free endpoint {id}: {err:?}");
-                kept.push(id);
-            }
+            eprintln!("failed to re-enable hands-free endpoint {id}: {err:?}");
+            kept.push(id);
         }
     }
     save_handsfree_disabled_ids(&kept)
@@ -139,13 +129,6 @@ unsafe fn is_bluetooth_handsfree_endpoint(device: &IMMDevice) -> bool {
         .any(|value| value.to_ascii_uppercase().contains(HANDSFREE_ENUMERATOR))
 }
 
-fn endpoint_exists(id: &str) -> bool {
-    let id = wide(id);
-    audio_device_enumerator()
-        .and_then(|enumerator| unsafe { Ok(enumerator.GetDevice(PCWSTR(id.as_ptr()))?) })
-        .is_ok()
-}
-
 fn set_endpoint_visibility(device_id: &str, visible: bool) -> Result<()> {
     let device_id = wide(device_id);
     unsafe {
@@ -182,8 +165,5 @@ fn save_handsfree_disabled_ids(ids: &[String]) -> Result<()> {
         }
         return Ok(());
     }
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).context("create config directory")?;
-    }
-    fs::write(&path, serde_json::to_vec_pretty(ids)?).context("write hands-free endpoint list")
+    write_json_atomically(&path, &ids).context("write hands-free endpoint list")
 }

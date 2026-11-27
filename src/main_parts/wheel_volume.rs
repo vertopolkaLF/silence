@@ -27,15 +27,14 @@
 //! note Instant::now() for should_reinstall_hook (mouse AND keyboard hooks)
 //! if let Some((pt, delta, injected)) = decode_wheel(message, lparam) {
 //!     if !injected && targets.hit(pt, zone) {
-//!         PostMessage the point and delta to the hidden window
+//!         Check the cached fullscreen state and post the delta to the hidden window
 //!         return LRESULT(1) so the window under the cursor does not also scroll
 //!     }
 //! }
 //! CallNextHookEx
 //! ```
 //!
-//! On that posted message: if `fullscreen_blocks_wheel(pt)` then ignore,
-//! otherwise `accumulator.feed(delta)` and apply that many volume notches.
+//! On that posted message, feed the delta into the accumulator and apply the notches.
 //!
 //! Coordinates are physical screen pixels. The process is already per-monitor
 //! DPI aware (`SetProcessDpiAwarenessContext` V2); keep it that way or the
@@ -366,7 +365,9 @@ pub fn fullscreen_blocks_wheel(pt: POINT) -> bool {
     if exclusive_fullscreen_or_presentation() {
         return true;
     }
-    foreground_covers_monitor(pt)
+    fullscreen_foreground_rect(unsafe { GetForegroundWindow() }).is_some_and(|window| {
+        monitor_rect(pt).is_some_and(|monitor| covers_monitor(window, monitor, FULLSCREEN_SLOP))
+    })
 }
 
 /// `true` when an installed low-level hook has probably been dropped.
@@ -477,23 +478,45 @@ fn exclusive_fullscreen_or_presentation() -> bool {
     state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE
 }
 
-fn foreground_covers_monitor(pt: POINT) -> bool {
-    let hwnd = unsafe { GetForegroundWindow() };
+#[derive(Clone, Copy)]
+pub(super) struct FullscreenSnapshot {
+    foreground: isize,
+    window: Option<ScreenRect>,
+    exclusive: bool,
+}
+
+impl FullscreenSnapshot {
+    pub(super) fn read() -> Self {
+        let foreground = unsafe { GetForegroundWindow() };
+        Self {
+            foreground: foreground.0 as isize,
+            window: fullscreen_foreground_rect(foreground),
+            exclusive: exclusive_fullscreen_or_presentation(),
+        }
+    }
+
+    pub(super) fn blocks(self, point: POINT) -> bool {
+        if self.exclusive || unsafe { GetForegroundWindow() }.0 as isize != self.foreground {
+            return true;
+        }
+        self.window.is_some_and(|window| {
+            monitor_rect(point)
+                .is_some_and(|monitor| covers_monitor(window, monitor, FULLSCREEN_SLOP))
+        })
+    }
+}
+
+fn fullscreen_foreground_rect(hwnd: HWND) -> Option<ScreenRect> {
     if hwnd.0.is_null()
         || !is_visible(hwnd)
         || is_iconic(hwnd)
         || is_zoomed(hwnd)
         || window_cloaked(hwnd)
+        || is_shell_or_desktop(&class_name(hwnd))
     {
-        return false;
+        return None;
     }
-    if is_shell_or_desktop(&class_name(hwnd)) {
-        return false;
-    }
-    let (Some(window), Some(monitor)) = (window_rect(hwnd), monitor_rect(pt)) else {
-        return false;
-    };
-    covers_monitor(window, monitor, FULLSCREEN_SLOP)
+    window_rect(hwnd)
 }
 
 fn covers_monitor(window: ScreenRect, monitor: ScreenRect, slop: i32) -> bool {

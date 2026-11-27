@@ -1,7 +1,10 @@
 use std::{
     ffi::c_void,
     ptr::NonNull,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::{ThreadId, current},
     time::Duration,
 };
@@ -9,7 +12,7 @@ use std::{
 use anyhow::Context;
 use gpui_util::ResultExt;
 use windows::Win32::{
-    Foundation::{FILETIME, LPARAM, WPARAM},
+    Foundation::{ERROR_NOT_ENOUGH_QUOTA, FILETIME, LPARAM, WPARAM},
     Media::{timeBeginPeriod, timeEndPeriod},
     System::Threading::{
         CloseThreadpoolTimer, CreateThreadpoolTimer, GetCurrentThread, PTP_CALLBACK_INSTANCE,
@@ -26,7 +29,7 @@ use gpui::{
 };
 
 pub(crate) struct WindowsDispatcher {
-    pub(crate) wake_posted: AtomicBool,
+    pub(crate) wake_posted: Arc<AtomicBool>,
     main_sender: PriorityQueueSender<RunnableVariant>,
     main_thread_id: ThreadId,
     pub(crate) platform_window_handle: SafeHwnd,
@@ -47,7 +50,7 @@ impl WindowsDispatcher {
             main_thread_id,
             platform_window_handle,
             validation_number,
-            wake_posted: AtomicBool::new(false),
+            wake_posted: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -98,6 +101,21 @@ impl WindowsDispatcher {
     }
 }
 
+fn post_main_wake(hwnd: SafeHwnd, validation: usize) -> windows::core::Result<()> {
+    unsafe {
+        PostMessageW(
+            Some(hwnd.as_raw()),
+            WM_GPUI_TASK_DISPATCHED_ON_MAIN_THREAD,
+            WPARAM(validation),
+            LPARAM(0),
+        )
+    }
+}
+
+fn wake_queue_full(error: &windows::core::Error) -> bool {
+    error.code() == windows::core::HRESULT::from_win32(ERROR_NOT_ENOUGH_QUOTA.0)
+}
+
 impl PlatformDispatcher for WindowsDispatcher {
     fn is_main_thread(&self) -> bool {
         current().id() == self.main_thread_id
@@ -118,15 +136,37 @@ impl PlatformDispatcher for WindowsDispatcher {
     fn dispatch_on_main_thread(&self, runnable: RunnableVariant, priority: Priority) {
         match self.main_sender.send(priority, runnable) {
             Ok(_) => {
-                if !self.wake_posted.swap(true, Ordering::AcqRel) {
-                    unsafe {
-                        PostMessageW(
-                            Some(self.platform_window_handle.as_raw()),
-                            WM_GPUI_TASK_DISPATCHED_ON_MAIN_THREAD,
-                            WPARAM(self.validation_number),
-                            LPARAM(0),
-                        )
-                        .log_err();
+                if self.wake_posted.swap(true, Ordering::AcqRel) {
+                    return;
+                }
+                let hwnd = self.platform_window_handle;
+                let validation = self.validation_number;
+                if let Err(err) = post_main_wake(hwnd, validation) {
+                    if !wake_queue_full(&err) {
+                        self.wake_posted.store(false, Ordering::Release);
+                        Err::<(), _>(err).log_err();
+                        return;
+                    }
+                    let posted = Arc::clone(&self.wake_posted);
+                    let retry = std::thread::Builder::new()
+                        .name("gpui-wake-retry".into())
+                        .spawn(move || {
+                            loop {
+                                std::thread::sleep(Duration::from_millis(16));
+                                match post_main_wake(hwnd, validation) {
+                                    Ok(()) => return,
+                                    Err(err) if wake_queue_full(&err) => continue,
+                                    Err(err) => {
+                                        posted.store(false, Ordering::Release);
+                                        Err::<(), _>(err).log_err();
+                                        return;
+                                    }
+                                }
+                            }
+                        });
+                    if let Err(err) = retry {
+                        self.wake_posted.store(false, Ordering::Release);
+                        Err::<(), _>(err).log_err();
                     }
                 }
             }

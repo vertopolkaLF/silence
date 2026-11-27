@@ -158,6 +158,16 @@ pub(crate) fn rebind_settings_audio_notifications() {
     let _ = rebind_output_volume_for_message();
 }
 
+pub(crate) fn watch_settings_device_properties(id: Option<&str>) {
+    AUDIO_NOTIFICATION_REGISTRATION.with(|registration| {
+        if let Some(registration) = registration.borrow_mut().as_mut()
+            && let Err(err) = registration.watch_properties_volume(id)
+        {
+            eprintln!("failed to watch device properties: {err:#}");
+        }
+    });
+}
+
 pub(crate) fn set_settings_mica_enabled(enabled: bool) {
     let enabled = enabled && settings_mica_available();
     SETTINGS_MICA_ENABLED.store(enabled, Ordering::Relaxed);
@@ -240,11 +250,19 @@ unsafe extern "system" fn settings_window_proc(
         }
         WM_OUTPUT_DEVICE_CHANGED => {
             let _ = rebind_output_volume_for_message();
+            settings_ui::live::push(settings_ui::live::LiveEvent::EndpointsChanged);
             return LRESULT(0);
         }
-        WM_OUTPUT_VOLUME_CHANGED => return LRESULT(0),
+        WM_OUTPUT_VOLUME_CHANGED => {
+            settings_ui::live::push(settings_ui::live::LiveEvent::MuteChanged);
+            return LRESULT(0);
+        }
         WM_CONFIG_CHANGED => {
             settings_ui::live::push(settings_ui::live::LiveEvent::ConfigChanged);
+            return LRESULT(0);
+        }
+        WM_UPDATE_NOW => {
+            settings_ui::live::push(settings_ui::live::LiveEvent::OpenAbout);
             return LRESULT(0);
         }
         WM_OPEN_DEVICES => {
@@ -620,14 +638,11 @@ fn dispatch_notification_action(action: NotificationAction) -> bool {
         NotificationAction::Unmute => WM_UNMUTE,
         NotificationAction::OpenSettings => WM_OPEN_SETTINGS,
         NotificationAction::UpdateNow => WM_UPDATE_NOW,
-        NotificationAction::ViewUpdate => WM_OPEN_SETTINGS,
+        NotificationAction::ViewUpdate => WM_UPDATE_NOW,
         NotificationAction::WhatsNew => WM_WHATS_NEW,
         NotificationAction::ExitAll => WM_EXIT_ALL,
     };
-    unsafe {
-        let _ = SendMessageW(hwnd, message, WPARAM(0), LPARAM(0));
-    }
-    true
+    unsafe { PostMessageW(hwnd, message, WPARAM(0), LPARAM(0)).is_ok() }
 }
 
 fn apply_pending_notification_action() {
@@ -643,8 +658,8 @@ fn handle_notification_action(action: NotificationAction) {
         NotificationAction::Mute => set_mute_target(None, true),
         NotificationAction::Unmute => set_mute_target(None, false),
         NotificationAction::OpenSettings => launch_settings_window(Some("--about")),
-        NotificationAction::UpdateNow => launch_settings_window(Some("--about-update")),
-        NotificationAction::ViewUpdate => launch_settings_window(Some("--about")),
+        NotificationAction::UpdateNow => open_update_settings(),
+        NotificationAction::ViewUpdate => open_update_settings(),
         NotificationAction::WhatsNew => open_last_update_release(),
         NotificationAction::ExitAll => exit_all_processes(),
     }
@@ -687,7 +702,10 @@ fn ensure_audio_notification_registration_for(hwnd: HWND) -> RenderVolumeBind {
         }
 
         match AudioNotificationRegistration::new(hwnd) {
-            Ok(value) => {
+            Ok(mut value) => {
+                if let Err(err) = value.rebind_indicator_capture_volume() {
+                    eprintln!("failed to bind indicator capture mute notifications: {err:#}");
+                }
                 *registration = Some(value);
                 true
             }

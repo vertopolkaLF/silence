@@ -21,6 +21,7 @@ pub(crate) enum LiveEvent {
     ConfigChanged,
     DisplaysChanged,
     OpenDevices,
+    OpenAbout,
 }
 
 static EVENTS: Lazy<(flume::Sender<LiveEvent>, flume::Receiver<LiveEvent>)> =
@@ -76,6 +77,10 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
             let mut events = vec![first];
             events.extend(receiver.try_iter());
             let alive = this.update(cx, |app, cx| {
+                if events.contains(&LiveEvent::OpenAbout) {
+                    app.nav.select(super::shell::nav::SettingsTab::About);
+                    cx.notify();
+                }
                 if events.contains(&LiveEvent::OpenDevices) {
                     app.nav.select(super::shell::nav::SettingsTab::Devices);
                     app.refresh_devices(cx);
@@ -83,17 +88,27 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
                 }
                 if events.contains(&LiveEvent::EndpointsChanged) {
                     crate::rebind_settings_audio_notifications();
+                    crate::watch_settings_device_properties(None);
+                    crate::watch_settings_device_properties(
+                        app.sections
+                            .devices
+                            .open_properties()
+                            .map(|open| open.id.as_str()),
+                    );
                     app.refresh_devices(cx);
                 }
                 if events.iter().any(|event| {
                     matches!(event, LiveEvent::MuteChanged | LiveEvent::EndpointsChanged)
                 }) {
-                    let muted = crate::mic_mute_state(None).unwrap_or(app.snapshot.muted);
+                    let muted =
+                        super::snapshot_mute(&app.snapshot.config).unwrap_or(app.snapshot.muted);
                     if muted != app.snapshot.muted {
                         app.snapshot.muted = muted;
                         cx.notify();
                     }
-                    app.sections.devices.refresh_open_properties();
+                    if app.sections.devices.refresh_open_properties() {
+                        cx.notify();
+                    }
                 }
                 if events.contains(&LiveEvent::ConfigChanged) {
                     app.reload_config(cx);
@@ -117,6 +132,7 @@ pub(super) fn start(window: &mut Window, cx: &mut Context<SettingsApp>) -> [Task
                 .timer(Duration::from_millis(crate::MIC_IN_USE_REFRESH_MS))
                 .await;
             let alive = this.update(cx, |app, cx| {
+                crate::prune_finished_audio();
                 let apps = crate::current_mic_using_apps();
                 if apps != app.snapshot.mic_using_apps {
                     app.snapshot.mic_using_apps = apps;

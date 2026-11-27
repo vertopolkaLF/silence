@@ -1,4 +1,28 @@
+/// Balance each successful COM initialization, including S_FALSE.
+struct ComApartment(bool);
+
+impl ComApartment {
+    fn join_mta() -> Result<Self> {
+        let result = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        if result == windows::Win32::Foundation::RPC_E_CHANGED_MODE {
+            return Ok(Self(false));
+        }
+        result.ok().context("initialize COM apartment")?;
+        Ok(Self(true))
+    }
+}
+
+impl Drop for ComApartment {
+    fn drop(&mut self) {
+        if self.0 {
+            unsafe { windows::Win32::System::Com::CoUninitialize() };
+        }
+    }
+}
+
 fn cleanup() {
+    release_all_hold_hotkeys();
+    let _ = restore_all_premute_capture_volumes();
     let hwnd = STATE.lock().unwrap().hwnd;
     bt_media::shutdown(hwnd);
     shutdown_audio_notification_registration();

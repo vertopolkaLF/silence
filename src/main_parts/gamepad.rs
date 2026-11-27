@@ -1,3 +1,12 @@
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum GamepadSource {
+    XInput(u32),
+    Gilrs(gilrs::GamepadId),
+}
+
+static GAMEPAD_INPUT_SOURCES: Lazy<Mutex<HashMap<GamepadSource, HashSet<GamepadInput>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
 fn start_xinput_monitor(enable_hotkeys: bool) {
     if XINPUT_MONITOR_STARTED.swap(true, Ordering::Relaxed) {
         return;
@@ -9,7 +18,10 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
         let mut previous_connected = [false; 4];
         loop {
             if !gamepad_monitoring_needed(enable_hotkeys) {
-                reset_gamepad_input_state(enable_hotkeys);
+                reset_gamepad_backend(true, enable_hotkeys);
+                previous_buttons.fill(0);
+                previous_left_trigger.fill(false);
+                previous_right_trigger.fill(false);
                 thread::sleep(Duration::from_millis(GAMEPAD_INACTIVE_POLL_MS));
                 continue;
             }
@@ -22,6 +34,9 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
                 any_connected |= connected;
                 if connected != previous_connected[user_index as usize] {
                     previous_connected[user_index as usize] = connected;
+                    if !connected {
+                        disconnect_gamepad(GamepadSource::XInput(user_index), enable_hotkeys);
+                    }
                     eprintln!(
                         "xinput controller {} {}",
                         user_index,
@@ -45,7 +60,12 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
                     for (mask, input) in xinput_button_inputs() {
                         if changed & mask != 0 {
                             let down = buttons & mask != 0;
-                            handle_gamepad_input_change(input, down, enable_hotkeys);
+                            handle_gamepad_input_change(
+                                GamepadSource::XInput(user_index),
+                                input,
+                                down,
+                                enable_hotkeys,
+                            );
                         }
                     }
                     previous_buttons[user_index as usize] = buttons;
@@ -58,6 +78,7 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
                 if left_trigger != previous_left_trigger[user_index as usize] {
                     previous_left_trigger[user_index as usize] = left_trigger;
                     handle_gamepad_input_change(
+                        GamepadSource::XInput(user_index),
                         GamepadInput::Button {
                             button: GamepadButton::LeftTrigger2,
                         },
@@ -73,6 +94,7 @@ fn start_xinput_monitor(enable_hotkeys: bool) {
                 if right_trigger != previous_right_trigger[user_index as usize] {
                     previous_right_trigger[user_index as usize] = right_trigger;
                     handle_gamepad_input_change(
+                        GamepadSource::XInput(user_index),
                         GamepadInput::Button {
                             button: GamepadButton::RightTrigger2,
                         },
@@ -216,7 +238,6 @@ fn run_background_app() -> Result<()> {
     }
     start_background_workers();
     register_notification_integration();
-    updater::cleanup_downloads_after_startup();
     maybe_show_updated_notification();
     if !launched_from_installer() && !development_tools_enabled() {
         start_update_check();
@@ -235,7 +256,7 @@ fn run_background_app() -> Result<()> {
         ensure_gamepad_monitors(true);
     }
     ensure_audio_notification_registration();
-    enforce_bluetooth_handsfree_block();
+    queue_bluetooth_handsfree_sync();
     // Seed the default microphone so the first real switch shows the OSD.
     on_capture_endpoints_changed();
     if volume_module_enabled() {
@@ -253,7 +274,7 @@ fn run_background_app() -> Result<()> {
         let _ = SetTimer(hwnd, ID_HOOK_HEALTH_TIMER, wheel_refresh_ms(), None);
     }
     // Startup work above must not look like a hook that already died.
-    note_hook_event();
+    reset_hook_health();
 
     unsafe {
         let mut msg = MSG::default();
@@ -346,7 +367,7 @@ fn spawn_input_hook_thread() -> Result<()> {
             }
             while unsafe { GetMessageW(&mut msg, None, 0, 0) }.as_bool() {
                 if msg.hwnd.0.is_null() && msg.message == WM_REINSTALL_HOOKS {
-                    reinstall_low_level_hooks();
+                    reinstall_low_level_hooks(msg.wParam);
                     continue;
                 }
                 unsafe {
@@ -365,7 +386,7 @@ fn spawn_input_hook_thread() -> Result<()> {
 /// Without a tray window (the settings process) it runs right here, as before.
 fn dispatch_hook_action(action: HotkeyRequest) {
     let hwnd = tray_hwnd();
-    if hwnd.0.is_null() || INPUT_HOOK_THREAD.load(Ordering::Acquire) != unsafe { GetCurrentThreadId() } {
+    if hwnd.0.is_null() {
         run_hotkey_action(action);
         return;
     }
@@ -417,7 +438,7 @@ fn start_gamepad_monitor(enable_hotkeys: bool) {
 
         loop {
             if !gamepad_monitoring_needed(enable_hotkeys) {
-                reset_gamepad_input_state(enable_hotkeys);
+                reset_gamepad_backend(false, enable_hotkeys);
                 thread::sleep(Duration::from_millis(GAMEPAD_INACTIVE_POLL_MS));
                 continue;
             }
@@ -436,12 +457,12 @@ fn start_gamepad_monitor(enable_hotkeys: bool) {
                     }
                     EventType::Disconnected => {
                         connected_gamepads = gilrs.gamepads().count();
-                        reset_gamepad_input_state(enable_hotkeys);
+                        disconnect_gamepad(GamepadSource::Gilrs(event.id), enable_hotkeys);
                         eprintln!("gamepad disconnected; connected gamepads: {connected_gamepads}");
                     }
                     _ => {}
                 }
-                handle_gamepad_event(event.event, enable_hotkeys);
+                handle_gamepad_event(GamepadSource::Gilrs(event.id), event.event, enable_hotkeys);
 
                 if connected_gamepads == 0 {
                     break;
@@ -470,36 +491,67 @@ fn gamepad_monitoring_needed(enable_hotkeys: bool) -> bool {
             .any(|hotkey| hotkey.gamepad.is_some())
 }
 
-fn reset_gamepad_input_state(enable_hotkeys: bool) {
-    SETTINGS_GAMEPAD_HELD.lock().unwrap().clear();
-    if enable_hotkeys {
-        let mut state = STATE.lock().unwrap();
-        state.gamepad_inputs_down.clear();
-        state.gamepad_hotkeys_down.clear();
+fn reset_gamepad_backend(xinput: bool, enable_hotkeys: bool) {
+    let mut sources = GAMEPAD_INPUT_SOURCES.lock().unwrap();
+    let previous: HashSet<_> = sources.values().flatten().copied().collect();
+    sources.retain(|source, _| matches!(source, GamepadSource::XInput(_)) != xinput);
+    for input in previous {
+        if !sources.values().any(|held| held.contains(&input)) {
+            apply_gamepad_input_change(input, false, enable_hotkeys);
+        }
     }
 }
 
-fn handle_gamepad_event(event: EventType, enable_hotkeys: bool) {
-    match event {
-        EventType::ButtonPressed(button, _) => {
-            if let Some(input) =
-                GamepadButton::from_gilrs(button).map(|button| GamepadInput::Button { button })
-            {
-                handle_gamepad_input_change(input, true, enable_hotkeys);
+fn disconnect_gamepad(source: GamepadSource, enable_hotkeys: bool) {
+    let mut sources = GAMEPAD_INPUT_SOURCES.lock().unwrap();
+    if let Some(inputs) = sources.remove(&source) {
+        for input in inputs {
+            if !sources.values().any(|held| held.contains(&input)) {
+                apply_gamepad_input_change(input, false, enable_hotkeys);
             }
         }
-        EventType::ButtonReleased(button, _) => {
-            if let Some(input) =
-                GamepadButton::from_gilrs(button).map(|button| GamepadInput::Button { button })
-            {
-                handle_gamepad_input_change(input, false, enable_hotkeys);
-            }
-        }
-        _ => {}
     }
 }
 
-fn handle_gamepad_input_change(input: GamepadInput, down: bool, enable_hotkeys: bool) {
+fn handle_gamepad_event(source: GamepadSource, event: EventType, enable_hotkeys: bool) {
+    let (button, down) = match event {
+        EventType::ButtonPressed(button, _) => (button, true),
+        EventType::ButtonReleased(button, _) => (button, false),
+        _ => return,
+    };
+    if let Some(button) = GamepadButton::from_gilrs(button) {
+        handle_gamepad_input_change(
+            source,
+            GamepadInput::Button { button },
+            down,
+            enable_hotkeys,
+        );
+    }
+}
+
+fn handle_gamepad_input_change(
+    source: GamepadSource,
+    input: GamepadInput,
+    down: bool,
+    enable_hotkeys: bool,
+) {
+    let mut sources = GAMEPAD_INPUT_SOURCES.lock().unwrap();
+    let was_down = sources.values().any(|held| held.contains(&input));
+    if down {
+        sources.entry(source).or_default().insert(input);
+    } else if let Some(held) = sources.get_mut(&source) {
+        held.remove(&input);
+        if held.is_empty() {
+            sources.remove(&source);
+        }
+    }
+    let now_down = sources.values().any(|held| held.contains(&input));
+    if was_down != now_down {
+        apply_gamepad_input_change(input, now_down, enable_hotkeys);
+    }
+}
+
+fn apply_gamepad_input_change(input: GamepadInput, down: bool, enable_hotkeys: bool) {
     if SETTINGS_GAMEPAD_RECORDING.load(Ordering::Relaxed) {
         let mut held = SETTINGS_GAMEPAD_HELD.lock().unwrap();
         if down {
@@ -513,24 +565,22 @@ fn handle_gamepad_input_change(input: GamepadInput, down: bool, enable_hotkeys: 
         return;
     }
 
-    let mut actions = Vec::new();
-    {
+    let actions = {
         let mut state = STATE.lock().unwrap();
-        if hotkeys_blocked(&state) {
-            return;
-        }
-
         if down {
+            if hotkeys_blocked(&state) {
+                return;
+            }
             state.gamepad_inputs_down.insert(input);
-            actions.extend(gamepad_press_actions(&mut state, input));
+            gamepad_press_actions(&mut state, input)
         } else {
             state.gamepad_inputs_down.remove(&input);
-            actions.extend(gamepad_release_actions(&mut state, input));
+            gamepad_release_actions(&mut state, input)
         }
-    }
+    };
 
     for action in actions {
-        run_hotkey_action(action);
+        dispatch_hook_action(action);
     }
 }
 

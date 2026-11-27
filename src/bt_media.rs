@@ -41,8 +41,8 @@ use windows::{
         UI::{
             Accessibility::{HWINEVENTHOOK, SetWinEventHook, UnhookWinEvent},
             Input::{
-                GetRawInputData, GetRawInputDeviceInfoW, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE,
-                RAWINPUTHEADER, RID_INPUT, RIDEV_INPUTSINK, RIDEV_REMOVE, RIDI_PREPARSEDDATA,
+                GetRawInputData, GetRawInputDeviceInfoW, HRAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
+                RID_INPUT, RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDEV_REMOVE, RIDI_PREPARSEDDATA,
                 RIM_TYPEHID, RegisterRawInputDevices,
             },
             WindowsAndMessaging::{
@@ -268,7 +268,7 @@ pub fn handle_raw_input(lparam: LPARAM) -> Vec<BtMediaEvent> {
     if query == u32::MAX || size < header_size {
         return Vec::new();
     }
-    let mut buffer = vec![0u8; size as usize];
+    let mut buffer = vec![0u32; (size as usize).div_ceil(size_of::<u32>())];
     let read = unsafe {
         GetRawInputData(
             raw_handle,
@@ -278,38 +278,34 @@ pub fn handle_raw_input(lparam: LPARAM) -> Vec<BtMediaEvent> {
             header_size,
         )
     };
-    if read == u32::MAX || read < header_size {
+    let length = read as usize;
+    let header_end = header_size as usize;
+    let reports_start = header_end + 2 * size_of::<u32>();
+    if length < reports_start || length > buffer.len() * size_of::<u32>() {
         return Vec::new();
     }
-    let (device_handle, device_key, report_size, report_count, raw_data_offset) = {
-        let raw = unsafe { &*(buffer.as_ptr() as *const RAWINPUT) };
-        if raw.header.dwType != RIM_TYPEHID.0 {
-            return Vec::new();
-        }
-        let device_handle = raw.header.hDevice;
-        let device_key = device_handle.0 as isize;
-        let hid = unsafe { &raw.data.hid };
-        let report_size = hid.dwSizeHid as usize;
-        let report_count = hid.dwCount as usize;
-        let base = buffer.as_ptr() as usize;
-        let data_ptr = std::ptr::addr_of!(hid.bRawData) as usize;
-        let raw_data_offset = data_ptr.saturating_sub(base);
-        (
-            device_handle,
-            device_key,
-            report_size,
-            report_count,
-            raw_data_offset,
-        )
+
+    // GetRawInputData requires DWORD alignment. The packet contains a header
+    // followed by two DWORDs and variable-length reports, not a full RAWINPUT.
+    let header = unsafe { std::ptr::read_unaligned(buffer.as_ptr().cast::<RAWINPUTHEADER>()) };
+    if header.dwType != RIM_TYPEHID.0 || header.dwSize as usize != length {
+        return Vec::new();
+    }
+    let packet =
+        unsafe { std::slice::from_raw_parts_mut(buffer.as_mut_ptr().cast::<u8>(), length) };
+    let report_size =
+        u32::from_ne_bytes(packet[header_end..header_end + 4].try_into().unwrap()) as usize;
+    let report_count =
+        u32::from_ne_bytes(packet[header_end + 4..reports_start].try_into().unwrap()) as usize;
+    let Some(report_bytes) = report_size.checked_mul(report_count) else {
+        return Vec::new();
     };
-    if report_size == 0 || report_count == 0 {
+    if report_bytes == 0 || report_bytes > length - reports_start {
         return Vec::new();
     }
-    let needed = raw_data_offset.saturating_add(report_size.saturating_mul(report_count));
-    if needed > read as usize {
-        return Vec::new();
-    }
-    let reports = &mut buffer[raw_data_offset..needed];
+    let reports = &mut packet[reports_start..reports_start + report_bytes];
+    let device_handle = header.hDevice;
+    let device_key = device_handle.0 as isize;
 
     let mut events = Vec::new();
     STATE.with(|cell| {
@@ -345,7 +341,10 @@ pub fn handle_raw_input(lparam: LPARAM) -> Vec<BtMediaEvent> {
             if status != HIDP_STATUS_SUCCESS {
                 continue;
             }
-            let current: HashSet<u16> = usages[..usage_count as usize].iter().copied().collect();
+            let Some(usages) = usages.get(..usage_count as usize) else {
+                continue;
+            };
+            let current: HashSet<u16> = usages.iter().copied().collect();
             let prev = state.hid_pressed.entry(device_key).or_default();
             for &usage in &current {
                 if !prev.contains(&usage)
@@ -538,11 +537,23 @@ fn hide_hwnd_locked(state: &mut NativeOsdState, hwnd: HWND, now: Instant) {
     state.last_hide_at = Some(now);
 }
 
+pub fn forget_raw_input_device(device: LPARAM) {
+    STATE.with(|cell| {
+        let mut state = cell.borrow_mut();
+        state.hid_preparsed.remove(&device.0);
+        state.hid_pressed.remove(&device.0);
+    });
+}
+
 fn register_consumer_raw_input(hwnd: HWND, enable: bool) {
     let device = RAWINPUTDEVICE {
         usUsagePage: HID_USAGE_PAGE_CONSUMER,
         usUsage: HID_USAGE_CONSUMER_CONTROL,
-        dwFlags: if enable { RIDEV_INPUTSINK } else { RIDEV_REMOVE },
+        dwFlags: if enable {
+            RIDEV_INPUTSINK | RIDEV_DEVNOTIFY
+        } else {
+            RIDEV_REMOVE
+        },
         hwndTarget: if enable { hwnd } else { HWND::default() },
     };
     unsafe {
